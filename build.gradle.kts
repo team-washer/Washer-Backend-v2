@@ -22,6 +22,7 @@ configurations {
 repositories {
     mavenCentral()
     maven { url = uri("https://repo.spring.io/snapshot") }
+    maven { url = uri("https://jitpack.io") }
 }
 
 dependencies {
@@ -34,7 +35,7 @@ dependencies {
     compileOnly("org.projectlombok:lombok")
     developmentOnly("org.springframework.boot:spring-boot-devtools")
     developmentOnly("org.springframework.boot:spring-boot-docker-compose")
-    runtimeOnly("org.hsqldb:hsqldb")
+    runtimeOnly("com.mysql:mysql-connector-j")
     annotationProcessor("org.projectlombok:lombok")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

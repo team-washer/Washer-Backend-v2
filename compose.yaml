@@ -1,4 +1,14 @@
 services:
+  mysql:
+    image: 'mysql:latest'
+    ports:
+      - '3306'
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: washer
+      MYSQL_PASSWORD: password
+      MYSQL_USER: washeruser
+
   redis:
     image: 'redis:latest'
     ports:

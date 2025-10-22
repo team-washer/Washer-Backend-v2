@@ -1,7 +1,7 @@
 pluginManagement {
-	repositories {
-		maven { url = uri("https://repo.spring.io/snapshot") }
-		gradlePluginPortal()
-	}
+    repositories {
+        maven { url = uri("https://repo.spring.io/snapshot") }
+        gradlePluginPortal()
+    }
 }
-rootProject.name = "server.v2"
+rootProject.name = "Washer-Backend-v2"
