@@ -2,6 +2,41 @@ plugins {
     java
     id("org.springframework.boot") version "4.0.0-SNAPSHOT"
     id("io.spring.dependency-management") version "1.1.7"
+    id("com.diffplug.spotless") version "6.25.0"
+}
+
+ext {
+    set("springCloudVersion", "2025.1.0-M4")
+}
+
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.1.0-M4")
+    }
+}
+
+spotless {
+    java {
+        target("src/main/java/**/*.java", "src/test/java/**/*.java")
+        eclipse()
+        indentWithSpaces(4)
+        importOrder("java", "javax", "org", "com", " ")
+        removeUnusedImports()
+        endWithNewline()
+        trimTrailingWhitespace()
+    }
+    groovyGradle {
+        target("*.gradle")
+        greclipse()
+    }
+}
+
+tasks.compileJava {
+    dependsOn("spotlessApply")
+}
+
+tasks.compileTestJava {
+    dependsOn("spotlessApply")
 }
 
 group = "team.washer"
@@ -32,7 +67,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-mail")
     implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("org.springframework.boot:spring-boot-starter-webmvc")
+    implementation("org.springframework.boot:spring-boot-starter-web")
 
     // Lombok
     compileOnly("org.projectlombok:lombok")
@@ -46,9 +81,30 @@ dependencies {
     // Database Drivers
     runtimeOnly("com.mysql:mysql-connector-j")
 
+    // Jakarta EE
+    implementation("jakarta.persistence:jakarta.persistence-api")
+    implementation("jakarta.transaction:jakarta.transaction-api")
+
+    // QueryDSL
+    implementation("io.github.openfeign.querydsl:querydsl-jpa:7.0")
+
+    // OpenFeign
+    implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
+
+    // JWT
+    implementation("io.jsonwebtoken:jjwt-api:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+
     // Test Dependencies
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    // Documentation
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.11")
+
+    // Custom Libraries
+    implementation("com.github.snowykte0426:peanut-butter:1.4.1")
 }
 
 tasks.withType<Test> {
