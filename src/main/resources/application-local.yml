@@ -1,13 +1,14 @@
 spring:
+  profiles:
+    active: local
+    default: local
   application:
     name: Washer-Backend-v2
-  
   datasource:
     url: jdbc:mysql://localhost:3306/serverv2
     username: root
     password: password
     driver-class-name: com.mysql.cj.jdbc.Driver
-  
   jpa:
     hibernate:
       ddl-auto: update
@@ -16,3 +17,16 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 1
+          max-wait: -1ms
+server:
+  port: 8080
+  shutdown: immediate
