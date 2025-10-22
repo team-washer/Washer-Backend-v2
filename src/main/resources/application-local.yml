@@ -5,8 +5,8 @@ spring:
   application:
     name: Washer-Backend-v2
   datasource:
-    url: jdbc:mysql://localhost:3306/serverv2
-    username: root
+    url: jdbc:mysql://localhost:3306/washer
+    username: washeruser
     password: password
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
@@ -30,3 +30,6 @@ spring:
 server:
   port: 8080
   shutdown: immediate
+third-party:
+  discord:
+    webhook-url: ${DISCORD_WEBHOOK_URL:https://discord.com/api/webhooks/your-webhook-url}
