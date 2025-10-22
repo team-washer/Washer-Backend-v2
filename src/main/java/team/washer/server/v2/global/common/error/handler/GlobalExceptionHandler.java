@@ -63,7 +63,6 @@ public class GlobalExceptionHandler {
     public CommonApiResDto handleException(Exception ex) {
         log.error("핸들링되지 않은 예외 발생 : {}", ex.getMessage(), ex);
 
-        // Discord 알림 전송 (prod 프로파일에서만 동작)
         if (discordErrorNotificationService != null) {
             discordErrorNotificationService.notifyError(ex);
         }
