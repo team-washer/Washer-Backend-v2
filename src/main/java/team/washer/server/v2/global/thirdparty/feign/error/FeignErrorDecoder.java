@@ -47,7 +47,7 @@ public class FeignErrorDecoder implements ErrorDecoder {
             logMessage.append(", 요청 헤더: ").append(requestHeaders);
 
             if (response.request().body() != null) {
-                String requestBody = new String(response.request().body(), StandardCharsets.UTF_8);
+                String requestBody = extractRequestBody(response);
                 logMessage.append(", 요청 본문: ").append(requestBody);
             }
         } catch (Exception e) {
@@ -55,6 +55,20 @@ public class FeignErrorDecoder implements ErrorDecoder {
         }
 
         log.error(logMessage.toString());
+    }
+
+    private String extractRequestBody(Response response) {
+        byte[] body = response.request().body();
+        if (body == null) {
+            return "요청 본문 없음";
+        }
+
+        String contentType = getContentType(response.request().headers());
+        if (isTextBasedContentType(contentType)) {
+            return new String(body, StandardCharsets.UTF_8);
+        } else {
+            return "[바이너리 데이터, " + body.length + " bytes]";
+        }
     }
 
     private String extractErrorBody(Response response) {
@@ -66,6 +80,30 @@ public class FeignErrorDecoder implements ErrorDecoder {
             return "응답 본문 읽기 실패: " + e.getMessage();
         }
         return "응답 본문 없음";
+    }
+
+    private String getContentType(Map<String, Collection<String>> headers) {
+        if (headers == null) {
+            return null;
+        }
+        for (Map.Entry<String, Collection<String>> entry : headers.entrySet()) {
+            if ("content-type".equalsIgnoreCase(entry.getKey()) && entry.getValue() != null && !entry.getValue()
+                .isEmpty()) {
+                return entry.getValue().iterator().next();
+            }
+        }
+        return null;
+    }
+
+    private boolean isTextBasedContentType(String contentType) {
+        if (contentType == null) {
+            return false;
+        }
+        String lowerContentType = contentType.toLowerCase();
+        return lowerContentType.startsWith("text/") || lowerContentType.contains("application/json")
+            || lowerContentType.contains("application/xml") || lowerContentType.contains(
+            "application/x-www-form-urlencoded") || lowerContentType.contains("application/problem+json")
+            || lowerContentType.contains("application/graphql");
     }
 
     private ExpectedException createExpectedException(int status) {
