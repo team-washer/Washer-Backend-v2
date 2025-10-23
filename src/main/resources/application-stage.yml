@@ -2,17 +2,15 @@ spring:
   application:
     name: Washer-Backend-v2
   datasource:
-    url: jdbc:mysql://localhost:3306/washer
-    username: washeruser
-    password: password
+    url: jdbc:mysql://amond-server.kro.kr:3306/washer
+    username: root
+    password: rootpassword
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
     properties:
       hibernate:
-        format_sql: true
         dialect: org.hibernate.dialect.MySQLDialect
   data:
     redis:
@@ -24,6 +22,13 @@ spring:
           max-idle: 5
           min-idle: 1
           max-wait: -1ms
+  security:
+    cors:
+      allowed-origins:
+        - '*'
+  docker:
+    compose:
+      enabled: true
 server:
   port: 8080
   shutdown: immediate
