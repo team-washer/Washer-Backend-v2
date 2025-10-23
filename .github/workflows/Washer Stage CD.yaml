@@ -8,7 +8,7 @@ on:
 jobs:
   Stage-CD:
     runs-on: ubuntu-latest
-    environment: Stage CD
+    environment: Stage-CD
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v5
