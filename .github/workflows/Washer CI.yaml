@@ -28,7 +28,7 @@ jobs:
         run: ./gradlew test
 
       - name: Code Format Check
-        run: ./gradlew checkFormat
+        run: ./gradlew spotlessCheck
 
       - name: CI Success Notification
         uses: sarisia/actions-status-discord@v1
