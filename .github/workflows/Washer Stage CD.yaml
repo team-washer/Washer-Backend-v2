@@ -39,7 +39,7 @@ jobs:
                 - name: SPRING_DATA_REDIS_PASSWORD
                   value: ${{ secrets.REDIS_PASSWORD }}
                 - name: THIRD_PARTY_DISCORD_WEBHOOK_URL
-                  value: ${{ secrets.DISCORD_WEBHOOK }}
+                  value: ${{ secrets.DISCORD_EMERGENCY_ALERT_CHANNEL_WEBHOOK }}
               args:
                 - RDB_URL=${{ secrets.RDB_URL }}
                 - RDB_USERNAME=${{ secrets.RDB_USERNAME }}
@@ -47,7 +47,7 @@ jobs:
                 - REDIS_HOST=${{ secrets.REDIS_HOST }}
                 - REDIS_PORT=${{ secrets.REDIS_PORT }}
                 - REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
-                - DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK }}
+                - DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_EMERGENCY_ALERT_CHANNEL_WEBHOOK }}
             context:
               git:
                 url: https://github.com/${{ github.repository }}.git
@@ -58,12 +58,12 @@ jobs:
         uses: sarisia/actions-status-discord@v1
         if: success()
         with:
-          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
           color: 0x4CAF50
 
       - name: CD Failure Notification
         uses: sarisia/actions-status-discord@v1
         if: failure()
         with:
-          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
           color: 0xFF4C4C
