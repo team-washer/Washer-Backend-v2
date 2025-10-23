@@ -1,7 +1,4 @@
 spring:
-  profiles:
-    active: local
-    default: local
   application:
     name: Washer-Backend-v2
   datasource:
