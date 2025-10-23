@@ -68,6 +68,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-security")
 
     // Lombok
     compileOnly("org.projectlombok:lombok")
@@ -88,8 +89,12 @@ dependencies {
     // QueryDSL
     implementation("io.github.openfeign.querydsl:querydsl-jpa:7.0")
 
+    // JSON
+    implementation("net.minidev:json-smart:2.6.0")
+
     // OpenFeign
     implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
+    implementation("io.github.openfeign:feign-jackson:13.5")
 
     // JWT
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
@@ -102,9 +107,6 @@ dependencies {
 
     // Documentation
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.11")
-
-    // Custom Libraries
-    implementation("com.github.snowykte0426:peanut-butter:1.4.1")
 }
 
 tasks.withType<Test> {
