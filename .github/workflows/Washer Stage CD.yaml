@@ -25,7 +25,21 @@ jobs:
             options:
               ports: "8080"
               dockerfile: stage.dockerfile
-              env: []
+              env:
+                - name: SPRING_DATASOURCE_URL
+                  value: ${{ secrets.RDB_URL }}
+                - name: SPRING_DATASOURCE_USERNAME
+                  value: ${{ secrets.RDB_USERNAME }}
+                - name: SPRING_DATASOURCE_PASSWORD
+                  value: ${{ secrets.RDB_PASSWORD }}
+                - name: SPRING_DATA_REDIS_HOST
+                  value: ${{ secrets.REDIS_HOST }}
+                - name: SPRING_DATA_REDIS_PORT
+                  value: ${{ secrets.REDIS_PORT }}
+                - name: SPRING_DATA_REDIS_PASSWORD
+                  value: ${{ secrets.REDIS_PASSWORD }}
+                - name: THIRD_PARTY_DISCORD_WEBHOOK_URL
+                  value: ${{ secrets.DISCORD_WEBHOOK }}
               args:
                 - RDB_URL=${{ secrets.RDB_URL }}
                 - RDB_USERNAME=${{ secrets.RDB_USERNAME }}
