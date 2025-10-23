@@ -1,0 +1,60 @@
+name: Washer Stage CD
+on:
+  push:
+    branches:
+      - develop
+      - feat/*
+  workflow_dispatch:
+jobs:
+  Stage-CD:
+    runs-on: ubuntu-latest
+    environment: Stage CD
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Connect Deploy Key
+        uses: cloudtype-github-actions/connect@v1
+        with:
+          token: ${{ secrets.CLOUDTYPE_TOKEN }}
+          ghtoken: ${{ secrets.GHP_TOKEN }}
+
+      - name: Make YAML File
+        run: |
+          touch ./src/main/resources/application-stage.yml
+          echo "${{ secrets.STAGE_APPLICATION_YAML }}" > ./src/main/resources/application-stage.yml
+        shell: bash
+
+      - name: Deploy
+        uses: cloudtype-github-actions/deploy@v1
+        with:
+          token: ${{ secrets.CLOUDTYPE_TOKEN }}
+          project: snowykte0426/daram
+          stage: main
+          yaml: |
+            name: washer-backend-v2
+            app: dockerfile
+            options:
+              ports: "8080"
+              dockerfile: stage.dockerfile
+              env: []
+              args: []
+            context:
+              git:
+                url: git@github.com:${{ github.repository }}.git
+                ref: ${{ github.ref }}
+              preset: dockerfile
+
+      - name: CD Success Notification
+        uses: sarisia/actions-status-discord@v1
+        if: success()
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          color: 0x4CAF50
+
+      - name: CD Failure Notification
+        uses: sarisia/actions-status-discord@v1
+        if: failure()
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          color: 0xFF4C4C
