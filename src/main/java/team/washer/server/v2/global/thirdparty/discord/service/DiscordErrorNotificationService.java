@@ -9,6 +9,8 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.global.thirdparty.discord.data.DiscordEmbed;
@@ -16,7 +18,6 @@ import team.washer.server.v2.global.thirdparty.discord.data.DiscordField;
 import team.washer.server.v2.global.thirdparty.discord.data.DiscordWebhookPayload;
 import team.washer.server.v2.global.thirdparty.discord.data.EmbedColor;
 import team.washer.server.v2.global.thirdparty.feign.client.DiscordWebhookClient;
-import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Service
