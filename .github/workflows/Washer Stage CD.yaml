@@ -35,7 +35,7 @@ jobs:
               args: []
             context:
               git:
-                url: git@github.com:${{ github.repository }}.git
+                url: https://github.com/${{ github.repository }}.git
                 ref: ${{ github.ref }}
               preset: dockerfile
 
