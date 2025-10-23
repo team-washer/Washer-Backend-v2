@@ -64,8 +64,8 @@ public class DiscordErrorNotificationService {
             fields.add(DiscordField.builder().name("Location").value(location).inline(false).build());
         }
         if (additionalInfo != null && !additionalInfo.isEmpty()) {
-            additionalInfo.forEach((key, value) -> fields.add(
-                    DiscordField.builder().name(key).value(truncateField(value.toString())).inline(true).build()));
+            additionalInfo.forEach((key, value) -> fields
+                    .add(DiscordField.builder().name(key).value(truncateField(value.toString())).inline(true).build()));
         }
         StringBuilder stackTrace = new StringBuilder();
         int limit = Math.min(5, exception.getStackTrace().length);
@@ -76,8 +76,8 @@ public class DiscordErrorNotificationService {
         }
 
         if (!stackTrace.isEmpty()) {
-            fields.add(DiscordField.builder().name("Stack Trace").value("```" + stackTrace + "```")
-                    .inline(false).build());
+            fields.add(
+                    DiscordField.builder().name("Stack Trace").value("```" + stackTrace + "```").inline(false).build());
         }
         return DiscordEmbed.builder().title("🚨 애플리케이션 에러 발생")
                 .description(exception.getClass().getName() + ": " + message).color(EmbedColor.ERROR.getColor())
