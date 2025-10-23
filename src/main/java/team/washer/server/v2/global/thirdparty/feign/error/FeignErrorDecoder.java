@@ -87,8 +87,8 @@ public class FeignErrorDecoder implements ErrorDecoder {
             return null;
         }
         for (Map.Entry<String, Collection<String>> entry : headers.entrySet()) {
-            if ("content-type".equalsIgnoreCase(entry.getKey()) && entry.getValue() != null && !entry.getValue()
-                .isEmpty()) {
+            if ("content-type".equalsIgnoreCase(entry.getKey()) && entry.getValue() != null
+                    && !entry.getValue().isEmpty()) {
                 return entry.getValue().iterator().next();
             }
         }
@@ -101,9 +101,10 @@ public class FeignErrorDecoder implements ErrorDecoder {
         }
         String lowerContentType = contentType.toLowerCase();
         return lowerContentType.startsWith("text/") || lowerContentType.contains("application/json")
-            || lowerContentType.contains("application/xml") || lowerContentType.contains(
-            "application/x-www-form-urlencoded") || lowerContentType.contains("application/problem+json")
-            || lowerContentType.contains("application/graphql");
+                || lowerContentType.contains("application/xml")
+                || lowerContentType.contains("application/x-www-form-urlencoded")
+                || lowerContentType.contains("application/problem+json")
+                || lowerContentType.contains("application/graphql");
     }
 
     private ExpectedException createExpectedException(int status) {
