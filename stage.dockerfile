@@ -12,6 +12,11 @@ RUN ./gradlew dependencies --no-daemon
 
 COPY src src
 
+ARG STAGE_APPLICATION_YAML
+RUN if [ -n "$STAGE_APPLICATION_YAML" ]; then \
+      echo "$STAGE_APPLICATION_YAML" > /app/src/main/resources/application-stage.yml; \
+    fi
+
 RUN ./gradlew bootJar --no-daemon
 
 

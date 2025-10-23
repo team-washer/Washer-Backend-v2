@@ -13,12 +13,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v5
 
-      - name: Make YAML File
-        run: |
-          touch ./src/main/resources/application-stage.yml
-          echo "${{ secrets.STAGE_APPLICATION_YAML }}" > ./src/main/resources/application-stage.yml
-        shell: bash
-
       - name: Deploy
         uses: cloudtype-github-actions/deploy@v1
         with:
@@ -32,7 +26,8 @@ jobs:
               ports: "8080"
               dockerfile: stage.dockerfile
               env: []
-              args: []
+              args:
+                - STAGE_APPLICATION_YAML=${{ secrets.STAGE_APPLICATION_YAML }}
             context:
               git:
                 url: https://github.com/${{ github.repository }}.git
