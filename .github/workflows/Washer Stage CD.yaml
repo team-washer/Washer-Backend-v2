@@ -27,7 +27,13 @@ jobs:
               dockerfile: stage.dockerfile
               env: []
               args:
-                - STAGE_APPLICATION_YAML=${{ secrets.STAGE_APPLICATION_YAML }}
+                - RDB_URL=${{ secrets.RDB_URL }}
+                - RDB_USERNAME=${{ secrets.RDB_USERNAME }}
+                - RDB_PASSWORD=${{ secrets.RDB_PASSWORD }}
+                - REDIS_HOST=${{ secrets.REDIS_HOST }}
+                - REDIS_PORT=${{ secrets.REDIS_PORT }}
+                - REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
+                - DISCORD_WEBHOOK_URL=${{ secrets.DISCORD_WEBHOOK }}
             context:
               git:
                 url: https://github.com/${{ github.repository }}.git
