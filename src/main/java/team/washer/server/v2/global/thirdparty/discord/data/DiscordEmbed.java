@@ -14,10 +14,13 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class DiscordEmbed {
     @JsonProperty("title")
     private String title;
+
+    @JsonProperty("description")
+    private String description;
 
     @JsonProperty("color")
     private Integer color;
