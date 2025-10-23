@@ -13,6 +13,12 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v5
 
+      - name: Connect Deploy Key
+        uses: cloudtype-github-actions/connect@v1
+        with:
+          token: ${{ secrets.CLOUDTYPE_TOKEN }}
+          ghtoken: ${{ secrets.GHP_TOKEN }}
+
       - name: Make YAML File
         run: |
           touch ./src/main/resources/application-stage.yml
@@ -35,7 +41,7 @@ jobs:
               args: []
             context:
               git:
-                url: https://github.com/${{ github.repository }}.git
+                url: git@github.com:${{ github.repository }}.git
                 ref: ${{ github.ref }}
               preset: dockerfile
 
