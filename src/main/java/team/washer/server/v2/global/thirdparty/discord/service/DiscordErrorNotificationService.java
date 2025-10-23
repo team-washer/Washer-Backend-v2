@@ -19,7 +19,7 @@ import team.washer.server.v2.global.thirdparty.feign.client.DiscordWebhookClient
 
 @Slf4j
 @Service
-@Profile("prod")
+@Profile({"prod", "stage"})
 @RequiredArgsConstructor
 public class DiscordErrorNotificationService {
     private static final int MAX_FIELD_LENGTH = 1000;
