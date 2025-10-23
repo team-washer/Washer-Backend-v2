@@ -1,6 +1,5 @@
 package team.washer.server.v2.domain.health;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -17,7 +16,7 @@ public class HealthController {
 
     @GetMapping("/error")
     public CommonApiResDto errorCheck() {
-        return CommonApiResDto.error("ERROR", HttpStatus.INTERNAL_SERVER_ERROR);
+        throw new RuntimeException("INTERNAL SERVER ERROR TEST");
     }
 
     @GetMapping("/create")
