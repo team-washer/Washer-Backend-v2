@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "4.0.0-SNAPSHOT"
+    id("org.springframework.boot") version "4.0.0-RC1"
     id("io.spring.dependency-management") version "1.1.7"
     id("com.diffplug.spotless") version "6.25.0"
 }
@@ -106,7 +106,7 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Documentation
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.11")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.0-M1")
 }
 
 tasks.withType<Test> {
