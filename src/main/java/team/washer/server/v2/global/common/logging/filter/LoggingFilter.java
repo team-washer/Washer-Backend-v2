@@ -22,7 +22,7 @@ import team.washer.server.v2.global.common.logging.wrapper.CachedBodyRequestWrap
 @Component
 public class LoggingFilter extends OncePerRequestFilter {
 
-    private static final String[] NOT_LOGGING_URL = {"/api-docs/**", "/swagger-ui/**",};
+    private static final String[] NOT_LOGGING_URL = {"/v3/api-docs/**", "/swagger-ui/**",};
 
     private final AntPathMatcher matcher = new AntPathMatcher();
 
