@@ -1,6 +1,6 @@
 plugins {
     java
-    id("org.springframework.boot") version "4.0.0-SNAPSHOT"
+    id("org.springframework.boot") version "4.0.0-RC1"
     id("io.spring.dependency-management") version "1.1.7"
     id("com.diffplug.spotless") version "6.25.0"
 }
@@ -68,6 +68,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-security")
 
     // Lombok
     compileOnly("org.projectlombok:lombok")
@@ -88,8 +89,12 @@ dependencies {
     // QueryDSL
     implementation("io.github.openfeign.querydsl:querydsl-jpa:7.0")
 
+    // JSON
+    implementation("net.minidev:json-smart:2.6.0")
+
     // OpenFeign
     implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
+    implementation("io.github.openfeign:feign-jackson:13.5")
 
     // JWT
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
@@ -101,10 +106,7 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Documentation
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.11")
-
-    // Custom Libraries
-    implementation("com.github.snowykte0426:peanut-butter:1.4.1")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.0-M1")
 }
 
 tasks.withType<Test> {

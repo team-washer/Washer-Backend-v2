@@ -1,0 +1,60 @@
+name: Washer Stage CD
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+jobs:
+  Stage-CD:
+    runs-on: ubuntu-latest
+    environment: Stage-CD
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Deploy
+        uses: cloudtype-github-actions/deploy@v1
+        with:
+          token: ${{ secrets.CLOUDTYPE_TOKEN }}
+          project: snowykte0426/daram
+          stage: main
+          yaml: |
+            name: washer-backend-v2
+            app: dockerfile
+            options:
+              ports: "8080"
+              dockerfile: stage.dockerfile
+              env:
+                - name: SPRING_DATASOURCE_URL
+                  value: ${{ secrets.RDB_URL }}
+                - name: SPRING_DATASOURCE_USERNAME
+                  value: ${{ secrets.RDB_USERNAME }}
+                - name: SPRING_DATASOURCE_PASSWORD
+                  value: ${{ secrets.RDB_PASSWORD }}
+                - name: SPRING_DATA_REDIS_HOST
+                  value: ${{ secrets.REDIS_HOST }}
+                - name: SPRING_DATA_REDIS_PORT
+                  value: ${{ secrets.REDIS_PORT }}
+                - name: SPRING_DATA_REDIS_PASSWORD
+                  value: ${{ secrets.REDIS_PASSWORD }}
+                - name: THIRD_PARTY_DISCORD_WEBHOOK_URL
+                  value: ${{ secrets.DISCORD_EMERGENCY_ALERT_CHANNEL_WEBHOOK }}
+            context:
+              git:
+                url: https://github.com/${{ github.repository }}.git
+                ref: ${{ github.ref }}
+              preset: dockerfile
+
+      - name: CD Success Notification
+        uses: sarisia/actions-status-discord@v1
+        if: success()
+        with:
+          webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
+          color: 0x4CAF50
+
+      - name: CD Failure Notification
+        uses: sarisia/actions-status-discord@v1
+        if: failure()
+        with:
+          webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
+          color: 0xFF4C4C
