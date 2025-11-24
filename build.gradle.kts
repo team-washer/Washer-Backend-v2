@@ -1,17 +1,17 @@
 plugins {
     java
-    id("org.springframework.boot") version "4.0.0-RC1"
+    id("org.springframework.boot") version "4.0.0"
     id("io.spring.dependency-management") version "1.1.7"
-    id("com.diffplug.spotless") version "6.25.0"
+    id("com.diffplug.spotless") version "8.1.0"
 }
 
 ext {
-    set("springCloudVersion", "2025.1.0-M4")
+    set("springCloudVersion", "2025.1.0-RC1")
 }
 
 dependencyManagement {
     imports {
-        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.1.0-M4")
+        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.1.0-RC1")
     }
 }
 
@@ -19,7 +19,7 @@ spotless {
     java {
         target("src/main/java/**/*.java", "src/test/java/**/*.java")
         eclipse()
-        indentWithSpaces(4)
+        leadingTabsToSpaces(4)
         importOrder("java", "javax", "org", "com", " ")
         removeUnusedImports()
         endWithNewline()
@@ -56,7 +56,6 @@ configurations {
 
 repositories {
     mavenCentral()
-    maven { url = uri("https://repo.spring.io/snapshot") }
     maven { url = uri("https://jitpack.io") }
 }
 
@@ -87,26 +86,26 @@ dependencies {
     implementation("jakarta.transaction:jakarta.transaction-api")
 
     // QueryDSL
-    implementation("io.github.openfeign.querydsl:querydsl-jpa:7.0")
+    implementation("io.github.openfeign.querydsl:querydsl-jpa:7.1")
 
     // JSON
     implementation("net.minidev:json-smart:2.6.0")
 
     // OpenFeign
     implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
-    implementation("io.github.openfeign:feign-jackson:13.5")
+    implementation("io.github.openfeign:feign-jackson:13.6")
 
     // JWT
-    implementation("io.jsonwebtoken:jjwt-api:0.12.6")
-    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
-    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+    implementation("io.jsonwebtoken:jjwt-api:0.13.0")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
 
     // Test Dependencies
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Documentation
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.0-M1")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.0")
 }
 
 tasks.withType<Test> {
