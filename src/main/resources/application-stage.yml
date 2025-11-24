@@ -33,7 +33,26 @@ spring:
       enabled: false
 server:
   port: 8080
-  shutdown:
+  shutdown: graceful
 third-party:
   discord:
     webhook-url: ${THIRD_PARTY_DISCORD_WEBHOOK_URL}
+springdoc:
+  swagger-ui:
+    config-url: "/v3/api-docs/swagger-config"
+    urls:
+      - name: "Washer-Backend-v2 API"
+        url: "/v3/api-docs"
+    operationsSorter: "method"
+    defaultModelsExpandDepth: -1
+    docExpansion: "none"
+    displayRequestDuration: true
+    filter: true
+    showCommonExtensions: true
+    showExtensions: true
+    deepLinking: true
+    persistAuthorization: true
+    tryItOutEnabled: true
+    validatorUrl: ""
+    csrf:
+      enabled: false
