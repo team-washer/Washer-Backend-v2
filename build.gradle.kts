@@ -1,17 +1,17 @@
 plugins {
     java
-    id("org.springframework.boot") version "4.0.0"
+    id("org.springframework.boot") version "4.0.1"
     id("io.spring.dependency-management") version "1.1.7"
     id("com.diffplug.spotless") version "8.1.0"
 }
 
 ext {
-    set("springCloudVersion", "2025.1.0-RC1")
+    set("springCloudVersion", "2025.1.0")
 }
 
 dependencyManagement {
     imports {
-        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.1.0-RC1")
+        mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.1.0")
     }
 }
 
@@ -95,17 +95,12 @@ dependencies {
     implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
     implementation("io.github.openfeign:feign-jackson:13.6")
 
-    // JWT
-    implementation("io.jsonwebtoken:jjwt-api:0.13.0")
-    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.13.0")
-    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
-
     // Test Dependencies
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 
     // Documentation
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.0")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1")
 }
 
 tasks.withType<Test> {
