@@ -10,7 +10,7 @@ jobs:
     environment: Stage-CD
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Deploy
         uses: cloudtype-github-actions/deploy@v1
