@@ -4,4 +4,9 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+buildCache {
+    local {
+        directory = file("$rootDir/.gradle/build-cache")
+    }
+}
 rootProject.name = "Washer-Backend-v2"
