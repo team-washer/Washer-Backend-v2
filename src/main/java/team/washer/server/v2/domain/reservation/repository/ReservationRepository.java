@@ -22,6 +22,8 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     List<Reservation> findByStatus(ReservationStatus status);
 
+    List<Reservation> findByStatusIn(List<ReservationStatus> statuses);
+
     @Query("SELECT r FROM Reservation r WHERE r.user = :user AND r.status IN :statuses")
     List<Reservation> findByUserAndStatusIn(@Param("user") User user,
             @Param("statuses") List<ReservationStatus> statuses);
@@ -30,23 +32,29 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
     List<Reservation> findByMachineAndStatusIn(@Param("machine") Machine machine,
             @Param("statuses") List<ReservationStatus> statuses);
 
-    @Query("SELECT r FROM Reservation r WHERE r.status IN ('RESERVED', 'CONFIRMED', 'RUNNING')")
-    List<Reservation> findAllActiveReservations();
+    default List<Reservation> findAllActiveReservations() {
+        return findByStatusIn(
+                List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
+    }
 
-    @Query("SELECT r FROM Reservation r WHERE r.status = 'RESERVED' AND r.startTime < :threshold")
-    List<Reservation> findExpiredReservedReservations(@Param("threshold") LocalDateTime threshold);
+    @Query("SELECT r FROM Reservation r WHERE r.status = :status AND r.startTime < :threshold")
+    List<Reservation> findExpiredReservedReservations(@Param("status") ReservationStatus status,
+            @Param("threshold") LocalDateTime threshold);
 
-    @Query("SELECT r FROM Reservation r WHERE r.status = 'CONFIRMED' AND r.confirmedAt < :threshold")
-    List<Reservation> findExpiredConfirmedReservations(@Param("threshold") LocalDateTime threshold);
+    @Query("SELECT r FROM Reservation r WHERE r.status = :status AND r.confirmedAt < :threshold")
+    List<Reservation> findExpiredConfirmedReservations(@Param("status") ReservationStatus status,
+            @Param("threshold") LocalDateTime threshold);
 
-    @Query("SELECT COUNT(r) FROM Reservation r WHERE r.machine = :machine AND r.status IN ('RESERVED', 'CONFIRMED', 'RUNNING')")
-    long countActiveReservationsByMachine(@Param("machine") Machine machine);
+    @Query("SELECT COUNT(r) FROM Reservation r WHERE r.machine = :machine AND r.status IN :statuses")
+    long countActiveReservationsByMachine(@Param("machine") Machine machine,
+            @Param("statuses") List<ReservationStatus> statuses);
 
     @Query("SELECT r FROM Reservation r WHERE r.user = :user ORDER BY r.createdAt DESC")
     List<Reservation> findReservationHistoryByUser(@Param("user") User user);
 
-    @Query("SELECT r FROM Reservation r WHERE r.status = 'RUNNING'")
-    List<Reservation> findAllRunningReservations();
+    default List<Reservation> findAllRunningReservations() {
+        return findByStatus(ReservationStatus.RUNNING);
+    }
 
     boolean existsByMachineAndStatusIn(Machine machine, List<ReservationStatus> statuses);
 }

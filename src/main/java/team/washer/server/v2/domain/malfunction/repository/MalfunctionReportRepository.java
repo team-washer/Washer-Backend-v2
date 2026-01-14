@@ -25,8 +25,9 @@ public interface MalfunctionReportRepository extends JpaRepository<MalfunctionRe
     @Query("SELECT COUNT(mr) FROM MalfunctionReport mr WHERE mr.status = :status")
     long countByStatus(@Param("status") MalfunctionReportStatus status);
 
-    @Query("SELECT mr FROM MalfunctionReport mr WHERE mr.machine = :machine AND mr.status != 'RESOLVED' ORDER BY mr.reportedAt DESC")
-    List<MalfunctionReport> findUnresolvedReportsByMachine(@Param("machine") Machine machine);
+    @Query("SELECT mr FROM MalfunctionReport mr WHERE mr.machine = :machine AND mr.status <> :status ORDER BY mr.reportedAt DESC")
+    List<MalfunctionReport> findUnresolvedReportsByMachine(@Param("machine") Machine machine,
+            @Param("status") MalfunctionReportStatus status);
 
     @Query("SELECT mr FROM MalfunctionReport mr WHERE mr.status = :status ORDER BY mr.reportedAt ASC")
     List<MalfunctionReport> findByStatusOrderByReportedAtAsc(@Param("status") MalfunctionReportStatus status);
