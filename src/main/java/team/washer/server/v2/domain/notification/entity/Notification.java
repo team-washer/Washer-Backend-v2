@@ -5,10 +5,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.*;
-import team.washer.server.v2.global.common.entity.BaseEntity;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.notification.enums.NotificationType;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.entity.BaseEntity;
 
 @Entity
 @Table(name = "notifications", indexes = {@Index(name = "idx_user_id", columnList = "user_id"),
@@ -40,10 +40,9 @@ public class Notification extends BaseEntity {
     @Column(name = "message", nullable = false, length = 500)
     private String message;
 
-    @NotNull(message = "읽음 여부는 필수입니다")
     @Column(name = "is_read", nullable = false)
     @Builder.Default
-    private Boolean isRead = false;
+    private boolean isRead = false;
 
     // Note: createdAt from BaseEntity serves as the notification creation time
 
