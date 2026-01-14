@@ -1,0 +1,944 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <metadata>
+        <name>Washer-Backend-v2</name>
+        <description>기숙사 세탁기/건조기 관리 시스템</description>
+        <type>Spring Boot Backend Application</type>
+        <integration>Samsung SmartThings API</integration>
+    </metadata>
+
+    <!-- ========================================
+         기능 명세서
+    ========================================= -->
+    <features>
+        <!-- 어드민 기능 -->
+        <admin>
+            <dashboard>
+                <description>어드민 메인 대시보드</description>
+                <feature name="활성예약수">
+                    <display>현재 진행 중인 예약 건수 표시</display>
+                    <action>클릭 시 상세 예약 정보 페이지로 이동</action>
+                    <detail>예약자 정보, 예약 기기, 시간, 상태 등</detail>
+                </feature>
+                <feature name="고장신고건수">
+                    <display>미처리/처리중/처리완료 신고 상태 조회</display>
+                    <data>
+                        <item>신고자 조회</item>
+                        <item>신고 기기 조회</item>
+                        <item>고장 신고 기기명</item>
+                        <item>신고한 사람</item>
+                        <item>신고 상태</item>
+                    </data>
+                </feature>
+            </dashboard>
+
+            <device_management>
+                <name>기기 상태 관리</name>
+                <description>전체 기기 정보 관리 (확정된 실제 상태)</description>
+                <feature name="기기_전체_조회">
+                    <filters>
+                        <filter>기기명</filter>
+                        <filter>기기 유형 (건조기/세탁기)</filter>
+                    </filters>
+                </feature>
+                <feature name="기기_상태">
+                    <status>고장/정상</status>
+                    <availability>사용 가능 여부</availability>
+                </feature>
+                <feature name="고장_등록">
+                    <action>고장 등록</action>
+                    <action>수리 완료</action>
+                </feature>
+            </device_management>
+
+            <reservation_management>
+                <name>예약 관리</name>
+                <description>사용자 예약 현황 관리</description>
+                <feature name="전체_예약_목록_조회">
+                    <data>
+                        <item>예약한 시간</item>
+                        <item>남은 시간</item>
+                        <item>예약된 기기</item>
+                        <item>예약한 호실</item>
+                    </data>
+                </feature>
+                <feature name="필터_기능">
+                    <filter>기기명 검색</filter>
+                    <filter>기기 유형 (세탁기/건조기)</filter>
+                </feature>
+                <feature name="강제_종료">
+                    <description>예약한 호실 관리자가 강제 종료</description>
+                </feature>
+            </reservation_management>
+
+            <malfunction_management>
+                <name>고장 신고 관리</name>
+                <description>기기 고장 및 문제 신고 관리 (사용자 제보 검토 단계)</description>
+                <feature name="신고_조회">
+                    <data>
+                        <item>고장 기기명</item>
+                        <item>기기 상태</item>
+                        <item>신고자 명</item>
+                        <item>신고 내용</item>
+                    </data>
+                </feature>
+                <feature name="신고_상태_관리">
+                    <status>대기</status>
+                    <status>처리중</status>
+                    <status>처리완료</status>
+                </feature>
+                <feature name="해결_시간_관리">
+                    <description>신고 상태가 [해결]로 바뀐 시간 기준</description>
+                </feature>
+            </malfunction_management>
+
+            <user_management>
+                <name>인원 관리</name>
+                <description>사용자 전체 인원 관리</description>
+                <feature name="전체_인원_조회">
+                    <data>
+                        <item>호실</item>
+                        <item>이름</item>
+                        <item>학번</item>
+                    </data>
+                </feature>
+                <feature name="필터_기능">
+                    <filter>이름</filter>
+                    <filter>호실</filter>
+                    <filter>학년</filter>
+                    <filter>층</filter>
+                </feature>
+                <feature name="인원_변경_제거">
+                    <action>호수 인원 변경</action>
+                </feature>
+                <feature name="패널티_관리">
+                    <data>패널티 누적 횟수 조회</data>
+                </feature>
+            </user_management>
+        </admin>
+
+        <!-- 사용자 기능 -->
+        <user>
+            <machine_status>
+                <name>세탁기/건조기 현황</name>
+                <data>
+                    <machine_name>
+                        <format>기기: Washer/Dryer</format>
+                        <floor>층: 3</floor>
+                        <position>왼쪽/오른쪽: L, R</position>
+                        <number>번호: 1, 2, 3</number>
+                        <example>Washer-3F-L1, Dryer-3F-R2</example>
+                    </machine_name>
+                    <status>
+                        <option>사용가능</option>
+                        <option>사용중</option>
+                        <option>사용불가</option>
+                        <option>예약</option>
+                    </status>
+                    <room>사용호실 (XXX호)</room>
+                    <note>특이사항 (세탁 완료 예정시간, 세탁기 사용 불가, 예약 만료까지)</note>
+                </data>
+            </machine_status>
+
+            <reservation>
+                <name>세탁기/건조기 예약</name>
+                <step1>
+                    <requirement>세탁기/건조기 가능 상태</requirement>
+                </step1>
+                <step2>
+                    <action>세탁기/건조기 예약 (5분 타이머)</action>
+                    <rule>5분 지났는데도 세탁/건조 시작 누르지 않으면 10분 정지</rule>
+                </step2>
+            </reservation>
+
+            <start>
+                <name>세탁기/건조기 시작</name>
+                <step1>
+                    <requirement>세탁기/건조기 예약 상태</requirement>
+                </step1>
+                <step2>
+                    <action>세탁기/건조기 시작</action>
+                    <rule>3분동안 세탁기/건조기 시작 하지 않으면 10분 정지</rule>
+                </step2>
+                <step3>
+                    <action>10초마다 기계에 요청 보내서 시작했는지 상태 확인</action>
+                    <rule>시작 하지 않았으면 10분 정지</rule>
+                </step3>
+            </start>
+
+            <cancel>
+                <name>세탁기/건조기 예약 취소</name>
+                <step1>
+                    <requirement>세탁기/건조기 예약 상태</requirement>
+                </step1>
+                <step2>
+                    <action>10분동안 세탁/건조 정지</action>
+                </step2>
+                <step3>
+                    <action>기기 상태 변경</action>
+                </step3>
+            </cancel>
+
+            <malfunction_report>
+                <name>세탁기/건조기 고장 신고</name>
+                <step1>
+                    <action>세탁기/건조기 고장 신고</action>
+                </step1>
+                <step2>
+                    <action>세탁기/건조기 상태 변경</action>
+                </step2>
+                <step3>
+                    <action>세탁기/건조기 고장 내용 텍스트</action>
+                    <limit>200자 제한</limit>
+                </step3>
+            </malfunction_report>
+
+            <history>
+                <name>세탁기/건조기 히스토리</name>
+                <data>
+                    <item>사용호실</item>
+                    <item>예약 시간</item>
+                    <item>상태 (취소 여부 등)</item>
+                    <item>예약 취소 시간 / 세탁 및 건조 완료 시간</item>
+                </data>
+            </history>
+        </user>
+
+        <!-- 알림 기능 -->
+        <notification>
+            <completion_notification>
+                <name>세탁/건조 완료 알림</name>
+                <trigger>세탁 및 건조가 완료 된다면 알림</trigger>
+                <data>
+                    <location>세탁기 및 건조기의 위치 알려줌</location>
+                </data>
+                <example>
+                    Dryer-3F-L1의 세탁이 완료되었습니다. 빠른 시간 내에 수거해 주시기 바랍니다.
+                </example>
+            </completion_notification>
+
+            <malfunction_notification>
+                <name>세탁기/건조기 이상 알림</name>
+                <trigger>세탁 및 건조가 이상이 감지 된다면 알림</trigger>
+                <data>
+                    <location>세탁기 및 건조기의 위치 알려줌</location>
+                </data>
+                <example>
+                    Dryer-3F-L1 기기에 이상이 감지되었습니다. 빠른 시간 내에 확인해 주시기 바랍니다.
+                </example>
+            </malfunction_notification>
+
+            <warning_notification>
+                <name>사용 경고 알림</name>
+                <trigger>사용했거나 사용중인 세탁기 및 건조기에 불편신고가 들어 왔을때 알림</trigger>
+                <data>
+                    <location>세탁기 및 건조기의 위치 알려줌</location>
+                    <reason>신고 사유를 알려줌</reason>
+                </data>
+                <penalty>벌점 1점 부과</penalty>
+                <example>
+                    Washer-3F-L1의 기기에서 불편신고가 들어왔습니다. 벌점 1점이 부과됩니다.
+
+                    신고 사유: 빨래를 너무 늦게 뺌
+                </example>
+            </warning_notification>
+        </notification>
+    </features>
+
+    <!-- ========================================
+         SmartThings API 연동
+    ========================================= -->
+    <smartthings_integration>
+        <!-- OAuth 2.0 인증 -->
+        <oauth2>
+            <configuration>
+                <client_id>환경변수 ${CLIENT_ID}</client_id>
+                <client_secret>환경변수 ${CLIENT_SECRET}</client_secret>
+                <authorization_grant_type>authorization_code</authorization_grant_type>
+                <redirect_uri>환경변수 ${BASEURL}/oauth/callback</redirect_uri>
+                <scope>
+                    <permission>r:devices:* (기기 읽기)</permission>
+                    <permission>w:devices:* (기기 쓰기)</permission>
+                    <permission>x:devices:* (기기 실행)</permission>
+                </scope>
+                <provider>
+                    <authorization_uri>https://api.smartthings.com/oauth/authorize</authorization_uri>
+                    <token_uri>https://api.smartthings.com/oauth/token</token_uri>
+                </provider>
+            </configuration>
+
+            <token_exchange>
+                <endpoint>POST https://api.smartthings.com/oauth/token</endpoint>
+                <implementation>SmartThingsTokenServiceImpl.java:58-72</implementation>
+                <request>
+                    <method>POST</method>
+                    <auth>Basic Authentication (client-id:client-secret)</auth>
+                    <content_type>application/x-www-form-urlencoded</content_type>
+                    <body>
+                        <grant_type>authorization_code</grant_type>
+                        <code>인가 코드</code>
+                        <redirect_uri>리다이렉트 URI</redirect_uri>
+                    </body>
+                </request>
+            </token_exchange>
+
+            <token_refresh>
+                <endpoint>POST https://api.smartthings.com/oauth/token</endpoint>
+                <implementation>SmartThingsTokenServiceImpl.java:74-105</implementation>
+                <schedule>
+                    <annotation>@Scheduled(fixedRate = 55 * 60 * 1000)</annotation>
+                    <interval>55분마다 자동 실행</interval>
+                    <reason>토큰 만료 1시간보다 5분 일찍 갱신</reason>
+                </schedule>
+                <request>
+                    <method>POST</method>
+                    <auth>Basic Authentication</auth>
+                    <content_type>application/x-www-form-urlencoded</content_type>
+                    <body>
+                        <grant_type>refresh_token</grant_type>
+                        <refresh_token>리프레시 토큰</refresh_token>
+                    </body>
+                </request>
+            </token_refresh>
+        </oauth2>
+
+        <!-- Device Status API -->
+        <device_status_api>
+            <endpoint>GET https://api.smartthings.com/v1/devices/{deviceId}/status</endpoint>
+            <authentication>Bearer Token</authentication>
+
+            <usage>
+                <location file="MachineInfoServiceImpl.java" line="79">
+                    기기 상태 병렬 조회 (최대 24개 동시)
+                </location>
+                <location file="ReservationServiceImpl.java" line="331">
+                    예약 중 기기 상태 확인
+                </location>
+                <location file="ReservationAdminServiceImpl.java" line="88">
+                    관리자용 기기 상태 조회
+                </location>
+                <location file="UserService.java" line="114">
+                    사용자별 기기 상태 조회
+                </location>
+            </usage>
+
+            <parallel_processing>
+                <implementation>MachineInfoServiceImpl.java:75-88</implementation>
+                <technology>Spring WebFlux (Reactor)</technology>
+                <concurrent_requests>24</concurrent_requests>
+                <method>Flux.flatMap()</method>
+                <code_example>
+                    Flux.fromIterable(machines)
+                        .flatMap(machine -> webClient.get()
+                            .uri("https://api.smartthings.com/v1/devices/" + machine.getDeviceId() + "/status")
+                            .headers(h -> h.setBearerAuth(token.getAccessToken()))
+                            .retrieve()
+                            .bodyToMono(JsonNode.class)
+                            .map(status -> Map.entry(machine.getDeviceId(), status))
+                        , 24)  // 최대 동시 요청 수
+                        .collectMap(Map.Entry::getKey, Map.Entry::getValue)
+                        .block();
+                </code_example>
+            </parallel_processing>
+
+            <response_structure>
+                <json>
+                    {
+                        "components": {
+                            "main": {
+                                "switch": {
+                                    "switch": {
+                                        "value": "on" // or "off"
+                                    }
+                                },
+                                "washerOperatingState": {
+                                    "machineState": {
+                                        "value": "running" // or "paused", "stop", "ready"
+                                    },
+                                    "washerJobState": {
+                                        "value": "finished" // or "finish", ...
+                                    },
+                                    "completionTime": {
+                                        "value": "2025-01-10T12:00:00Z" // ISO 8601 UTC
+                                    }
+                                },
+                                "dryerOperatingState": {
+                                    "machineState": {
+                                        "value": "running"
+                                    },
+                                    "dryerJobState": {
+                                        "value": "finished"
+                                    },
+                                    "completionTime": {
+                                        "value": "2025-01-10T12:00:00Z"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                </json>
+            </response_structure>
+
+            <extracted_data>
+                <implementation>MachineInfoServiceImpl.java:47-72</implementation>
+                <field name="전원상태">
+                    <path>components.main.switch.switch.value</path>
+                </field>
+                <field name="세탁기상태">
+                    <path>components.main.washerOperatingState.machineState.value</path>
+                </field>
+                <field name="세탁기작업상태">
+                    <path>components.main.washerOperatingState.washerJobState.value</path>
+                </field>
+                <field name="건조기상태">
+                    <path>components.main.dryerOperatingState.machineState.value</path>
+                </field>
+                <field name="건조기작업상태">
+                    <path>components.main.dryerOperatingState.dryerJobState.value</path>
+                </field>
+                <field name="완료시간">
+                    <path>components.main.[washer|dryer]OperatingState.completionTime.value</path>
+                    <note>UTC 시간으로 반환됨 (한국 시간으로 변환 필요)</note>
+                </field>
+            </extracted_data>
+
+            <status_values>
+                <operating_state>
+                    <value>running</value> <!-- 작동 중 -->
+                    <value>paused</value> <!-- 일시정지 -->
+                    <value>stop</value> <!-- 정지 -->
+                    <value>ready</value> <!-- 대기 -->
+                </operating_state>
+                <job_state>
+                    <value>finished</value> <!-- 완료 -->
+                    <value>finish</value> <!-- 완료 -->
+                </job_state>
+            </status_values>
+        </device_status_api>
+
+        <!-- Device Commands API -->
+        <device_commands_api>
+            <endpoint>POST https://api.smartthings.com/v1/devices/{deviceId}/commands</endpoint>
+            <authentication>Bearer Token</authentication>
+
+            <power_off>
+                <implementation>ReservationServiceImpl.java:71-92</implementation>
+                <schedule>
+                    <annotation>@Scheduled(fixedRate = 2000)</annotation>
+                    <interval>2초마다</interval>
+                    <purpose>예약이 없는 유휴 기기 자동 전원 차단</purpose>
+                </schedule>
+                <request>
+                    <method>POST</method>
+                    <auth>Bearer Token</auth>
+                    <body>
+                        {
+                            "commands": [
+                                {
+                                    "component": "main",
+                                    "capability": "switch",
+                                    "command": "off"
+                                }
+                            ]
+                        }
+                    </body>
+                </request>
+            </power_off>
+
+            <auto_shutdown_logic>
+                <implementation>ReservationServiceImpl.java:46-69</implementation>
+                <description>
+                    CONFIRMED 또는 RUNNING 상태의 예약이 없는 기기를 찾아 전원을 끕니다.
+                </description>
+                <blocking_statuses>
+                    <status>CONFIRMED</status>
+                    <status>RUNNING</status>
+                </blocking_statuses>
+            </auto_shutdown_logic>
+        </device_commands_api>
+
+        <!-- 기기 상태 모니터링 -->
+        <status_monitoring>
+            <machine_running_detection>
+                <implementation>ReservationServiceImpl.java:316-328</implementation>
+                <function name="isMachineRunning">
+                    <description>기기가 작동 중인지 확인</description>
+                    <check>operatingState == "running"</check>
+                </function>
+                <function name="isMachineCompleted">
+                    <description>기기가 완료되었는지 확인</description>
+                    <check>jobState == "finished" || jobState == "finish"</check>
+                </function>
+            </machine_running_detection>
+
+            <state_extraction>
+                <implementation>ReservationServiceImpl.java:330-361</implementation>
+                <washer>
+                    <operating_state>component.samsungce.washerOperatingState.operatingState.value</operating_state>
+                    <job_state>component.samsungce.washerOperatingState.washerJobState.value</job_state>
+                </washer>
+                <dryer>
+                    <operating_state>component.samsungce.dryerOperatingState.operatingState.value</operating_state>
+                    <job_state>component.samsungce.dryerOperatingState.dryerJobState.value</job_state>
+                </dryer>
+            </state_extraction>
+
+            <scheduled_checks>
+                <check name="만료된_예약_확인">
+                    <interval>10초</interval>
+                    <description>RESERVED 상태에서 시작 시간 초과 시 취소</description>
+                </check>
+                <check name="CONFIRMED_상태_확인">
+                    <interval>10초</interval>
+                    <description>2분 내 작동 시작하지 않으면 취소</description>
+                </check>
+                <check name="RUNNING_상태_확인">
+                    <interval>10초</interval>
+                    <description>작업 완료 감지 및 상태 업데이트</description>
+                </check>
+                <check name="일시정지_감지">
+                    <interval>10초</interval>
+                    <description>paused/stop/ready 상태 감지</description>
+                </check>
+                <check name="유휴_기기_종료">
+                    <interval>2초</interval>
+                    <description>예약이 없는 기기 자동 전원 차단</description>
+                </check>
+            </scheduled_checks>
+        </status_monitoring>
+
+        <!-- 남은 시간 계산 -->
+        <remaining_time_calculation>
+            <basic_calculation>
+                <implementation>MachineInfoServiceImpl.java:141-159</implementation>
+                <process>
+                    <step1>completionTime 값 추출 (UTC 시간)</step1>
+                    <step2>UTC 시간을 한국 시간(Asia/Seoul)으로 변환</step2>
+                    <step3>현재 시간과의 차이 계산 (Duration)</step3>
+                    <step4>음수일 경우 "00:00:00" 반환</step4>
+                    <step5>양수일 경우 시:분:초 형식으로 포맷</step5>
+                </process>
+                <timezone_conversion>
+                    ZonedDateTime utcTime = ZonedDateTime.parse(node.asText());
+                    LocalDateTime localTime = utcTime.withZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDateTime();
+                </timezone_conversion>
+            </basic_calculation>
+
+            <by_reservation_status>
+                <implementation>MachineInfoServiceImpl.java:123-139</implementation>
+                <RESERVED>
+                    <description>예약된 시작 시간까지의 남은 시간</description>
+                    <calculation>Duration.between(now, reservation.getStartTime())</calculation>
+                </RESERVED>
+                <CONFIRMED>
+                    <description>확인 후 2분까지의 남은 시간</description>
+                    <calculation>Duration.between(now, reservation.getConfirmedAt().plusMinutes(2))</calculation>
+                </CONFIRMED>
+                <RUNNING>
+                    <description>SmartThings API에서 가져온 완료 시간</description>
+                    <source>completionTime from API</source>
+                </RUNNING>
+                <default>
+                    <value>00:00:00</value>
+                </default>
+            </by_reservation_status>
+        </remaining_time_calculation>
+
+        <!-- 에러 처리 -->
+        <error_handling>
+            <token_refresh_failure>
+                <implementation>SmartThingsTokenServiceImpl.java:102-104</implementation>
+                <status_code>500 INTERNAL_SERVER_ERROR</status_code>
+                <message>SmartThings 토큰 갱신에 실패했습니다.</message>
+            </token_refresh_failure>
+            <status_fetch_failure>
+                <implementation>ReservationServiceImpl.java:358-360</implementation>
+                <fallback>
+                    <operating_state>unknown</operating_state>
+                    <job_state>unknown</job_state>
+                </fallback>
+            </status_fetch_failure>
+            <token_not_found>
+                <implementation>SmartThingsTokenServiceImpl.java:108-111</implementation>
+                <status_code>404 NOT_FOUND</status_code>
+                <message>SmartThings 토큰이 존재하지 않습니다.</message>
+            </token_not_found>
+        </error_handling>
+
+        <!-- 성능 최적화 -->
+        <performance>
+            <parallel_processing>
+                <concurrent_requests>24</concurrent_requests>
+                <technology>Spring WebFlux (Reactor)</technology>
+                <implementation>Flux.flatMap()</implementation>
+            </parallel_processing>
+            <async_processing>
+                <return_type>Mono&lt;T&gt;</return_type>
+                <blocking>필요시 .block()으로 동기화</blocking>
+            </async_processing>
+            <scheduling_optimization>
+                <token_refresh>
+                    <interval>55분</interval>
+                    <reason>토큰 만료 1시간보다 5분 일찍</reason>
+                </token_refresh>
+                <idle_machine_shutdown>
+                    <interval>2초</interval>
+                    <reason>실시간 전력 절약</reason>
+                </idle_machine_shutdown>
+                <reservation_status_check>
+                    <interval>10초</interval>
+                    <reason>사용자 경험과 시스템 부하 균형</reason>
+                </reservation_status_check>
+            </scheduling_optimization>
+        </performance>
+
+        <!-- 기기 타입별 차이점 -->
+        <device_type_differences>
+            <washer>
+                <operating_state>washerOperatingState</operating_state>
+                <job_state>washerJobState</job_state>
+                <capability>samsungce.washerOperatingState</capability>
+            </washer>
+            <dryer>
+                <operating_state>dryerOperatingState</operating_state>
+                <job_state>dryerJobState</job_state>
+                <capability>samsungce.dryerOperatingState</capability>
+            </dryer>
+        </device_type_differences>
+    </smartthings_integration>
+
+    <!-- ========================================
+         비즈니스 로직 및 규칙
+    ========================================= -->
+    <business_logic>
+        <reservation_workflow>
+            <step1>
+                <status>RESERVED</status>
+                <description>예약 생성</description>
+                <timer>5분</timer>
+                <timeout_action>5분 내 시작 안하면 10분 정지</timeout_action>
+            </step1>
+            <step2>
+                <status>CONFIRMED</status>
+                <description>예약 확인 (시작 버튼 클릭)</description>
+                <timer>2분 (구현에서는 3분으로 언급)</timer>
+                <monitoring>10초마다 기계 상태 확인</monitoring>
+                <timeout_action>시작 안하면 10분 정지</timeout_action>
+            </step2>
+            <step3>
+                <status>RUNNING</status>
+                <description>작동 중</description>
+                <monitoring>10초마다 완료 상태 확인</monitoring>
+                <completion_check>jobState == "finished" || "finish"</completion_check>
+            </step3>
+            <step4>
+                <status>COMPLETED</status>
+                <description>작업 완료</description>
+                <notification>완료 알림 발송</notification>
+            </step4>
+            <cancellation>
+                <status>CANCELLED</status>
+                <penalty>10분간 정지</penalty>
+                <state_change>기기 상태 변경</state_change>
+            </cancellation>
+        </reservation_workflow>
+
+        <penalty_system>
+            <trigger>불편 신고</trigger>
+            <penalty_points>1점</penalty_points>
+            <notification>사용 경고 알림</notification>
+            <reason_examples>
+                <example>빨래를 너무 늦게 뺌</example>
+            </reason_examples>
+        </penalty_system>
+
+        <machine_naming_convention>
+            <format>{MachineType}-{Floor}-{Position}{Number}</format>
+            <machine_type>
+                <option>Washer</option>
+                <option>Dryer</option>
+            </machine_type>
+            <floor>3F, 4F, etc.</floor>
+            <position>
+                <L>왼쪽</L>
+                <R>오른쪽</R>
+            </position>
+            <number>1, 2, 3, ...</number>
+            <examples>
+                <example>Washer-3F-L1</example>
+                <example>Dryer-3F-R2</example>
+            </examples>
+        </machine_naming_convention>
+
+        <malfunction_report_workflow>
+            <user_report>
+                <max_length>200자</max_length>
+                <status_change>기기 상태를 '사용불가'로 변경</status_change>
+            </user_report>
+            <admin_review>
+                <status>대기</status>
+                <status>처리중</status>
+                <status>처리완료</status>
+            </admin_review>
+            <resolution>
+                <action>고장 해결</action>
+                <status_change>기기 상태를 '정상'으로 변경</status_change>
+                <timestamp>해결 시간 기록</timestamp>
+            </resolution>
+        </malfunction_report_workflow>
+    </business_logic>
+
+    <!-- ========================================
+         데이터 모델 힌트
+    ========================================= -->
+    <data_model_hints>
+        <entities>
+            <entity name="User">
+                <field>사용자 ID</field>
+                <field>이름</field>
+                <field>학번</field>
+                <field>호실</field>
+                <field>학년</field>
+                <field>층</field>
+                <field>패널티 누적 횟수</field>
+            </entity>
+
+            <entity name="Machine">
+                <field>기기 ID</field>
+                <field>기기명 (Washer-3F-L1)</field>
+                <field>기기 유형 (WASHER/DRYER)</field>
+                <field>SmartThings Device ID</field>
+                <field>층</field>
+                <field>위치 (L/R)</field>
+                <field>번호</field>
+                <field>상태 (정상/고장)</field>
+                <field>사용 가능 여부</field>
+            </entity>
+
+            <entity name="Reservation">
+                <field>예약 ID</field>
+                <field>사용자 ID (FK)</field>
+                <field>기기 ID (FK)</field>
+                <field>예약 시간</field>
+                <field>시작 시간</field>
+                <field>완료 예정 시간</field>
+                <field>실제 완료 시간</field>
+                <field>상태 (RESERVED/CONFIRMED/RUNNING/COMPLETED/CANCELLED)</field>
+                <field>확인 시간 (confirmedAt)</field>
+                <field>취소 시간</field>
+            </entity>
+
+            <entity name="MalfunctionReport">
+                <field>신고 ID</field>
+                <field>기기 ID (FK)</field>
+                <field>신고자 ID (FK)</field>
+                <field>신고 내용 (최대 200자)</field>
+                <field>신고 상태 (대기/처리중/처리완료)</field>
+                <field>신고 시간</field>
+                <field>처리 시작 시간</field>
+                <field>해결 시간</field>
+            </entity>
+
+            <entity name="Notification">
+                <field>알림 ID</field>
+                <field>사용자 ID (FK)</field>
+                <field>알림 유형 (완료/이상/경고)</field>
+                <field>기기 ID (FK)</field>
+                <field>메시지</field>
+                <field>읽음 여부</field>
+                <field>생성 시간</field>
+            </entity>
+
+            <entity name="SmartThingsToken">
+                <field>토큰 ID</field>
+                <field>Access Token</field>
+                <field>Refresh Token</field>
+                <field>만료 시간</field>
+                <field>생성 시간</field>
+                <field>갱신 시간</field>
+            </entity>
+        </entities>
+
+        <enums>
+            <enum name="MachineType">
+                <value>WASHER</value>
+                <value>DRYER</value>
+            </enum>
+
+            <enum name="MachineStatus">
+                <value>NORMAL</value> <!-- 정상 -->
+                <value>MALFUNCTION</value> <!-- 고장 -->
+            </enum>
+
+            <enum name="MachineAvailability">
+                <value>AVAILABLE</value> <!-- 사용 가능 -->
+                <value>IN_USE</value> <!-- 사용 중 -->
+                <value>RESERVED</value> <!-- 예약됨 -->
+                <value>UNAVAILABLE</value> <!-- 사용 불가 -->
+            </enum>
+
+            <enum name="ReservationStatus">
+                <value>RESERVED</value> <!-- 예약됨 -->
+                <value>CONFIRMED</value> <!-- 확인됨 (시작 버튼 누름) -->
+                <value>RUNNING</value> <!-- 실행 중 -->
+                <value>COMPLETED</value> <!-- 완료 -->
+                <value>CANCELLED</value> <!-- 취소 -->
+            </enum>
+
+            <enum name="MalfunctionReportStatus">
+                <value>PENDING</value> <!-- 대기 -->
+                <value>IN_PROGRESS</value> <!-- 처리중 -->
+                <value>RESOLVED</value> <!-- 처리완료 -->
+            </enum>
+
+            <enum name="NotificationType">
+                <value>COMPLETION</value> <!-- 완료 알림 -->
+                <value>MALFUNCTION</value> <!-- 이상 알림 -->
+                <value>WARNING</value> <!-- 경고 알림 -->
+            </enum>
+        </enums>
+    </data_model_hints>
+
+    <!-- ========================================
+         API 엔드포인트 힌트
+    ========================================= -->
+    <api_endpoints_hints>
+        <admin_api>
+            <dashboard>
+                <endpoint>GET /api/admin/dashboard</endpoint>
+                <response>
+                    <active_reservations>활성 예약 수</active_reservations>
+                    <pending_reports>대기 중인 고장 신고 수</pending_reports>
+                    <in_progress_reports>처리 중인 고장 신고 수</in_progress_reports>
+                    <resolved_reports>처리 완료된 고장 신고 수</resolved_reports>
+                </response>
+            </dashboard>
+
+            <machines>
+                <endpoint>GET /api/admin/machines</endpoint>
+                <params>
+                    <filter>기기명</filter>
+                    <filter>기기 유형</filter>
+                </params>
+                <endpoint>PUT /api/admin/machines/{id}/status</endpoint>
+                <description>기기 상태 변경 (정상/고장)</description>
+            </machines>
+
+            <reservations>
+                <endpoint>GET /api/admin/reservations</endpoint>
+                <params>
+                    <filter>기기명</filter>
+                    <filter>기기 유형</filter>
+                </params>
+                <endpoint>DELETE /api/admin/reservations/{id}</endpoint>
+                <description>강제 종료</description>
+            </reservations>
+
+            <malfunction_reports>
+                <endpoint>GET /api/admin/malfunction-reports</endpoint>
+                <endpoint>PUT /api/admin/malfunction-reports/{id}/status</endpoint>
+                <description>신고 상태 변경</description>
+            </malfunction_reports>
+
+            <users>
+                <endpoint>GET /api/admin/users</endpoint>
+                <params>
+                    <filter>이름</filter>
+                    <filter>호실</filter>
+                    <filter>학년</filter>
+                    <filter>층</filter>
+                </params>
+                <endpoint>PUT /api/admin/users/{id}</endpoint>
+                <description>인원 정보 수정</description>
+                <endpoint>DELETE /api/admin/users/{id}</endpoint>
+                <description>인원 제거</description>
+            </users>
+        </admin_api>
+
+        <user_api>
+            <machines>
+                <endpoint>GET /api/machines/status</endpoint>
+                <description>현재 모든 기기 상태 조회</description>
+            </machines>
+
+            <reservations>
+                <endpoint>POST /api/reservations</endpoint>
+                <description>예약 생성</description>
+                <endpoint>PUT /api/reservations/{id}/confirm</endpoint>
+                <description>예약 확인 (시작)</description>
+                <endpoint>DELETE /api/reservations/{id}</endpoint>
+                <description>예약 취소</description>
+                <endpoint>GET /api/reservations/history</endpoint>
+                <description>예약 히스토리</description>
+            </reservations>
+
+            <malfunction_reports>
+                <endpoint>POST /api/malfunction-reports</endpoint>
+                <body>
+                    <machine_id>기기 ID</machine_id>
+                    <description>신고 내용 (최대 200자)</description>
+                </body>
+            </malfunction_reports>
+
+            <notifications>
+                <endpoint>GET /api/notifications</endpoint>
+                <description>사용자 알림 목록</description>
+                <endpoint>PUT /api/notifications/{id}/read</endpoint>
+                <description>알림 읽음 처리</description>
+            </notifications>
+        </user_api>
+    </api_endpoints_hints>
+
+    <!-- ========================================
+         주요 주의사항
+    ========================================= -->
+    <important_notes>
+        <timezone>
+            <issue>SmartThings API는 UTC 시간을 반환</issue>
+            <solution>모든 시간 데이터를 한국 시간(Asia/Seoul)으로 변환 필요</solution>
+            <code>
+                ZonedDateTime utcTime = ZonedDateTime.parse(apiResponse);
+                LocalDateTime koreaTime = utcTime.withZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDateTime();
+            </code>
+        </timezone>
+
+        <device_type_handling>
+            <note>세탁기와 건조기는 API 응답 경로가 다름</note>
+            <washer>washerOperatingState, washerJobState</washer>
+            <dryer>dryerOperatingState, dryerJobState</dryer>
+            <implementation>타입에 따라 다른 JSON 경로 사용</implementation>
+        </device_type_handling>
+
+        <scheduling>
+            <note>여러 스케줄러가 동시에 실행됨</note>
+            <token_refresh>55분마다</token_refresh>
+            <idle_shutdown>2초마다</idle_shutdown>
+            <status_check>10초마다</status_check>
+            <warning>데드락 및 동시성 이슈 주의</warning>
+        </scheduling>
+
+        <performance>
+            <parallel_api_calls>최대 24개 동시 SmartThings API 호출</parallel_api_calls>
+            <technology>Spring WebFlux 비동기 처리</technology>
+            <benefit>대량 기기 조회 시 성능 향상</benefit>
+        </performance>
+
+        <error_handling>
+            <api_failure>API 실패 시 적절한 폴백 값 반환 (예: "unknown")</api_failure>
+            <token_expiry>토큰 만료 전 자동 갱신 (55분 주기)</token_expiry>
+            <user_feedback>사용자에게 명확한 에러 메시지 제공</user_feedback>
+        </error_handling>
+
+        <malfunction_report>
+            <character_limit>200자 제한</character_limit>
+            <state_change>신고 시 기기 상태 자동 변경</state_change>
+            <admin_workflow>관리자가 상태 변경하며 처리</admin_workflow>
+        </malfunction_report>
+
+        <penalty_system>
+            <trigger>불편 신고 접수 시</trigger>
+            <points>1점 부과</points>
+            <notification>즉시 경고 알림 발송</notification>
+        </penalty_system>
+    </important_notes>
+</project>
