@@ -66,7 +66,6 @@ public class User extends BaseEntity {
     @Builder.Default
     private List<Notification> notifications = new ArrayList<>();
 
-    // Business Methods
     public void incrementPenalty() {
         this.penaltyCount++;
     }

@@ -30,31 +30,18 @@ public class SmartThingsToken extends BaseEntity {
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
-    // Note: createdAt and updatedAt from BaseEntity
-
-    // Business Methods
-
-    /**
-     * Update tokens
-     */
     public void updateTokens(String accessToken, String refreshToken, LocalDateTime expiresAt) {
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
         this.expiresAt = expiresAt;
     }
 
-    /**
-     * Check if token is expired or about to expire (within 5 minutes)
-     */
     public boolean isExpiredOrExpiringSoon() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expiryThreshold = now.plusMinutes(5);
         return this.expiresAt.isBefore(expiryThreshold);
     }
 
-    /**
-     * Check if token is valid
-     */
     public boolean isValid() {
         return !isExpiredOrExpiringSoon() && this.accessToken != null && !this.accessToken.isBlank();
     }

@@ -59,12 +59,6 @@ public class Reservation extends BaseEntity {
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
 
-    // Business Methods
-
-    /**
-     * Check if reservation is expired based on current time RESERVED: 5 minutes
-     * from start_time CONFIRMED: 2 minutes from confirmed_at
-     */
     public boolean isExpired() {
         LocalDateTime now = LocalDateTime.now();
 
@@ -75,9 +69,6 @@ public class Reservation extends BaseEntity {
         };
     }
 
-    /**
-     * Calculate remaining time until timeout
-     */
     public Duration getRemainingTimeUntilTimeout() {
         LocalDateTime now = LocalDateTime.now();
 
@@ -96,9 +87,6 @@ public class Reservation extends BaseEntity {
         };
     }
 
-    /**
-     * Confirm reservation (user clicks "start" button)
-     */
     public void confirm() {
         if (this.status != ReservationStatus.RESERVED) {
             throw new IllegalStateException("예약 상태에서만 확인할 수 있습니다");
@@ -107,9 +95,6 @@ public class Reservation extends BaseEntity {
         this.confirmedAt = LocalDateTime.now();
     }
 
-    /**
-     * Start machine operation
-     */
     public void start(LocalDateTime expectedCompletionTime) {
         if (this.status != ReservationStatus.CONFIRMED) {
             throw new IllegalStateException("확인된 예약만 시작할 수 있습니다");
@@ -118,9 +103,6 @@ public class Reservation extends BaseEntity {
         this.expectedCompletionTime = expectedCompletionTime;
     }
 
-    /**
-     * Complete reservation
-     */
     public void complete() {
         if (this.status != ReservationStatus.RUNNING) {
             throw new IllegalStateException("실행 중인 예약만 완료할 수 있습니다");
@@ -129,9 +111,6 @@ public class Reservation extends BaseEntity {
         this.actualCompletionTime = LocalDateTime.now();
     }
 
-    /**
-     * Cancel reservation
-     */
     public void cancel() {
         if (this.status == ReservationStatus.COMPLETED) {
             throw new IllegalStateException("완료된 예약은 취소할 수 없습니다");

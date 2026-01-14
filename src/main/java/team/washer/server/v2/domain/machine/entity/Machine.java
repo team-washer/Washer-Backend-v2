@@ -75,19 +75,10 @@ public class Machine extends BaseEntity {
     @Builder.Default
     private List<MalfunctionReport> malfunctionReports = new ArrayList<>();
 
-    // Business Methods
-
-    /**
-     * Generate machine name from components Format:
-     * {Type}-{Floor}F-{Position}{Number} Example: Washer-3F-L1, Dryer-4F-R2
-     */
     public static String generateName(MachineType type, Integer floor, Position position, Integer number) {
         return String.format("%s-%dF-%s%d", type.getCode(), floor, position.getCode(), number);
     }
 
-    /**
-     * Update machine name based on current attributes
-     */
     public void updateName() {
         this.name = generateName(this.type, this.floor, this.position, this.number);
     }

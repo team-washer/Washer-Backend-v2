@@ -69,9 +69,6 @@ public class Notification extends BaseEntity {
                 .isRead(false).build();
     }
 
-    /**
-     * Factory method to create warning notification
-     */
     public static Notification createWarningNotification(User user, Machine machine, String reason) {
         String message = NotificationType.WARNING.getMessageTemplate().replace("{machineName}", machine.getName())
                 .replace("{reason}", reason);
@@ -80,16 +77,10 @@ public class Notification extends BaseEntity {
                 .isRead(false).build();
     }
 
-    /**
-     * Mark notification as read
-     */
     public void markAsRead() {
         this.isRead = true;
     }
 
-    /**
-     * Mark notification as unread
-     */
     public void markAsUnread() {
         this.isRead = false;
     }

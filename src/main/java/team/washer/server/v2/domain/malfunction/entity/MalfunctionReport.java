@@ -52,11 +52,6 @@ public class MalfunctionReport extends BaseEntity {
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
 
-    // Business Methods
-
-    /**
-     * Start processing the malfunction report
-     */
     public void startProcessing() {
         if (this.status != MalfunctionReportStatus.PENDING) {
             throw new IllegalStateException("대기 중인 신고만 처리를 시작할 수 있습니다");
@@ -65,9 +60,6 @@ public class MalfunctionReport extends BaseEntity {
         this.processingStartedAt = LocalDateTime.now();
     }
 
-    /**
-     * Resolve the malfunction report
-     */
     public void resolve() {
         if (this.status == MalfunctionReportStatus.RESOLVED) {
             throw new IllegalStateException("이미 처리 완료된 신고입니다");
@@ -75,13 +67,9 @@ public class MalfunctionReport extends BaseEntity {
         this.status = MalfunctionReportStatus.RESOLVED;
         this.resolvedAt = LocalDateTime.now();
 
-        // Mark machine as normal when resolved
         this.machine.markAsNormal();
     }
 
-    /**
-     * Reopen resolved report
-     */
     public void reopen() {
         if (this.status != MalfunctionReportStatus.RESOLVED) {
             throw new IllegalStateException("처리 완료된 신고만 재개할 수 있습니다");
