@@ -87,6 +87,8 @@ dependencies {
 
     // QueryDSL
     implementation("io.github.openfeign.querydsl:querydsl-jpa:7.1")
+    annotationProcessor("com.querydsl:querydsl-apt:5.1.0:jakarta")
+    annotationProcessor("jakarta.persistence:jakarta.persistence-api")
 
     // JSON
     implementation("net.minidev:json-smart:2.6.0")
@@ -105,4 +107,22 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+val generatedDir = file("$projectDir/src/main/generated")
+
+sourceSets {
+    main {
+        java {
+            srcDir(generatedDir)
+        }
+    }
+}
+
+tasks.withType<JavaCompile> {
+    options.generatedSourceOutputDirectory.set(generatedDir)
+}
+
+tasks.named<Delete>("clean") {
+    delete(generatedDir)
 }
