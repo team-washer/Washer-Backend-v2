@@ -1,6 +1,7 @@
 package team.washer.server.v2.global.config;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
@@ -50,8 +51,7 @@ public class DataInitializer {
             SmartThingsToken token = SmartThingsToken.builder().accessToken("PLACEHOLDER_ACCESS_TOKEN")
                     .refreshToken("PLACEHOLDER_REFRESH_TOKEN").expiresAt(LocalDateTime.now().plusHours(1)).build();
 
-            // Note: JPA will auto-generate ID, but we need to ensure it's ID=1
-            // This might require manual ID setting or using a native query
+            // Note: ID is explicitly set to SINGLETON_ID (1L) via @Builder.Default
             tokenRepository.save(token);
             log.info("SmartThingsToken singleton created (ID: {})", token.getId());
         } else {
@@ -76,11 +76,7 @@ public class DataInitializer {
             User user5 = User.builder().name("최지원").studentId("20230001").roomNumber("501").grade(1).floor(5)
                     .penaltyCount(0).build();
 
-            userRepository.save(user1);
-            userRepository.save(user2);
-            userRepository.save(user3);
-            userRepository.save(user4);
-            userRepository.save(user5);
+            userRepository.saveAll(List.of(user1, user2, user3, user4, user5));
 
             log.info("Created {} test users", 5);
         } else {
@@ -106,14 +102,8 @@ public class DataInitializer {
             Machine washer4FR1 = createMachine(MachineType.WASHER, 4, Position.RIGHT, 1);
             Machine dryer4FR2 = createMachine(MachineType.DRYER, 4, Position.RIGHT, 2);
 
-            machineRepository.save(washer3FL1);
-            machineRepository.save(washer3FL2);
-            machineRepository.save(dryer3FR1);
-            machineRepository.save(dryer3FR2);
-            machineRepository.save(washer4FL1);
-            machineRepository.save(dryer4FL2);
-            machineRepository.save(washer4FR1);
-            machineRepository.save(dryer4FR2);
+            machineRepository.saveAll(List.of(washer3FL1, washer3FL2, dryer3FR1, dryer3FR2, washer4FL1, dryer4FL2,
+                    washer4FR1, dryer4FR2));
 
             log.info("Created {} test machines", 8);
         } else {
