@@ -6,10 +6,10 @@ import java.time.LocalDateTime;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
-import team.washer.server.v2.global.common.entity.BaseEntity;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.entity.BaseEntity;
 
 @Entity
 @Table(name = "reservations", indexes = {@Index(name = "idx_status", columnList = "status"),

@@ -6,10 +6,10 @@ import java.util.List;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
-import team.washer.server.v2.global.common.entity.BaseEntity;
 import team.washer.server.v2.domain.malfunction.entity.MalfunctionReport;
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.global.common.entity.BaseEntity;
 
 @Entity
 @Table(name = "users", indexes = {@Index(name = "idx_student_id", columnList = "student_id"),

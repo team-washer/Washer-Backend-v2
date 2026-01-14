@@ -5,10 +5,10 @@ import java.time.LocalDateTime;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
-import team.washer.server.v2.global.common.entity.BaseEntity;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.malfunction.enums.MalfunctionReportStatus;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.entity.BaseEntity;
 
 @Entity
 @Table(name = "malfunction_reports", indexes = {@Index(name = "idx_status", columnList = "status"),
