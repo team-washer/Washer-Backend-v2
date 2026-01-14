@@ -51,7 +51,6 @@ public class DataInitializer {
             SmartThingsToken token = SmartThingsToken.builder().accessToken("PLACEHOLDER_ACCESS_TOKEN")
                     .refreshToken("PLACEHOLDER_REFRESH_TOKEN").expiresAt(LocalDateTime.now().plusHours(1)).build();
 
-            // Note: ID is explicitly set to SINGLETON_ID (1L) via @Builder.Default
             tokenRepository.save(token);
             log.info("SmartThingsToken singleton created (ID: {})", token.getId());
         } else {
@@ -86,19 +85,15 @@ public class DataInitializer {
 
     private void initializeTestMachines() {
         if (machineRepository.count() == 0) {
-            // 3F Machines (Left side)
             Machine washer3FL1 = createMachine(MachineType.WASHER, 3, Position.LEFT, 1);
             Machine washer3FL2 = createMachine(MachineType.WASHER, 3, Position.LEFT, 2);
 
-            // 3F Machines (Right side)
             Machine dryer3FR1 = createMachine(MachineType.DRYER, 3, Position.RIGHT, 1);
             Machine dryer3FR2 = createMachine(MachineType.DRYER, 3, Position.RIGHT, 2);
 
-            // 4F Machines (Left side)
             Machine washer4FL1 = createMachine(MachineType.WASHER, 4, Position.LEFT, 1);
             Machine dryer4FL2 = createMachine(MachineType.DRYER, 4, Position.LEFT, 2);
 
-            // 4F Machines (Right side)
             Machine washer4FR1 = createMachine(MachineType.WASHER, 4, Position.RIGHT, 1);
             Machine dryer4FR2 = createMachine(MachineType.DRYER, 4, Position.RIGHT, 2);
 
