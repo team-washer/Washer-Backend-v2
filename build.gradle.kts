@@ -87,7 +87,7 @@ dependencies {
 
     // QueryDSL
     implementation("io.github.openfeign.querydsl:querydsl-jpa:7.1")
-    annotationProcessor("com.querydsl:querydsl-apt:5.1.0:jakarta")
+    annotationProcessor("io.github.openfeign.querydsl:querydsl-apt:7.1")
     annotationProcessor("jakarta.persistence:jakarta.persistence-api")
 
     // JSON
