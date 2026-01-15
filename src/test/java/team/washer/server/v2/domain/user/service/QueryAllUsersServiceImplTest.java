@@ -20,7 +20,7 @@ import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("QueryAllUsersServiceImpl 테스트")
+@DisplayName("QueryAllUsersServiceImpl 클래스의")
 class QueryAllUsersServiceImplTest {
 
     @InjectMocks
@@ -30,15 +30,15 @@ class QueryAllUsersServiceImplTest {
     private UserRepository userRepository;
 
     @Nested
-    @DisplayName("Describe: getAllUsers 메서드는")
+    @DisplayName("getAllUsers 메서드는")
     class Describe_getAllUsers {
 
         @Nested
-        @DisplayName("Context: 사용자가 존재할 때")
+        @DisplayName("사용자가 존재할 때")
         class Context_with_existing_users {
 
             @Test
-            @DisplayName("It: 모든 사용자 목록을 반환한다")
+            @DisplayName("모든 사용자 목록을 반환해야 한다")
             void it_returns_all_users() {
                 // Given
                 User user1 = User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(3).floor(3)
@@ -65,11 +65,11 @@ class QueryAllUsersServiceImplTest {
         }
 
         @Nested
-        @DisplayName("Context: 사용자가 존재하지 않을 때")
+        @DisplayName("사용자가 존재하지 않을 때")
         class Context_with_no_users {
 
             @Test
-            @DisplayName("It: 빈 목록을 반환한다")
+            @DisplayName("빈 목록을 반환해야 한다")
             void it_returns_empty_list() {
                 // Given
                 given(userRepository.findAll()).willReturn(Collections.emptyList());

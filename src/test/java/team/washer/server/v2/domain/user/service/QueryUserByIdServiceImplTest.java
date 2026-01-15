@@ -18,20 +18,20 @@ import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
 @ExtendWith(MockitoExtension.class)
-@DisplayName("QueryUserByIdServiceImpl 테스트")
+@DisplayName("QueryUserByIdServiceImpl 클래스의")
 class QueryUserByIdServiceImplTest {
     @InjectMocks
     private QueryUserByIdServiceImpl queryUserByIdService;
     @Mock
     private UserRepository userRepository;
     @Nested
-    @DisplayName("Describe: getUserById 메서드는")
+    @DisplayName("getUserById 메서드는")
     class Describe_getUserById {
         @Nested
-        @DisplayName("Context: 유효한 ID로 조회할 때")
+        @DisplayName("유효한 ID로 조회할 때")
         class Context_with_valid_id {
             @Test
-            @DisplayName("It: 해당 사용자 정보를 반환한다")
+            @DisplayName("해당 사용자 정보를 반환해야 한다")
             void it_returns_user() {
                 // Given
                 Long userId = 1L;
@@ -52,10 +52,10 @@ class QueryUserByIdServiceImplTest {
             }
         }
         @Nested
-        @DisplayName("Context: 존재하지 않는 ID로 조회할 때")
+        @DisplayName("존재하지 않는 ID로 조회할 때")
         class Context_with_invalid_id {
             @Test
-            @DisplayName("It: ExpectedException을 던진다")
+            @DisplayName("ExpectedException이 발생해야 한다")
             void it_throws_expected_exception() {
                 // Given
                 Long invalidUserId = 999L;
@@ -70,10 +70,10 @@ class QueryUserByIdServiceImplTest {
             }
         }
         @Nested
-        @DisplayName("Context: null ID로 조회할 때")
+        @DisplayName("null ID로 조회할 때")
         class Context_with_null_id {
             @Test
-            @DisplayName("It: ExpectedException을 던진다")
+            @DisplayName("ExpectedException이 발생해야 한다")
             void it_throws_expected_exception() {
                 // Given
                 given(userRepository.findById(null)).willReturn(Optional.empty());

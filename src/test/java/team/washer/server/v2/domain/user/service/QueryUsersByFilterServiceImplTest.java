@@ -17,7 +17,7 @@ import team.washer.server.v2.domain.user.dto.UserListResponseDto;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 @ExtendWith(MockitoExtension.class)
-@DisplayName("QueryUsersByFilterServiceImpl 테스트")
+@DisplayName("QueryUsersByFilterServiceImpl 클래스의")
 class QueryUsersByFilterServiceImplTest {
     @InjectMocks
     private QueryUsersByFilterServiceImpl queryUsersByFilterService;
@@ -28,13 +28,13 @@ class QueryUsersByFilterServiceImplTest {
                 .penaltyCount(0).build();
     }
     @Nested
-    @DisplayName("Describe: getUsersByFilter 메서드는")
+    @DisplayName("getUsersByFilter 메서드는")
     class Describe_getUsersByFilter {
         @Nested
-        @DisplayName("Context: 이름으로 필터링할 때")
+        @DisplayName("이름으로 필터링할 때")
         class Context_with_name_filter {
             @Test
-            @DisplayName("It: 이름을 포함하는 사용자 목록을 반환한다")
+            @DisplayName("이름을 포함하는 사용자 목록을 반환해야 한다")
             void it_returns_users_by_name() {
                 // Given
                 String searchName = "김";
@@ -52,10 +52,10 @@ class QueryUsersByFilterServiceImplTest {
             }
         }
         @Nested
-        @DisplayName("Context: 호실로 필터링할 때")
+        @DisplayName("호실로 필터링할 때")
         class Context_with_room_number_filter {
             @Test
-            @DisplayName("It: 해당 호실의 사용자 목록을 반환한다")
+            @DisplayName("해당 호실의 사용자 목록을 반환해야 한다")
             void it_returns_users_by_room_number() {
                 // Given
                 String roomNumber = "301";
@@ -71,10 +71,10 @@ class QueryUsersByFilterServiceImplTest {
             }
         }
         @Nested
-        @DisplayName("Context: 학년과 층으로 필터링할 때")
+        @DisplayName("학년과 층으로 필터링할 때")
         class Context_with_grade_and_floor_filter {
             @Test
-            @DisplayName("It: 해당 학년과 층의 사용자 목록을 반환한다")
+            @DisplayName("해당 학년과 층의 사용자 목록을 반환해야 한다")
             void it_returns_users_by_grade_and_floor() {
                 // Given
                 Integer grade = 3;
@@ -92,10 +92,10 @@ class QueryUsersByFilterServiceImplTest {
             }
         }
         @Nested
-        @DisplayName("Context: 학년으로만 필터링할 때")
+        @DisplayName("학년으로만 필터링할 때")
         class Context_with_grade_only_filter {
             @Test
-            @DisplayName("It: 해당 학년의 사용자 목록을 반환한다")
+            @DisplayName("해당 학년의 사용자 목록을 반환해야 한다")
             void it_returns_users_by_grade() {
                 // Given
                 Integer grade = 2;
@@ -111,10 +111,10 @@ class QueryUsersByFilterServiceImplTest {
             }
         }
         @Nested
-        @DisplayName("Context: 층으로만 필터링할 때")
+        @DisplayName("층으로만 필터링할 때")
         class Context_with_floor_only_filter {
             @Test
-            @DisplayName("It: 해당 층의 사용자 목록을 반환한다")
+            @DisplayName("해당 층의 사용자 목록을 반환해야 한다")
             void it_returns_users_by_floor() {
                 // Given
                 Integer floor = 4;
@@ -130,10 +130,10 @@ class QueryUsersByFilterServiceImplTest {
             }
         }
         @Nested
-        @DisplayName("Context: 필터가 없을 때")
+        @DisplayName("필터가 없을 때")
         class Context_without_filter {
             @Test
-            @DisplayName("It: 모든 사용자 목록을 반환한다")
+            @DisplayName("모든 사용자 목록을 반환해야 한다")
             void it_returns_all_users() {
                 // Given
                 User user1 = createUser("김철수", "20210001", "301", 3, 3);
@@ -147,7 +147,7 @@ class QueryUsersByFilterServiceImplTest {
                 then(userRepository).should(times(1)).findAll();
             }
             @Test
-            @DisplayName("It: 빈 문자열 필터도 무시하고 모든 사용자를 반환한다")
+            @DisplayName("빈 문자열 필터도 무시하고 모든 사용자를 반환해야 한다")
             void it_ignores_empty_string_filters() {
                 // Given
                 User user = createUser("김철수", "20210001", "301", 3, 3);
