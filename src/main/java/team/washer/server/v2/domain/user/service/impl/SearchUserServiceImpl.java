@@ -1,4 +1,4 @@
-package team.washer.server.v2.domain.user.service;
+package team.washer.server.v2.domain.user.service.impl;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -11,10 +11,11 @@ import team.washer.server.v2.domain.user.dto.UserListResponseDto;
 import team.washer.server.v2.domain.user.dto.UserResponseDto;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.domain.user.service.SearchUserService;
 
 @Service
 @RequiredArgsConstructor
-public class QueryUsersByFilterServiceImpl implements QueryUsersByFilterService {
+public class SearchUserServiceImpl implements SearchUserService {
 
     private final UserRepository userRepository;
 
