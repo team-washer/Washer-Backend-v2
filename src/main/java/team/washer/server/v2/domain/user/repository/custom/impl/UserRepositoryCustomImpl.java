@@ -5,8 +5,8 @@ import static team.washer.server.v2.domain.user.entity.QUser.*;
 import java.util.List;
 
 import org.springframework.stereotype.Repository;
+import org.springframework.util.StringUtils;
 
-import com.querydsl.core.BooleanBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import lombok.RequiredArgsConstructor;
@@ -21,21 +21,10 @@ public class UserRepositoryCustomImpl implements UserRepositoryCustom {
 
     @Override
     public List<User> findUsersByFilter(String name, String roomNumber, Integer grade, Integer floor) {
-        BooleanBuilder builder = new BooleanBuilder();
-
-        if (name != null && !name.isEmpty()) {
-            builder.and(user.name.contains(name));
-        }
-        if (roomNumber != null && !roomNumber.isEmpty()) {
-            builder.and(user.roomNumber.eq(roomNumber));
-        }
-        if (grade != null) {
-            builder.and(user.grade.eq(grade));
-        }
-        if (floor != null) {
-            builder.and(user.floor.eq(floor));
-        }
-
-        return queryFactory.selectFrom(user).where(builder).fetch();
+        return queryFactory.selectFrom(user)
+                .where(StringUtils.hasText(name) ? user.name.contains(name) : null,
+                        StringUtils.hasText(roomNumber) ? user.roomNumber.eq(roomNumber) : null,
+                        grade != null ? user.grade.eq(grade) : null, floor != null ? user.floor.eq(floor) : null)
+                .fetch();
     }
 }
