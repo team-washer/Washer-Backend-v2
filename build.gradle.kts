@@ -87,8 +87,9 @@ dependencies {
 
     // QueryDSL
     implementation("io.github.openfeign.querydsl:querydsl-jpa:7.1")
-    annotationProcessor("io.github.openfeign.querydsl:querydsl-apt:7.1")
+    annotationProcessor("io.github.openfeign.querydsl:querydsl-apt:7.1:jakarta")
     annotationProcessor("jakarta.persistence:jakarta.persistence-api")
+    annotationProcessor("jakarta.annotation:jakarta.annotation-api")
 
     // JSON
     implementation("net.minidev:json-smart:2.6.0")
