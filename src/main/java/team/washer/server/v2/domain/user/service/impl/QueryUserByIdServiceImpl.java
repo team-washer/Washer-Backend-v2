@@ -22,6 +22,7 @@ public class QueryUserByIdServiceImpl implements QueryUserByIdService {
     public UserResponseDto getUserById(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
-        return UserResponseDto.from(user);
+        return new UserResponseDto(user.getId(), user.getName(), user.getStudentId(), user.getRoomNumber(),
+                user.getGrade(), user.getFloor(), user.getPenaltyCount(), user.getCreatedAt(), user.getUpdatedAt());
     }
 }
