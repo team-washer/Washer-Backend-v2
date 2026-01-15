@@ -60,8 +60,10 @@ public class DiscordErrorNotificationService {
         }
         StackTraceElement firstElement = exception.getStackTrace().length > 0 ? exception.getStackTrace()[0] : null;
         if (firstElement != null) {
-            String location = String.format("```%s:%d (%s)```", firstElement.getFileName(),
-                    firstElement.getLineNumber(), firstElement.getMethodName());
+            String location = String.format("```%s:%d (%s)```",
+                    firstElement.getFileName(),
+                    firstElement.getLineNumber(),
+                    firstElement.getMethodName());
             fields.add(DiscordField.builder().name("Location").value(location).inline(false).build());
         }
         if (additionalInfo != null && !additionalInfo.isEmpty()) {
@@ -72,8 +74,11 @@ public class DiscordErrorNotificationService {
         int limit = Math.min(5, exception.getStackTrace().length);
         for (int i = 0; i < limit; i++) {
             StackTraceElement element = exception.getStackTrace()[i];
-            stackTrace.append(String.format("at %s.%s(%s:%d)\n", element.getClassName(), element.getMethodName(),
-                    element.getFileName(), element.getLineNumber()));
+            stackTrace.append(String.format("at %s.%s(%s:%d)\n",
+                    element.getClassName(),
+                    element.getMethodName(),
+                    element.getFileName(),
+                    element.getLineNumber()));
         }
 
         if (!stackTrace.isEmpty()) {
