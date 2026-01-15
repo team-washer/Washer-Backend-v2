@@ -32,8 +32,16 @@ public class CommonApiResDto<T> {
         return new CommonApiResDto(HttpStatus.OK, HttpStatus.OK.value(), message, null);
     }
 
+    public static <T> CommonApiResDto<T> success(@Nonnull String message, T data) {
+        return new CommonApiResDto<>(HttpStatus.OK, HttpStatus.OK.value(), message, data);
+    }
+
     public static CommonApiResDto created(@Nonnull String message) {
         return new CommonApiResDto(HttpStatus.CREATED, HttpStatus.CREATED.value(), message, null);
+    }
+
+    public static <T> CommonApiResDto<T> created(@Nonnull String message, T data) {
+        return new CommonApiResDto<>(HttpStatus.CREATED, HttpStatus.CREATED.value(), message, data);
     }
 
     public static CommonApiResDto error(@Nonnull String message, @Nonnull HttpStatus status) {
