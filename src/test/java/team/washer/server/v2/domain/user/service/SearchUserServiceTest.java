@@ -17,13 +17,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import team.washer.server.v2.domain.user.dto.UserListResponseDto;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.domain.user.service.impl.SearchUserServiceImpl;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("QueryUsersByFilterServiceImpl 클래스의")
-class QueryUsersByFilterServiceImplTest {
+class SearchUserServiceTest {
 
     @InjectMocks
-    private QueryUsersByFilterServiceImpl queryUsersByFilterService;
+    private SearchUserServiceImpl queryUsersByFilterService;
 
     @Mock
     private UserRepository userRepository;

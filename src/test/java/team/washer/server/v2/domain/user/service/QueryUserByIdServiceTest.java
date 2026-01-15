@@ -16,10 +16,11 @@ import org.springframework.http.HttpStatus;
 import team.washer.server.v2.domain.user.dto.UserResponseDto;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.domain.user.service.impl.QueryUserByIdServiceImpl;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("QueryUserByIdServiceImpl 클래스의")
-class QueryUserByIdServiceImplTest {
+class QueryUserByIdServiceTest {
     @InjectMocks
     private QueryUserByIdServiceImpl queryUserByIdService;
     @Mock
