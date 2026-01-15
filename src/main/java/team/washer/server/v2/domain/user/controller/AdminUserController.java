@@ -12,7 +12,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.user.dto.UserListResponseDto;
 import team.washer.server.v2.domain.user.dto.UserResponseDto;
-import team.washer.server.v2.domain.user.service.UserService;
+import team.washer.server.v2.domain.user.service.QueryUserByIdService;
+import team.washer.server.v2.domain.user.service.QueryUsersByFilterService;
 import team.washer.server.v2.global.common.response.data.response.CommonApiResDto;
 
 @RestController
@@ -21,7 +22,8 @@ import team.washer.server.v2.global.common.response.data.response.CommonApiResDt
 @Tag(name = "Admin User Management", description = "사용자 관리 API (관리자용)")
 public class AdminUserController {
 
-    private final UserService userService;
+    private final QueryUsersByFilterService queryUsersByFilterService;
+    private final QueryUserByIdService queryUserByIdService;
 
     @GetMapping
     @Operation(summary = "전체 사용자 조회", description = "필터링 옵션으로 사용자 목록을 조회합니다")
@@ -30,7 +32,7 @@ public class AdminUserController {
             @Parameter(description = "호실") @RequestParam(required = false) String roomNumber,
             @Parameter(description = "학년") @RequestParam(required = false) Integer grade,
             @Parameter(description = "층") @RequestParam(required = false) Integer floor) {
-        UserListResponseDto response = userService.getUsersByFilter(name, roomNumber, grade, floor);
+        UserListResponseDto response = queryUsersByFilterService.getUsersByFilter(name, roomNumber, grade, floor);
         return CommonApiResDto.success("사용자 목록 조회 성공", response);
     }
 
@@ -38,7 +40,7 @@ public class AdminUserController {
     @Operation(summary = "사용자 상세 조회", description = "ID로 특정 사용자를 조회합니다")
     public CommonApiResDto<UserResponseDto> getUserById(@Parameter(description = "사용자 ID") @PathVariable Long id) {
 
-        UserResponseDto response = userService.getUserById(id);
+        UserResponseDto response = queryUserByIdService.getUserById(id);
         return CommonApiResDto.success("사용자 조회 성공", response);
     }
 }
