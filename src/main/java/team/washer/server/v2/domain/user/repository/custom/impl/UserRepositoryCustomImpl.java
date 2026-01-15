@@ -24,7 +24,8 @@ public class UserRepositoryCustomImpl implements UserRepositoryCustom {
         return queryFactory.selectFrom(user)
                 .where(StringUtils.hasText(name) ? user.name.contains(name) : null,
                         StringUtils.hasText(roomNumber) ? user.roomNumber.eq(roomNumber) : null,
-                        grade != null ? user.grade.eq(grade) : null, floor != null ? user.floor.eq(floor) : null)
+                        grade != null ? user.grade.eq(grade) : null,
+                        floor != null ? user.floor.eq(floor) : null)
                 .fetch();
     }
 }

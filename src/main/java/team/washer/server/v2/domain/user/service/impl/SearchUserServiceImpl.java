@@ -28,9 +28,15 @@ public class SearchUserServiceImpl implements SearchUserService {
 
     private UserListResponseDto buildUserListResponse(List<User> users) {
         List<UserResponseDto> userDtos = users.stream()
-                .map(user -> new UserResponseDto(user.getId(), user.getName(), user.getStudentId(),
-                        user.getRoomNumber(), user.getGrade(), user.getFloor(), user.getPenaltyCount(),
-                        user.getCreatedAt(), user.getUpdatedAt()))
+                .map(user -> new UserResponseDto(user.getId(),
+                        user.getName(),
+                        user.getStudentId(),
+                        user.getRoomNumber(),
+                        user.getGrade(),
+                        user.getFloor(),
+                        user.getPenaltyCount(),
+                        user.getCreatedAt(),
+                        user.getUpdatedAt()))
                 .collect(Collectors.toList());
         return new UserListResponseDto(userDtos, userDtos.size());
     }

@@ -97,8 +97,8 @@ public class DataInitializer {
             Machine washer4FR1 = createMachine(MachineType.WASHER, 4, Position.RIGHT, 1);
             Machine dryer4FR2 = createMachine(MachineType.DRYER, 4, Position.RIGHT, 2);
 
-            machineRepository.saveAll(List.of(washer3FL1, washer3FL2, dryer3FR1, dryer3FR2, washer4FL1, dryer4FL2,
-                    washer4FR1, dryer4FR2));
+            machineRepository.saveAll(List
+                    .of(washer3FL1, washer3FL2, dryer3FR1, dryer3FR2, washer4FL1, dryer4FL2, washer4FR1, dryer4FR2));
 
             log.info("Created {} test machines", 8);
         } else {
@@ -108,8 +108,11 @@ public class DataInitializer {
 
     private Machine createMachine(MachineType type, Integer floor, Position position, Integer number) {
         String name = Machine.generateName(type, floor, position, number);
-        String deviceId = String.format("smartthings-device-id-%s-%d%s%d", type.getCode().toLowerCase(), floor,
-                position.getCode().toLowerCase(), number);
+        String deviceId = String.format("smartthings-device-id-%s-%d%s%d",
+                type.getCode().toLowerCase(),
+                floor,
+                position.getCode().toLowerCase(),
+                number);
 
         Machine machine = Machine.builder().name(name).type(type).deviceId(deviceId).floor(floor).position(position)
                 .number(number).status(MachineStatus.NORMAL).availability(MachineAvailability.AVAILABLE).build();
