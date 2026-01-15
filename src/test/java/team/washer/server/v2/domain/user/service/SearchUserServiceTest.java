@@ -20,11 +20,11 @@ import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.impl.SearchUserServiceImpl;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("QueryUsersByFilterServiceImpl 클래스의")
+@DisplayName("SearchUserServiceImpl 클래스의")
 class SearchUserServiceTest {
 
     @InjectMocks
-    private SearchUserServiceImpl queryUsersByFilterService;
+    private SearchUserServiceImpl searchUserService;
 
     @Mock
     private UserRepository userRepository;
@@ -54,11 +54,11 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(searchName, null, null, null)).willReturn(users);
 
                 // When
-                UserListResponseDto result = queryUsersByFilterService.getUsersByFilter(searchName, null, null, null);
+                UserListResponseDto result = searchUserService.getUsersByFilter(searchName, null, null, null);
 
                 // Then
-                assertThat(result.getTotalCount()).isEqualTo(2);
-                assertThat(result.getUsers()).allMatch(u -> u.getName().contains("김"));
+                assertThat(result.totalCount()).isEqualTo(2);
+                assertThat(result.users()).allMatch(u -> u.name().contains("김"));
                 then(userRepository).should(times(1)).findUsersByFilter(searchName, null, null, null);
             }
         }
@@ -78,11 +78,11 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(null, roomNumber, null, null)).willReturn(users);
 
                 // When
-                UserListResponseDto result = queryUsersByFilterService.getUsersByFilter(null, roomNumber, null, null);
+                UserListResponseDto result = searchUserService.getUsersByFilter(null, roomNumber, null, null);
 
                 // Then
-                assertThat(result.getTotalCount()).isEqualTo(1);
-                assertThat(result.getUsers().get(0).getRoomNumber()).isEqualTo("301");
+                assertThat(result.totalCount()).isEqualTo(1);
+                assertThat(result.users().get(0).roomNumber()).isEqualTo("301");
                 then(userRepository).should(times(1)).findUsersByFilter(null, roomNumber, null, null);
             }
         }
@@ -104,11 +104,11 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(null, null, grade, floor)).willReturn(users);
 
                 // When
-                UserListResponseDto result = queryUsersByFilterService.getUsersByFilter(null, null, grade, floor);
+                UserListResponseDto result = searchUserService.getUsersByFilter(null, null, grade, floor);
 
                 // Then
-                assertThat(result.getTotalCount()).isEqualTo(2);
-                assertThat(result.getUsers()).allMatch(u -> u.getGrade().equals(3) && u.getFloor().equals(3));
+                assertThat(result.totalCount()).isEqualTo(2);
+                assertThat(result.users()).allMatch(u -> u.grade().equals(3) && u.floor().equals(3));
                 then(userRepository).should(times(1)).findUsersByFilter(null, null, grade, floor);
             }
         }
@@ -128,11 +128,11 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(null, null, grade, null)).willReturn(users);
 
                 // When
-                UserListResponseDto result = queryUsersByFilterService.getUsersByFilter(null, null, grade, null);
+                UserListResponseDto result = searchUserService.getUsersByFilter(null, null, grade, null);
 
                 // Then
-                assertThat(result.getTotalCount()).isEqualTo(1);
-                assertThat(result.getUsers().get(0).getGrade()).isEqualTo(2);
+                assertThat(result.totalCount()).isEqualTo(1);
+                assertThat(result.users().get(0).grade()).isEqualTo(2);
                 then(userRepository).should(times(1)).findUsersByFilter(null, null, grade, null);
             }
         }
@@ -152,11 +152,11 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(null, null, null, floor)).willReturn(users);
 
                 // When
-                UserListResponseDto result = queryUsersByFilterService.getUsersByFilter(null, null, null, floor);
+                UserListResponseDto result = searchUserService.getUsersByFilter(null, null, null, floor);
 
                 // Then
-                assertThat(result.getTotalCount()).isEqualTo(1);
-                assertThat(result.getUsers().get(0).getFloor()).isEqualTo(4);
+                assertThat(result.totalCount()).isEqualTo(1);
+                assertThat(result.users().get(0).floor()).isEqualTo(4);
                 then(userRepository).should(times(1)).findUsersByFilter(null, null, null, floor);
             }
         }
@@ -176,10 +176,10 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(null, null, null, null)).willReturn(users);
 
                 // When
-                UserListResponseDto result = queryUsersByFilterService.getUsersByFilter(null, null, null, null);
+                UserListResponseDto result = searchUserService.getUsersByFilter(null, null, null, null);
 
                 // Then
-                assertThat(result.getTotalCount()).isEqualTo(2);
+                assertThat(result.totalCount()).isEqualTo(2);
                 then(userRepository).should(times(1)).findUsersByFilter(null, null, null, null);
             }
 
@@ -193,10 +193,10 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter("", "", null, null)).willReturn(users);
 
                 // When
-                UserListResponseDto result = queryUsersByFilterService.getUsersByFilter("", "", null, null);
+                UserListResponseDto result = searchUserService.getUsersByFilter("", "", null, null);
 
                 // Then
-                assertThat(result.getTotalCount()).isEqualTo(1);
+                assertThat(result.totalCount()).isEqualTo(1);
                 then(userRepository).should(times(1)).findUsersByFilter("", "", null, null);
             }
         }
@@ -218,13 +218,13 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(name, null, grade, floor)).willReturn(users);
 
                 // When
-                UserListResponseDto result = queryUsersByFilterService.getUsersByFilter(name, null, grade, floor);
+                UserListResponseDto result = searchUserService.getUsersByFilter(name, null, grade, floor);
 
                 // Then
-                assertThat(result.getTotalCount()).isEqualTo(1);
-                assertThat(result.getUsers().get(0).getName()).contains("김");
-                assertThat(result.getUsers().get(0).getGrade()).isEqualTo(3);
-                assertThat(result.getUsers().get(0).getFloor()).isEqualTo(3);
+                assertThat(result.totalCount()).isEqualTo(1);
+                assertThat(result.users().get(0).name()).contains("김");
+                assertThat(result.users().get(0).grade()).isEqualTo(3);
+                assertThat(result.users().get(0).floor()).isEqualTo(3);
                 then(userRepository).should(times(1)).findUsersByFilter(name, null, grade, floor);
             }
         }

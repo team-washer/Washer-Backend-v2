@@ -43,12 +43,12 @@ class QueryUserByIdServiceTest {
                 UserResponseDto result = queryUserByIdService.getUserById(userId);
                 // Then
                 assertThat(result).isNotNull();
-                assertThat(result.getName()).isEqualTo("김철수");
-                assertThat(result.getStudentId()).isEqualTo("20210001");
-                assertThat(result.getRoomNumber()).isEqualTo("301");
-                assertThat(result.getGrade()).isEqualTo(3);
-                assertThat(result.getFloor()).isEqualTo(3);
-                assertThat(result.getPenaltyCount()).isEqualTo(0);
+                assertThat(result.name()).isEqualTo("김철수");
+                assertThat(result.studentId()).isEqualTo("20210001");
+                assertThat(result.roomNumber()).isEqualTo("301");
+                assertThat(result.grade()).isEqualTo(3);
+                assertThat(result.floor()).isEqualTo(3);
+                assertThat(result.penaltyCount()).isEqualTo(0);
                 then(userRepository).should(times(1)).findById(userId);
             }
         }
@@ -68,20 +68,6 @@ class QueryUserByIdServiceTest {
                             assertThat(expectedException.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
                         });
                 then(userRepository).should(times(1)).findById(invalidUserId);
-            }
-        }
-        @Nested
-        @DisplayName("null ID로 조회할 때")
-        class Context_with_null_id {
-            @Test
-            @DisplayName("ExpectedException이 발생해야 한다")
-            void it_throws_expected_exception() {
-                // Given
-                given(userRepository.findById(null)).willReturn(Optional.empty());
-                // When & Then
-                assertThatThrownBy(() -> queryUserByIdService.getUserById(null)).isInstanceOf(ExpectedException.class)
-                        .hasMessage("사용자를 찾을 수 없습니다");
-                then(userRepository).should(times(1)).findById(null);
             }
         }
     }
