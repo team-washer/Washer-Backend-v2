@@ -28,6 +28,6 @@ public class SearchUserServiceImpl implements SearchUserService {
 
     private UserListResponseDto buildUserListResponse(List<User> users) {
         List<UserResponseDto> userDtos = users.stream().map(UserResponseDto::from).collect(Collectors.toList());
-        return UserListResponseDto.builder().users(userDtos).totalCount(userDtos.size()).build();
+        return new UserListResponseDto(userDtos, userDtos.size());
     }
 }
