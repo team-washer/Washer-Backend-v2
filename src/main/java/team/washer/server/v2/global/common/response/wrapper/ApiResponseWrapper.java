@@ -29,8 +29,11 @@ public class ApiResponseWrapper implements ResponseBodyAdvice<Object> {
     }
 
     @Override
-    public Object beforeBodyWrite(Object body, MethodParameter returnType, MediaType selectedContentType,
-            Class<? extends HttpMessageConverter<?>> selectedConverterType, ServerHttpRequest request,
+    public Object beforeBodyWrite(Object body,
+            MethodParameter returnType,
+            MediaType selectedContentType,
+            Class<? extends HttpMessageConverter<?>> selectedConverterType,
+            ServerHttpRequest request,
             ServerHttpResponse response) {
 
         if (isNotWrappingURL(request.getURI().getPath())) {
@@ -53,7 +56,9 @@ public class ApiResponseWrapper implements ResponseBodyAdvice<Object> {
             return null;
         }
 
-        CommonApiResDto<Object> commonApiResponse = new CommonApiResDto<>(HttpStatus.OK, HttpStatus.OK.value(), "OK",
+        CommonApiResDto<Object> commonApiResponse = new CommonApiResDto<>(HttpStatus.OK,
+                HttpStatus.OK.value(),
+                "OK",
                 body);
 
         response.setStatusCode(HttpStatus.OK);

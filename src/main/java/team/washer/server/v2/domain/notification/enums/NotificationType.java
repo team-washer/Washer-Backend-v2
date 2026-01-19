@@ -12,4 +12,12 @@ public enum NotificationType {
 
     private final String description;
     private final String messageTemplate;
+
+    public String formatMessage(String machineName) {
+        return messageTemplate.replace("{machineName}", machineName);
+    }
+
+    public String formatMessage(String machineName, String reason) {
+        return messageTemplate.replace("{machineName}", machineName).replace("{reason}", reason);
+    }
 }

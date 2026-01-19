@@ -33,8 +33,10 @@ public interface MachineRepository extends JpaRepository<Machine, Long> {
     List<Machine> findByTypeAndFloor(MachineType type, Integer floor);
 
     @Query("SELECT m FROM Machine m WHERE m.type = :type AND m.floor = :floor AND m.position = :position AND m.number = :number")
-    Optional<Machine> findByLocation(@Param("type") MachineType type, @Param("floor") Integer floor,
-            @Param("position") Position position, @Param("number") Integer number);
+    Optional<Machine> findByLocation(@Param("type") MachineType type,
+            @Param("floor") Integer floor,
+            @Param("position") Position position,
+            @Param("number") Integer number);
 
     List<Machine> findByStatusAndAvailability(MachineStatus status, MachineAvailability availability);
 
