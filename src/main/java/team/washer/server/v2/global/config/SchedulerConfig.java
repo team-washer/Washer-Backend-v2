@@ -2,6 +2,7 @@ package team.washer.server.v2.global.config;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -12,7 +13,8 @@ import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 /**
  * 스케줄러 설정 클래스.
  *
- * <p>스케줄링 작업을 위한 전용 쓰레드풀을 구성합니다.
+ * <p>
+ * 스케줄링 작업을 위한 전용 쓰레드풀을 구성합니다.
  */
 @Configuration
 @EnableScheduling

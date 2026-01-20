@@ -24,9 +24,8 @@ public class ReservationTimeoutScheduler {
     private final ReservationPenaltyService penaltyService;
 
     /**
-     * 예약 타임아웃 체크 (30초마다 실행)
-     * - RESERVED: 5분 내 미확인 시 취소 + 10분 패널티
-     * - CONFIRMED: 2분 내 미시작 시 취소 (페널티 없음)
+     * 예약 타임아웃 체크 (30초마다 실행) - RESERVED: 5분 내 미확인 시 취소 + 10분 패널티 - CONFIRMED: 2분 내
+     * 미시작 시 취소 (페널티 없음)
      */
     @Scheduled(fixedRate = 30000) // 30초
     @Transactional
@@ -43,8 +42,8 @@ public class ReservationTimeoutScheduler {
         LocalDateTime threshold = LocalDateTime.now().minusMinutes(5);
         LocalDateTime recentCutoff = LocalDateTime.now().minusHours(24); // 성능 최적화: 최근 24시간만
 
-        List<Reservation> expiredReservations = reservationRepository.findExpiredReservations(
-                ReservationStatus.RESERVED, threshold, recentCutoff);
+        List<Reservation> expiredReservations = reservationRepository
+                .findExpiredReservations(ReservationStatus.RESERVED, threshold, recentCutoff);
 
         if (expiredReservations.isEmpty()) {
             return;
@@ -63,7 +62,8 @@ public class ReservationTimeoutScheduler {
                 penaltyService.applyPenalty(user);
 
                 log.info("Cancelled RESERVED reservation {} due to timeout and applied penalty to user {}",
-                        reservation.getId(), user.getId());
+                        reservation.getId(),
+                        user.getId());
             } catch (Exception e) {
                 log.error("Error processing timeout for reservation {}", reservation.getId(), e);
             }
@@ -74,8 +74,8 @@ public class ReservationTimeoutScheduler {
         LocalDateTime threshold = LocalDateTime.now().minusMinutes(2);
         LocalDateTime recentCutoff = LocalDateTime.now().minusHours(24); // 성능 최적화: 최근 24시간만
 
-        List<Reservation> expiredReservations = reservationRepository.findExpiredReservations(
-                ReservationStatus.CONFIRMED, threshold, recentCutoff);
+        List<Reservation> expiredReservations = reservationRepository
+                .findExpiredReservations(ReservationStatus.CONFIRMED, threshold, recentCutoff);
 
         if (expiredReservations.isEmpty()) {
             return;

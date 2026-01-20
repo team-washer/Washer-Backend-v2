@@ -19,7 +19,8 @@ import team.washer.server.v2.domain.user.repository.UserRepository;
 /**
  * 관리자 예약 관리 Facade 서비스 구현체.
  *
- * <p>관리자 권한 검증과 도메인 서비스 조율을 담당합니다.
+ * <p>
+ * 관리자 권한 검증과 도메인 서비스 조율을 담당합니다.
  */
 @Slf4j
 @Service
@@ -33,18 +34,21 @@ public class AdminReservationFacadeServiceImpl implements AdminReservationFacade
     /**
      * 일요일 예약을 활성화합니다.
      *
-     * <p>DORMITORY_COUNCIL 또는 ADMIN 권한이 필요합니다.
+     * <p>
+     * DORMITORY_COUNCIL 또는 ADMIN 권한이 필요합니다.
      *
-     * @param adminId 관리자 ID
-     * @param notes 활성화 메모
-     * @throws IllegalArgumentException 사용자를 찾을 수 없거나 권한이 없는 경우
+     * @param adminId
+     *            관리자 ID
+     * @param notes
+     *            활성화 메모
+     * @throws IllegalArgumentException
+     *             사용자를 찾을 수 없거나 권한이 없는 경우
      */
     @Override
     @Transactional
     public void activateSundayReservation(final Long adminId, final String notes) {
         // 1. 사용자 조회
-        final User admin = userRepository
-                .findById(adminId)
+        final User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + adminId));
 
         // 2. 권한 검증 (비즈니스 로직)
@@ -61,18 +65,21 @@ public class AdminReservationFacadeServiceImpl implements AdminReservationFacade
     /**
      * 일요일 예약을 비활성화합니다.
      *
-     * <p>DORMITORY_COUNCIL 또는 ADMIN 권한이 필요합니다.
+     * <p>
+     * DORMITORY_COUNCIL 또는 ADMIN 권한이 필요합니다.
      *
-     * @param adminId 관리자 ID
-     * @param notes 비활성화 메모
-     * @throws IllegalArgumentException 사용자를 찾을 수 없거나 권한이 없는 경우
+     * @param adminId
+     *            관리자 ID
+     * @param notes
+     *            비활성화 메모
+     * @throws IllegalArgumentException
+     *             사용자를 찾을 수 없거나 권한이 없는 경우
      */
     @Override
     @Transactional
     public void deactivateSundayReservation(final Long adminId, final String notes) {
         // 1. 사용자 조회
-        final User admin = userRepository
-                .findById(adminId)
+        final User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + adminId));
 
         // 2. 권한 검증 (비즈니스 로직)
@@ -96,9 +103,7 @@ public class AdminReservationFacadeServiceImpl implements AdminReservationFacade
     public SundayStatusDto getSundayReservationStatus() {
         final boolean isActive = sundayReservationService.isSundayReservationActive();
         final List<SundayActivationDto> history = sundayReservationService.getSundayReservationHistory().stream()
-                .limit(10)
-                .map(SundayActivationDto::from)
-                .collect(Collectors.toList());
+                .limit(10).map(SundayActivationDto::from).collect(Collectors.toList());
 
         return SundayStatusDto.of(isActive, history);
     }
@@ -106,18 +111,21 @@ public class AdminReservationFacadeServiceImpl implements AdminReservationFacade
     /**
      * 사용자의 패널티를 해제합니다.
      *
-     * <p>ADMIN 권한이 필요합니다.
+     * <p>
+     * ADMIN 권한이 필요합니다.
      *
-     * @param adminId 관리자 ID
-     * @param userId 패널티를 해제할 사용자 ID
-     * @throws IllegalArgumentException 관리자를 찾을 수 없거나 권한이 없는 경우
+     * @param adminId
+     *            관리자 ID
+     * @param userId
+     *            패널티를 해제할 사용자 ID
+     * @throws IllegalArgumentException
+     *             관리자를 찾을 수 없거나 권한이 없는 경우
      */
     @Override
     @Transactional
     public void clearUserPenalty(final Long adminId, final Long userId) {
         // 1. 사용자 조회
-        final User admin = userRepository
-                .findById(adminId)
+        final User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + adminId));
 
         // 2. 권한 검증 (비즈니스 로직)

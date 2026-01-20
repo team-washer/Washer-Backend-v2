@@ -22,8 +22,13 @@ public record ReservationHistoryDto(@Schema(description = "예약 ID", example =
                 ? reservation.getActualCompletionTime()
                 : reservation.getCancelledAt();
 
-        return new ReservationHistoryDto(reservation.getId(), reservation.getUser().getRoomNumber(),
-                reservation.getMachine().getName(), reservation.getMachine().getType(), reservation.getStartTime(),
-                completionTime, reservation.getStatus(), reservation.getCreatedAt());
+        return new ReservationHistoryDto(reservation.getId(),
+                reservation.getUser().getRoomNumber(),
+                reservation.getMachine().getName(),
+                reservation.getMachine().getType(),
+                reservation.getStartTime(),
+                completionTime,
+                reservation.getStatus(),
+                reservation.getCreatedAt());
     }
 }

@@ -10,16 +10,20 @@ public interface SundayReservationService {
     /**
      * 일요일 예약 활성화
      *
-     * @param performedBy 활성화를 수행한 사용자
-     * @param notes 활성화 메모
+     * @param performedBy
+     *            활성화를 수행한 사용자
+     * @param notes
+     *            활성화 메모
      */
     void activateSundayReservation(User performedBy, String notes);
 
     /**
      * 일요일 예약 비활성화
      *
-     * @param performedBy 비활성화를 수행한 사용자
-     * @param notes 비활성화 메모
+     * @param performedBy
+     *            비활성화를 수행한 사용자
+     * @param notes
+     *            비활성화 메모
      */
     void deactivateSundayReservation(User performedBy, String notes);
 

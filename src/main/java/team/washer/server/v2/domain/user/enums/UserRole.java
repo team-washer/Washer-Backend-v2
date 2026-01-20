@@ -6,9 +6,7 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public enum UserRole {
-    USER("User", "일반 사용자"),
-    DORMITORY_COUNCIL("DormitoryCouncil", "기숙사자치위원회"),
-    ADMIN("Admin", "관리자");
+    USER("User", "일반 사용자"), DORMITORY_COUNCIL("DormitoryCouncil", "기숙사자치위원회"), ADMIN("Admin", "관리자");
 
     private final String code;
     private final String description;

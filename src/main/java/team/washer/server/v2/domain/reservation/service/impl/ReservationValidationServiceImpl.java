@@ -40,7 +40,7 @@ public class ReservationValidationServiceImpl implements ReservationValidationSe
         LocalTime time = startTime.toLocalTime();
 
         switch (dayOfWeek) {
-            case MONDAY, TUESDAY, WEDNESDAY, THURSDAY:
+            case MONDAY, TUESDAY, WEDNESDAY, THURSDAY :
                 // 월~목: 21:10 이후만 가능
                 if (time.isBefore(WEEKDAY_RESTRICTION_TIME)) {
                     throw new IllegalArgumentException(
@@ -48,11 +48,11 @@ public class ReservationValidationServiceImpl implements ReservationValidationSe
                 }
                 break;
 
-            case FRIDAY, SATURDAY:
+            case FRIDAY, SATURDAY :
                 // 금토: 제한 없음
                 break;
 
-            case SUNDAY:
+            case SUNDAY :
                 // 일요일: 활성화되어 있어야 함
                 if (!sundayReservationService.isSundayReservationActive()) {
                     throw new IllegalArgumentException("일요일 예약은 현재 비활성화되어 있습니다");
@@ -68,27 +68,29 @@ public class ReservationValidationServiceImpl implements ReservationValidationSe
     public void validateUserNotPenalized(Long userId) {
         if (penaltyService.isPenalized(userId)) {
             LocalDateTime expiryTime = penaltyService.getPenaltyExpiryTime(userId);
-            throw new IllegalStateException(
-                    String.format("현재 예약이 제한되어 있습니다. 제한 해제 시간: %s", expiryTime));
+            throw new IllegalStateException(String.format("현재 예약이 제한되어 있습니다. 제한 해제 시간: %s", expiryTime));
         }
         log.debug("Penalty validation passed for user {}", userId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public void validateMachineAvailable(Machine machine, LocalDateTime startTime, LocalDateTime endTime,
+    public void validateMachineAvailable(Machine machine,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
             Long excludeReservationId) {
 
-        boolean hasConflict = reservationRepository.existsConflictingReservation(machine.getId(), startTime, endTime,
-                excludeReservationId);
+        boolean hasConflict = reservationRepository
+                .existsConflictingReservation(machine.getId(), startTime, endTime, excludeReservationId);
 
         if (hasConflict) {
             throw new IllegalStateException(
-                    String.format("해당 시간에 기기를 사용할 수 없습니다. 기기: %s, 시간: %s ~ %s", machine.getName(), startTime,
-                            endTime));
+                    String.format("해당 시간에 기기를 사용할 수 없습니다. 기기: %s, 시간: %s ~ %s", machine.getName(), startTime, endTime));
         }
 
-        log.debug("Machine availability validation passed for machine {} at {} ~ {}", machine.getId(), startTime,
+        log.debug("Machine availability validation passed for machine {} at {} ~ {}",
+                machine.getId(),
+                startTime,
                 endTime);
     }
 

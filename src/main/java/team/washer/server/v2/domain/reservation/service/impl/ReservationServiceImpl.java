@@ -54,14 +54,9 @@ public class ReservationServiceImpl implements ReservationService {
         validationService.validateMachineAvailable(machine, requestDto.startTime(), expectedCompletionTime, null);
 
         // 예약 생성
-        Reservation reservation = Reservation.builder()
-                .user(user)
-                .machine(machine)
-                .reservedAt(LocalDateTime.now())
-                .startTime(requestDto.startTime())
-                .dayOfWeek(requestDto.startTime().getDayOfWeek())
-                .status(ReservationStatus.RESERVED)
-                .build();
+        Reservation reservation = Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now())
+                .startTime(requestDto.startTime()).dayOfWeek(requestDto.startTime().getDayOfWeek())
+                .status(ReservationStatus.RESERVED).build();
 
         Reservation saved = reservationRepository.save(reservation);
         log.info("Created reservation {} for user {} on machine {}", saved.getId(), userId, machine.getId());
@@ -99,7 +94,8 @@ public class ReservationServiceImpl implements ReservationService {
 
     @Override
     @Transactional
-    public ReservationResponseDto startReservation(Long userId, Long reservationId,
+    public ReservationResponseDto startReservation(Long userId,
+            Long reservationId,
             StartReservationRequestDto requestDto) {
         Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
@@ -175,8 +171,7 @@ public class ReservationServiceImpl implements ReservationService {
         }
 
         // 최신 활성 예약 반환
-        Reservation latest = activeReservations.stream()
-                .max((r1, r2) -> r1.getCreatedAt().compareTo(r2.getCreatedAt()))
+        Reservation latest = activeReservations.stream().max((r1, r2) -> r1.getCreatedAt().compareTo(r2.getCreatedAt()))
                 .orElse(null);
 
         return latest != null ? ReservationResponseDto.from(latest) : null;
@@ -184,11 +179,15 @@ public class ReservationServiceImpl implements ReservationService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ReservationHistoryDto> getReservationHistory(Long userId, ReservationStatus status,
-            LocalDateTime startDate, LocalDateTime endDate, MachineType machineType, Pageable pageable) {
+    public Page<ReservationHistoryDto> getReservationHistory(Long userId,
+            ReservationStatus status,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            MachineType machineType,
+            Pageable pageable) {
 
-        Page<Reservation> reservations = reservationRepository.findReservationHistory(userId, status, startDate,
-                endDate, machineType, pageable);
+        Page<Reservation> reservations = reservationRepository
+                .findReservationHistory(userId, status, startDate, endDate, machineType, pageable);
 
         return reservations.map(ReservationHistoryDto::from);
     }

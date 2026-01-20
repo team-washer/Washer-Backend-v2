@@ -1,8 +1,8 @@
 package team.washer.server.v2.domain.reservation.repository.custom.impl;
 
+import static team.washer.server.v2.domain.machine.entity.QMachine.*;
 import static team.washer.server.v2.domain.reservation.entity.QReservation.*;
 import static team.washer.server.v2.domain.user.entity.QUser.*;
-import static team.washer.server.v2.domain.machine.entity.QMachine.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -28,8 +28,12 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public Page<Reservation> findReservationHistory(Long userId, ReservationStatus status, LocalDateTime startDate,
-            LocalDateTime endDate, MachineType machineType, Pageable pageable) {
+    public Page<Reservation> findReservationHistory(Long userId,
+            ReservationStatus status,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            MachineType machineType,
+            Pageable pageable) {
 
         BooleanBuilder builder = new BooleanBuilder();
 
@@ -49,16 +53,9 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
             builder.and(reservation.machine.type.eq(machineType));
         }
 
-        List<Reservation> results = queryFactory.selectFrom(reservation)
-                .leftJoin(reservation.user, user)
-                .fetchJoin()
-                .leftJoin(reservation.machine, machine)
-                .fetchJoin()
-                .where(builder)
-                .orderBy(reservation.createdAt.desc())
-                .offset(pageable.getOffset())
-                .limit(pageable.getPageSize())
-                .fetch();
+        List<Reservation> results = queryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
+                .leftJoin(reservation.machine, machine).fetchJoin().where(builder).orderBy(reservation.createdAt.desc())
+                .offset(pageable.getOffset()).limit(pageable.getPageSize()).fetch();
 
         long total = queryFactory.selectFrom(reservation).where(builder).fetchCount();
 
@@ -66,13 +63,15 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
     }
 
     @Override
-    public boolean existsConflictingReservation(Long machineId, LocalDateTime startTime, LocalDateTime endTime,
+    public boolean existsConflictingReservation(Long machineId,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
             Long excludeReservationId) {
 
         BooleanBuilder builder = new BooleanBuilder();
         builder.and(reservation.machine.id.eq(machineId));
-        builder.and(reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED,
-                ReservationStatus.RUNNING));
+        builder.and(reservation.status
+                .in(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
 
         // 시간 겹침 체크
         builder.and(reservation.startTime.lt(endTime).and(reservation.expectedCompletionTime.gt(startTime)));
@@ -85,7 +84,8 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
     }
 
     @Override
-    public List<Reservation> findExpiredReservations(ReservationStatus status, LocalDateTime threshold,
+    public List<Reservation> findExpiredReservations(ReservationStatus status,
+            LocalDateTime threshold,
             LocalDateTime recentCutoff) {
 
         BooleanBuilder builder = new BooleanBuilder();

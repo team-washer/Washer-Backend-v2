@@ -1,6 +1,5 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
@@ -33,8 +32,8 @@ public class ReservationPenaltyServiceImpl implements ReservationPenaltyService 
 
         try {
             // Redis에 패널티 저장 (TTL 10분)
-            redisTemplate.opsForValue().set(redisKey, expiryTime.toString(), PENALTY_DURATION_MINUTES,
-                    TimeUnit.MINUTES);
+            redisTemplate.opsForValue()
+                    .set(redisKey, expiryTime.toString(), PENALTY_DURATION_MINUTES, TimeUnit.MINUTES);
             log.info("Applied penalty to user {} in Redis, expires at {}", user.getId(), expiryTime);
         } catch (Exception e) {
             log.error("Failed to apply penalty in Redis, falling back to database", e);

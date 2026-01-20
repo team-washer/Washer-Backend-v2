@@ -37,12 +37,8 @@ public class SundayReservationServiceImpl implements SundayReservationService {
         }
 
         // DB에 감사 로그 저장
-        ReservationCycleLog log = ReservationCycleLog.builder()
-                .isActive(true)
-                .action(CycleAction.ACTIVATED)
-                .performedBy(performedBy)
-                .notes(notes)
-                .build();
+        ReservationCycleLog log = ReservationCycleLog.builder().isActive(true).action(CycleAction.ACTIVATED)
+                .performedBy(performedBy).notes(notes).build();
 
         cycleLogRepository.save(log);
     }
@@ -60,12 +56,8 @@ public class SundayReservationServiceImpl implements SundayReservationService {
         }
 
         // DB에 감사 로그 저장
-        ReservationCycleLog log = ReservationCycleLog.builder()
-                .isActive(false)
-                .action(CycleAction.DEACTIVATED)
-                .performedBy(performedBy)
-                .notes(notes)
-                .build();
+        ReservationCycleLog log = ReservationCycleLog.builder().isActive(false).action(CycleAction.DEACTIVATED)
+                .performedBy(performedBy).notes(notes).build();
 
         cycleLogRepository.save(log);
     }

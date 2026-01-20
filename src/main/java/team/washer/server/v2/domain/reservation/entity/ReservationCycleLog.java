@@ -8,8 +8,7 @@ import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.global.common.entity.BaseEntity;
 
 @Entity
-@Table(name = "reservation_cycle_logs", indexes = {
-        @Index(name = "idx_created_at", columnList = "created_at"),
+@Table(name = "reservation_cycle_logs", indexes = {@Index(name = "idx_created_at", columnList = "created_at"),
         @Index(name = "idx_action", columnList = "action"),
         @Index(name = "idx_performed_by", columnList = "performed_by_id")})
 @Getter

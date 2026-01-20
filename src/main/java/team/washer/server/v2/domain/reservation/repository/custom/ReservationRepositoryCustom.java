@@ -12,12 +12,19 @@ import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 
 public interface ReservationRepositoryCustom {
 
-    Page<Reservation> findReservationHistory(Long userId, ReservationStatus status, LocalDateTime startDate,
-            LocalDateTime endDate, MachineType machineType, Pageable pageable);
+    Page<Reservation> findReservationHistory(Long userId,
+            ReservationStatus status,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            MachineType machineType,
+            Pageable pageable);
 
-    boolean existsConflictingReservation(Long machineId, LocalDateTime startTime, LocalDateTime endTime,
+    boolean existsConflictingReservation(Long machineId,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
             Long excludeReservationId);
 
-    List<Reservation> findExpiredReservations(ReservationStatus status, LocalDateTime threshold,
+    List<Reservation> findExpiredReservations(ReservationStatus status,
+            LocalDateTime threshold,
             LocalDateTime recentCutoff);
 }

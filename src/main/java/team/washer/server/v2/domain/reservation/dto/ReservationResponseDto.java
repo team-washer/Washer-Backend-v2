@@ -26,12 +26,21 @@ public record ReservationResponseDto(@Schema(description = "예약 ID", example 
         @Schema(description = "수정 시간", example = "2026-01-27T21:00:00") LocalDateTime updatedAt) {
 
     public static ReservationResponseDto from(Reservation reservation) {
-        return new ReservationResponseDto(reservation.getId(), reservation.getUser().getId(),
-                reservation.getUser().getName(), reservation.getUser().getRoomNumber(),
-                reservation.getMachine().getId(), reservation.getMachine().getName(), reservation.getReservedAt(),
-                reservation.getStartTime(), reservation.getExpectedCompletionTime(),
-                reservation.getActualCompletionTime(), reservation.getStatus(), reservation.getConfirmedAt(),
-                reservation.getCancelledAt(), reservation.getDayOfWeek(), reservation.getCreatedAt(),
+        return new ReservationResponseDto(reservation.getId(),
+                reservation.getUser().getId(),
+                reservation.getUser().getName(),
+                reservation.getUser().getRoomNumber(),
+                reservation.getMachine().getId(),
+                reservation.getMachine().getName(),
+                reservation.getReservedAt(),
+                reservation.getStartTime(),
+                reservation.getExpectedCompletionTime(),
+                reservation.getActualCompletionTime(),
+                reservation.getStatus(),
+                reservation.getConfirmedAt(),
+                reservation.getCancelledAt(),
+                reservation.getDayOfWeek(),
+                reservation.getCreatedAt(),
                 reservation.getUpdatedAt());
     }
 }

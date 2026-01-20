@@ -16,8 +16,12 @@ public record SundayActivationDto(@Schema(description = "로그 ID", example = "
         @Schema(description = "생성 시간", example = "2026-01-27T21:00:00") LocalDateTime createdAt) {
 
     public static SundayActivationDto from(ReservationCycleLog log) {
-        return new SundayActivationDto(log.getId(), log.getIsActive(), log.getAction(),
-                log.getPerformedBy().getName(), log.getPerformedBy().getStudentId(), log.getNotes(),
+        return new SundayActivationDto(log.getId(),
+                log.getIsActive(),
+                log.getAction(),
+                log.getPerformedBy().getName(),
+                log.getPerformedBy().getStudentId(),
+                log.getNotes(),
                 log.getCreatedAt());
     }
 }
