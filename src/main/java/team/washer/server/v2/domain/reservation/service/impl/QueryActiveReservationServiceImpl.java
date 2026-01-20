@@ -25,7 +25,7 @@ public class QueryActiveReservationServiceImpl implements QueryActiveReservation
 
     @Override
     @Transactional(readOnly = true)
-    public ReservationResDto queryActiveReservation(final Long userId) {
+    public ReservationResDto execute(final Long userId) {
         final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

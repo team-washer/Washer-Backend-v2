@@ -33,7 +33,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
 
     @Override
     @Transactional
-    public ReservationResDto createReservation(final Long userId, final CreateReservationReqDto reqDto) {
+    public ReservationResDto execute(final Long userId, final CreateReservationReqDto reqDto) {
         final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

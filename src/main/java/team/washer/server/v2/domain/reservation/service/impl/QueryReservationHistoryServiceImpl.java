@@ -25,7 +25,7 @@ public class QueryReservationHistoryServiceImpl implements QueryReservationHisto
 
     @Override
     @Transactional(readOnly = true)
-    public ReservationHistoryPageResDto queryReservationHistory(final Long userId,
+    public ReservationHistoryPageResDto execute(final Long userId,
             final ReservationStatus status,
             final LocalDateTime startDate,
             final LocalDateTime endDate,

@@ -22,7 +22,7 @@ public class DeactivateSundayReservationServiceImpl implements DeactivateSundayR
 
     @Override
     @Transactional
-    public void deactivateSundayReservation(final Long adminId, final String notes) {
+    public void execute(final Long adminId, final String notes) {
         final User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

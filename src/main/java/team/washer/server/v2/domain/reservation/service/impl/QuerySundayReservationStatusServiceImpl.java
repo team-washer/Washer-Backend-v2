@@ -21,7 +21,7 @@ public class QuerySundayReservationStatusServiceImpl implements QuerySundayReser
 
     @Override
     @Transactional(readOnly = true)
-    public SundayStatusResDto querySundayReservationStatus() {
+    public SundayStatusResDto execute() {
         final boolean isActive = sundayReservationService.isSundayReservationActive();
         final List<SundayActivationResDto> history = sundayReservationService.getSundayReservationHistory().stream()
                 .limit(10).map(this::mapToSundayActivationResDto).collect(Collectors.toList());

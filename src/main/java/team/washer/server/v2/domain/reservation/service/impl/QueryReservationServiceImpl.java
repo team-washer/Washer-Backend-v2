@@ -19,7 +19,7 @@ public class QueryReservationServiceImpl implements QueryReservationService {
 
     @Override
     @Transactional(readOnly = true)
-    public ReservationResDto queryReservation(final Long reservationId) {
+    public ReservationResDto execute(final Long reservationId) {
         final Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

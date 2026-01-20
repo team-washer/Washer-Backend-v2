@@ -26,7 +26,7 @@ public class CancelReservationServiceImpl implements CancelReservationService {
 
     @Override
     @Transactional
-    public CancellationResDto cancelReservation(final Long userId, final Long reservationId) {
+    public CancellationResDto execute(final Long userId, final Long reservationId) {
         final Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

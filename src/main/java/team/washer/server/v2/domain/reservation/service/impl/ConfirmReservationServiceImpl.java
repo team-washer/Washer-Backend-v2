@@ -21,7 +21,7 @@ public class ConfirmReservationServiceImpl implements ConfirmReservationService 
 
     @Override
     @Transactional
-    public ReservationResDto confirmReservation(final Long userId, final Long reservationId) {
+    public ReservationResDto execute(final Long userId, final Long reservationId) {
         final Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

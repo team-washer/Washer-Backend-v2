@@ -22,7 +22,7 @@ public class StartReservationServiceImpl implements StartReservationService {
 
     @Override
     @Transactional
-    public ReservationResDto startReservation(final Long userId,
+    public ReservationResDto execute(final Long userId,
             final Long reservationId,
             final StartReservationReqDto reqDto) {
         final Reservation reservation = reservationRepository.findById(reservationId)

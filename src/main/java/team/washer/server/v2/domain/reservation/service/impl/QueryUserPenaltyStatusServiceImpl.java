@@ -19,7 +19,7 @@ public class QueryUserPenaltyStatusServiceImpl implements QueryUserPenaltyStatus
 
     @Override
     @Transactional(readOnly = true)
-    public PenaltyStatusResDto queryUserPenaltyStatus(final Long userId) {
+    public PenaltyStatusResDto execute(final Long userId) {
         final boolean isPenalized = penaltyService.isPenalized(userId);
         final LocalDateTime penaltyExpiresAt = penaltyService.getPenaltyExpiryTime(userId);
 

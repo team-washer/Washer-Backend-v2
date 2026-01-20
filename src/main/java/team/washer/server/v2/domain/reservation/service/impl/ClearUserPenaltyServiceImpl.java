@@ -22,7 +22,7 @@ public class ClearUserPenaltyServiceImpl implements ClearUserPenaltyService {
 
     @Override
     @Transactional
-    public void clearUserPenalty(final Long adminId, final Long userId) {
+    public void execute(final Long adminId, final Long userId) {
         final User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
