@@ -10,13 +10,11 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import team.washer.server.v2.domain.reservation.dto.*;
-import team.washer.server.v2.domain.reservation.service.AdminReservationFacadeService;
-import team.washer.server.v2.domain.reservation.service.ReservationPenaltyService;
+import team.washer.server.v2.domain.reservation.dto.request.SundayActivationReqDto;
+import team.washer.server.v2.domain.reservation.dto.response.PenaltyStatusResDto;
+import team.washer.server.v2.domain.reservation.dto.response.SundayStatusResDto;
+import team.washer.server.v2.domain.reservation.service.*;
 
-// TODO: 인증 시스템 구현 후 수정 필요
-// 1. @RequestParam Long adminId 제거하고 @AuthenticationPrincipal에서 추출
-// 2. DomainAuthorizationConfig에서 주석 처리된 인증 규칙 활성화
 @RestController
 @RequestMapping("/api/v2/admin/reservations")
 @RequiredArgsConstructor
@@ -24,17 +22,20 @@ import team.washer.server.v2.domain.reservation.service.ReservationPenaltyServic
 @Tag(name = "Admin Reservation", description = "예약 관리 API (관리자용)")
 public class AdminReservationController {
 
-    private final AdminReservationFacadeService adminReservationFacadeService;
-    private final ReservationPenaltyService penaltyService;
+    private final ActivateSundayReservationService activateSundayReservationService;
+    private final DeactivateSundayReservationService deactivateSundayReservationService;
+    private final QuerySundayReservationStatusService getSundayReservationStatusService;
+    private final QueryUserPenaltyStatusService getUserPenaltyStatusService;
+    private final ClearUserPenaltyService clearUserPenaltyService;
 
     @PostMapping("/sunday/activate")
     @ResponseStatus(HttpStatus.OK)
     @Operation(summary = "일요일 예약 활성화", description = "일요일 예약을 활성화합니다. DORMITORY_COUNCIL 권한이 필요합니다.")
     public void activateSundayReservation(
             @Parameter(description = "관리자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long adminId,
-            @Parameter(description = "활성화 요청 DTO") @RequestBody @Valid SundayActivationRequestDto requestDto) {
+            @Parameter(description = "활성화 요청 DTO") @RequestBody @Valid SundayActivationReqDto requestDto) {
 
-        adminReservationFacadeService.activateSundayReservation(adminId, requestDto.notes());
+        activateSundayReservationService.activateSundayReservation(adminId, requestDto.notes());
     }
 
     @PostMapping("/sunday/deactivate")
@@ -42,25 +43,22 @@ public class AdminReservationController {
     @Operation(summary = "일요일 예약 비활성화", description = "일요일 예약을 비활성화합니다. DORMITORY_COUNCIL 권한이 필요합니다.")
     public void deactivateSundayReservation(
             @Parameter(description = "관리자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long adminId,
-            @Parameter(description = "비활성화 요청 DTO") @RequestBody @Valid SundayActivationRequestDto requestDto) {
+            @Parameter(description = "비활성화 요청 DTO") @RequestBody @Valid SundayActivationReqDto requestDto) {
 
-        adminReservationFacadeService.deactivateSundayReservation(adminId, requestDto.notes());
+        deactivateSundayReservationService.deactivateSundayReservation(adminId, requestDto.notes());
     }
 
     @GetMapping("/sunday/status")
     @Operation(summary = "일요일 예약 상태 조회", description = "일요일 예약 활성화 상태와 히스토리를 조회합니다.")
-    public SundayStatusDto getSundayReservationStatus() {
-        return adminReservationFacadeService.getSundayReservationStatus();
+    public SundayStatusResDto getSundayReservationStatus() {
+        return getSundayReservationStatusService.querySundayReservationStatus();
     }
 
     @GetMapping("/users/{userId}/penalty-status")
     @Operation(summary = "사용자 패널티 상태 조회", description = "특정 사용자의 패널티 상태를 조회합니다.")
-    public PenaltyStatusDto getUserPenaltyStatus(
+    public PenaltyStatusResDto getUserPenaltyStatus(
             @Parameter(description = "사용자 ID") @PathVariable @NotNull Long userId) {
-        boolean isPenalized = penaltyService.isPenalized(userId);
-        var penaltyExpiresAt = penaltyService.getPenaltyExpiryTime(userId);
-
-        return PenaltyStatusDto.of(userId, isPenalized, penaltyExpiresAt);
+        return getUserPenaltyStatusService.queryUserPenaltyStatus(userId);
     }
 
     @DeleteMapping("/users/{userId}/penalty")
@@ -70,6 +68,6 @@ public class AdminReservationController {
             @Parameter(description = "관리자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long adminId,
             @Parameter(description = "사용자 ID") @PathVariable @NotNull Long userId) {
 
-        adminReservationFacadeService.clearUserPenalty(adminId, userId);
+        clearUserPenaltyService.clearUserPenalty(adminId, userId);
     }
 }
