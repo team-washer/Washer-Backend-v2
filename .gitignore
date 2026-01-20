@@ -41,3 +41,6 @@ out/
 
 ### QueryDSL ###
 src/main/generated/
+
+### LLM ###
+PR_BODY.md
