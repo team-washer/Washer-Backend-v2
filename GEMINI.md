@@ -8,8 +8,7 @@ Korean dormitory laundry management system: washing machine reservations, user m
 ## Technology Stack
 - **Java 25** (with `--enable-preview`)
 - **Spring Boot 4.0.1**, Spring Framework 6.2.1
-- **PostgreSQL** (production), H2 (dev/test)
-- **Spring Data JPA** + Hibernate + QueryDSL
+- **MySQL** + Spring Data JPA + Hibernate + QueryDSL
 - **OpenFeign** (Discord, SmartThings APIs)
 - **Spotless** (Eclipse formatter), OpenAPI/Swagger
 - **Gradle 8.11.1** (Kotlin DSL)
@@ -27,7 +26,7 @@ config/, util/       # Configuration and utilities
 
 ## Critical Conventions
 
-**DTOs:** Records only, NO `from()` methods, suffix `ReqDto`/`ResDto`, Jakarta validation, manual mapping
+**Domain DTOs:** Records only, NO `from()` methods, suffix `ReqDto`/`ResDto`, Jakarta validation, manual mapping (CommonApiResDto is a wrapper, not a domain DTO)
 
 **Services:** Single method per interface, `{Action}{Entity}Service` + `{Interface}Impl`, `@Transactional(readOnly=true)` for queries
 
@@ -51,14 +50,14 @@ config/, util/       # Configuration and utilities
 - Commit messages
 
 ## Git Commits (Korean)
-- `add/update/fix/delete/docs/test: {설명}`
+- `add/update/fix/delete/docs/test/merge/init: {설명}`
 - Branches: `master`, `develop`, `feat/`, `fix/`, `docs/`
 
 ## Testing
 - BDD: `@Nested` classes, Korean `@DisplayName`, Given-When-Then
 
 ## Summary of Special Rules
-1. DTOs: Records only, NO `from()` methods
+1. Domain DTOs: Records only, NO `from()` methods
 2. Services: Single method, interface + Impl
 3. Entities: `@Version` required
 4. Controllers: `CommonApiResDto<T>` wrapper

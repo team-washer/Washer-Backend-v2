@@ -5,7 +5,7 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
 
 ## Tech Stack
 - Java 25 (`--enable-preview`), Spring Boot 4.0.1
-- PostgreSQL + Spring Data JPA + QueryDSL
+- MySQL + Spring Data JPA + QueryDSL
 - OpenFeign, OpenAPI/Swagger, Lombok, Spotless
 - Gradle 8.11.1 (Kotlin DSL)
 
@@ -24,12 +24,13 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
 
 ## Critical Patterns
 
-**DTOs (Records Only):**
+**Domain DTOs (Records Only):**
 - Always records, never classes
 - NO `from()` static factory methods
 - Suffix: `ReqDto`/`ResDto`
 - Jakarta validation annotations
 - Manual mapping in service (no MapStruct)
+- Note: `CommonApiResDto` is an exception (wrapper class, not a domain DTO)
 
 **Services (Single Responsibility):**
 - One method per interface: `{Action}{Entity}Service`
@@ -65,6 +66,6 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
 
 ## Git & Testing
 - Branches: `master`, `develop`, `feat/`, `fix/`, `docs/`
-- Commits (Korean): `add/update/fix/delete/docs/test: {설명}`
+- Commits (Korean): `add/update/fix/delete/docs/test/merge/init: {설명}`
 - Testing: BDD with `@Nested`, Korean `@DisplayName`, Given-When-Then
 - Commands: `/spotless-format`, `/split-commits`

@@ -6,7 +6,7 @@ Korean dormitory laundry management system with Java 25 and Spring Boot 4.0.1.
 ## Technology Stack
 - Java 25 (preview features enabled)
 - Spring Boot 4.0.1
-- PostgreSQL + Spring Data JPA + QueryDSL
+- MySQL + Spring Data JPA + QueryDSL
 - OpenFeign, OpenAPI/Swagger
 - JUnit 5, Mockito
 
@@ -21,7 +21,7 @@ Korean dormitory laundry management system with Java 25 and Spring Boot 4.0.1.
 - **Service:** Interface + Impl pattern, single method per service
 - **Repository:** JpaRepository + QueryDSL for complex queries
 - **Controller:** Return `CommonApiResDto<T>` wrapper
-- **DTO:** Records only (no classes, no `from()` methods)
+- **Domain DTO:** Records only (no classes, no `from()` methods)
 
 ## Naming Conventions
 - **Entities:** `Reservation`, `User` - extend `BaseEntity`, use `@Builder`
@@ -30,7 +30,7 @@ Korean dormitory laundry management system with Java 25 and Spring Boot 4.0.1.
 - **Controllers:** `{Entity}Controller` - always return `CommonApiResDto<T>`
 
 ## Critical Rules
-1. **DTOs:** Records only - NO `from()` methods, manual mapping in service
+1. **Domain DTOs:** Records only - NO `from()` methods, manual mapping in service
 2. **Services:** Single method, interface + Impl, `@Transactional(readOnly=true)` for queries
 3. **Controllers:** Always return `CommonApiResDto<T>`
 4. **Entities:** Extend `BaseEntity`, include `@Version`
@@ -53,3 +53,5 @@ Korean dormitory laundry management system with Java 25 and Spring Boot 4.0.1.
 - `delete: 코드/파일 삭제`
 - `docs: 문서 작성/수정`
 - `test: 테스트 코드 작성/수정`
+- `merge: 브랜치 병합`
+- `init: 초기 설정`
