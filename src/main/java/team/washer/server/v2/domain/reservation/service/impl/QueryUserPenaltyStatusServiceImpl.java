@@ -8,18 +8,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.reservation.dto.response.PenaltyStatusResDto;
-import team.washer.server.v2.domain.reservation.service.GetUserPenaltyStatusService;
+import team.washer.server.v2.domain.reservation.service.QueryUserPenaltyStatusService;
 import team.washer.server.v2.domain.reservation.service.ReservationPenaltyService;
 
 @Service
 @RequiredArgsConstructor
-public class GetUserPenaltyStatusServiceImpl implements GetUserPenaltyStatusService {
+public class QueryUserPenaltyStatusServiceImpl implements QueryUserPenaltyStatusService {
 
     private final ReservationPenaltyService penaltyService;
 
     @Override
     @Transactional(readOnly = true)
-    public PenaltyStatusResDto getUserPenaltyStatus(final Long userId) {
+    public PenaltyStatusResDto queryUserPenaltyStatus(final Long userId) {
         final boolean isPenalized = penaltyService.isPenalized(userId);
         final LocalDateTime penaltyExpiresAt = penaltyService.getPenaltyExpiryTime(userId);
 

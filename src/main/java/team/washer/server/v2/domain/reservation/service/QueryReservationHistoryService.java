@@ -2,14 +2,13 @@ package team.washer.server.v2.domain.reservation.service;
 
 import java.time.LocalDateTime;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import team.washer.server.v2.domain.machine.enums.MachineType;
-import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryResDto;
+import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryPageResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 
-public interface GetReservationHistoryService {
+public interface QueryReservationHistoryService {
 
     /**
      * 예약 히스토리를 조회합니다.
@@ -25,10 +24,10 @@ public interface GetReservationHistoryService {
      * @param machineType
      *            기기 타입 필터
      * @param pageable
-     *            페이지네이션
-     * @return 예약 히스토리 페이지
+     *            페이징 정보
+     * @return 예약 히스토리 페이지 응답 DTO
      */
-    Page<ReservationHistoryResDto> getReservationHistory(Long userId,
+    ReservationHistoryPageResDto queryReservationHistory(Long userId,
             ReservationStatus status,
             LocalDateTime startDate,
             LocalDateTime endDate,

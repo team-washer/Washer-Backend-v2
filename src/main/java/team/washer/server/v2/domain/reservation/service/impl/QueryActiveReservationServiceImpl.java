@@ -2,6 +2,7 @@ package team.washer.server.v2.domain.reservation.service.impl;
 
 import java.util.List;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,22 +11,23 @@ import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
-import team.washer.server.v2.domain.reservation.service.GetActiveReservationService;
+import team.washer.server.v2.domain.reservation.service.QueryActiveReservationService;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.exception.ExpectedException;
 
 @Service
 @RequiredArgsConstructor
-public class GetActiveReservationServiceImpl implements GetActiveReservationService {
+public class QueryActiveReservationServiceImpl implements QueryActiveReservationService {
 
     private final ReservationRepository reservationRepository;
     private final UserRepository userRepository;
 
     @Override
     @Transactional(readOnly = true)
-    public ReservationResDto getActiveReservation(final Long userId) {
+    public ReservationResDto queryActiveReservation(final Long userId) {
         final User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final List<Reservation> activeReservations = reservationRepository.findByUserAndStatusIn(user,
                 List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
