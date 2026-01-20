@@ -11,10 +11,11 @@ import org.springframework.stereotype.Repository;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
+import team.washer.server.v2.domain.reservation.repository.custom.ReservationRepositoryCustom;
 import team.washer.server.v2.domain.user.entity.User;
 
 @Repository
-public interface ReservationRepository extends JpaRepository<Reservation, Long> {
+public interface ReservationRepository extends JpaRepository<Reservation, Long>, ReservationRepositoryCustom {
 
     List<Reservation> findByUser(User user);
 
