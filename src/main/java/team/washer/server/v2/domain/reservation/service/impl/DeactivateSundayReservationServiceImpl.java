@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,6 +10,7 @@ import team.washer.server.v2.domain.reservation.service.DeactivateSundayReservat
 import team.washer.server.v2.domain.reservation.service.SundayReservationService;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.exception.ExpectedException;
 
 @Slf4j
 @Service
@@ -22,11 +24,11 @@ public class DeactivateSundayReservationServiceImpl implements DeactivateSundayR
     @Transactional
     public void deactivateSundayReservation(final Long adminId, final String notes) {
         final User admin = userRepository.findById(adminId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + adminId));
+                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         if (!admin.getRole().canManageSundayReservation()) {
             log.warn("Unauthorized sunday deactivation attempt by user {}", adminId);
-            throw new IllegalArgumentException("일요일 예약 관리 권한이 없습니다");
+            throw new ExpectedException("일요일 예약 관리 권한이 없습니다", HttpStatus.FORBIDDEN);
         }
 
         sundayReservationService.deactivateSundayReservation(admin, notes);

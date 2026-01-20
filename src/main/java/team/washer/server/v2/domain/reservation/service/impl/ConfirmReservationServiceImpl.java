@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,6 +10,7 @@ import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.ConfirmReservationService;
+import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Slf4j
 @Service
@@ -21,18 +23,18 @@ public class ConfirmReservationServiceImpl implements ConfirmReservationService 
     @Transactional
     public ReservationResDto confirmReservation(final Long userId, final Long reservationId) {
         final Reservation reservation = reservationRepository.findById(reservationId)
-                .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
+                .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         if (!reservation.getUser().getId().equals(userId)) {
-            throw new IllegalArgumentException("예약을 확인할 권한이 없습니다");
+            throw new ExpectedException("예약을 확인할 권한이 없습니다", HttpStatus.FORBIDDEN);
         }
 
         if (!reservation.isReserved()) {
-            throw new IllegalStateException("예약 상태에서만 확인할 수 있습니다");
+            throw new ExpectedException("예약 상태에서만 확인할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
 
         if (reservation.isExpired()) {
-            throw new IllegalStateException("예약이 만료되었습니다");
+            throw new ExpectedException("예약이 만료되었습니다", HttpStatus.BAD_REQUEST);
         }
 
         reservation.confirm();

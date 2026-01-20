@@ -2,6 +2,7 @@ package team.washer.server.v2.domain.reservation.service.impl;
 
 import java.time.LocalDateTime;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,7 @@ import team.washer.server.v2.domain.reservation.service.CreateReservationService
 import team.washer.server.v2.domain.reservation.service.ReservationValidationService;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Slf4j
 @Service
@@ -33,10 +35,10 @@ public class CreateReservationServiceImpl implements CreateReservationService {
     @Transactional
     public ReservationResDto createReservation(final Long userId, final CreateReservationReqDto reqDto) {
         final User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + userId));
+                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final Machine machine = machineRepository.findById(reqDto.machineId())
-                .orElseThrow(() -> new IllegalArgumentException("기기를 찾을 수 없습니다: " + reqDto.machineId()));
+                .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         validationService.validateFutureTime(reqDto.startTime());
         validationService.validateTimeRestriction(user, reqDto.startTime());

@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,6 +10,7 @@ import team.washer.server.v2.domain.reservation.service.ClearUserPenaltyService;
 import team.washer.server.v2.domain.reservation.service.ReservationPenaltyService;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.exception.ExpectedException;
 
 @Slf4j
 @Service
@@ -22,11 +24,11 @@ public class ClearUserPenaltyServiceImpl implements ClearUserPenaltyService {
     @Transactional
     public void clearUserPenalty(final Long adminId, final Long userId) {
         final User admin = userRepository.findById(adminId)
-                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다: " + adminId));
+                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         if (!admin.getRole().isAdmin()) {
             log.warn("Unauthorized penalty clear attempt by user {} for user {}", adminId, userId);
-            throw new IllegalArgumentException("관리자 권한이 필요합니다");
+            throw new ExpectedException("관리자 권한이 필요합니다", HttpStatus.FORBIDDEN);
         }
 
         penaltyService.clearPenalty(userId);

@@ -2,6 +2,7 @@ package team.washer.server.v2.domain.reservation.service.impl;
 
 import java.time.LocalDateTime;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +14,7 @@ import team.washer.server.v2.domain.reservation.repository.ReservationRepository
 import team.washer.server.v2.domain.reservation.service.CancelReservationService;
 import team.washer.server.v2.domain.reservation.service.ReservationPenaltyService;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.exception.ExpectedException;
 
 @Slf4j
 @Service
@@ -26,14 +28,14 @@ public class CancelReservationServiceImpl implements CancelReservationService {
     @Transactional
     public CancellationResDto cancelReservation(final Long userId, final Long reservationId) {
         final Reservation reservation = reservationRepository.findById(reservationId)
-                .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다: " + reservationId));
+                .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         if (!reservation.getUser().getId().equals(userId)) {
-            throw new IllegalArgumentException("예약을 취소할 권한이 없습니다");
+            throw new ExpectedException("예약을 취소할 권한이 없습니다", HttpStatus.FORBIDDEN);
         }
 
         if (!reservation.isActive()) {
-            throw new IllegalStateException("활성 예약만 취소할 수 있습니다");
+            throw new ExpectedException("활성 예약만 취소할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
 
         boolean applyPenalty = false;
