@@ -7,6 +7,7 @@ Create Git commits following these rules:
 - Do NOT add Claude or any AI as co-author
 - Split changes into appropriate logical units with multiple commits
 - Each commit should have a single responsibility
+- ONLY korean language is allowed in commit messages
 
 Steps to follow:
 1. Check current changes with `git status` and `git diff`
