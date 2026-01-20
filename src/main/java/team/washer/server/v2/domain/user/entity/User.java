@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.user.entity;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,12 +10,14 @@ import lombok.*;
 import team.washer.server.v2.domain.malfunction.entity.MalfunctionReport;
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.global.common.entity.BaseEntity;
 
 @Entity
 @Table(name = "users", indexes = {@Index(name = "idx_student_id", columnList = "student_id"),
         @Index(name = "idx_room_number", columnList = "room_number"),
-        @Index(name = "idx_floor_grade", columnList = "floor, grade")}, uniqueConstraints = {
+        @Index(name = "idx_floor_grade", columnList = "floor, grade"),
+        @Index(name = "idx_role", columnList = "role")}, uniqueConstraints = {
                 @UniqueConstraint(name = "uk_student_id", columnNames = "student_id")})
 @Getter
 @Builder
@@ -53,6 +56,15 @@ public class User extends BaseEntity {
     @Builder.Default
     private Integer penaltyCount = 0;
 
+    @NotNull(message = "사용자 권한은 필수입니다")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    @Builder.Default
+    private UserRole role = UserRole.USER;
+
+    @Column(name = "last_cancellation_at")
+    private LocalDateTime lastCancellationAt;
+
     // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
@@ -78,5 +90,25 @@ public class User extends BaseEntity {
 
     public void resetPenalty() {
         this.penaltyCount = 0;
+    }
+
+    public boolean canBypassTimeRestrictions() {
+        return this.role.canBypassTimeRestrictions();
+    }
+
+    public void updateLastCancellationTime() {
+        this.lastCancellationAt = LocalDateTime.now();
+    }
+
+    public void clearLastCancellationTime() {
+        this.lastCancellationAt = null;
+    }
+
+    public boolean hasRecentCancellation(int penaltyMinutes) {
+        if (this.lastCancellationAt == null) {
+            return false;
+        }
+        LocalDateTime penaltyExpiry = this.lastCancellationAt.plusMinutes(penaltyMinutes);
+        return LocalDateTime.now().isBefore(penaltyExpiry);
     }
 }
