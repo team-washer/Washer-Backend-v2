@@ -12,8 +12,8 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import team.washer.server.v2.domain.user.dto.UserListResponseDto;
-import team.washer.server.v2.domain.user.dto.UserResponseDto;
+import team.washer.server.v2.domain.user.dto.response.UserListResDto;
+import team.washer.server.v2.domain.user.dto.response.UserResDto;
 import team.washer.server.v2.domain.user.service.QueryUserByIdService;
 import team.washer.server.v2.domain.user.service.SearchUserService;
 
@@ -29,8 +29,7 @@ public class AdminUserController {
 
     @GetMapping
     @Operation(summary = "전체 사용자 조회", description = "필터링 옵션으로 사용자 목록을 조회합니다")
-    public UserListResponseDto getUsers(
-            @Parameter(description = "이름 (부분 검색)") @RequestParam(required = false) String name,
+    public UserListResDto getUsers(@Parameter(description = "이름 (부분 검색)") @RequestParam(required = false) String name,
             @Parameter(description = "호실") @RequestParam(required = false) String roomNumber,
             @Parameter(description = "학년") @RequestParam(required = false) Integer grade,
             @Parameter(description = "층") @RequestParam(required = false) Integer floor) {
@@ -39,7 +38,7 @@ public class AdminUserController {
 
     @GetMapping("/{id}")
     @Operation(summary = "사용자 상세 조회", description = "ID로 특정 사용자를 조회합니다")
-    public UserResponseDto getUserById(@Parameter(description = "사용자 ID") @PathVariable @NotNull Long id) {
+    public UserResDto getUserById(@Parameter(description = "사용자 ID") @PathVariable @NotNull Long id) {
         return queryUserByIdService.getUserById(id);
     }
 }
