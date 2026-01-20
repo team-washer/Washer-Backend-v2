@@ -13,5 +13,5 @@ public interface ConfirmReservationService {
      *            예약 ID
      * @return 확인된 예약 응답 DTO
      */
-    ReservationResDto confirmReservation(Long userId, Long reservationId);
+    ReservationResDto execute(Long userId, Long reservationId);
 }

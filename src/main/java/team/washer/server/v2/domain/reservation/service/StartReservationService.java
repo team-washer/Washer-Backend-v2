@@ -16,5 +16,5 @@ public interface StartReservationService {
      *            시작 요청 DTO
      * @return 시작된 예약 응답 DTO
      */
-    ReservationResDto startReservation(Long userId, Long reservationId, StartReservationReqDto reqDto);
+    ReservationResDto execute(Long userId, Long reservationId, StartReservationReqDto reqDto);
 }

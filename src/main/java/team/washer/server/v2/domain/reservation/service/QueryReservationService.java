@@ -11,5 +11,5 @@ public interface QueryReservationService {
      *            예약 ID
      * @return 예약 응답 DTO
      */
-    ReservationResDto queryReservation(Long reservationId);
+    ReservationResDto execute(Long reservationId);
 }

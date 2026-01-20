@@ -10,5 +10,5 @@ public interface DeactivateSundayReservationService {
      * @param notes
      *            비활성화 메모
      */
-    void deactivateSundayReservation(Long adminId, String notes);
+    void execute(Long adminId, String notes);
 }

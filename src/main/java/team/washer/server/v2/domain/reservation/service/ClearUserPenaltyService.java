@@ -10,5 +10,5 @@ public interface ClearUserPenaltyService {
      * @param userId
      *            패널티를 해제할 사용자 ID
      */
-    void clearUserPenalty(Long adminId, Long userId);
+    void execute(Long adminId, Long userId);
 }

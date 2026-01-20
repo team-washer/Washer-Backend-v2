@@ -14,5 +14,5 @@ public interface CreateReservationService {
      *            예약 생성 요청 DTO
      * @return 생성된 예약 응답 DTO
      */
-    ReservationResDto createReservation(Long userId, CreateReservationReqDto reqDto);
+    ReservationResDto execute(Long userId, CreateReservationReqDto reqDto);
 }

@@ -11,5 +11,5 @@ public interface QueryActiveReservationService {
      *            사용자 ID
      * @return 활성 예약 응답 DTO (없으면 null)
      */
-    ReservationResDto queryActiveReservation(Long userId);
+    ReservationResDto execute(Long userId);
 }

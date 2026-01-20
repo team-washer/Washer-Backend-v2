@@ -11,5 +11,5 @@ public interface QueryUserPenaltyStatusService {
      *            사용자 ID
      * @return 패널티 상태 DTO
      */
-    PenaltyStatusResDto queryUserPenaltyStatus(Long userId);
+    PenaltyStatusResDto execute(Long userId);
 }

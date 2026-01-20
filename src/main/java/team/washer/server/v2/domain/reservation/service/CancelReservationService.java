@@ -13,5 +13,5 @@ public interface CancelReservationService {
      *            예약 ID
      * @return 취소 응답 DTO
      */
-    CancellationResDto cancelReservation(Long userId, Long reservationId);
+    CancellationResDto execute(Long userId, Long reservationId);
 }

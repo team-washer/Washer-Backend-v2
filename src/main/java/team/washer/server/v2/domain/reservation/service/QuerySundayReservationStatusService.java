@@ -9,5 +9,5 @@ public interface QuerySundayReservationStatusService {
      *
      * @return 일요일 예약 상태 및 히스토리
      */
-    SundayStatusResDto querySundayReservationStatus();
+    SundayStatusResDto execute();
 }

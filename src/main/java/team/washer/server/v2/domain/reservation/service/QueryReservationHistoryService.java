@@ -27,7 +27,7 @@ public interface QueryReservationHistoryService {
      *            페이징 정보
      * @return 예약 히스토리 페이지 응답 DTO
      */
-    ReservationHistoryPageResDto queryReservationHistory(Long userId,
+    ReservationHistoryPageResDto execute(Long userId,
             ReservationStatus status,
             LocalDateTime startDate,
             LocalDateTime endDate,
