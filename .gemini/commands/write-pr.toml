@@ -19,7 +19,7 @@ Write a Pull Request body following these requirements:
 
 2. Get commit history from base branch:
    - Try `git log origin/develop..HEAD --oneline --no-merges` first
-   - If develop doesn't exist, try `git log origin/master..HEAD --online --no-merges`
+   - If develop doesn't exist, try `git log origin/master..HEAD --oneline --no-merges`
    - Also get detailed commits with `git log origin/develop..HEAD --no-merges` or `git log origin/master..HEAD --no-merges`
 
 3. Analyze commits to understand:
