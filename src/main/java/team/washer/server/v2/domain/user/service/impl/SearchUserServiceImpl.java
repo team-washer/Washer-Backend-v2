@@ -7,8 +7,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import team.washer.server.v2.domain.user.dto.UserListResponseDto;
-import team.washer.server.v2.domain.user.dto.UserResponseDto;
+import team.washer.server.v2.domain.user.dto.response.UserListResDto;
+import team.washer.server.v2.domain.user.dto.response.UserResDto;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.SearchUserService;
@@ -21,14 +21,14 @@ public class SearchUserServiceImpl implements SearchUserService {
 
     @Override
     @Transactional(readOnly = true)
-    public UserListResponseDto getUsersByFilter(String name, String roomNumber, Integer grade, Integer floor) {
+    public UserListResDto getUsersByFilter(String name, String roomNumber, Integer grade, Integer floor) {
         List<User> users = userRepository.findUsersByFilter(name, roomNumber, grade, floor);
         return buildUserListResponse(users);
     }
 
-    private UserListResponseDto buildUserListResponse(List<User> users) {
-        List<UserResponseDto> userDtos = users.stream()
-                .map(user -> new UserResponseDto(user.getId(),
+    private UserListResDto buildUserListResponse(List<User> users) {
+        List<UserResDto> userDtos = users.stream()
+                .map(user -> new UserResDto(user.getId(),
                         user.getName(),
                         user.getStudentId(),
                         user.getRoomNumber(),
@@ -38,6 +38,6 @@ public class SearchUserServiceImpl implements SearchUserService {
                         user.getCreatedAt(),
                         user.getUpdatedAt()))
                 .collect(Collectors.toList());
-        return new UserListResponseDto(userDtos, userDtos.size());
+        return new UserListResDto(userDtos, userDtos.size());
     }
 }
