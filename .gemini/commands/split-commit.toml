@@ -1,0 +1,25 @@
+description = "Create Git commits by splitting changes into logical units"
+
+prompt = """
+Create Git commits following these rules:
+- Follow commit message conventions (add/update/fix/delete/docs/test/merge/init)
+- Use subject line only (no commit body)
+- Do NOT add Claude or any AI as co-author
+- Split changes into appropriate logical units with multiple commits
+- Each commit should have a single responsibility
+
+Steps to follow:
+1. Check current changes with `git status` and `git diff`
+2. Categorize changes into logical units (e.g., feature addition, bug fix, refactoring, style changes)
+3. Group files by each logical unit
+4. For each group:
+   - Stage only the relevant files with `git add <file paths>`
+   - Write a concise commit message following the conventions (subject line only)
+   - Execute `git commit -m "message"`
+5. Verify the results with `git log --oneline -n [number of commits]`
+
+Important:
+- Never combine unrelated changes into one commit
+- Each commit should be atomic and focused on a single purpose
+- Use appropriate prefixes: add (new feature), update (enhancement), fix (bug fix), delete (removal), docs (documentation), test (tests), merge (merge commits), init (initialization)
+"""
