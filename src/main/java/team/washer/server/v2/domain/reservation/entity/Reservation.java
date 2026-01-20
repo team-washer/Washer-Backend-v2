@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.reservation.entity;
 
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
@@ -16,7 +17,9 @@ import team.washer.server.v2.global.common.entity.BaseEntity;
         @Index(name = "idx_user_id", columnList = "user_id"),
         @Index(name = "idx_machine_id", columnList = "machine_id"),
         @Index(name = "idx_start_time", columnList = "start_time"),
-        @Index(name = "idx_status_start_time", columnList = "status, start_time")})
+        @Index(name = "idx_status_start_time", columnList = "status, start_time"),
+        @Index(name = "idx_user_created_at", columnList = "user_id, created_at"),
+        @Index(name = "idx_user_status_created_at", columnList = "user_id, status, created_at")})
 @Getter
 @Builder
 @NoArgsConstructor
@@ -58,6 +61,10 @@ public class Reservation extends BaseEntity {
 
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
+
+    @Column(name = "day_of_week")
+    @Enumerated(EnumType.STRING)
+    private DayOfWeek dayOfWeek;
 
     public boolean isExpired() {
         LocalDateTime now = LocalDateTime.now();
