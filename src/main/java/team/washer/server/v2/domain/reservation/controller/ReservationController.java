@@ -47,7 +47,7 @@ public class ReservationController {
     public ReservationResDto createReservation(
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
             @Parameter(description = "예약 생성 요청 DTO") @RequestBody @Valid CreateReservationReqDto requestDto) {
-        return createReservationService.createReservation(userId, requestDto);
+        return createReservationService.execute(userId, requestDto);
     }
 
     @PutMapping("/{id}/confirm")
@@ -55,7 +55,7 @@ public class ReservationController {
     public ReservationResDto confirmReservation(
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
             @Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
-        return confirmReservationService.confirmReservation(userId, id);
+        return confirmReservationService.execute(userId, id);
     }
 
     @PutMapping("/{id}/start")
@@ -64,7 +64,7 @@ public class ReservationController {
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
             @Parameter(description = "예약 ID") @PathVariable @NotNull Long id,
             @Parameter(description = "시작 요청 DTO") @RequestBody @Valid StartReservationReqDto requestDto) {
-        return startReservationService.startReservation(userId, id, requestDto);
+        return startReservationService.execute(userId, id, requestDto);
     }
 
     @DeleteMapping("/{id}")
@@ -72,14 +72,14 @@ public class ReservationController {
     public CancellationResDto cancelReservation(
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
             @Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
-        return cancelReservationService.cancelReservation(userId, id);
+        return cancelReservationService.execute(userId, id);
     }
 
     @GetMapping("/active")
     @Operation(summary = "내 활성 예약 조회", description = "현재 활성 상태인 나의 예약을 조회합니다.")
     public ReservationResDto getActiveReservation(
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId) {
-        return queryActiveReservationService.queryActiveReservation(userId);
+        return queryActiveReservationService.execute(userId);
     }
 
     @GetMapping("/history")
@@ -92,12 +92,12 @@ public class ReservationController {
             @Parameter(description = "기기 타입 필터") @RequestParam(required = false) MachineType machineType,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return queryReservationHistoryService
-                .queryReservationHistory(userId, status, startDate, endDate, machineType, pageable);
+                .execute(userId, status, startDate, endDate, machineType, pageable);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "예약 상세 조회", description = "예약 상세 정보를 조회합니다.")
     public ReservationResDto getReservation(@Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
-        return queryReservationService.queryReservation(id);
+        return queryReservationService.execute(id);
     }
 }

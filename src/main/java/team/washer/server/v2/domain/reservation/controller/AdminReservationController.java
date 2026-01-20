@@ -35,7 +35,7 @@ public class AdminReservationController {
             @Parameter(description = "관리자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long adminId,
             @Parameter(description = "활성화 요청 DTO") @RequestBody @Valid SundayActivationReqDto requestDto) {
 
-        activateSundayReservationService.activateSundayReservation(adminId, requestDto.notes());
+        activateSundayReservationService.execute(adminId, requestDto.notes());
     }
 
     @PostMapping("/sunday/deactivate")
@@ -45,20 +45,20 @@ public class AdminReservationController {
             @Parameter(description = "관리자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long adminId,
             @Parameter(description = "비활성화 요청 DTO") @RequestBody @Valid SundayActivationReqDto requestDto) {
 
-        deactivateSundayReservationService.deactivateSundayReservation(adminId, requestDto.notes());
+        deactivateSundayReservationService.execute(adminId, requestDto.notes());
     }
 
     @GetMapping("/sunday/status")
     @Operation(summary = "일요일 예약 상태 조회", description = "일요일 예약 활성화 상태와 히스토리를 조회합니다.")
     public SundayStatusResDto getSundayReservationStatus() {
-        return querySundayReservationStatusService.querySundayReservationStatus();
+        return querySundayReservationStatusService.execute();
     }
 
     @GetMapping("/users/{userId}/penalty-status")
     @Operation(summary = "사용자 패널티 상태 조회", description = "특정 사용자의 패널티 상태를 조회합니다.")
     public PenaltyStatusResDto getUserPenaltyStatus(
             @Parameter(description = "사용자 ID") @PathVariable @NotNull Long userId) {
-        return queryUserPenaltyStatusService.queryUserPenaltyStatus(userId);
+        return queryUserPenaltyStatusService.execute(userId);
     }
 
     @DeleteMapping("/users/{userId}/penalty")
@@ -68,6 +68,6 @@ public class AdminReservationController {
             @Parameter(description = "관리자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long adminId,
             @Parameter(description = "사용자 ID") @PathVariable @NotNull Long userId) {
 
-        clearUserPenaltyService.clearUserPenalty(adminId, userId);
+        clearUserPenaltyService.execute(adminId, userId);
     }
 }
