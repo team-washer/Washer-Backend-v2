@@ -37,9 +37,9 @@ public class ReservationController {
     private final ConfirmReservationService confirmReservationService;
     private final StartReservationService startReservationService;
     private final CancelReservationService cancelReservationService;
-    private final GetActiveReservationService getActiveReservationService;
-    private final GetReservationHistoryService getReservationHistoryService;
-    private final GetReservationService getReservationService;
+    private final QueryActiveReservationService queryActiveReservationService;
+    private final QueryReservationHistoryService queryReservationHistoryService;
+    private final QueryReservationService queryReservationService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -79,7 +79,7 @@ public class ReservationController {
     @Operation(summary = "내 활성 예약 조회", description = "현재 활성 상태인 나의 예약을 조회합니다.")
     public ReservationResDto getActiveReservation(
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId) {
-        return getActiveReservationService.getActiveReservation(userId);
+        return queryActiveReservationService.queryActiveReservation(userId);
     }
 
     @GetMapping("/history")
@@ -91,13 +91,13 @@ public class ReservationController {
             @Parameter(description = "종료 날짜 (yyyy-MM-dd'T'HH:mm:ss)") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @Parameter(description = "기기 타입 필터") @RequestParam(required = false) MachineType machineType,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return getReservationHistoryService
-                .getReservationHistory(userId, status, startDate, endDate, machineType, pageable);
+        return queryReservationHistoryService
+                .queryReservationHistory(userId, status, startDate, endDate, machineType, pageable);
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "예약 상세 조회", description = "예약 상세 정보를 조회합니다.")
     public ReservationResDto getReservation(@Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
-        return getReservationService.getReservation(id);
+        return queryReservationService.queryReservation(id);
     }
 }
