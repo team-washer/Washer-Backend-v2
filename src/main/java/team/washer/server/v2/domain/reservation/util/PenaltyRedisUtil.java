@@ -40,8 +40,11 @@ public class PenaltyRedisUtil {
 
     public LocalDateTime getPenaltyExpiryTime(final Long userId) {
         try {
-            return penaltyRedisRepository.findById(userId).map(PenaltyEntity::getExpiryTime)
-                    .filter(expiryTime -> LocalDateTime.now().isBefore(expiryTime)).orElse(null);
+            Optional<LocalDateTime> redisExpiry = penaltyRedisRepository.findById(userId)
+                    .map(PenaltyEntity::getExpiryTime).filter(expiryTime -> LocalDateTime.now().isBefore(expiryTime));
+            if (redisExpiry.isPresent()) {
+                return redisExpiry.get();
+            }
         } catch (Exception e) {
             log.warn("Failed to get penalty expiry time from Redis, falling back to database", e);
         }
