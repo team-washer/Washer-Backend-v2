@@ -23,11 +23,7 @@ public class ReservationTimeoutScheduler {
     private final ReservationRepository reservationRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
 
-    /**
-     * 예약 타임아웃 체크 (30초마다 실행) - RESERVED: 5분 내 미확인 시 취소 + 10분 패널티 - CONFIRMED: 2분 내
-     * 미시작 시 취소 (페널티 없음)
-     */
-    @Scheduled(fixedRate = 30000) // 30초
+    @Scheduled(fixedRate = 30000)
     @Transactional
     public void checkReservationTimeouts() {
         try {
@@ -40,7 +36,7 @@ public class ReservationTimeoutScheduler {
 
     private void checkReservedTimeouts() {
         LocalDateTime threshold = LocalDateTime.now().minusMinutes(5);
-        LocalDateTime recentCutoff = LocalDateTime.now().minusHours(24); // 성능 최적화: 최근 24시간만
+        LocalDateTime recentCutoff = LocalDateTime.now().minusHours(24);
 
         List<Reservation> expiredReservations = reservationRepository
                 .findExpiredReservations(ReservationStatus.RESERVED, threshold, recentCutoff);
@@ -53,11 +49,8 @@ public class ReservationTimeoutScheduler {
 
         for (Reservation reservation : expiredReservations) {
             try {
-                // 예약 취소
                 reservation.cancel();
                 reservationRepository.save(reservation);
-
-                // 패널티 적용
                 User user = reservation.getUser();
                 penaltyRedisUtil.applyPenalty(user);
 
@@ -72,7 +65,7 @@ public class ReservationTimeoutScheduler {
 
     private void checkConfirmedTimeouts() {
         LocalDateTime threshold = LocalDateTime.now().minusMinutes(2);
-        LocalDateTime recentCutoff = LocalDateTime.now().minusHours(24); // 성능 최적화: 최근 24시간만
+        LocalDateTime recentCutoff = LocalDateTime.now().minusHours(24);
 
         List<Reservation> expiredReservations = reservationRepository
                 .findExpiredReservations(ReservationStatus.CONFIRMED, threshold, recentCutoff);
@@ -85,7 +78,6 @@ public class ReservationTimeoutScheduler {
 
         for (Reservation reservation : expiredReservations) {
             try {
-                // 예약 취소 (페널티 없음)
                 reservation.cancel();
                 reservationRepository.save(reservation);
 
