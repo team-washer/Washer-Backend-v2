@@ -7,10 +7,10 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.reservation.service.ActivateSundayReservationService;
-import team.washer.server.v2.domain.reservation.service.SundayReservationService;
+import team.washer.server.v2.domain.reservation.service.PersistSundayReservationActivationService;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
-import team.washer.server.v2.global.exception.ExpectedException;
+import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Slf4j
 @Service
@@ -18,7 +18,7 @@ import team.washer.server.v2.global.exception.ExpectedException;
 public class ActivateSundayReservationServiceImpl implements ActivateSundayReservationService {
 
     private final UserRepository userRepository;
-    private final SundayReservationService sundayReservationService;
+    private final PersistSundayReservationActivationService persistSundayReservationActivationService;
 
     @Override
     @Transactional
@@ -31,7 +31,7 @@ public class ActivateSundayReservationServiceImpl implements ActivateSundayReser
             throw new ExpectedException("일요일 예약 관리 권한이 없습니다", HttpStatus.FORBIDDEN);
         }
 
-        sundayReservationService.activateSundayReservation(admin, notes);
+        persistSundayReservationActivationService.execute(admin, notes, true);
         log.info("Sunday reservation activated by user {}", adminId);
     }
 }

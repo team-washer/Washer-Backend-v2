@@ -14,7 +14,7 @@ import team.washer.server.v2.domain.reservation.repository.ReservationRepository
 import team.washer.server.v2.domain.reservation.service.QueryActiveReservationService;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
-import team.washer.server.v2.global.exception.ExpectedException;
+import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Service
 @RequiredArgsConstructor
@@ -39,7 +39,7 @@ public class QueryActiveReservationServiceImpl implements QueryActiveReservation
         final Reservation latest = activeReservations.stream()
                 .max((r1, r2) -> r1.getCreatedAt().compareTo(r2.getCreatedAt())).orElse(null);
 
-        return latest != null ? mapToReservationResDto(latest) : null;
+        return mapToReservationResDto(latest);
     }
 
     private ReservationResDto mapToReservationResDto(final Reservation reservation) {

@@ -36,7 +36,8 @@ public class QueryReservationHistoryServiceImpl implements QueryReservationHisto
                 .findReservationHistory(userId, status, startDate, endDate, machineType, pageable);
 
         return new ReservationHistoryPageResDto(
-                reservations.getContent().stream().map(this::mapToReservationHistoryResDto).collect(Collectors.toList()),
+                reservations.getContent().stream().map(this::mapToReservationHistoryResDto)
+                        .collect(Collectors.toList()),
                 reservations.getNumber(),
                 reservations.getSize(),
                 reservations.getTotalElements(),

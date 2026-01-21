@@ -11,7 +11,7 @@ import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.StartReservationService;
-import team.washer.server.v2.global.exception.ExpectedException;
+import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Slf4j
 @Service
@@ -22,9 +22,7 @@ public class StartReservationServiceImpl implements StartReservationService {
 
     @Override
     @Transactional
-    public ReservationResDto execute(final Long userId,
-            final Long reservationId,
-            final StartReservationReqDto reqDto) {
+    public ReservationResDto execute(final Long userId, final Long reservationId, final StartReservationReqDto reqDto) {
         final Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

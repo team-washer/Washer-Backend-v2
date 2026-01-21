@@ -16,7 +16,10 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.CreateReservationService;
-import team.washer.server.v2.domain.reservation.service.ReservationValidationService;
+import team.washer.server.v2.domain.reservation.service.ValidateFutureTimeService;
+import team.washer.server.v2.domain.reservation.service.ValidateMachineAvailabilityService;
+import team.washer.server.v2.domain.reservation.service.ValidateTimeRestrictionService;
+import team.washer.server.v2.domain.reservation.service.ValidateUserNotPenalizedService;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
@@ -29,7 +32,10 @@ public class CreateReservationServiceImpl implements CreateReservationService {
     private final ReservationRepository reservationRepository;
     private final UserRepository userRepository;
     private final MachineRepository machineRepository;
-    private final ReservationValidationService validationService;
+    private final ValidateFutureTimeService validateFutureTimeService;
+    private final ValidateTimeRestrictionService validateTimeRestrictionService;
+    private final ValidateUserNotPenalizedService validateUserNotPenalizedService;
+    private final ValidateMachineAvailabilityService validateMachineAvailabilityService;
 
     @Override
     @Transactional
@@ -40,13 +46,13 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final Machine machine = machineRepository.findById(reqDto.machineId())
                 .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
-        validationService.validateFutureTime(reqDto.startTime());
-        validationService.validateTimeRestriction(user, reqDto.startTime());
-        validationService.validateUserNotPenalized(userId);
+        validateFutureTimeService.execute(reqDto.startTime());
+        validateTimeRestrictionService.execute(user, reqDto.startTime());
+        validateUserNotPenalizedService.execute(userId);
 
         final LocalDateTime expectedCompletionTime = reqDto.startTime().plusMinutes(90);
 
-        validationService.validateMachineAvailable(machine, reqDto.startTime(), expectedCompletionTime, null);
+        validateMachineAvailabilityService.execute(machine, reqDto.startTime(), expectedCompletionTime, null);
 
         final Reservation reservation = Reservation.builder().user(user).machine(machine)
                 .reservedAt(LocalDateTime.now()).startTime(reqDto.startTime())

@@ -10,21 +10,23 @@ import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.reservation.dto.response.SundayActivationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.SundayStatusResDto;
 import team.washer.server.v2.domain.reservation.entity.ReservationCycleLog;
+import team.washer.server.v2.domain.reservation.service.QuerySundayReservationActiveService;
+import team.washer.server.v2.domain.reservation.service.QuerySundayReservationHistoryService;
 import team.washer.server.v2.domain.reservation.service.QuerySundayReservationStatusService;
-import team.washer.server.v2.domain.reservation.service.SundayReservationService;
 
 @Service
 @RequiredArgsConstructor
 public class QuerySundayReservationStatusServiceImpl implements QuerySundayReservationStatusService {
 
-    private final SundayReservationService sundayReservationService;
+    private final QuerySundayReservationActiveService querySundayReservationActiveService;
+    private final QuerySundayReservationHistoryService querySundayReservationHistoryService;
 
     @Override
     @Transactional(readOnly = true)
     public SundayStatusResDto execute() {
-        final boolean isActive = sundayReservationService.isSundayReservationActive();
-        final List<SundayActivationResDto> history = sundayReservationService.getSundayReservationHistory().stream()
-                .limit(10).map(this::mapToSundayActivationResDto).collect(Collectors.toList());
+        final boolean isActive = querySundayReservationActiveService.execute();
+        final List<SundayActivationResDto> history = querySundayReservationHistoryService.execute().stream().limit(10)
+                .map(this::mapToSundayActivationResDto).collect(Collectors.toList());
 
         return new SundayStatusResDto(isActive, history);
     }
