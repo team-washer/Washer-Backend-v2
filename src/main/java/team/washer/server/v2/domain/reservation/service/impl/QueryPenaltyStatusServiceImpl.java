@@ -29,7 +29,7 @@ public class QueryPenaltyStatusServiceImpl implements QueryPenaltyStatusService 
         final boolean isPenalized = penaltyExpiresAt != null && LocalDateTime.now().isBefore(penaltyExpiresAt);
 
         Long remainingMinutes = null;
-        if (isPenalized && penaltyExpiresAt != null) {
+        if (isPenalized) {
             remainingMinutes = Duration.between(LocalDateTime.now(), penaltyExpiresAt).toMinutes();
         }
 
