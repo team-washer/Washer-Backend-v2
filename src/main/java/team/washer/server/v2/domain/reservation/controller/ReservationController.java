@@ -18,7 +18,6 @@ import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
-import team.washer.server.v2.domain.reservation.dto.request.StartReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryPageResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
@@ -33,8 +32,6 @@ import team.washer.server.v2.domain.reservation.service.*;
 public class ReservationController {
 
     private final CreateReservationService createReservationService;
-    private final ConfirmReservationService confirmReservationService;
-    private final StartReservationService startReservationService;
     private final CancelReservationService cancelReservationService;
     private final QueryActiveReservationService queryActiveReservationService;
     private final QueryReservationHistoryService queryReservationHistoryService;
@@ -47,23 +44,6 @@ public class ReservationController {
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
             @Parameter(description = "예약 생성 요청 DTO") @RequestBody @Valid CreateReservationReqDto requestDto) {
         return createReservationService.execute(userId, requestDto);
-    }
-
-    @PutMapping("/{id}/confirm")
-    @Operation(summary = "예약 확인", description = "예약을 확인합니다. 5분 내에 확인하지 않으면 자동 취소되며 패널티가 적용됩니다.")
-    public ReservationResDto confirmReservation(
-            @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
-            @Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
-        return confirmReservationService.execute(userId, id);
-    }
-
-    @PutMapping("/{id}/start")
-    @Operation(summary = "기기 시작", description = "확인된 예약의 기기를 시작합니다. 2분 내에 시작하지 않으면 자동 취소됩니다.")
-    public ReservationResDto startReservation(
-            @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
-            @Parameter(description = "예약 ID") @PathVariable @NotNull Long id,
-            @Parameter(description = "시작 요청 DTO") @RequestBody @Valid StartReservationReqDto requestDto) {
-        return startReservationService.execute(userId, id, requestDto);
     }
 
     @DeleteMapping("/{id}")
