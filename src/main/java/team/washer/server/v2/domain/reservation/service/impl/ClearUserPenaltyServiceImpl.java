@@ -12,9 +12,6 @@ import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
-/**
- * 사용자 패널티 해제 서비스 구현체
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor

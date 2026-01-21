@@ -12,9 +12,6 @@ import team.washer.server.v2.domain.reservation.dto.response.PenaltyStatusResDto
 import team.washer.server.v2.domain.reservation.service.QueryPenaltyStatusService;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 
-/**
- * 패널티 상태 조회 서비스 구현체
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
