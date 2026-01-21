@@ -10,6 +10,7 @@ import team.washer.server.v2.domain.reservation.entity.redis.PenaltyEntity;
 import team.washer.server.v2.domain.reservation.repository.redis.PenaltyRedisRepository;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.constants.PenaltyConstants;
 
 @Slf4j
 @Component
@@ -20,7 +21,7 @@ public class PenaltyRedisUtil {
     private final UserRepository userRepository;
 
     public void applyPenalty(final User user) {
-        final LocalDateTime expiryTime = LocalDateTime.now().plusMinutes(10);
+        final LocalDateTime expiryTime = LocalDateTime.now().plusMinutes(PenaltyConstants.PENALTY_DURATION_MINUTES);
 
         try {
             PenaltyEntity penalty = PenaltyEntity.builder().userId(user.getId()).expiryTime(expiryTime).build();
@@ -46,7 +47,8 @@ public class PenaltyRedisUtil {
             return null;
         }
 
-        final LocalDateTime expiryTime = user.getLastCancellationAt().plusMinutes(10);
+        final LocalDateTime expiryTime = user.getLastCancellationAt()
+                .plusMinutes(PenaltyConstants.PENALTY_DURATION_MINUTES);
         if (LocalDateTime.now().isBefore(expiryTime)) {
             return expiryTime;
         }

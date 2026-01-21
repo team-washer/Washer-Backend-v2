@@ -20,6 +20,7 @@ import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.reservation.util.SundayReservationRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.constants.ReservationConstants;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Slf4j
@@ -50,7 +51,8 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final boolean isSundayActive = sundayReservationRedisUtil.isSundayActive();
         user.validateTimeRestriction(reqDto.startTime(), isSundayActive);
 
-        final LocalDateTime expectedCompletionTime = reqDto.startTime().plusMinutes(90);
+        final LocalDateTime expectedCompletionTime = reqDto.startTime()
+                .plusMinutes(ReservationConstants.DEFAULT_RESERVATION_DURATION_MINUTES);
 
         // 기계 가용성 검증 (인라인)
         final boolean hasConflict = reservationRepository

@@ -16,6 +16,7 @@ import team.washer.server.v2.domain.malfunction.entity.MalfunctionReport;
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.user.enums.UserRole;
+import team.washer.server.v2.global.common.constants.TimeRestrictionConstants;
 import team.washer.server.v2.global.common.entity.BaseEntity;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
@@ -128,7 +129,7 @@ public class User extends BaseEntity {
 
         switch (dayOfWeek) {
             case MONDAY, TUESDAY, WEDNESDAY, THURSDAY :
-                if (time.isBefore(LocalTime.of(21, 10))) {
+                if (time.isBefore(TimeRestrictionConstants.WEEKDAY_START_TIME)) {
                     throw new ExpectedException("월요일부터 목요일까지는 21:10 이후에만 예약할 수 있습니다", HttpStatus.BAD_REQUEST);
                 }
                 break;
