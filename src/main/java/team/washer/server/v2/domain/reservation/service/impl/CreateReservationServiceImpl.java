@@ -56,10 +56,10 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final boolean hasConflict = reservationRepository
                 .existsConflictingReservation(machine.getId(), reqDto.startTime(), expectedCompletionTime, null);
         if (hasConflict) {
-            throw new IllegalStateException(String.format("해당 시간에 기기를 사용할 수 없습니다. 기기: %s, 시간: %s ~ %s",
+            throw new ExpectedException(String.format("해당 시간에 기기를 사용할 수 없습니다. 기기: %s, 시간: %s ~ %s",
                     machine.getName(),
                     reqDto.startTime(),
-                    expectedCompletionTime));
+                    expectedCompletionTime), HttpStatus.BAD_REQUEST);
         }
 
         final Reservation reservation = Reservation.builder().user(user).machine(machine)

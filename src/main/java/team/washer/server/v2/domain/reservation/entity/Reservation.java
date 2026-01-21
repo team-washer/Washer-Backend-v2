@@ -4,6 +4,8 @@ import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
+import org.springframework.http.HttpStatus;
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
@@ -11,6 +13,7 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.global.common.entity.BaseEntity;
+import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Entity
 @Table(name = "reservations", indexes = {@Index(name = "idx_status", columnList = "status"),
@@ -96,7 +99,7 @@ public class Reservation extends BaseEntity {
 
     public void confirm() {
         if (this.status != ReservationStatus.RESERVED) {
-            throw new IllegalStateException("예약 상태에서만 확인할 수 있습니다");
+            throw new ExpectedException("예약 상태에서만 확인할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
         this.status = ReservationStatus.CONFIRMED;
         this.confirmedAt = LocalDateTime.now();
@@ -104,7 +107,7 @@ public class Reservation extends BaseEntity {
 
     public void start(LocalDateTime expectedCompletionTime) {
         if (this.status != ReservationStatus.CONFIRMED) {
-            throw new IllegalStateException("확인된 예약만 시작할 수 있습니다");
+            throw new ExpectedException("확인된 예약만 시작할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
         this.status = ReservationStatus.RUNNING;
         this.expectedCompletionTime = expectedCompletionTime;
@@ -112,7 +115,7 @@ public class Reservation extends BaseEntity {
 
     public void complete() {
         if (this.status != ReservationStatus.RUNNING) {
-            throw new IllegalStateException("실행 중인 예약만 완료할 수 있습니다");
+            throw new ExpectedException("실행 중인 예약만 완료할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
         this.status = ReservationStatus.COMPLETED;
         this.actualCompletionTime = LocalDateTime.now();
@@ -120,7 +123,7 @@ public class Reservation extends BaseEntity {
 
     public void cancel() {
         if (this.status == ReservationStatus.COMPLETED) {
-            throw new IllegalStateException("완료된 예약은 취소할 수 없습니다");
+            throw new ExpectedException("완료된 예약은 취소할 수 없습니다", HttpStatus.BAD_REQUEST);
         }
         this.status = ReservationStatus.CANCELLED;
         this.cancelledAt = LocalDateTime.now();
@@ -151,15 +154,9 @@ public class Reservation extends BaseEntity {
         return this.status == ReservationStatus.CANCELLED;
     }
 
-    /**
-     * 예약 시간이 미래인지 검증
-     *
-     * @throws IllegalArgumentException
-     *             예약 시간이 과거인 경우
-     */
     public void validateFutureTime() {
         if (this.startTime.isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("예약 시간은 현재 시간 이후여야 합니다");
+            throw new ExpectedException("예약 시간은 현재 시간 이후여야 합니다", HttpStatus.BAD_REQUEST);
         }
     }
 }
