@@ -1,13 +1,14 @@
 package team.washer.server.v2.domain.reservation.util;
 
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.reservation.entity.ReservationCycleLog;
+import team.washer.server.v2.domain.reservation.entity.redis.SundayStatusEntity;
 import team.washer.server.v2.domain.reservation.enums.CycleAction;
 import team.washer.server.v2.domain.reservation.repository.ReservationCycleLogRepository;
+import team.washer.server.v2.domain.reservation.repository.redis.SundayStatusRedisRepository;
 import team.washer.server.v2.domain.user.entity.User;
 
 @Slf4j
@@ -15,17 +16,12 @@ import team.washer.server.v2.domain.user.entity.User;
 @RequiredArgsConstructor
 public class SundayReservationRedisUtil {
 
-    private static final String SUNDAY_ACTIVE_KEY = "reservation:sunday:active";
-
-    private final RedisTemplate<String, String> redisTemplate;
+    private final SundayStatusRedisRepository sundayStatusRedisRepository;
     private final ReservationCycleLogRepository cycleLogRepository;
 
     public boolean isSundayActive() {
         try {
-            final String value = redisTemplate.opsForValue().get(SUNDAY_ACTIVE_KEY);
-            final boolean isActive = "true".equals(value);
-            log.debug("Sunday reservation active status: {}", isActive);
-            return isActive;
+            return sundayStatusRedisRepository.findById("active").map(SundayStatusEntity::isActive).orElse(false);
         } catch (Exception e) {
             log.error("Failed to check Sunday reservation status in Redis, falling back to database", e);
             final ReservationCycleLog latestLog = cycleLogRepository.findLatest();
@@ -46,7 +42,7 @@ public class SundayReservationRedisUtil {
 
     private void activateSundayReservation(final User performedBy, final String notes) {
         try {
-            redisTemplate.opsForValue().set(SUNDAY_ACTIVE_KEY, "true");
+            sundayStatusRedisRepository.save(SundayStatusEntity.builder().id("active").isActive(true).build());
             log.info("Activated Sunday reservation by user {}", performedBy.getId());
         } catch (Exception e) {
             log.error("Failed to activate Sunday reservation in Redis", e);
@@ -60,7 +56,7 @@ public class SundayReservationRedisUtil {
 
     private void deactivateSundayReservation(final User performedBy, final String notes) {
         try {
-            redisTemplate.delete(SUNDAY_ACTIVE_KEY);
+            sundayStatusRedisRepository.deleteById("active");
             log.info("Deactivated Sunday reservation by user {}", performedBy.getId());
         } catch (Exception e) {
             log.error("Failed to deactivate Sunday reservation in Redis", e);
