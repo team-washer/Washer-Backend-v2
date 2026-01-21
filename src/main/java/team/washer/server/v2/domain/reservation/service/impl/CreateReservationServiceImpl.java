@@ -16,10 +16,9 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.CreateReservationService;
-import team.washer.server.v2.domain.reservation.service.ValidateFutureTimeService;
-import team.washer.server.v2.domain.reservation.service.ValidateMachineAvailabilityService;
-import team.washer.server.v2.domain.reservation.service.ValidateTimeRestrictionService;
-import team.washer.server.v2.domain.reservation.service.ValidateUserNotPenalizedService;
+import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
+import team.washer.server.v2.domain.reservation.util.ReservationMapper;
+import team.washer.server.v2.domain.reservation.util.SundayReservationRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
@@ -32,10 +31,8 @@ public class CreateReservationServiceImpl implements CreateReservationService {
     private final ReservationRepository reservationRepository;
     private final UserRepository userRepository;
     private final MachineRepository machineRepository;
-    private final ValidateFutureTimeService validateFutureTimeService;
-    private final ValidateTimeRestrictionService validateTimeRestrictionService;
-    private final ValidateUserNotPenalizedService validateUserNotPenalizedService;
-    private final ValidateMachineAvailabilityService validateMachineAvailabilityService;
+    private final PenaltyRedisUtil penaltyRedisUtil;
+    private final SundayReservationRedisUtil sundayReservationRedisUtil;
 
     @Override
     @Transactional
@@ -46,40 +43,35 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final Machine machine = machineRepository.findById(reqDto.machineId())
                 .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
-        validateFutureTimeService.execute(reqDto.startTime());
-        validateTimeRestrictionService.execute(user, reqDto.startTime());
-        validateUserNotPenalizedService.execute(userId);
+        // 패널티 상태 검증
+        final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
+        user.validateNotPenalized(penaltyExpiresAt);
+
+        // 시간 제한 검증 (일요일 활성화 여부 포함)
+        final boolean isSundayActive = sundayReservationRedisUtil.isSundayActive();
+        user.validateTimeRestriction(reqDto.startTime(), isSundayActive);
 
         final LocalDateTime expectedCompletionTime = reqDto.startTime().plusMinutes(90);
 
-        validateMachineAvailabilityService.execute(machine, reqDto.startTime(), expectedCompletionTime, null);
+        // 기계 가용성 검증 (인라인)
+        final boolean hasConflict = reservationRepository.existsConflictingReservation(machine.getId(),
+                reqDto.startTime(), expectedCompletionTime, null);
+        if (hasConflict) {
+            throw new IllegalStateException(
+                    String.format("해당 시간에 기기를 사용할 수 없습니다. 기기: %s, 시간: %s ~ %s", machine.getName(),
+                            reqDto.startTime(), expectedCompletionTime));
+        }
 
         final Reservation reservation = Reservation.builder().user(user).machine(machine)
                 .reservedAt(LocalDateTime.now()).startTime(reqDto.startTime())
                 .dayOfWeek(reqDto.startTime().getDayOfWeek()).status(ReservationStatus.RESERVED).build();
 
+        // 미래 시간 검증
+        reservation.validateFutureTime();
+
         final Reservation saved = reservationRepository.save(reservation);
         log.info("Created reservation {} for user {} on machine {}", saved.getId(), userId, machine.getId());
 
-        return mapToReservationResDto(saved);
-    }
-
-    private ReservationResDto mapToReservationResDto(final Reservation reservation) {
-        return new ReservationResDto(reservation.getId(),
-                reservation.getUser().getId(),
-                reservation.getUser().getName(),
-                reservation.getUser().getRoomNumber(),
-                reservation.getMachine().getId(),
-                reservation.getMachine().getName(),
-                reservation.getReservedAt(),
-                reservation.getStartTime(),
-                reservation.getExpectedCompletionTime(),
-                reservation.getActualCompletionTime(),
-                reservation.getStatus(),
-                reservation.getConfirmedAt(),
-                reservation.getCancelledAt(),
-                reservation.getDayOfWeek(),
-                reservation.getCreatedAt(),
-                reservation.getUpdatedAt());
+        return ReservationMapper.toResDto(saved);
     }
 }
