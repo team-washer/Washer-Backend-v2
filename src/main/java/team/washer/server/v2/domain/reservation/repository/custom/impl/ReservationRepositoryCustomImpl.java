@@ -12,7 +12,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
-import com.querydsl.core.BooleanBuilder;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import lombok.RequiredArgsConstructor;
@@ -35,29 +34,23 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
             MachineType machineType,
             Pageable pageable) {
 
-        BooleanBuilder builder = new BooleanBuilder();
-
-        if (userId != null) {
-            builder.and(reservation.user.id.eq(userId));
-        }
-        if (status != null) {
-            builder.and(reservation.status.eq(status));
-        }
-        if (startDate != null) {
-            builder.and(reservation.startTime.goe(startDate));
-        }
-        if (endDate != null) {
-            builder.and(reservation.startTime.loe(endDate));
-        }
-        if (machineType != null) {
-            builder.and(reservation.machine.type.eq(machineType));
-        }
-
         List<Reservation> results = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
-                .leftJoin(reservation.machine, machine).fetchJoin().where(builder).orderBy(reservation.createdAt.desc())
-                .offset(pageable.getOffset()).limit(pageable.getPageSize()).fetch();
+                .leftJoin(reservation.machine, machine).fetchJoin()
+                .where(userId != null ? reservation.user.id.eq(userId) : null,
+                        status != null ? reservation.status.eq(status) : null,
+                        startDate != null ? reservation.startTime.goe(startDate) : null,
+                        endDate != null ? reservation.startTime.loe(endDate) : null,
+                        machineType != null ? reservation.machine.type.eq(machineType) : null)
+                .orderBy(reservation.createdAt.desc()).offset(pageable.getOffset()).limit(pageable.getPageSize())
+                .fetch();
 
-        long total = jpaQueryFactory.selectFrom(reservation).where(builder).fetchCount();
+        long total = jpaQueryFactory.selectFrom(reservation)
+                .where(userId != null ? reservation.user.id.eq(userId) : null,
+                        status != null ? reservation.status.eq(status) : null,
+                        startDate != null ? reservation.startTime.goe(startDate) : null,
+                        endDate != null ? reservation.startTime.loe(endDate) : null,
+                        machineType != null ? reservation.machine.type.eq(machineType) : null)
+                .fetchCount();
 
         return new PageImpl<>(results, pageable, total);
     }
@@ -68,19 +61,14 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
             LocalDateTime endTime,
             Long excludeReservationId) {
 
-        BooleanBuilder builder = new BooleanBuilder();
-        builder.and(reservation.machine.id.eq(machineId));
-        builder.and(reservation.status
-                .in(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
-
-        // 시간 겹침 체크
-        builder.and(reservation.startTime.lt(endTime).and(reservation.expectedCompletionTime.gt(startTime)));
-
-        if (excludeReservationId != null) {
-            builder.and(reservation.id.ne(excludeReservationId));
-        }
-
-        return jpaQueryFactory.selectFrom(reservation).where(builder).fetchFirst() != null;
+        return jpaQueryFactory.selectFrom(reservation)
+                .where(reservation.machine.id.eq(machineId),
+                        reservation.status
+                                .in(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING),
+                        reservation.startTime.lt(endTime),
+                        reservation.expectedCompletionTime.gt(startTime),
+                        excludeReservationId != null ? reservation.id.ne(excludeReservationId) : null)
+                .fetchFirst() != null;
     }
 
     @Override
@@ -88,16 +76,11 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
             LocalDateTime threshold,
             LocalDateTime recentCutoff) {
 
-        BooleanBuilder builder = new BooleanBuilder();
-        builder.and(reservation.status.eq(status));
-        builder.and(reservation.createdAt.goe(recentCutoff)); // 성능 최적화
-
-        if (status == ReservationStatus.RESERVED) {
-            builder.and(reservation.startTime.lt(threshold));
-        } else if (status == ReservationStatus.CONFIRMED) {
-            builder.and(reservation.confirmedAt.lt(threshold));
-        }
-
-        return jpaQueryFactory.selectFrom(reservation).where(builder).fetch();
+        return jpaQueryFactory.selectFrom(reservation)
+                .where(reservation.status.eq(status),
+                        reservation.createdAt.goe(recentCutoff),
+                        status == ReservationStatus.RESERVED ? reservation.startTime.lt(threshold) : null,
+                        status == ReservationStatus.CONFIRMED ? reservation.confirmedAt.lt(threshold) : null)
+                .fetch();
     }
 }
