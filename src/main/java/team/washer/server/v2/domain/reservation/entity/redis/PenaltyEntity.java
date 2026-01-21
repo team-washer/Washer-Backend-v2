@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@RedisHash(value = "reservation:penalty:user", timeToLive = 600) // 10 minutes
+@RedisHash(value = "reservation:penalty:user", timeToLive = 600)
 public class PenaltyEntity {
 
     @Id
