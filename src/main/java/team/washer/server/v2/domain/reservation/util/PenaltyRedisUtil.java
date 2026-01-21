@@ -36,7 +36,8 @@ public class PenaltyRedisUtil {
      * Redis에 TTL 10분으로 패널티 정보를 저장하며, 동시에 DB에도 백업한다.
      * </p>
      *
-     * @param user 패널티를 적용할 사용자 엔티티
+     * @param user
+     *            패널티를 적용할 사용자 엔티티
      */
     public void applyPenalty(final User user) {
         final String redisKey = PENALTY_KEY_PREFIX + user.getId();
@@ -64,7 +65,8 @@ public class PenaltyRedisUtil {
      * Redis를 우선적으로 확인하고, 실패 시 데이터베이스로 폴백한다. 패널티가 없거나 만료된 경우 null을 반환한다.
      * </p>
      *
-     * @param userId 조회할 사용자 ID
+     * @param userId
+     *            조회할 사용자 ID
      * @return 패널티 만료 시간 (패널티가 없으면 null)
      */
     public LocalDateTime getPenaltyExpiryTime(final Long userId) {
@@ -104,7 +106,8 @@ public class PenaltyRedisUtil {
      * Redis와 데이터베이스 양쪽에서 패널티 정보를 제거한다.
      * </p>
      *
-     * @param userId 패널티를 해제할 사용자 ID
+     * @param userId
+     *            패널티를 해제할 사용자 ID
      */
     public void clearPenalty(final Long userId) {
         final String redisKey = PENALTY_KEY_PREFIX + userId;

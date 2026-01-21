@@ -154,7 +154,8 @@ public class Reservation extends BaseEntity {
     /**
      * 예약 시간이 미래인지 검증
      *
-     * @throws IllegalArgumentException 예약 시간이 과거인 경우
+     * @throws IllegalArgumentException
+     *             예약 시간이 과거인 경우
      */
     public void validateFutureTime() {
         if (this.startTime.isBefore(LocalDateTime.now())) {

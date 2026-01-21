@@ -119,7 +119,8 @@ public class User extends BaseEntity {
      * 예약 시간 제한 검증
      *
      * <p>
-     * 사용자의 권한에 따라 시간 제한을 우회할 수 있다. 일반 사용자의 경우 월요일부터 목요일까지는 21:10 이후에만 예약할 수 있으며, 일요일은 활성화된 경우에만 예약 가능하다.
+     * 사용자의 권한에 따라 시간 제한을 우회할 수 있다. 일반 사용자의 경우 월요일부터 목요일까지는 21:10 이후에만 예약할 수 있으며,
+     * 일요일은 활성화된 경우에만 예약 가능하다.
      * </p>
      *
      * @param startTime
@@ -168,8 +169,7 @@ public class User extends BaseEntity {
     public void validateNotPenalized(final LocalDateTime penaltyExpiresAt) {
         if (penaltyExpiresAt != null && LocalDateTime.now().isBefore(penaltyExpiresAt)) {
             final long remainingMinutes = Duration.between(LocalDateTime.now(), penaltyExpiresAt).toMinutes();
-            throw new IllegalStateException(
-                    String.format("현재 예약이 제한되어 있습니다. 제한 해제까지 %d분 남았습니다.", remainingMinutes));
+            throw new IllegalStateException(String.format("현재 예약이 제한되어 있습니다. 제한 해제까지 %d분 남았습니다.", remainingMinutes));
         }
     }
 }

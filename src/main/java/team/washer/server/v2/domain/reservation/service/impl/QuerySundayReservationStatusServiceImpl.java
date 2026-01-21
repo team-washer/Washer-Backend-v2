@@ -25,8 +25,8 @@ public class QuerySundayReservationStatusServiceImpl implements QuerySundayReser
     @Transactional(readOnly = true)
     public SundayStatusResDto execute() {
         final boolean isActive = sundayReservationRedisUtil.isSundayActive();
-        final List<SundayActivationResDto> history = cycleLogRepository.findAllOrderByCreatedAtDesc().stream()
-                .limit(10).map(this::mapToSundayActivationResDto).collect(Collectors.toList());
+        final List<SundayActivationResDto> history = cycleLogRepository.findAllOrderByCreatedAtDesc().stream().limit(10)
+                .map(this::mapToSundayActivationResDto).collect(Collectors.toList());
 
         return new SundayStatusResDto(isActive, history);
     }

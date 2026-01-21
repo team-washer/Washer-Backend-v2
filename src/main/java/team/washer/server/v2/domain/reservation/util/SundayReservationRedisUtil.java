@@ -56,13 +56,16 @@ public class SundayReservationRedisUtil {
      * 일요일 예약 활성화/비활성화 영속화
      *
      * <p>
-     * Redis와 데이터베이스에 활성화 상태를 저장한다. 활성화 시 Redis에 "true" 값을 설정하고, 비활성화 시 키를 삭제한다. 데이터베이스에는
-     * ReservationCycleLog를 생성하여 이력을 기록한다.
+     * Redis와 데이터베이스에 활성화 상태를 저장한다. 활성화 시 Redis에 "true" 값을 설정하고, 비활성화 시 키를 삭제한다.
+     * 데이터베이스에는 ReservationCycleLog를 생성하여 이력을 기록한다.
      * </p>
      *
-     * @param performedBy 작업을 수행한 사용자
-     * @param notes 작업 메모
-     * @param isActive 활성화 여부
+     * @param performedBy
+     *            작업을 수행한 사용자
+     * @param notes
+     *            작업 메모
+     * @param isActive
+     *            활성화 여부
      */
     public void persistActivation(final User performedBy, final String notes, final boolean isActive) {
         if (isActive) {
@@ -75,8 +78,10 @@ public class SundayReservationRedisUtil {
     /**
      * 일요일 예약 활성화 (내부 메서드)
      *
-     * @param performedBy 활성화를 수행한 사용자
-     * @param notes 활성화 메모
+     * @param performedBy
+     *            활성화를 수행한 사용자
+     * @param notes
+     *            활성화 메모
      */
     private void activateSundayReservation(final User performedBy, final String notes) {
         try {
@@ -95,8 +100,10 @@ public class SundayReservationRedisUtil {
     /**
      * 일요일 예약 비활성화 (내부 메서드)
      *
-     * @param performedBy 비활성화를 수행한 사용자
-     * @param notes 비활성화 메모
+     * @param performedBy
+     *            비활성화를 수행한 사용자
+     * @param notes
+     *            비활성화 메모
      */
     private void deactivateSundayReservation(final User performedBy, final String notes) {
         try {
