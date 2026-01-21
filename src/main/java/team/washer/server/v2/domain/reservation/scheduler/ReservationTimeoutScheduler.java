@@ -28,7 +28,6 @@ public class ReservationTimeoutScheduler {
     public void checkReservationTimeouts() {
         try {
             checkReservedTimeouts();
-            checkConfirmedTimeouts();
         } catch (Exception e) {
             log.error("Error checking reservation timeouts", e);
         }
@@ -49,6 +48,11 @@ public class ReservationTimeoutScheduler {
 
         for (Reservation reservation : expiredReservations) {
             try {
+                // TODO: SmartThings 연동 구현 시 여기에 로직 추가
+                // 1. SmartThings API를 통해 기기 상태 확인 (isMachineRunning)
+                // 2. if (running) { reservation.start(); save(); return; }
+                // 3. if (!running) { 아래 취소 및 패널티 로직 실행 }
+
                 reservation.cancel();
                 reservationRepository.save(reservation);
                 User user = reservation.getUser();
@@ -57,31 +61,6 @@ public class ReservationTimeoutScheduler {
                 log.info("Cancelled RESERVED reservation {} due to timeout and applied penalty to user {}",
                         reservation.getId(),
                         user.getId());
-            } catch (Exception e) {
-                log.error("Error processing timeout for reservation {}", reservation.getId(), e);
-            }
-        }
-    }
-
-    private void checkConfirmedTimeouts() {
-        LocalDateTime threshold = LocalDateTime.now().minusMinutes(2);
-        LocalDateTime recentCutoff = LocalDateTime.now().minusHours(24);
-
-        List<Reservation> expiredReservations = reservationRepository
-                .findExpiredReservations(ReservationStatus.CONFIRMED, threshold, recentCutoff);
-
-        if (expiredReservations.isEmpty()) {
-            return;
-        }
-
-        log.info("Found {} expired CONFIRMED reservations", expiredReservations.size());
-
-        for (Reservation reservation : expiredReservations) {
-            try {
-                reservation.cancel();
-                reservationRepository.save(reservation);
-
-                log.info("Cancelled CONFIRMED reservation {} due to timeout (no penalty)", reservation.getId());
             } catch (Exception e) {
                 log.error("Error processing timeout for reservation {}", reservation.getId(), e);
             }
