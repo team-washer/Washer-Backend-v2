@@ -9,7 +9,6 @@ import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.QueryReservationService;
-import team.washer.server.v2.domain.reservation.util.ReservationMapper;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Service
@@ -24,6 +23,21 @@ public class QueryReservationServiceImpl implements QueryReservationService {
         final Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
-        return ReservationMapper.toResDto(reservation);
+        return new ReservationResDto(reservation.getId(),
+                reservation.getUser().getId(),
+                reservation.getUser().getName(),
+                reservation.getUser().getRoomNumber(),
+                reservation.getMachine().getId(),
+                reservation.getMachine().getName(),
+                reservation.getReservedAt(),
+                reservation.getStartTime(),
+                reservation.getExpectedCompletionTime(),
+                reservation.getActualCompletionTime(),
+                reservation.getStatus(),
+                reservation.getConfirmedAt(),
+                reservation.getCancelledAt(),
+                reservation.getDayOfWeek(),
+                reservation.getCreatedAt(),
+                reservation.getUpdatedAt());
     }
 }

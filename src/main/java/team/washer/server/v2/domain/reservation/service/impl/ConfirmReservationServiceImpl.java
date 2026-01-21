@@ -10,7 +10,6 @@ import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.ConfirmReservationService;
-import team.washer.server.v2.domain.reservation.util.ReservationMapper;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Slf4j
@@ -42,6 +41,21 @@ public class ConfirmReservationServiceImpl implements ConfirmReservationService 
         final Reservation saved = reservationRepository.save(reservation);
         log.info("Confirmed reservation {} by user {}", reservationId, userId);
 
-        return ReservationMapper.toResDto(saved);
+        return new ReservationResDto(saved.getId(),
+                saved.getUser().getId(),
+                saved.getUser().getName(),
+                saved.getUser().getRoomNumber(),
+                saved.getMachine().getId(),
+                saved.getMachine().getName(),
+                saved.getReservedAt(),
+                saved.getStartTime(),
+                saved.getExpectedCompletionTime(),
+                saved.getActualCompletionTime(),
+                saved.getStatus(),
+                saved.getConfirmedAt(),
+                saved.getCancelledAt(),
+                saved.getDayOfWeek(),
+                saved.getCreatedAt(),
+                saved.getUpdatedAt());
     }
 }

@@ -72,10 +72,21 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final Reservation saved = reservationRepository.save(reservation);
         log.info("Created reservation {} for user {} on machine {}", saved.getId(), userId, machine.getId());
 
-        return new ReservationResDto(saved.getId(), saved.getUser().getId(), saved.getUser().getName(),
-                saved.getUser().getRoomNumber(), saved.getMachine().getId(), saved.getMachine().getName(),
-                saved.getReservedAt(), saved.getStartTime(), saved.getExpectedCompletionTime(),
-                saved.getActualCompletionTime(), saved.getStatus(), saved.getConfirmedAt(), saved.getCancelledAt(),
-                saved.getDayOfWeek(), saved.getCreatedAt(), saved.getUpdatedAt());
+        return new ReservationResDto(saved.getId(),
+                saved.getUser().getId(),
+                saved.getUser().getName(),
+                saved.getUser().getRoomNumber(),
+                saved.getMachine().getId(),
+                saved.getMachine().getName(),
+                saved.getReservedAt(),
+                saved.getStartTime(),
+                saved.getExpectedCompletionTime(),
+                saved.getActualCompletionTime(),
+                saved.getStatus(),
+                saved.getConfirmedAt(),
+                saved.getCancelledAt(),
+                saved.getDayOfWeek(),
+                saved.getCreatedAt(),
+                saved.getUpdatedAt());
     }
 }

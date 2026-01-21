@@ -12,7 +12,6 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.QueryActiveReservationService;
-import team.washer.server.v2.domain.reservation.util.ReservationMapper;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
@@ -40,6 +39,21 @@ public class QueryActiveReservationServiceImpl implements QueryActiveReservation
         final Reservation latest = activeReservations.stream()
                 .max((r1, r2) -> r1.getCreatedAt().compareTo(r2.getCreatedAt())).orElse(null);
 
-        return ReservationMapper.toResDto(latest);
+        return new ReservationResDto(latest.getId(),
+                latest.getUser().getId(),
+                latest.getUser().getName(),
+                latest.getUser().getRoomNumber(),
+                latest.getMachine().getId(),
+                latest.getMachine().getName(),
+                latest.getReservedAt(),
+                latest.getStartTime(),
+                latest.getExpectedCompletionTime(),
+                latest.getActualCompletionTime(),
+                latest.getStatus(),
+                latest.getConfirmedAt(),
+                latest.getCancelledAt(),
+                latest.getDayOfWeek(),
+                latest.getCreatedAt(),
+                latest.getUpdatedAt());
     }
 }
