@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
-import org.springframework.data.redis.core.TimeToLive;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -22,8 +21,4 @@ public class PenaltyEntity {
     private Long userId;
 
     private LocalDateTime expiryTime;
-
-    @TimeToLive
-    @Builder.Default
-    private Long ttl = 600L;
 }
