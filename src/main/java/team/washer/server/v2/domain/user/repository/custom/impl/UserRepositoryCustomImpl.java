@@ -17,11 +17,11 @@ import team.washer.server.v2.domain.user.repository.custom.UserRepositoryCustom;
 @RequiredArgsConstructor
 public class UserRepositoryCustomImpl implements UserRepositoryCustom {
 
-    private final JPAQueryFactory queryFactory;
+    private final JPAQueryFactory jpaQueryFactory;
 
     @Override
     public List<User> findUsersByFilter(String name, String roomNumber, Integer grade, Integer floor) {
-        return queryFactory.selectFrom(user)
+        return jpaQueryFactory.selectFrom(user)
                 .where(StringUtils.hasText(name) ? user.name.contains(name) : null,
                         StringUtils.hasText(roomNumber) ? user.roomNumber.eq(roomNumber) : null,
                         grade != null ? user.grade.eq(grade) : null,

@@ -25,7 +25,7 @@ import team.washer.server.v2.domain.reservation.repository.custom.ReservationRep
 @RequiredArgsConstructor
 public class ReservationRepositoryCustomImpl implements ReservationRepositoryCustom {
 
-    private final JPAQueryFactory queryFactory;
+    private final JPAQueryFactory jpaQueryFactory;
 
     @Override
     public Page<Reservation> findReservationHistory(Long userId,
@@ -53,11 +53,11 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
             builder.and(reservation.machine.type.eq(machineType));
         }
 
-        List<Reservation> results = queryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
+        List<Reservation> results = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
                 .leftJoin(reservation.machine, machine).fetchJoin().where(builder).orderBy(reservation.createdAt.desc())
                 .offset(pageable.getOffset()).limit(pageable.getPageSize()).fetch();
 
-        long total = queryFactory.selectFrom(reservation).where(builder).fetchCount();
+        long total = jpaQueryFactory.selectFrom(reservation).where(builder).fetchCount();
 
         return new PageImpl<>(results, pageable, total);
     }
@@ -80,7 +80,7 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
             builder.and(reservation.id.ne(excludeReservationId));
         }
 
-        return queryFactory.selectFrom(reservation).where(builder).fetchFirst() != null;
+        return jpaQueryFactory.selectFrom(reservation).where(builder).fetchFirst() != null;
     }
 
     @Override
@@ -98,6 +98,6 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
             builder.and(reservation.confirmedAt.lt(threshold));
         }
 
-        return queryFactory.selectFrom(reservation).where(builder).fetch();
+        return jpaQueryFactory.selectFrom(reservation).where(builder).fetch();
     }
 }
