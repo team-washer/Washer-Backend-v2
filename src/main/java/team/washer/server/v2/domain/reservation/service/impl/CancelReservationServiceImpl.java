@@ -11,9 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
-import team.washer.server.v2.domain.reservation.service.ApplyReservationPenaltyService;
 import team.washer.server.v2.domain.reservation.service.CancelReservationService;
-import team.washer.server.v2.domain.reservation.service.QueryPenaltyStatusService;
+import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
@@ -23,8 +22,7 @@ import team.washer.server.v2.global.common.error.exception.ExpectedException;
 public class CancelReservationServiceImpl implements CancelReservationService {
 
     private final ReservationRepository reservationRepository;
-    private final ApplyReservationPenaltyService applyReservationPenaltyService;
-    private final QueryPenaltyStatusService queryPenaltyStatusService;
+    private final PenaltyRedisUtil penaltyRedisUtil;
 
     @Override
     @Transactional
@@ -45,8 +43,8 @@ public class CancelReservationServiceImpl implements CancelReservationService {
 
         if (reservation.isReserved() && !reservation.isExpired()) {
             final User user = reservation.getUser();
-            applyReservationPenaltyService.execute(user);
-            penaltyExpiresAt = queryPenaltyStatusService.execute(userId).penaltyExpiresAt();
+            penaltyRedisUtil.applyPenalty(user);
+            penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
             applyPenalty = true;
             log.info("Applied penalty to user {} for cancelling reservation {}", userId, reservationId);
         }

@@ -11,6 +11,7 @@ import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.StartReservationService;
+import team.washer.server.v2.domain.reservation.util.ReservationMapper;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Slf4j
@@ -42,25 +43,6 @@ public class StartReservationServiceImpl implements StartReservationService {
         final Reservation saved = reservationRepository.save(reservation);
         log.info("Started reservation {} by user {}", reservationId, userId);
 
-        return mapToReservationResDto(saved);
-    }
-
-    private ReservationResDto mapToReservationResDto(final Reservation reservation) {
-        return new ReservationResDto(reservation.getId(),
-                reservation.getUser().getId(),
-                reservation.getUser().getName(),
-                reservation.getUser().getRoomNumber(),
-                reservation.getMachine().getId(),
-                reservation.getMachine().getName(),
-                reservation.getReservedAt(),
-                reservation.getStartTime(),
-                reservation.getExpectedCompletionTime(),
-                reservation.getActualCompletionTime(),
-                reservation.getStatus(),
-                reservation.getConfirmedAt(),
-                reservation.getCancelledAt(),
-                reservation.getDayOfWeek(),
-                reservation.getCreatedAt(),
-                reservation.getUpdatedAt());
+        return ReservationMapper.toResDto(saved);
     }
 }
