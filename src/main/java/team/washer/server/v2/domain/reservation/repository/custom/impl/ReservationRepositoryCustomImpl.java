@@ -44,15 +44,17 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                 .orderBy(reservation.createdAt.desc()).offset(pageable.getOffset()).limit(pageable.getPageSize())
                 .fetch();
 
-        long total = jpaQueryFactory.selectFrom(reservation)
+        Long total = jpaQueryFactory.select(reservation.count()).from(reservation)
                 .where(userId != null ? reservation.user.id.eq(userId) : null,
                         status != null ? reservation.status.eq(status) : null,
                         startDate != null ? reservation.startTime.goe(startDate) : null,
                         endDate != null ? reservation.startTime.loe(endDate) : null,
                         machineType != null ? reservation.machine.type.eq(machineType) : null)
-                .fetchCount();
+                .fetchOne();
 
-        return new PageImpl<>(results, pageable, total);
+        long count = total != null ? total : 0L;
+
+        return new PageImpl<>(results, pageable, count);
     }
 
     @Override
