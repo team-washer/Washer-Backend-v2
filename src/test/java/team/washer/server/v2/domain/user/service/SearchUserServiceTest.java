@@ -14,7 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import team.washer.server.v2.domain.user.dto.UserListResponseDto;
+import team.washer.server.v2.domain.user.dto.response.UserListResDto;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.impl.SearchUserServiceImpl;
@@ -54,7 +54,7 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(searchName, null, null, null)).willReturn(users);
 
                 // When
-                UserListResponseDto result = searchUserService.getUsersByFilter(searchName, null, null, null);
+                UserListResDto result = searchUserService.getUsersByFilter(searchName, null, null, null);
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(2);
@@ -78,7 +78,7 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(null, roomNumber, null, null)).willReturn(users);
 
                 // When
-                UserListResponseDto result = searchUserService.getUsersByFilter(null, roomNumber, null, null);
+                UserListResDto result = searchUserService.getUsersByFilter(null, roomNumber, null, null);
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);
@@ -104,7 +104,7 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(null, null, grade, floor)).willReturn(users);
 
                 // When
-                UserListResponseDto result = searchUserService.getUsersByFilter(null, null, grade, floor);
+                UserListResDto result = searchUserService.getUsersByFilter(null, null, grade, floor);
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(2);
@@ -128,7 +128,7 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(null, null, grade, null)).willReturn(users);
 
                 // When
-                UserListResponseDto result = searchUserService.getUsersByFilter(null, null, grade, null);
+                UserListResDto result = searchUserService.getUsersByFilter(null, null, grade, null);
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);
@@ -152,7 +152,7 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(null, null, null, floor)).willReturn(users);
 
                 // When
-                UserListResponseDto result = searchUserService.getUsersByFilter(null, null, null, floor);
+                UserListResDto result = searchUserService.getUsersByFilter(null, null, null, floor);
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);
@@ -176,7 +176,7 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(null, null, null, null)).willReturn(users);
 
                 // When
-                UserListResponseDto result = searchUserService.getUsersByFilter(null, null, null, null);
+                UserListResDto result = searchUserService.getUsersByFilter(null, null, null, null);
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(2);
@@ -193,7 +193,7 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter("", "", null, null)).willReturn(users);
 
                 // When
-                UserListResponseDto result = searchUserService.getUsersByFilter("", "", null, null);
+                UserListResDto result = searchUserService.getUsersByFilter("", "", null, null);
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);
@@ -218,7 +218,7 @@ class SearchUserServiceTest {
                 given(userRepository.findUsersByFilter(name, null, grade, floor)).willReturn(users);
 
                 // When
-                UserListResponseDto result = searchUserService.getUsersByFilter(name, null, grade, floor);
+                UserListResDto result = searchUserService.getUsersByFilter(name, null, grade, floor);
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);

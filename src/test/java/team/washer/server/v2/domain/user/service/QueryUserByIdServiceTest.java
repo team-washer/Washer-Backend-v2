@@ -13,7 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
-import team.washer.server.v2.domain.user.dto.UserResponseDto;
+import team.washer.server.v2.domain.user.dto.response.UserResDto;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.impl.QueryUserByIdServiceImpl;
@@ -40,7 +40,7 @@ class QueryUserByIdServiceTest {
                         .penaltyCount(0).build();
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
                 // When
-                UserResponseDto result = queryUserByIdService.getUserById(userId);
+                UserResDto result = queryUserByIdService.getUserById(userId);
                 // Then
                 assertThat(result).isNotNull();
                 assertThat(result.name()).isEqualTo("김철수");
