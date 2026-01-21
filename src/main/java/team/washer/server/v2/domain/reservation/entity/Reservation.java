@@ -150,4 +150,15 @@ public class Reservation extends BaseEntity {
     public boolean isCancelled() {
         return this.status == ReservationStatus.CANCELLED;
     }
+
+    /**
+     * 예약 시간이 미래인지 검증
+     *
+     * @throws IllegalArgumentException 예약 시간이 과거인 경우
+     */
+    public void validateFutureTime() {
+        if (this.startTime.isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("예약 시간은 현재 시간 이후여야 합니다");
+        }
+    }
 }

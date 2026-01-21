@@ -1,6 +1,9 @@
 package team.washer.server.v2.domain.user.entity;
 
+import java.time.DayOfWeek;
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -110,5 +113,63 @@ public class User extends BaseEntity {
         }
         LocalDateTime penaltyExpiry = this.lastCancellationAt.plusMinutes(penaltyMinutes);
         return LocalDateTime.now().isBefore(penaltyExpiry);
+    }
+
+    /**
+     * 예약 시간 제한 검증
+     *
+     * <p>
+     * 사용자의 권한에 따라 시간 제한을 우회할 수 있다. 일반 사용자의 경우 월요일부터 목요일까지는 21:10 이후에만 예약할 수 있으며, 일요일은 활성화된 경우에만 예약 가능하다.
+     * </p>
+     *
+     * @param startTime
+     *            예약 시작 시간
+     * @param isSundayActive
+     *            일요일 예약 활성화 여부
+     * @throws IllegalArgumentException
+     *             시간 제한에 위배되는 경우
+     */
+    public void validateTimeRestriction(final LocalDateTime startTime, final boolean isSundayActive) {
+        if (this.canBypassTimeRestrictions()) {
+            return;
+        }
+
+        final DayOfWeek dayOfWeek = startTime.getDayOfWeek();
+        final LocalTime time = startTime.toLocalTime();
+
+        switch (dayOfWeek) {
+            case MONDAY, TUESDAY, WEDNESDAY, THURSDAY :
+                if (time.isBefore(LocalTime.of(21, 10))) {
+                    throw new IllegalArgumentException("월요일부터 목요일까지는 21:10 이후에만 예약할 수 있습니다");
+                }
+                break;
+            case SUNDAY :
+                if (!isSundayActive) {
+                    throw new IllegalArgumentException("일요일 예약은 현재 비활성화되어 있습니다");
+                }
+                break;
+            default :
+                break;
+        }
+    }
+
+    /**
+     * 패널티 상태 검증
+     *
+     * <p>
+     * 사용자에게 패널티가 적용되어 있는지 확인한다. 패널티가 활성 상태인 경우 예외를 발생시킨다.
+     * </p>
+     *
+     * @param penaltyExpiresAt
+     *            패널티 만료 시간
+     * @throws IllegalStateException
+     *             패널티가 활성 상태인 경우
+     */
+    public void validateNotPenalized(final LocalDateTime penaltyExpiresAt) {
+        if (penaltyExpiresAt != null && LocalDateTime.now().isBefore(penaltyExpiresAt)) {
+            final long remainingMinutes = Duration.between(LocalDateTime.now(), penaltyExpiresAt).toMinutes();
+            throw new IllegalStateException(
+                    String.format("현재 예약이 제한되어 있습니다. 제한 해제까지 %d분 남았습니다.", remainingMinutes));
+        }
     }
 }
