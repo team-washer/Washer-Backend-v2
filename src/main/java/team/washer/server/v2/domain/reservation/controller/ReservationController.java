@@ -2,7 +2,6 @@ package team.washer.server.v2.domain.reservation.controller;
 
 import java.time.LocalDateTime;
 
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -21,7 +20,7 @@ import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.request.StartReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
-import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryResDto;
+import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryPageResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.*;
@@ -84,15 +83,14 @@ public class ReservationController {
 
     @GetMapping("/history")
     @Operation(summary = "예약 히스토리 조회", description = "나의 예약 히스토리를 조회합니다. 필터링과 페이지네이션을 지원합니다.")
-    public Page<ReservationHistoryResDto> getReservationHistory(
+    public ReservationHistoryPageResDto getReservationHistory(
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
             @Parameter(description = "예약 상태 필터") @RequestParam(required = false) ReservationStatus status,
             @Parameter(description = "시작 날짜 (yyyy-MM-dd'T'HH:mm:ss)") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startDate,
             @Parameter(description = "종료 날짜 (yyyy-MM-dd'T'HH:mm:ss)") @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endDate,
             @Parameter(description = "기기 타입 필터") @RequestParam(required = false) MachineType machineType,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        return queryReservationHistoryService
-                .execute(userId, status, startDate, endDate, machineType, pageable);
+        return queryReservationHistoryService.execute(userId, status, startDate, endDate, machineType, pageable);
     }
 
     @GetMapping("/{id}")
