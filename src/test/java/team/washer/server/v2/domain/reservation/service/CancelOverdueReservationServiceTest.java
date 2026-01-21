@@ -1,4 +1,4 @@
-package team.washer.server.v2.domain.reservation.scheduler;
+package team.washer.server.v2.domain.reservation.service;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -21,14 +21,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
+import team.washer.server.v2.domain.reservation.service.impl.CancelOverdueReservationServiceImpl;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 
 @ExtendWith(MockitoExtension.class)
-class ReservationTimeoutSchedulerTest {
+class CancelOverdueReservationServiceTest {
 
     @InjectMocks
-    private ReservationTimeoutScheduler reservationTimeoutScheduler;
+    private CancelOverdueReservationServiceImpl cancelOverdueReservationService;
 
     @Mock
     private ReservationRepository reservationRepository;
@@ -44,7 +45,7 @@ class ReservationTimeoutSchedulerTest {
 
     @Test
     @DisplayName("만료된 RESERVED 예약이 있으면 취소하고 패널티를 부여한다")
-    void checkReservationTimeouts_ShouldCancelAndPenalize_WhenExpiredReservedExists() {
+    void execute_ShouldCancelAndPenalize_WhenExpiredReservedExists() {
         // Given
         when(reservationRepository.findExpiredReservations(eq(ReservationStatus.RESERVED),
                 any(LocalDateTime.class),
@@ -53,7 +54,7 @@ class ReservationTimeoutSchedulerTest {
         when(reservation.getUser()).thenReturn(user);
 
         // When
-        reservationTimeoutScheduler.checkReservationTimeouts();
+        cancelOverdueReservationService.execute();
 
         // Then
         verify(reservation, times(1)).cancel();
@@ -63,14 +64,14 @@ class ReservationTimeoutSchedulerTest {
 
     @Test
     @DisplayName("만료된 예약이 없으면 아무 동작도 하지 않는다")
-    void checkReservationTimeouts_ShouldDoNothing_WhenNoExpiredReservations() {
+    void execute_ShouldDoNothing_WhenNoExpiredReservations() {
         // Given
         when(reservationRepository.findExpiredReservations(eq(ReservationStatus.RESERVED),
                 any(LocalDateTime.class),
                 any(LocalDateTime.class))).thenReturn(Collections.emptyList());
 
         // When
-        reservationTimeoutScheduler.checkReservationTimeouts();
+        cancelOverdueReservationService.execute();
 
         // Then
         verify(reservation, never()).cancel();
