@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.reservation.util;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 
@@ -21,10 +22,12 @@ public class PenaltyRedisUtil {
     private final UserRepository userRepository;
 
     public void applyPenalty(final User user) {
+        final long penaltyDurationSeconds = PenaltyConstants.PENALTY_DURATION_MINUTES * 60L;
         final LocalDateTime expiryTime = LocalDateTime.now().plusMinutes(PenaltyConstants.PENALTY_DURATION_MINUTES);
 
         try {
-            PenaltyEntity penalty = PenaltyEntity.builder().userId(user.getId()).expiryTime(expiryTime).build();
+            PenaltyEntity penalty = PenaltyEntity.builder().userId(user.getId()).expiryTime(expiryTime)
+                    .ttl(penaltyDurationSeconds).build();
             penaltyRedisRepository.save(penalty);
             log.info("Applied penalty to user {} in Redis, expires at {}", user.getId(), expiryTime);
         } catch (Exception e) {
