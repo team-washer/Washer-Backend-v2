@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
-import team.washer.server.v2.domain.reservation.service.ApplyReservationPenaltyService;
+import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 
 @Slf4j
@@ -21,7 +21,7 @@ import team.washer.server.v2.domain.user.entity.User;
 public class ReservationTimeoutScheduler {
 
     private final ReservationRepository reservationRepository;
-    private final ApplyReservationPenaltyService applyReservationPenaltyService;
+    private final PenaltyRedisUtil penaltyRedisUtil;
 
     /**
      * 예약 타임아웃 체크 (30초마다 실행) - RESERVED: 5분 내 미확인 시 취소 + 10분 패널티 - CONFIRMED: 2분 내
@@ -59,7 +59,7 @@ public class ReservationTimeoutScheduler {
 
                 // 패널티 적용
                 User user = reservation.getUser();
-                applyReservationPenaltyService.execute(user);
+                penaltyRedisUtil.applyPenalty(user);
 
                 log.info("Cancelled RESERVED reservation {} due to timeout and applied penalty to user {}",
                         reservation.getId(),

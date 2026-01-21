@@ -25,7 +25,7 @@ public class AdminReservationController {
     private final ActivateSundayReservationService activateSundayReservationService;
     private final DeactivateSundayReservationService deactivateSundayReservationService;
     private final QuerySundayReservationStatusService querySundayReservationStatusService;
-    private final QueryUserPenaltyStatusService queryUserPenaltyStatusService;
+    private final QueryPenaltyStatusService queryPenaltyStatusService;
     private final ClearUserPenaltyService clearUserPenaltyService;
 
     @PostMapping("/sunday/activate")
@@ -58,7 +58,7 @@ public class AdminReservationController {
     @Operation(summary = "사용자 패널티 상태 조회", description = "특정 사용자의 패널티 상태를 조회합니다.")
     public PenaltyStatusResDto getUserPenaltyStatus(
             @Parameter(description = "사용자 ID") @PathVariable @NotNull Long userId) {
-        return queryUserPenaltyStatusService.execute(userId);
+        return queryPenaltyStatusService.execute(userId);
     }
 
     @DeleteMapping("/users/{userId}/penalty")
