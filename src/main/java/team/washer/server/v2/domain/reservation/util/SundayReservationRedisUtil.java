@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.reservation.util;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
@@ -10,6 +11,7 @@ import team.washer.server.v2.domain.reservation.enums.CycleAction;
 import team.washer.server.v2.domain.reservation.repository.ReservationCycleLogRepository;
 import team.washer.server.v2.domain.reservation.repository.redis.SundayStatusRedisRepository;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Slf4j
 @Component
@@ -46,7 +48,7 @@ public class SundayReservationRedisUtil {
             log.info("Activated Sunday reservation by user {}", performedBy.getId());
         } catch (Exception e) {
             log.error("Failed to activate Sunday reservation in Redis", e);
-            throw new RuntimeException("일요일 예약 활성화에 실패했습니다", e);
+            throw new ExpectedException("일요일 예약 활성화에 실패했습니다", HttpStatus.INTERNAL_SERVER_ERROR);
         }
         final ReservationCycleLog cycleLog = ReservationCycleLog.builder().isActive(true).action(CycleAction.ACTIVATED)
                 .performedBy(performedBy).notes(notes).build();
@@ -60,7 +62,7 @@ public class SundayReservationRedisUtil {
             log.info("Deactivated Sunday reservation by user {}", performedBy.getId());
         } catch (Exception e) {
             log.error("Failed to deactivate Sunday reservation in Redis", e);
-            throw new RuntimeException("일요일 예약 비활성화에 실패했습니다", e);
+            throw new ExpectedException("일요일 예약 비활성화에 실패했습니다", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         final ReservationCycleLog cycleLog = ReservationCycleLog.builder().isActive(false)
