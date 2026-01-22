@@ -111,7 +111,7 @@
                     <filter>학년</filter>
                     <filter>층</filter>
                 </feature>
-                <feature name="인원_변경_제거">
+                <feature name="인원_변경_제거" implemented="false">
                     <action>호수 인원 변경</action>
                 </feature>
                 <feature name="패널티_관리" implemented="true">
