@@ -1,11 +1,11 @@
-package team.washer.server.v2.domain.user.dto;
+package team.washer.server.v2.domain.user.dto.response;
 
 import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
 @Schema(description = "사용자 응답 DTO")
-public record UserResponseDto(@Schema(description = "사용자 ID", example = "1") Long id,
+public record UserResDto(@Schema(description = "사용자 ID", example = "1") Long id,
         @Schema(description = "이름", example = "김철수") String name,
         @Schema(description = "학번", example = "20210001") String studentId,
         @Schema(description = "호실", example = "301") String roomNumber,

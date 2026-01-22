@@ -20,6 +20,7 @@ import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.smartthings.entity.SmartThingsToken;
 import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepository;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 
 @Slf4j
@@ -60,24 +61,27 @@ public class DataInitializer {
 
     private void initializeTestUsers() {
         if (userRepository.count() == 0) {
+            // ADMIN 권한 사용자
             User user1 = User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(3).floor(3)
-                    .penaltyCount(0).build();
+                    .penaltyCount(0).role(UserRole.ADMIN).build();
 
+            // DORMITORY_COUNCIL 권한 사용자
             User user2 = User.builder().name("이영희").studentId("20210002").roomNumber("302").grade(3).floor(3)
-                    .penaltyCount(0).build();
+                    .penaltyCount(0).role(UserRole.DORMITORY_COUNCIL).build();
 
+            // 일반 사용자
             User user3 = User.builder().name("박민수").studentId("20220001").roomNumber("401").grade(2).floor(4)
-                    .penaltyCount(0).build();
+                    .penaltyCount(0).role(UserRole.USER).build();
 
             User user4 = User.builder().name("정수현").studentId("20220002").roomNumber("402").grade(2).floor(4)
-                    .penaltyCount(0).build();
+                    .penaltyCount(0).role(UserRole.USER).build();
 
             User user5 = User.builder().name("최지원").studentId("20230001").roomNumber("501").grade(1).floor(5)
-                    .penaltyCount(0).build();
+                    .penaltyCount(0).role(UserRole.USER).build();
 
             userRepository.saveAll(List.of(user1, user2, user3, user4, user5));
 
-            log.info("Created {} test users", 5);
+            log.info("Created {} test users (1 ADMIN, 1 DORMITORY_COUNCIL, 3 USER)", 5);
         } else {
             log.info("Test users already exist ({} users)", userRepository.count());
         }

@@ -1,7 +1,13 @@
 package team.washer.server.v2.domain.user.entity;
 
+import java.time.DayOfWeek;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import org.springframework.http.HttpStatus;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -9,12 +15,16 @@ import lombok.*;
 import team.washer.server.v2.domain.malfunction.entity.MalfunctionReport;
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.domain.user.enums.UserRole;
+import team.washer.server.v2.global.common.constants.TimeRestrictionConstants;
 import team.washer.server.v2.global.common.entity.BaseEntity;
+import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Entity
 @Table(name = "users", indexes = {@Index(name = "idx_student_id", columnList = "student_id"),
         @Index(name = "idx_room_number", columnList = "room_number"),
-        @Index(name = "idx_floor_grade", columnList = "floor, grade")}, uniqueConstraints = {
+        @Index(name = "idx_floor_grade", columnList = "floor, grade"),
+        @Index(name = "idx_role", columnList = "role")}, uniqueConstraints = {
                 @UniqueConstraint(name = "uk_student_id", columnNames = "student_id")})
 @Getter
 @Builder
@@ -53,6 +63,15 @@ public class User extends BaseEntity {
     @Builder.Default
     private Integer penaltyCount = 0;
 
+    @NotNull(message = "사용자 권한은 필수입니다")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    @Builder.Default
+    private UserRole role = UserRole.USER;
+
+    @Column(name = "last_cancellation_at")
+    private LocalDateTime lastCancellationAt;
+
     // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
@@ -78,5 +97,57 @@ public class User extends BaseEntity {
 
     public void resetPenalty() {
         this.penaltyCount = 0;
+    }
+
+    public boolean canBypassTimeRestrictions() {
+        return this.role.canBypassTimeRestrictions();
+    }
+
+    public void updateLastCancellationTime() {
+        this.lastCancellationAt = LocalDateTime.now();
+    }
+
+    public void clearLastCancellationTime() {
+        this.lastCancellationAt = null;
+    }
+
+    public boolean hasRecentCancellation(int penaltyMinutes) {
+        if (this.lastCancellationAt == null) {
+            return false;
+        }
+        LocalDateTime penaltyExpiry = this.lastCancellationAt.plusMinutes(penaltyMinutes);
+        return LocalDateTime.now().isBefore(penaltyExpiry);
+    }
+
+    public void validateTimeRestriction(final LocalDateTime startTime, final boolean isSundayActive) {
+        if (this.canBypassTimeRestrictions()) {
+            return;
+        }
+
+        final DayOfWeek dayOfWeek = startTime.getDayOfWeek();
+        final LocalTime time = startTime.toLocalTime();
+
+        switch (dayOfWeek) {
+            case MONDAY, TUESDAY, WEDNESDAY, THURSDAY :
+                if (time.isBefore(TimeRestrictionConstants.WEEKDAY_START_TIME)) {
+                    throw new ExpectedException("월요일부터 목요일까지는 21:10 이후에만 예약할 수 있습니다", HttpStatus.BAD_REQUEST);
+                }
+                break;
+            case SUNDAY :
+                if (!isSundayActive) {
+                    throw new ExpectedException("일요일 예약은 현재 비활성화되어 있습니다", HttpStatus.BAD_REQUEST);
+                }
+                break;
+            default :
+                break;
+        }
+    }
+
+    public void validateNotPenalized(final LocalDateTime penaltyExpiresAt) {
+        if (penaltyExpiresAt != null && LocalDateTime.now().isBefore(penaltyExpiresAt)) {
+            final long remainingMinutes = Duration.between(LocalDateTime.now(), penaltyExpiresAt).toMinutes();
+            throw new ExpectedException(String.format("현재 예약이 제한되어 있습니다. 제한 해제까지 %d분 남았습니다.", remainingMinutes),
+                    HttpStatus.BAD_REQUEST);
+        }
     }
 }

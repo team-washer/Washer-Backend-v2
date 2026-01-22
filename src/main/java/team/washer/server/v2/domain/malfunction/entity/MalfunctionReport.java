@@ -2,6 +2,8 @@ package team.washer.server.v2.domain.malfunction.entity;
 
 import java.time.LocalDateTime;
 
+import org.springframework.http.HttpStatus;
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -9,6 +11,7 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.malfunction.enums.MalfunctionReportStatus;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.global.common.entity.BaseEntity;
+import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Entity
 @Table(name = "malfunction_reports", indexes = {@Index(name = "idx_status", columnList = "status"),
@@ -54,7 +57,7 @@ public class MalfunctionReport extends BaseEntity {
 
     public void startProcessing() {
         if (this.status != MalfunctionReportStatus.PENDING) {
-            throw new IllegalStateException("대기 중인 신고만 처리를 시작할 수 있습니다");
+            throw new ExpectedException("대기 중인 신고만 처리를 시작할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
         this.status = MalfunctionReportStatus.IN_PROGRESS;
         this.processingStartedAt = LocalDateTime.now();
@@ -62,7 +65,7 @@ public class MalfunctionReport extends BaseEntity {
 
     public void resolve() {
         if (this.status == MalfunctionReportStatus.RESOLVED) {
-            throw new IllegalStateException("이미 처리 완료된 신고입니다");
+            throw new ExpectedException("이미 처리 완료된 신고입니다", HttpStatus.BAD_REQUEST);
         }
         this.status = MalfunctionReportStatus.RESOLVED;
         this.resolvedAt = LocalDateTime.now();
@@ -72,7 +75,7 @@ public class MalfunctionReport extends BaseEntity {
 
     public void reopen() {
         if (this.status != MalfunctionReportStatus.RESOLVED) {
-            throw new IllegalStateException("처리 완료된 신고만 재개할 수 있습니다");
+            throw new ExpectedException("처리 완료된 신고만 재개할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
         this.status = MalfunctionReportStatus.IN_PROGRESS;
         this.resolvedAt = null;

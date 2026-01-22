@@ -48,9 +48,6 @@ public class Notification extends BaseEntity {
 
     // Business Methods
 
-    /**
-     * Factory method to create completion notification
-     */
     public static Notification createCompletionNotification(User user, Machine machine) {
         String message = NotificationType.COMPLETION.getMessageTemplate().replace("{machineName}", machine.getName());
 
@@ -58,9 +55,6 @@ public class Notification extends BaseEntity {
                 .isRead(false).build();
     }
 
-    /**
-     * Factory method to create malfunction notification
-     */
     public static Notification createMalfunctionNotification(User user, Machine machine) {
         String message = NotificationType.MALFUNCTION.getMessageTemplate().replace("{machineName}", machine.getName());
 
