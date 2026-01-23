@@ -63,14 +63,15 @@ public class MalfunctionReport extends BaseEntity {
         this.processingStartedAt = LocalDateTime.now();
     }
 
+    /**
+     * 신고를 해결 상태로 변경합니다. 기기 상태 변경은 서비스 계층에서 처리합니다.
+     */
     public void resolve() {
         if (this.status == MalfunctionReportStatus.RESOLVED) {
             throw new ExpectedException("이미 처리 완료된 신고입니다", HttpStatus.BAD_REQUEST);
         }
         this.status = MalfunctionReportStatus.RESOLVED;
         this.resolvedAt = LocalDateTime.now();
-
-        this.machine.markAsNormal();
     }
 
     public void reopen() {

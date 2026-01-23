@@ -38,7 +38,20 @@ public class UpdateMalfunctionReportStatusServiceImpl implements UpdateMalfuncti
             }
             case RESOLVED -> {
                 report.resolve();
-                log.info("고장 신고 처리 완료: reportId={}, machineId={}", reportId, report.getMachine().getId());
+
+                final boolean hasOtherUnresolvedReports = malfunctionReportRepository
+                        .existsByMachineAndStatusNotAndIdNot(report.getMachine(),
+                                MalfunctionReportStatus.RESOLVED,
+                                reportId);
+
+                if (!hasOtherUnresolvedReports) {
+                    report.getMachine().markAsNormal();
+                }
+
+                log.info("고장 신고 처리 완료: reportId={}, machineId={}, 기기 상태 변경={}",
+                        reportId,
+                        report.getMachine().getId(),
+                        !hasOtherUnresolvedReports);
             }
         }
 

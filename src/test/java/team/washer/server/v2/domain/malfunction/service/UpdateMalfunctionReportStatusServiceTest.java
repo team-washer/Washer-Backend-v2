@@ -107,6 +107,9 @@ class UpdateMalfunctionReportStatusServiceTest {
                 report.startProcessing();
 
                 given(malfunctionReportRepository.findById(reportId)).willReturn(Optional.of(report));
+                given(malfunctionReportRepository
+                        .existsByMachineAndStatusNotAndIdNot(machine, MalfunctionReportStatus.RESOLVED, reportId))
+                        .willReturn(false);
 
                 // When
                 MalfunctionReportResDto result = updateMalfunctionReportStatusService.execute(reportId, reqDto);
@@ -118,6 +121,78 @@ class UpdateMalfunctionReportStatusServiceTest {
                 assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
 
                 then(malfunctionReportRepository).should(times(1)).findById(reportId);
+                then(malfunctionReportRepository).should(times(1))
+                        .existsByMachineAndStatusNotAndIdNot(machine, MalfunctionReportStatus.RESOLVED, reportId);
+            }
+
+            @Test
+            @DisplayName("같은 기기에 다른 미해결 신고가 있으면 기기는 고장 상태를 유지해야 한다")
+            void it_keeps_machine_malfunction_when_other_unresolved_reports_exist() {
+                // Given
+                Long reportId = 1L;
+                UpdateMalfunctionReportStatusReqDto reqDto = new UpdateMalfunctionReportStatusReqDto(
+                        MalfunctionReportStatus.RESOLVED);
+
+                User user = createTestUser();
+                Machine machine = createTestMachine();
+                machine.markAsMalfunction();
+
+                MalfunctionReport report = MalfunctionReport.builder().machine(machine).reporter(user)
+                        .description("첫 번째 고장 신고").reportedAt(LocalDateTime.now()).build();
+                report.startProcessing();
+
+                given(malfunctionReportRepository.findById(reportId)).willReturn(Optional.of(report));
+                given(malfunctionReportRepository
+                        .existsByMachineAndStatusNotAndIdNot(machine, MalfunctionReportStatus.RESOLVED, reportId))
+                        .willReturn(true); // 다른 미해결 신고 존재
+
+                // When
+                MalfunctionReportResDto result = updateMalfunctionReportStatusService.execute(reportId, reqDto);
+
+                // Then
+                assertThat(result).isNotNull();
+                assertThat(result.status()).isEqualTo(MalfunctionReportStatus.RESOLVED);
+                assertThat(machine.getStatus()).isEqualTo(MachineStatus.MALFUNCTION);
+                assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.UNAVAILABLE);
+
+                then(malfunctionReportRepository).should(times(1)).findById(reportId);
+                then(malfunctionReportRepository).should(times(1))
+                        .existsByMachineAndStatusNotAndIdNot(machine, MalfunctionReportStatus.RESOLVED, reportId);
+            }
+
+            @Test
+            @DisplayName("마지막 미해결 신고를 해결하면 기기가 정상 상태로 복구되어야 한다")
+            void it_marks_machine_as_normal_when_resolving_last_unresolved_report() {
+                // Given
+                Long reportId = 1L;
+                UpdateMalfunctionReportStatusReqDto reqDto = new UpdateMalfunctionReportStatusReqDto(
+                        MalfunctionReportStatus.RESOLVED);
+
+                User user = createTestUser();
+                Machine machine = createTestMachine();
+                machine.markAsMalfunction();
+
+                MalfunctionReport report = MalfunctionReport.builder().machine(machine).reporter(user)
+                        .description("마지막 고장 신고").reportedAt(LocalDateTime.now()).build();
+                report.startProcessing();
+
+                given(malfunctionReportRepository.findById(reportId)).willReturn(Optional.of(report));
+                given(malfunctionReportRepository
+                        .existsByMachineAndStatusNotAndIdNot(machine, MalfunctionReportStatus.RESOLVED, reportId))
+                        .willReturn(false); // 다른 미해결 신고 없음
+
+                // When
+                MalfunctionReportResDto result = updateMalfunctionReportStatusService.execute(reportId, reqDto);
+
+                // Then
+                assertThat(result).isNotNull();
+                assertThat(result.status()).isEqualTo(MalfunctionReportStatus.RESOLVED);
+                assertThat(machine.getStatus()).isEqualTo(MachineStatus.NORMAL);
+                assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
+
+                then(malfunctionReportRepository).should(times(1)).findById(reportId);
+                then(malfunctionReportRepository).should(times(1))
+                        .existsByMachineAndStatusNotAndIdNot(machine, MalfunctionReportStatus.RESOLVED, reportId);
             }
         }
 
