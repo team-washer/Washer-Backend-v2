@@ -22,13 +22,7 @@ public class QueryMalfunctionReportListServiceImpl implements QueryMalfunctionRe
     @Override
     @Transactional(readOnly = true)
     public MalfunctionReportListResDto execute(final MalfunctionReportStatus status) {
-        final List<MalfunctionReport> reports;
-
-        if (status != null) {
-            reports = malfunctionReportRepository.findByStatus(status);
-        } else {
-            reports = malfunctionReportRepository.findAll();
-        }
+        final List<MalfunctionReport> reports = malfunctionReportRepository.findWithDetails(status);
 
         final List<MalfunctionReportResDto> reportDtos = reports.stream().map(this::toResDto).toList();
 

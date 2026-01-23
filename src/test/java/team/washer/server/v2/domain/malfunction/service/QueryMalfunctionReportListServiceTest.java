@@ -72,7 +72,7 @@ class QueryMalfunctionReportListServiceTest {
                 MalfunctionReport report2 = createTestReport(machine2, user, MalfunctionReportStatus.IN_PROGRESS);
 
                 List<MalfunctionReport> allReports = List.of(report1, report2);
-                given(malfunctionReportRepository.findAll()).willReturn(allReports);
+                given(malfunctionReportRepository.findWithDetails(null)).willReturn(allReports);
 
                 // When
                 MalfunctionReportListResDto result = queryMalfunctionReportListService.execute(null);
@@ -82,8 +82,7 @@ class QueryMalfunctionReportListServiceTest {
                 assertThat(result.totalCount()).isEqualTo(2);
                 assertThat(result.reports()).hasSize(2);
 
-                then(malfunctionReportRepository).should(times(1)).findAll();
-                then(malfunctionReportRepository).should(never()).findByStatus(any());
+                then(malfunctionReportRepository).should(times(1)).findWithDetails(null);
             }
         }
 
@@ -100,7 +99,7 @@ class QueryMalfunctionReportListServiceTest {
                 MalfunctionReport pendingReport = createTestReport(machine, user, MalfunctionReportStatus.PENDING);
 
                 List<MalfunctionReport> pendingReports = List.of(pendingReport);
-                given(malfunctionReportRepository.findByStatus(MalfunctionReportStatus.PENDING))
+                given(malfunctionReportRepository.findWithDetails(MalfunctionReportStatus.PENDING))
                         .willReturn(pendingReports);
 
                 // When
@@ -112,8 +111,7 @@ class QueryMalfunctionReportListServiceTest {
                 assertThat(result.totalCount()).isEqualTo(1);
                 assertThat(result.reports()).hasSize(1);
 
-                then(malfunctionReportRepository).should(times(1)).findByStatus(MalfunctionReportStatus.PENDING);
-                then(malfunctionReportRepository).should(never()).findAll();
+                then(malfunctionReportRepository).should(times(1)).findWithDetails(MalfunctionReportStatus.PENDING);
             }
         }
 
@@ -125,7 +123,7 @@ class QueryMalfunctionReportListServiceTest {
             @DisplayName("빈 목록을 반환해야 한다")
             void it_returns_empty_list() {
                 // Given
-                given(malfunctionReportRepository.findAll()).willReturn(List.of());
+                given(malfunctionReportRepository.findWithDetails(null)).willReturn(List.of());
 
                 // When
                 MalfunctionReportListResDto result = queryMalfunctionReportListService.execute(null);
@@ -135,7 +133,7 @@ class QueryMalfunctionReportListServiceTest {
                 assertThat(result.totalCount()).isEqualTo(0);
                 assertThat(result.reports()).isEmpty();
 
-                then(malfunctionReportRepository).should(times(1)).findAll();
+                then(malfunctionReportRepository).should(times(1)).findWithDetails(null);
             }
         }
     }
