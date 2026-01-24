@@ -13,14 +13,14 @@
     <features>
         <!-- 어드민 기능 -->
         <admin>
-            <dashboard>
+            <dashboard implemented="false" note="대시보드 API 미구현">
                 <description>어드민 메인 대시보드</description>
-                <feature name="활성예약수">
+                <feature name="활성예약수" implemented="false">
                     <display>현재 진행 중인 예약 건수 표시</display>
                     <action>클릭 시 상세 예약 정보 페이지로 이동</action>
                     <detail>예약자 정보, 예약 기기, 시간, 상태 등</detail>
                 </feature>
-                <feature name="고장신고건수">
+                <feature name="고장신고건수" implemented="false">
                     <display>미처리/처리중/처리완료 신고 상태 조회</display>
                     <data>
                         <item>신고자 조회</item>
@@ -32,29 +32,29 @@
                 </feature>
             </dashboard>
 
-            <device_management>
+            <device_management implemented="false" requires="SmartThings" note="기기 관리 API 미구현">
                 <name>기기 상태 관리</name>
                 <description>전체 기기 정보 관리 (확정된 실제 상태)</description>
-                <feature name="기기_전체_조회">
+                <feature name="기기_전체_조회" implemented="false">
                     <filters>
                         <filter>기기명</filter>
                         <filter>기기 유형 (건조기/세탁기)</filter>
                     </filters>
                 </feature>
-                <feature name="기기_상태">
+                <feature name="기기_상태" implemented="false">
                     <status>고장/정상</status>
                     <availability>사용 가능 여부</availability>
                 </feature>
-                <feature name="고장_등록">
+                <feature name="고장_등록" implemented="false">
                     <action>고장 등록</action>
                     <action>수리 완료</action>
                 </feature>
             </device_management>
 
-            <reservation_management>
+            <reservation_management implemented="false" note="관리자용 예약 목록 조회 API 미구현">
                 <name>예약 관리</name>
                 <description>사용자 예약 현황 관리</description>
-                <feature name="전체_예약_목록_조회">
+                <feature name="전체_예약_목록_조회" implemented="false">
                     <data>
                         <item>예약한 시간</item>
                         <item>남은 시간</item>
@@ -62,64 +62,69 @@
                         <item>예약한 호실</item>
                     </data>
                 </feature>
-                <feature name="필터_기능">
+                <feature name="필터_기능" implemented="false">
                     <filter>기기명 검색</filter>
                     <filter>기기 유형 (세탁기/건조기)</filter>
                 </feature>
-                <feature name="강제_종료">
+                <feature name="강제_종료" implemented="false">
                     <description>예약한 호실 관리자가 강제 종료</description>
                 </feature>
             </reservation_management>
 
-            <malfunction_management>
+            <malfunction_management implemented="true">
                 <name>고장 신고 관리</name>
                 <description>기기 고장 및 문제 신고 관리 (사용자 제보 검토 단계)</description>
-                <feature name="신고_조회">
+                <feature name="신고_조회" implemented="true">
                     <data>
                         <item>고장 기기명</item>
                         <item>기기 상태</item>
                         <item>신고자 명</item>
                         <item>신고 내용</item>
                     </data>
+                    <api>GET /api/v2/admin/malfunction-reports</api>
                 </feature>
-                <feature name="신고_상태_관리">
+                <feature name="신고_상태_관리" implemented="true">
                     <status>대기</status>
                     <status>처리중</status>
                     <status>처리완료</status>
+                    <api>PUT /api/v2/admin/malfunction-reports/{id}/status</api>
                 </feature>
-                <feature name="해결_시간_관리">
+                <feature name="해결_시간_관리" implemented="true">
                     <description>신고 상태가 [해결]로 바뀐 시간 기준</description>
                 </feature>
             </malfunction_management>
 
-            <user_management>
+            <user_management implemented="partial">
                 <name>인원 관리</name>
                 <description>사용자 전체 인원 관리</description>
-                <feature name="전체_인원_조회">
+                <feature name="전체_인원_조회" implemented="true">
                     <data>
                         <item>호실</item>
                         <item>이름</item>
                         <item>학번</item>
                     </data>
+                    <api>GET /api/v2/admin/users</api>
                 </feature>
-                <feature name="필터_기능">
+                <feature name="필터_기능" implemented="true">
                     <filter>이름</filter>
                     <filter>호실</filter>
                     <filter>학년</filter>
                     <filter>층</filter>
                 </feature>
-                <feature name="인원_변경_제거">
+                <feature name="인원_변경_제거" implemented="false">
                     <action>호수 인원 변경</action>
                 </feature>
-                <feature name="패널티_관리">
+                <feature name="패널티_관리" implemented="true">
                     <data>패널티 누적 횟수 조회</data>
+                    <api>GET /api/v2/admin/reservations/users/{userId}/penalty-status</api>
+                    <api>DELETE /api/v2/admin/reservations/users/{userId}/penalty</api>
                 </feature>
             </user_management>
         </admin>
 
         <!-- 사용자 기능 -->
         <user>
-            <machine_status>
+            <machine_status implemented="false" requires="SmartThings" note="기기 현황 API 미구현">
                 <name>세탁기/건조기 현황</name>
                 <data>
                     <machine_name>
@@ -140,8 +145,9 @@
                 </data>
             </machine_status>
 
-            <reservation>
+            <reservation implemented="true">
                 <name>세탁기/건조기 예약</name>
+                <api>POST /api/v2/reservations</api>
                 <step1>
                     <requirement>세탁기/건조기 가능 상태</requirement>
                 </step1>
@@ -151,7 +157,7 @@
                 </step2>
             </reservation>
 
-            <start>
+            <start implemented="false" requires="SmartThings">
                 <name>세탁기/건조기 시작</name>
                 <step1>
                     <requirement>세탁기/건조기 예약 상태</requirement>
@@ -166,8 +172,9 @@
                 </step3>
             </start>
 
-            <cancel>
+            <cancel implemented="true">
                 <name>세탁기/건조기 예약 취소</name>
+                <api>DELETE /api/v2/reservations/{id}</api>
                 <step1>
                     <requirement>세탁기/건조기 예약 상태</requirement>
                 </step1>
@@ -179,13 +186,15 @@
                 </step3>
             </cancel>
 
-            <malfunction_report>
+            <malfunction_report implemented="true">
                 <name>세탁기/건조기 고장 신고</name>
+                <api>POST /api/v2/malfunction-reports</api>
                 <step1>
                     <action>세탁기/건조기 고장 신고</action>
                 </step1>
                 <step2>
                     <action>세탁기/건조기 상태 변경</action>
+                    <note>관리자가 IN_PROGRESS로 변경 시 기기 고장 처리</note>
                 </step2>
                 <step3>
                     <action>세탁기/건조기 고장 내용 텍스트</action>
@@ -193,8 +202,9 @@
                 </step3>
             </malfunction_report>
 
-            <history>
+            <history implemented="true">
                 <name>세탁기/건조기 히스토리</name>
+                <api>GET /api/v2/reservations/history</api>
                 <data>
                     <item>사용호실</item>
                     <item>예약 시간</item>
@@ -205,8 +215,8 @@
         </user>
 
         <!-- 알림 기능 -->
-        <notification>
-            <completion_notification>
+        <notification implemented="false" note="Notification 엔티티만 존재, 실제 발송 로직 미구현" requires="SmartThings">
+            <completion_notification implemented="false" requires="SmartThings">
                 <name>세탁/건조 완료 알림</name>
                 <trigger>세탁 및 건조가 완료 된다면 알림</trigger>
                 <data>
@@ -217,7 +227,7 @@
                 </example>
             </completion_notification>
 
-            <malfunction_notification>
+            <malfunction_notification implemented="false" requires="SmartThings">
                 <name>세탁기/건조기 이상 알림</name>
                 <trigger>세탁 및 건조가 이상이 감지 된다면 알림</trigger>
                 <data>
@@ -228,7 +238,7 @@
                 </example>
             </malfunction_notification>
 
-            <warning_notification>
+            <warning_notification implemented="false">
                 <name>사용 경고 알림</name>
                 <trigger>사용했거나 사용중인 세탁기 및 건조기에 불편신고가 들어 왔을때 알림</trigger>
                 <data>
@@ -248,7 +258,7 @@
     <!-- ========================================
          SmartThings API 연동
     ========================================= -->
-    <smartthings_integration>
+    <smartthings_integration implemented="false" note="엔티티/리포지토리만 존재, 실제 API 연동 미구현">
         <!-- OAuth 2.0 인증 -->
         <oauth2>
             <configuration>
@@ -611,48 +621,50 @@
          비즈니스 로직 및 규칙
     ========================================= -->
     <business_logic>
-        <reservation_workflow>
-            <step1>
+        <reservation_workflow implemented="partial" note="SmartThings 연동 없이 DB 로직만 구현">
+            <step1 implemented="true">
                 <status>RESERVED</status>
                 <description>예약 생성</description>
                 <timer>5분</timer>
                 <timeout_action>5분 내 시작 안하면 10분 정지</timeout_action>
             </step1>
-            <step2>
+            <step2 implemented="false" requires="SmartThings">
                 <status>CONFIRMED</status>
                 <description>예약 확인 (시작 버튼 클릭)</description>
                 <timer>2분 (구현에서는 3분으로 언급)</timer>
                 <monitoring>10초마다 기계 상태 확인</monitoring>
                 <timeout_action>시작 안하면 10분 정지</timeout_action>
             </step2>
-            <step3>
+            <step3 implemented="false" requires="SmartThings">
                 <status>RUNNING</status>
                 <description>작동 중</description>
                 <monitoring>10초마다 완료 상태 확인</monitoring>
                 <completion_check>jobState == "finished" || "finish"</completion_check>
             </step3>
-            <step4>
+            <step4 implemented="false" requires="SmartThings">
                 <status>COMPLETED</status>
                 <description>작업 완료</description>
                 <notification>완료 알림 발송</notification>
             </step4>
-            <cancellation>
+            <cancellation implemented="partial" note="취소/패널티 로직만 구현, 기기 상태 확인 미구현">
                 <status>CANCELLED</status>
                 <penalty>10분간 정지</penalty>
-                <state_change>기기 상태 변경</state_change>
+                <state_change requires="SmartThings">기기 상태 변경</state_change>
             </cancellation>
         </reservation_workflow>
 
-        <penalty_system>
+        <penalty_system implemented="partial">
             <trigger>불편 신고</trigger>
             <penalty_points>1점</penalty_points>
             <notification>사용 경고 알림</notification>
             <reason_examples>
                 <example>빨래를 너무 늦게 뺌</example>
             </reason_examples>
+            <api implemented="true">GET /api/v2/admin/reservations/users/{userId}/penalty-status</api>
+            <api implemented="true">DELETE /api/v2/admin/reservations/users/{userId}/penalty</api>
         </penalty_system>
 
-        <machine_naming_convention>
+        <machine_naming_convention implemented="true">
             <format>{MachineType}-{Floor}-{Position}{Number}</format>
             <machine_type>
                 <option>Washer</option>
@@ -670,17 +682,17 @@
             </examples>
         </machine_naming_convention>
 
-        <malfunction_report_workflow>
-            <user_report>
+        <malfunction_report_workflow implemented="true">
+            <user_report implemented="true">
                 <max_length>200자</max_length>
-                <status_change>기기 상태를 '사용불가'로 변경</status_change>
+                <status_change>관리자가 IN_PROGRESS 처리 시 기기 고장 상태로 변경</status_change>
             </user_report>
-            <admin_review>
-                <status>대기</status>
-                <status>처리중</status>
-                <status>처리완료</status>
+            <admin_review implemented="true">
+                <status>대기 (PENDING)</status>
+                <status>처리중 (IN_PROGRESS) - 기기 고장 처리</status>
+                <status>처리완료 (RESOLVED) - 기기 정상 복구</status>
             </admin_review>
-            <resolution>
+            <resolution implemented="true">
                 <action>고장 해결</action>
                 <status_change>기기 상태를 '정상'으로 변경</status_change>
                 <timestamp>해결 시간 기록</timestamp>
@@ -693,7 +705,7 @@
     ========================================= -->
     <data_model_hints>
         <entities>
-            <entity name="User">
+            <entity name="User" implemented="true">
                 <field>사용자 ID</field>
                 <field>이름</field>
                 <field>학번</field>
@@ -703,7 +715,7 @@
                 <field>패널티 누적 횟수</field>
             </entity>
 
-            <entity name="Machine">
+            <entity name="Machine" implemented="true">
                 <field>기기 ID</field>
                 <field>기기명 (Washer-3F-L1)</field>
                 <field>기기 유형 (WASHER/DRYER)</field>
@@ -715,7 +727,7 @@
                 <field>사용 가능 여부</field>
             </entity>
 
-            <entity name="Reservation">
+            <entity name="Reservation" implemented="true">
                 <field>예약 ID</field>
                 <field>사용자 ID (FK)</field>
                 <field>기기 ID (FK)</field>
@@ -728,7 +740,7 @@
                 <field>취소 시간</field>
             </entity>
 
-            <entity name="MalfunctionReport">
+            <entity name="MalfunctionReport" implemented="true">
                 <field>신고 ID</field>
                 <field>기기 ID (FK)</field>
                 <field>신고자 ID (FK)</field>
@@ -739,7 +751,7 @@
                 <field>해결 시간</field>
             </entity>
 
-            <entity name="Notification">
+            <entity name="Notification" implemented="true">
                 <field>알림 ID</field>
                 <field>사용자 ID (FK)</field>
                 <field>알림 유형 (완료/이상/경고)</field>
@@ -749,7 +761,7 @@
                 <field>생성 시간</field>
             </entity>
 
-            <entity name="SmartThingsToken">
+            <entity name="SmartThingsToken" implemented="true">
                 <field>토큰 ID</field>
                 <field>Access Token</field>
                 <field>Refresh Token</field>
@@ -760,24 +772,24 @@
         </entities>
 
         <enums>
-            <enum name="MachineType">
+            <enum name="MachineType" implemented="true">
                 <value>WASHER</value>
                 <value>DRYER</value>
             </enum>
 
-            <enum name="MachineStatus">
+            <enum name="MachineStatus" implemented="true">
                 <value>NORMAL</value> <!-- 정상 -->
                 <value>MALFUNCTION</value> <!-- 고장 -->
             </enum>
 
-            <enum name="MachineAvailability">
+            <enum name="MachineAvailability" implemented="true">
                 <value>AVAILABLE</value> <!-- 사용 가능 -->
                 <value>IN_USE</value> <!-- 사용 중 -->
                 <value>RESERVED</value> <!-- 예약됨 -->
                 <value>UNAVAILABLE</value> <!-- 사용 불가 -->
             </enum>
 
-            <enum name="ReservationStatus">
+            <enum name="ReservationStatus" implemented="true">
                 <value>RESERVED</value> <!-- 예약됨 -->
                 <value>CONFIRMED</value> <!-- 확인됨 (시작 버튼 누름) -->
                 <value>RUNNING</value> <!-- 실행 중 -->
@@ -785,13 +797,13 @@
                 <value>CANCELLED</value> <!-- 취소 -->
             </enum>
 
-            <enum name="MalfunctionReportStatus">
+            <enum name="MalfunctionReportStatus" implemented="true">
                 <value>PENDING</value> <!-- 대기 -->
                 <value>IN_PROGRESS</value> <!-- 처리중 -->
                 <value>RESOLVED</value> <!-- 처리완료 -->
             </enum>
 
-            <enum name="NotificationType">
+            <enum name="NotificationType" implemented="true">
                 <value>COMPLETION</value> <!-- 완료 알림 -->
                 <value>MALFUNCTION</value> <!-- 이상 알림 -->
                 <value>WARNING</value> <!-- 경고 알림 -->
@@ -834,14 +846,14 @@
                 <description>강제 종료</description>
             </reservations>
 
-            <malfunction_reports>
-                <endpoint>GET /api/admin/malfunction-reports</endpoint>
-                <endpoint>PUT /api/admin/malfunction-reports/{id}/status</endpoint>
+            <malfunction_reports implemented="true">
+                <endpoint implemented="true">GET /api/v2/admin/malfunction-reports</endpoint>
+                <endpoint implemented="true">PUT /api/v2/admin/malfunction-reports/{id}/status</endpoint>
                 <description>신고 상태 변경</description>
             </malfunction_reports>
 
-            <users>
-                <endpoint>GET /api/admin/users</endpoint>
+            <users implemented="partial">
+                <endpoint implemented="true">GET /api/v2/admin/users</endpoint>
                 <params>
                     <filter>이름</filter>
                     <filter>호실</filter>
@@ -861,19 +873,23 @@
                 <description>현재 모든 기기 상태 조회</description>
             </machines>
 
-            <reservations>
-                <endpoint>POST /api/reservations</endpoint>
+            <reservations implemented="partial">
+                <endpoint implemented="true">POST /api/v2/reservations</endpoint>
                 <description>예약 생성</description>
                 <endpoint>PUT /api/reservations/{id}/confirm</endpoint>
                 <description>예약 확인 (시작)</description>
-                <endpoint>DELETE /api/reservations/{id}</endpoint>
+                <endpoint implemented="true">DELETE /api/v2/reservations/{id}</endpoint>
                 <description>예약 취소</description>
-                <endpoint>GET /api/reservations/history</endpoint>
+                <endpoint implemented="true">GET /api/v2/reservations/history</endpoint>
                 <description>예약 히스토리</description>
+                <endpoint implemented="true">GET /api/v2/reservations/active</endpoint>
+                <description>내 활성 예약 조회</description>
+                <endpoint implemented="true">GET /api/v2/reservations/{id}</endpoint>
+                <description>예약 상세 조회</description>
             </reservations>
 
-            <malfunction_reports>
-                <endpoint>POST /api/malfunction-reports</endpoint>
+            <malfunction_reports implemented="true">
+                <endpoint implemented="true">POST /api/v2/malfunction-reports</endpoint>
                 <body>
                     <machine_id>기기 ID</machine_id>
                     <description>신고 내용 (최대 200자)</description>
