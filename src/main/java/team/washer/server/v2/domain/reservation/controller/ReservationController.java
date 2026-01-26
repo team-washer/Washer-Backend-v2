@@ -33,6 +33,7 @@ public class ReservationController {
 
     private final CreateReservationService createReservationService;
     private final CancelReservationService cancelReservationService;
+    private final ConfirmReservationService confirmReservationService;
     private final QueryActiveReservationService queryActiveReservationService;
     private final QueryReservationHistoryService queryReservationHistoryService;
     private final QueryReservationService queryReservationService;
@@ -44,6 +45,14 @@ public class ReservationController {
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
             @Parameter(description = "예약 생성 요청 DTO") @RequestBody @Valid CreateReservationReqDto requestDto) {
         return createReservationService.execute(userId, requestDto);
+    }
+
+    @PutMapping("/{id}/confirm")
+    @Operation(summary = "예약 확인", description = "예약을 확인합니다 (RESERVED → CONFIRMED). 사용자가 세탁기/건조기 앞에서 시작 버튼을 누를 때 호출됩니다.")
+    public void confirmReservation(
+            @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
+            @Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
+        confirmReservationService.execute(id, userId);
     }
 
     @DeleteMapping("/{id}")
