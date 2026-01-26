@@ -35,6 +35,11 @@ server:
 third-party:
   discord:
     webhook-url: ${DISCORD_WEBHOOK_URL:https://discord.com/api/webhooks/your-webhook-url}
+  smartthings:
+    api-url: ${SMARTTHINGS_API_URL:https://api.smartthings.com}
+    oauth-url: ${SMARTTHINGS_OAUTH_URL:https://auth-global.api.smartthings.com/oauth/token}
+    client-id: ${SMARTTHINGS_CLIENT_ID:your-client-id}
+    client-secret: ${SMARTTHINGS_CLIENT_SECRET:your-client-secret}
 springdoc:
   swagger-ui:
     config-url: "/v3/api-docs/swagger-config"
