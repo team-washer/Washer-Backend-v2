@@ -2,6 +2,7 @@ package team.washer.server.v2.domain.reservation.repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -35,6 +36,23 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 
     default List<Reservation> findAllActiveReservations() {
         return findByStatusIn(
+                List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
+    }
+
+    @Query("SELECT COUNT(r) FROM Reservation r WHERE r.status IN :statuses")
+    long countAllActiveReservations(@Param("statuses") List<ReservationStatus> statuses);
+
+    default long countActiveReservations() {
+        return countAllActiveReservations(
+                List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
+    }
+
+    @Query("SELECT r FROM Reservation r WHERE r.machine.id = :machineId AND r.status IN :statuses ORDER BY r.createdAt DESC")
+    Optional<Reservation> findFirstActiveReservationByMachineId(@Param("machineId") Long machineId,
+            @Param("statuses") List<ReservationStatus> statuses);
+
+    default Optional<Reservation> findActiveReservationByMachineId(Long machineId) {
+        return findFirstActiveReservationByMachineId(machineId,
                 List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
     }
 

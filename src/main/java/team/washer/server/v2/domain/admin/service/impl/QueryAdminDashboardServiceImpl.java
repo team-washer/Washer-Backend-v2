@@ -24,15 +24,12 @@ public class QueryAdminDashboardServiceImpl implements QueryAdminDashboardServic
     public AdminDashboardResDto execute() {
         log.info("Querying admin dashboard statistics");
 
-        var activeReservations = reservationRepository.findAllActiveReservations().size();
+        var activeReservations = reservationRepository.countActiveReservations();
         var pendingReports = malfunctionReportRepository.countByStatus(MalfunctionReportStatus.PENDING);
         var processingReports = malfunctionReportRepository.countByStatus(MalfunctionReportStatus.IN_PROGRESS);
         var completedReports = malfunctionReportRepository.countByStatus(MalfunctionReportStatus.RESOLVED);
 
-        var result = new AdminDashboardResDto((long) activeReservations,
-                pendingReports,
-                processingReports,
-                completedReports);
+        var result = new AdminDashboardResDto(activeReservations, pendingReports, processingReports, completedReports);
 
         log.info("Successfully queried admin dashboard statistics");
 
