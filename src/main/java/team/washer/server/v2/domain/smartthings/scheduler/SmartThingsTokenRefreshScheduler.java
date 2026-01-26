@@ -15,14 +15,11 @@ import team.washer.server.v2.domain.smartthings.service.RefreshSmartThingsTokenS
 @Slf4j
 public class SmartThingsTokenRefreshScheduler {
 
-    private static final long REFRESH_INTERVAL = 55 * 60 * 1000; // 55분
+    private static final long REFRESH_INTERVAL = 55 * 60 * 1000;
 
     private final RefreshSmartThingsTokenService refreshTokenService;
 
-    /**
-     * SmartThings 토큰 자동 갱신 55분마다 실행되어 토큰 만료 5분 전에 갱신
-     */
-    @Scheduled(fixedRate = REFRESH_INTERVAL, initialDelay = REFRESH_INTERVAL)
+    @Scheduled(fixedRate = REFRESH_INTERVAL, initialDelay = 60000)
     public void refreshToken() {
         try {
             log.info("Starting SmartThings token refresh scheduler");
