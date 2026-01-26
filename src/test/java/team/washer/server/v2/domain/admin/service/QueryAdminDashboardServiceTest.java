@@ -47,9 +47,9 @@ class QueryAdminDashboardServiceTest {
             // Then
             assertThat(result).isNotNull();
             assertThat(result.activeReservations()).isEqualTo(5L);
-            assertThat(result.pendingReports()).isEqualTo(3L);
-            assertThat(result.processingReports()).isEqualTo(2L);
-            assertThat(result.completedReports()).isEqualTo(10L);
+            assertThat(result.pendingMalfunctionReports()).isEqualTo(3L);
+            assertThat(result.processingMalfunctionReports()).isEqualTo(2L);
+            assertThat(result.completedMalfunctionReports()).isEqualTo(10L);
         }
 
         @Test
@@ -67,9 +67,9 @@ class QueryAdminDashboardServiceTest {
             // Then
             assertThat(result).isNotNull();
             assertThat(result.activeReservations()).isZero();
-            assertThat(result.pendingReports()).isZero();
-            assertThat(result.processingReports()).isZero();
-            assertThat(result.completedReports()).isZero();
+            assertThat(result.pendingMalfunctionReports()).isZero();
+            assertThat(result.processingMalfunctionReports()).isZero();
+            assertThat(result.completedMalfunctionReports()).isZero();
         }
     }
 }
