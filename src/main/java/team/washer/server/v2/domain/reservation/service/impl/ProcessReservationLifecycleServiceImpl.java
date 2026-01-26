@@ -1,9 +1,5 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +12,7 @@ import team.washer.server.v2.domain.reservation.service.ProcessReservationLifecy
 import team.washer.server.v2.domain.smartthings.service.DetectMachineCompletionService;
 import team.washer.server.v2.domain.smartthings.service.DetectMachineRunningService;
 import team.washer.server.v2.domain.smartthings.service.QueryDeviceStatusService;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Service
 @RequiredArgsConstructor
@@ -44,7 +41,8 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                 var isRunning = detectMachineRunningService.execute(machine.getDeviceId());
 
                 if (isRunning) {
-                    var expectedCompletionTime = getExpectedCompletionTime(machine.getDeviceId());
+                    var expectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(queryDeviceStatusService,
+                            machine.getDeviceId());
                     reservation.start(expectedCompletionTime);
                     reservationRepository.save(reservation);
 
@@ -76,21 +74,5 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                 log.error("Failed to process RUNNING reservation: {}", reservation.getId(), e);
             }
         }
-    }
-
-    private LocalDateTime getExpectedCompletionTime(String deviceId) {
-        try {
-            var status = queryDeviceStatusService.execute(deviceId);
-            var completionTimeStr = status.getCompletionTime();
-
-            if (completionTimeStr != null && !completionTimeStr.isBlank()) {
-                var utcTime = ZonedDateTime.parse(completionTimeStr);
-                return utcTime.withZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDateTime();
-            }
-        } catch (Exception e) {
-            log.warn("Failed to get expected completion time for device: {}", deviceId, e);
-        }
-
-        return LocalDateTime.now().plusHours(1);
     }
 }

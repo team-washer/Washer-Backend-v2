@@ -2,9 +2,6 @@ package team.washer.server.v2.domain.machine.service.impl;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -20,6 +17,7 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.service.QueryAllDevicesStatusService;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Service
 @RequiredArgsConstructor
@@ -40,17 +38,10 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
 
         var deviceStatusMap = queryAllDevicesStatusService.execute(deviceIds);
 
-        var activeReservations = reservationRepository.findAllActiveReservations();
-        var reservationMap = activeReservations.stream()
-                .collect(java.util.stream.Collectors.groupingBy(r -> r.getMachine().getId(),
-                        java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toList(),
-                                list -> list.isEmpty() ? null : list.get(0))));
-
-        var results = machines.stream()
-                .map(machine -> mapToStatusDto(machine,
-                        deviceStatusMap.get(machine.getDeviceId()),
-                        reservationMap.get(machine.getId())))
-                .toList();
+        var results = machines.stream().map(machine -> {
+            var reservation = reservationRepository.findActiveReservationByMachineId(machine.getId()).orElse(null);
+            return mapToStatusDto(machine, deviceStatusMap.get(machine.getDeviceId()), reservation);
+        }).toList();
 
         log.info("Successfully queried status for {} machines", results.size());
 
@@ -73,7 +64,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
 
             var completionTimeStr = deviceStatus.getCompletionTime();
             if (completionTimeStr != null && !completionTimeStr.isBlank()) {
-                expectedCompletionTime = parseAndConvertToKoreaTime(completionTimeStr);
+                expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr);
                 if (expectedCompletionTime != null) {
                     remainingMinutes = calculateRemainingMinutes(expectedCompletionTime);
                 }
@@ -110,16 +101,6 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
             return deviceStatus.getDryerJobState();
         }
         return null;
-    }
-
-    private LocalDateTime parseAndConvertToKoreaTime(String timeStr) {
-        try {
-            var utcTime = ZonedDateTime.parse(timeStr);
-            return utcTime.withZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDateTime();
-        } catch (DateTimeParseException e) {
-            log.warn("Failed to parse completion time: {}", timeStr, e);
-            return null;
-        }
     }
 
     private Long calculateRemainingMinutes(LocalDateTime completionTime) {
