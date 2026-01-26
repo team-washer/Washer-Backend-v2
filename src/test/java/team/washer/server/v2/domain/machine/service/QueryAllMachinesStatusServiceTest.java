@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.machine.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -53,12 +54,12 @@ class QueryAllMachinesStatusServiceTest {
         @DisplayName("기기 목록과 SmartThings 상태를 성공적으로 조회한다")
         void execute_ShouldReturnMachinesStatus_WhenMachinesExist() {
             // Given
-            var machine1 = Machine.builder().name("W-3F-A1").type(MachineType.WASHER).deviceId("device-1").floor(3)
-                    .position(Position.A).number(1).status(MachineStatus.NORMAL)
+            var machine1 = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
+                    .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
                     .availability(MachineAvailability.AVAILABLE).build();
 
-            var machine2 = Machine.builder().name("D-3F-B1").type(MachineType.DRYER).deviceId("device-2").floor(3)
-                    .position(Position.B).number(1).status(MachineStatus.NORMAL)
+            var machine2 = Machine.builder().name("D-3F-R1").type(MachineType.DRYER).deviceId("device-2").floor(3)
+                    .position(Position.RIGHT).number(1).status(MachineStatus.NORMAL)
                     .availability(MachineAvailability.IN_USE).build();
 
             when(machineRepository.findAll()).thenReturn(List.of(machine1, machine2));
@@ -82,16 +83,14 @@ class QueryAllMachinesStatusServiceTest {
             when(queryAllDevicesStatusService.execute(List.of("device-1", "device-2")))
                     .thenReturn(Map.of("device-1", deviceStatus, "device-2", deviceStatus));
 
-            when(reservationRepository.findActiveReservationByMachineId(machine1.getId())).thenReturn(Optional.empty());
-            when(reservationRepository.findActiveReservationByMachineId(machine2.getId()))
-                    .thenReturn(Optional.of(reservation));
+            when(reservationRepository.findActiveReservationByMachineId(any())).thenReturn(Optional.empty());
 
             // When
             var result = queryAllMachinesStatusService.execute();
 
             // Then
             assertThat(result).hasSize(2);
-            assertThat(result.getFirst().machineName()).isEqualTo("W-3F-A1");
+            assertThat(result.getFirst().name()).isEqualTo("W-3F-L1");
             assertThat(result.getFirst().jobState()).isEqualTo("run");
             assertThat(result.getFirst().reservationId()).isNull();
         }
