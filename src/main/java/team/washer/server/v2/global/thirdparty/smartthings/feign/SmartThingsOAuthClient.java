@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsTokenExchangeResDto;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsFeignConfig;
 
-
 @FeignClient(name = "smartthings-oauth", url = "${third-party.smartthings.oauth-url}", configuration = SmartThingsFeignConfig.class)
 public interface SmartThingsOAuthClient {
 

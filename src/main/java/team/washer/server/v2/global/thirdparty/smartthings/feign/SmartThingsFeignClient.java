@@ -13,10 +13,10 @@ public interface SmartThingsFeignClient {
 
     @GetMapping(value = "/v1/devices/{deviceId}/status", produces = MediaType.APPLICATION_JSON_VALUE)
     SmartThingsDeviceStatusResDto getDeviceStatus(@RequestHeader("Authorization") String authorization,
-                                                  @PathVariable String deviceId);
+            @PathVariable String deviceId);
 
     @PostMapping(value = "/v1/devices/{deviceId}/commands", consumes = MediaType.APPLICATION_JSON_VALUE)
     void sendDeviceCommand(@RequestHeader("Authorization") String authorization,
-                           @PathVariable String deviceId,
+            @PathVariable String deviceId,
             @RequestBody SmartThingsCommandReqDto command);
 }
