@@ -30,7 +30,7 @@ public class SmartThingsFeignConfig {
 
     @Bean
     public Logger.Level smartThingsFeignLoggerLevel() {
-        return Logger.Level.FULL;
+        return Logger.Level.BASIC;
     }
 
     @Bean
