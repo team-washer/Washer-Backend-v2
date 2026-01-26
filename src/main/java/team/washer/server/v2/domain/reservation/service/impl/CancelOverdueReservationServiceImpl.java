@@ -13,6 +13,8 @@ import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.CancelOverdueReservationService;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
+import team.washer.server.v2.domain.smartthings.service.DetectMachineRunningService;
+import team.washer.server.v2.domain.smartthings.service.QueryDeviceStatusService;
 import team.washer.server.v2.domain.user.entity.User;
 
 @Slf4j
@@ -22,6 +24,8 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
 
     private final ReservationRepository reservationRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
+    private final DetectMachineRunningService detectMachineRunningService;
+    private final QueryDeviceStatusService queryDeviceStatusService;
 
     @Override
     @Transactional
@@ -40,22 +44,45 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
 
         for (Reservation reservation : expiredReservations) {
             try {
-                // TODO: SmartThings 연동 구현 시 여기에 로직 추가
-                // 1. SmartThings API를 통해 기기 상태 확인 (isMachineRunning)
-                // 2. if (running) { reservation.start(); save(); return; }
-                // 3. if (!running) { 아래 취소 및 패널티 로직 실행 }
+                var machine = reservation.getMachine();
+                var isRunning = detectMachineRunningService.execute(machine.getDeviceId());
 
-                reservation.cancel();
-                reservationRepository.save(reservation);
-                User user = reservation.getUser();
-                penaltyRedisUtil.applyPenalty(user);
+                if (isRunning) {
+                    var expectedCompletionTime = getExpectedCompletionTime(machine.getDeviceId());
+                    reservation.start(expectedCompletionTime);
+                    reservationRepository.save(reservation);
 
-                log.info("Cancelled RESERVED reservation {} due to timeout and applied penalty to user {}",
-                        reservation.getId(),
-                        user.getId());
+                    log.info("Expired RESERVED reservation {} auto-started because machine is running",
+                            reservation.getId());
+                } else {
+                    reservation.cancel();
+                    reservationRepository.save(reservation);
+                    User user = reservation.getUser();
+                    penaltyRedisUtil.applyPenalty(user);
+
+                    log.info("Cancelled RESERVED reservation {} due to timeout and applied penalty to user {}",
+                            reservation.getId(),
+                            user.getId());
+                }
             } catch (Exception e) {
                 log.error("Error processing timeout for reservation {}", reservation.getId(), e);
             }
         }
+    }
+
+    private LocalDateTime getExpectedCompletionTime(String deviceId) {
+        try {
+            var status = queryDeviceStatusService.execute(deviceId);
+            var completionTimeStr = status.getCompletionTime();
+
+            if (completionTimeStr != null && !completionTimeStr.isBlank()) {
+                var utcTime = java.time.ZonedDateTime.parse(completionTimeStr);
+                return utcTime.withZoneSameInstant(java.time.ZoneId.of("Asia/Seoul")).toLocalDateTime();
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get expected completion time for device: {}", deviceId, e);
+        }
+
+        return LocalDateTime.now().plusHours(1);
     }
 }
