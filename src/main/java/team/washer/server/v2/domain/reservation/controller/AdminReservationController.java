@@ -1,5 +1,7 @@
 package team.washer.server.v2.domain.reservation.controller;
 
+import java.time.LocalDateTime;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -11,8 +13,11 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.reservation.dto.request.SundayActivationReqDto;
+import team.washer.server.v2.domain.reservation.dto.response.AdminCancellationResDto;
+import team.washer.server.v2.domain.reservation.dto.response.AdminReservationListResDto;
 import team.washer.server.v2.domain.reservation.dto.response.PenaltyStatusResDto;
 import team.washer.server.v2.domain.reservation.dto.response.SundayStatusResDto;
+import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.*;
 
 @RestController
@@ -27,6 +32,8 @@ public class AdminReservationController {
     private final QuerySundayReservationStatusService querySundayReservationStatusService;
     private final QueryPenaltyStatusService queryPenaltyStatusService;
     private final ClearUserPenaltyService clearUserPenaltyService;
+    private final QueryAllReservationsService queryAllReservationsService;
+    private final AdminCancelReservationService adminCancelReservationService;
 
     @PostMapping("/sunday/activate")
     @ResponseStatus(HttpStatus.OK)
@@ -69,5 +76,24 @@ public class AdminReservationController {
             @Parameter(description = "사용자 ID") @PathVariable @NotNull Long userId) {
 
         clearUserPenaltyService.execute(adminId, userId);
+    }
+
+    @GetMapping
+    @Operation(summary = "전체 예약 조회", description = "필터링 옵션으로 예약 목록을 조회합니다")
+    public AdminReservationListResDto getReservations(
+            @Parameter(description = "사용자 이름 (부분 검색)") @RequestParam(required = false) String userName,
+            @Parameter(description = "기기명 (부분 검색)") @RequestParam(required = false) String machineName,
+            @Parameter(description = "예약 상태") @RequestParam(required = false) ReservationStatus status,
+            @Parameter(description = "시작일") @RequestParam(required = false) LocalDateTime startDate,
+            @Parameter(description = "종료일") @RequestParam(required = false) LocalDateTime endDate) {
+
+        return queryAllReservationsService.execute(userName, machineName, status, startDate, endDate);
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "예약 강제 취소", description = "관리자가 예약을 강제로 취소합니다 (패널티 없음)")
+    public AdminCancellationResDto cancelReservation(@Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
+
+        return adminCancelReservationService.execute(id);
     }
 }

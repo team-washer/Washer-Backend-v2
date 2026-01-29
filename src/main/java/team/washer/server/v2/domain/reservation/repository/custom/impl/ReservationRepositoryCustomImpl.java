@@ -11,7 +11,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+import org.springframework.util.StringUtils;
 
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import lombok.RequiredArgsConstructor;
@@ -84,5 +86,42 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                         status == ReservationStatus.RESERVED ? reservation.startTime.lt(threshold) : null,
                         status == ReservationStatus.CONFIRMED ? reservation.confirmedAt.lt(threshold) : null)
                 .fetch();
+    }
+
+    @Override
+    public List<Reservation> findAllWithFilters(String userName,
+            String machineName,
+            ReservationStatus status,
+            LocalDateTime startDate,
+            LocalDateTime endDate) {
+
+        return jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
+                .leftJoin(reservation.machine, machine).fetchJoin()
+                .where(userNameContains(userName),
+                        machineNameContains(machineName),
+                        statusEquals(status),
+                        startTimeAfter(startDate),
+                        startTimeBefore(endDate))
+                .orderBy(reservation.createdAt.desc()).fetch();
+    }
+
+    private BooleanExpression userNameContains(String userName) {
+        return StringUtils.hasText(userName) ? reservation.user.name.contains(userName) : null;
+    }
+
+    private BooleanExpression machineNameContains(String machineName) {
+        return StringUtils.hasText(machineName) ? reservation.machine.name.contains(machineName) : null;
+    }
+
+    private BooleanExpression statusEquals(ReservationStatus status) {
+        return status != null ? reservation.status.eq(status) : null;
+    }
+
+    private BooleanExpression startTimeAfter(LocalDateTime startDate) {
+        return startDate != null ? reservation.startTime.goe(startDate) : null;
+    }
+
+    private BooleanExpression startTimeBefore(LocalDateTime endDate) {
+        return endDate != null ? reservation.startTime.loe(endDate) : null;
     }
 }
