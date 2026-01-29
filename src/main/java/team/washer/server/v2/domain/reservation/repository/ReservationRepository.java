@@ -76,4 +76,6 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
     }
 
     boolean existsByMachineAndStatusIn(Machine machine, List<ReservationStatus> statuses);
+
+    boolean existsByUserAndStatusIn(User user, List<ReservationStatus> statuses);
 }
