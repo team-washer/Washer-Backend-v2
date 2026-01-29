@@ -13,14 +13,15 @@
     <features>
         <!-- 어드민 기능 -->
         <admin>
-            <dashboard implemented="false" note="대시보드 API 미구현">
+            <dashboard implemented="true">
                 <description>어드민 메인 대시보드</description>
-                <feature name="활성예약수" implemented="false">
+                <api>GET /api/v2/admin/dashboard</api>
+                <feature name="활성예약수" implemented="true">
                     <display>현재 진행 중인 예약 건수 표시</display>
                     <action>클릭 시 상세 예약 정보 페이지로 이동</action>
                     <detail>예약자 정보, 예약 기기, 시간, 상태 등</detail>
                 </feature>
-                <feature name="고장신고건수" implemented="false">
+                <feature name="고장신고건수" implemented="true">
                     <display>미처리/처리중/처리완료 신고 상태 조회</display>
                     <data>
                         <item>신고자 조회</item>
@@ -51,7 +52,7 @@
                 </feature>
             </device_management>
 
-            <reservation_management implemented="false" note="관리자용 예약 목록 조회 API 미구현">
+            <reservation_management implemented="partial" note="일요일 예약 관리 및 패널티 관리만 구현, 전체 예약 목록 조회 미구현">
                 <name>예약 관리</name>
                 <description>사용자 예약 현황 관리</description>
                 <feature name="전체_예약_목록_조회" implemented="false">
@@ -68,6 +69,12 @@
                 </feature>
                 <feature name="강제_종료" implemented="false">
                     <description>예약한 호실 관리자가 강제 종료</description>
+                </feature>
+                <feature name="일요일_예약_관리" implemented="true">
+                    <api>POST /api/v2/admin/reservations/sunday/activate</api>
+                    <api>POST /api/v2/admin/reservations/sunday/deactivate</api>
+                    <api>GET /api/v2/admin/reservations/sunday/status</api>
+                    <description>일요일 예약 활성화/비활성화 관리</description>
                 </feature>
             </reservation_management>
 
@@ -124,8 +131,9 @@
 
         <!-- 사용자 기능 -->
         <user>
-            <machine_status implemented="false" requires="SmartThings" note="기기 현황 API 미구현">
+            <machine_status implemented="true" requires="SmartThings">
                 <name>세탁기/건조기 현황</name>
+                <api>GET /api/v2/machines/status</api>
                 <data>
                     <machine_name>
                         <format>기기: Washer/Dryer</format>
@@ -148,6 +156,8 @@
             <reservation implemented="true">
                 <name>세탁기/건조기 예약</name>
                 <api>POST /api/v2/reservations</api>
+                <api>GET /api/v2/reservations/{id}</api>
+                <api>GET /api/v2/reservations/active</api>
                 <step1>
                     <requirement>세탁기/건조기 가능 상태</requirement>
                 </step1>
@@ -157,14 +167,15 @@
                 </step2>
             </reservation>
 
-            <start implemented="false" requires="SmartThings">
+            <start implemented="true" requires="SmartThings">
                 <name>세탁기/건조기 시작</name>
+                <api>PUT /api/v2/reservations/{id}/confirm</api>
                 <step1>
                     <requirement>세탁기/건조기 예약 상태</requirement>
                 </step1>
                 <step2>
-                    <action>세탁기/건조기 시작</action>
-                    <rule>3분동안 세탁기/건조기 시작 하지 않으면 10분 정지</rule>
+                    <action>세탁기/건조기 시작 확인</action>
+                    <rule>2분동안 세탁기/건조기 시작 하지 않으면 10분 정지</rule>
                 </step2>
                 <step3>
                     <action>10초마다 기계에 요청 보내서 시작했는지 상태 확인</action>
@@ -215,10 +226,11 @@
         </user>
 
         <!-- 알림 기능 -->
-        <notification implemented="false" note="Notification 엔티티만 존재, 실제 발송 로직 미구현" requires="SmartThings">
-            <completion_notification implemented="false" requires="SmartThings">
+        <notification implemented="partial" note="Notification 엔티티 및 서비스 구현, Discord/FCM 발송 로직 미구현" requires="SmartThings">
+            <completion_notification implemented="partial" requires="SmartThings">
                 <name>세탁/건조 완료 알림</name>
                 <trigger>세탁 및 건조가 완료 된다면 알림</trigger>
+                <service>NotificationService (생성 로직 구현)</service>
                 <data>
                     <location>세탁기 및 건조기의 위치 알려줌</location>
                 </data>
@@ -227,9 +239,10 @@
                 </example>
             </completion_notification>
 
-            <malfunction_notification implemented="false" requires="SmartThings">
+            <malfunction_notification implemented="partial" requires="SmartThings">
                 <name>세탁기/건조기 이상 알림</name>
                 <trigger>세탁 및 건조가 이상이 감지 된다면 알림</trigger>
+                <service>NotificationService (생성 로직 구현)</service>
                 <data>
                     <location>세탁기 및 건조기의 위치 알려줌</location>
                 </data>
@@ -238,9 +251,10 @@
                 </example>
             </malfunction_notification>
 
-            <warning_notification implemented="false">
+            <warning_notification implemented="partial">
                 <name>사용 경고 알림</name>
                 <trigger>사용했거나 사용중인 세탁기 및 건조기에 불편신고가 들어 왔을때 알림</trigger>
+                <service>NotificationService (생성 로직 구현)</service>
                 <data>
                     <location>세탁기 및 건조기의 위치 알려줌</location>
                     <reason>신고 사유를 알려줌</reason>
@@ -258,7 +272,7 @@
     <!-- ========================================
          SmartThings API 연동
     ========================================= -->
-    <smartthings_integration implemented="false" note="엔티티/리포지토리만 존재, 실제 API 연동 미구현">
+    <smartthings_integration implemented="true" note="OAuth2, Device Status/Commands API, 스케줄링, 모니터링 모두 구현 완료">
         <!-- OAuth 2.0 인증 -->
         <oauth2>
             <configuration>
@@ -621,32 +635,32 @@
          비즈니스 로직 및 규칙
     ========================================= -->
     <business_logic>
-        <reservation_workflow implemented="partial" note="SmartThings 연동 없이 DB 로직만 구현">
+        <reservation_workflow implemented="true" note="SmartThings 연동 완료, 전체 워크플로우 구현">
             <step1 implemented="true">
                 <status>RESERVED</status>
                 <description>예약 생성</description>
                 <timer>5분</timer>
                 <timeout_action>5분 내 시작 안하면 10분 정지</timeout_action>
             </step1>
-            <step2 implemented="false" requires="SmartThings">
+            <step2 implemented="true" requires="SmartThings">
                 <status>CONFIRMED</status>
                 <description>예약 확인 (시작 버튼 클릭)</description>
-                <timer>2분 (구현에서는 3분으로 언급)</timer>
+                <timer>2분</timer>
                 <monitoring>10초마다 기계 상태 확인</monitoring>
                 <timeout_action>시작 안하면 10분 정지</timeout_action>
             </step2>
-            <step3 implemented="false" requires="SmartThings">
+            <step3 implemented="true" requires="SmartThings">
                 <status>RUNNING</status>
                 <description>작동 중</description>
                 <monitoring>10초마다 완료 상태 확인</monitoring>
                 <completion_check>jobState == "finished" || "finish"</completion_check>
             </step3>
-            <step4 implemented="false" requires="SmartThings">
+            <step4 implemented="true" requires="SmartThings">
                 <status>COMPLETED</status>
                 <description>작업 완료</description>
-                <notification>완료 알림 발송</notification>
+                <notification>완료 알림 발송 (서비스 로직 구현)</notification>
             </step4>
-            <cancellation implemented="partial" note="취소/패널티 로직만 구현, 기기 상태 확인 미구현">
+            <cancellation implemented="true" note="취소/패널티 로직 및 기기 상태 변경 모두 구현">
                 <status>CANCELLED</status>
                 <penalty>10분간 정지</penalty>
                 <state_change requires="SmartThings">기기 상태 변경</state_change>
