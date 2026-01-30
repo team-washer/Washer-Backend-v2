@@ -2,6 +2,7 @@ package team.washer.server.v2.domain.reservation.controller;
 
 import java.time.LocalDateTime;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -79,15 +80,16 @@ public class AdminReservationController {
     }
 
     @GetMapping
-    @Operation(summary = "전체 예약 조회", description = "필터링 옵션으로 예약 목록을 조회합니다")
+    @Operation(summary = "전체 예약 조회", description = "필터링 옵션으로 예약 목록을 조회합니다 (페이지네이션 지원)")
     public AdminReservationListResDto getReservations(
             @Parameter(description = "사용자 이름 (부분 검색)") @RequestParam(required = false) String userName,
             @Parameter(description = "기기명 (부분 검색)") @RequestParam(required = false) String machineName,
             @Parameter(description = "예약 상태") @RequestParam(required = false) ReservationStatus status,
             @Parameter(description = "시작일") @RequestParam(required = false) LocalDateTime startDate,
-            @Parameter(description = "종료일") @RequestParam(required = false) LocalDateTime endDate) {
+            @Parameter(description = "종료일") @RequestParam(required = false) LocalDateTime endDate,
+            Pageable pageable) {
 
-        return queryAllReservationsService.execute(userName, machineName, status, startDate, endDate);
+        return queryAllReservationsService.execute(userName, machineName, status, startDate, endDate, pageable);
     }
 
     @DeleteMapping("/{id}")

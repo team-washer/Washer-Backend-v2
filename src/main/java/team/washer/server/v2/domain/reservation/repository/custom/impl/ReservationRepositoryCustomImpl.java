@@ -89,20 +89,34 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
     }
 
     @Override
-    public List<Reservation> findAllWithFilters(String userName,
+    public Page<Reservation> findAllWithFilters(String userName,
             String machineName,
             ReservationStatus status,
             LocalDateTime startDate,
-            LocalDateTime endDate) {
+            LocalDateTime endDate,
+            Pageable pageable) {
 
-        return jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
+        final var content = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
                 .leftJoin(reservation.machine, machine).fetchJoin()
                 .where(userNameContains(userName),
                         machineNameContains(machineName),
                         statusEquals(status),
                         startTimeAfter(startDate),
                         startTimeBefore(endDate))
-                .orderBy(reservation.createdAt.desc()).fetch();
+                .orderBy(reservation.createdAt.desc()).offset(pageable.getOffset()).limit(pageable.getPageSize())
+                .fetch();
+
+        final var total = jpaQueryFactory.select(reservation.count()).from(reservation)
+                .where(userNameContains(userName),
+                        machineNameContains(machineName),
+                        statusEquals(status),
+                        startTimeAfter(startDate),
+                        startTimeBefore(endDate))
+                .fetchOne();
+
+        final var count = total != null ? total : 0L;
+
+        return new PageImpl<>(content, pageable, count);
     }
 
     private BooleanExpression userNameContains(String userName) {

@@ -2,6 +2,7 @@ package team.washer.server.v2.domain.reservation.service.impl;
 
 import java.time.LocalDateTime;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,13 +26,17 @@ public class QueryAllReservationsServiceImpl implements QueryAllReservationsServ
             String machineName,
             ReservationStatus status,
             LocalDateTime startDate,
-            LocalDateTime endDate) {
+            LocalDateTime endDate,
+            Pageable pageable) {
 
-        final var reservations = reservationRepository
-                .findAllWithFilters(userName, machineName, status, startDate, endDate);
-        final var reservationDtos = reservations.stream().map(this::toAdminReservationResDto).toList();
+        final var reservationsPage = reservationRepository
+                .findAllWithFilters(userName, machineName, status, startDate, endDate, pageable);
+        final var reservationDtos = reservationsPage.getContent().stream().map(this::toAdminReservationResDto).toList();
 
-        return new AdminReservationListResDto(reservationDtos, reservationDtos.size());
+        return new AdminReservationListResDto(reservationDtos,
+                reservationsPage.getTotalElements(),
+                reservationsPage.getTotalPages(),
+                reservationsPage.getNumber());
     }
 
     private AdminReservationResDto toAdminReservationResDto(Reservation reservation) {
