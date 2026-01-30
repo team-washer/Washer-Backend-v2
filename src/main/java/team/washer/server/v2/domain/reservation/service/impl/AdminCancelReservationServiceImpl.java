@@ -1,7 +1,5 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import java.time.LocalDateTime;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,7 +35,7 @@ public class AdminCancelReservationServiceImpl implements AdminCancelReservation
         return new AdminCancellationResDto(savedReservation.getId(),
                 savedReservation.getUser().getName(),
                 savedReservation.getMachine().getName(),
-                LocalDateTime.now(),
+                savedReservation.getCancelledAt(),
                 false);
     }
 }
