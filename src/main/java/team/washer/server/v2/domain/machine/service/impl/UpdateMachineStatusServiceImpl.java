@@ -1,6 +1,6 @@
 package team.washer.server.v2.domain.machine.service.impl;
 
-import java.util.List;
+import java.util.Optional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -13,7 +13,6 @@ import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.machine.service.UpdateMachineStatusService;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
-import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
@@ -36,10 +35,7 @@ public class UpdateMachineStatusServiceImpl implements UpdateMachineStatusServic
             machine.markAsNormal();
 
             // 활성 예약이 있는지 확인
-            final var activeReservation = findActiveReservation(machine);
-            if (activeReservation != null) {
-                machine.markAsReserved();
-            }
+            findActiveReservation(machine).ifPresent(reservation -> machine.markAsReserved());
         }
 
         final var savedMachine = machineRepository.save(machine);
@@ -50,11 +46,7 @@ public class UpdateMachineStatusServiceImpl implements UpdateMachineStatusServic
                 savedMachine.getAvailability());
     }
 
-    private Reservation findActiveReservation(Machine machine) {
-        final var activeStatuses = List
-                .of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING);
-        final var activeReservations = reservationRepository.findByMachineAndStatusIn(machine, activeStatuses);
-
-        return activeReservations.isEmpty() ? null : activeReservations.get(0);
+    private Optional<Reservation> findActiveReservation(Machine machine) {
+        return reservationRepository.findActiveReservationByMachineId(machine.getId());
     }
 }
