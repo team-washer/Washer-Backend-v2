@@ -14,6 +14,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -72,18 +76,23 @@ class QueryAllReservationsServiceTest {
                 Reservation reservation1 = createReservation(user1, machine, ReservationStatus.RESERVED);
                 Reservation reservation2 = createReservation(user2, machine, ReservationStatus.CONFIRMED);
                 List<Reservation> reservations = Arrays.asList(reservation1, reservation2);
+                Page<Reservation> reservationPage = new PageImpl<>(reservations,
+                        PageRequest.of(0, 10),
+                        reservations.size());
 
-                given(reservationRepository.findAllWithFilters(searchName, null, null, null, null))
-                        .willReturn(reservations);
+                given(reservationRepository.findAllWithFilters(eq(
+                        searchName), eq(null), eq(null), eq(null), eq(null), any(Pageable.class)))
+                        .willReturn(reservationPage);
 
                 // When
                 AdminReservationListResDto result = queryAllReservationsService
-                        .execute(searchName, null, null, null, null);
+                        .execute(searchName, null, null, null, null, PageRequest.of(0, 10));
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(2);
                 assertThat(result.reservations()).allMatch(r -> r.userName().contains("김"));
-                then(reservationRepository).should(times(1)).findAllWithFilters(searchName, null, null, null, null);
+                then(reservationRepository).should(times(1)).findAllWithFilters(eq(
+                        searchName), eq(null), eq(null), eq(null), eq(null), any(Pageable.class));
             }
         }
 
@@ -100,19 +109,23 @@ class QueryAllReservationsServiceTest {
                 Machine machine = createMachine("W-2F-L1");
                 Reservation reservation = createReservation(user, machine, ReservationStatus.RESERVED);
                 List<Reservation> reservations = List.of(reservation);
+                Page<Reservation> reservationPage = new PageImpl<>(reservations,
+                        PageRequest.of(0, 10),
+                        reservations.size());
 
-                given(reservationRepository.findAllWithFilters(null, searchMachineName, null, null, null))
-                        .willReturn(reservations);
+                given(reservationRepository.findAllWithFilters(eq(
+                        null), eq(searchMachineName), eq(null), eq(null), eq(null), any(Pageable.class)))
+                        .willReturn(reservationPage);
 
                 // When
                 AdminReservationListResDto result = queryAllReservationsService
-                        .execute(null, searchMachineName, null, null, null);
+                        .execute(null, searchMachineName, null, null, null, PageRequest.of(0, 10));
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);
                 assertThat(result.reservations().get(0).machineName()).contains("W-2F");
-                then(reservationRepository).should(times(1))
-                        .findAllWithFilters(null, searchMachineName, null, null, null);
+                then(reservationRepository).should(times(1)).findAllWithFilters(eq(
+                        null), eq(searchMachineName), eq(null), eq(null), eq(null), any(Pageable.class));
             }
         }
 
@@ -129,17 +142,23 @@ class QueryAllReservationsServiceTest {
                 Machine machine = createMachine("W-2F-L1");
                 Reservation reservation = createReservation(user, machine, ReservationStatus.RESERVED);
                 List<Reservation> reservations = List.of(reservation);
+                Page<Reservation> reservationPage = new PageImpl<>(reservations,
+                        PageRequest.of(0, 10),
+                        reservations.size());
 
-                given(reservationRepository.findAllWithFilters(null, null, status, null, null))
-                        .willReturn(reservations);
+                given(reservationRepository
+                        .findAllWithFilters(eq(null), eq(null), eq(status), eq(null), eq(null), any(Pageable.class)))
+                        .willReturn(reservationPage);
 
                 // When
-                AdminReservationListResDto result = queryAllReservationsService.execute(null, null, status, null, null);
+                AdminReservationListResDto result = queryAllReservationsService
+                        .execute(null, null, status, null, null, PageRequest.of(0, 10));
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);
                 assertThat(result.reservations().get(0).status()).isEqualTo(ReservationStatus.RESERVED);
-                then(reservationRepository).should(times(1)).findAllWithFilters(null, null, status, null, null);
+                then(reservationRepository).should(times(1))
+                        .findAllWithFilters(eq(null), eq(null), eq(status), eq(null), eq(null), any(Pageable.class));
             }
         }
 
@@ -157,17 +176,22 @@ class QueryAllReservationsServiceTest {
                 Machine machine = createMachine("W-2F-L1");
                 Reservation reservation = createReservation(user, machine, ReservationStatus.RESERVED);
                 List<Reservation> reservations = List.of(reservation);
+                Page<Reservation> reservationPage = new PageImpl<>(reservations,
+                        PageRequest.of(0, 10),
+                        reservations.size());
 
-                given(reservationRepository.findAllWithFilters(null, null, null, startDate, endDate))
-                        .willReturn(reservations);
+                given(reservationRepository.findAllWithFilters(eq(
+                        null), eq(null), eq(null), eq(startDate), eq(endDate), any(Pageable.class)))
+                        .willReturn(reservationPage);
 
                 // When
                 AdminReservationListResDto result = queryAllReservationsService
-                        .execute(null, null, null, startDate, endDate);
+                        .execute(null, null, null, startDate, endDate, PageRequest.of(0, 10));
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);
-                then(reservationRepository).should(times(1)).findAllWithFilters(null, null, null, startDate, endDate);
+                then(reservationRepository).should(times(1)).findAllWithFilters(eq(
+                        null), eq(null), eq(null), eq(startDate), eq(endDate), any(Pageable.class));
             }
         }
 
@@ -185,15 +209,22 @@ class QueryAllReservationsServiceTest {
                 Reservation reservation1 = createReservation(user1, machine, ReservationStatus.RESERVED);
                 Reservation reservation2 = createReservation(user2, machine, ReservationStatus.CONFIRMED);
                 List<Reservation> reservations = Arrays.asList(reservation1, reservation2);
+                Page<Reservation> reservationPage = new PageImpl<>(reservations,
+                        PageRequest.of(0, 10),
+                        reservations.size());
 
-                given(reservationRepository.findAllWithFilters(null, null, null, null, null)).willReturn(reservations);
+                given(reservationRepository
+                        .findAllWithFilters(eq(null), eq(null), eq(null), eq(null), eq(null), any(Pageable.class)))
+                        .willReturn(reservationPage);
 
                 // When
-                AdminReservationListResDto result = queryAllReservationsService.execute(null, null, null, null, null);
+                AdminReservationListResDto result = queryAllReservationsService
+                        .execute(null, null, null, null, null, PageRequest.of(0, 10));
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(2);
-                then(reservationRepository).should(times(1)).findAllWithFilters(null, null, null, null, null);
+                then(reservationRepository).should(times(1))
+                        .findAllWithFilters(eq(null), eq(null), eq(null), eq(null), eq(null), any(Pageable.class));
             }
         }
 
@@ -214,21 +245,25 @@ class QueryAllReservationsServiceTest {
                 Machine machine = createMachine("W-2F-L1");
                 Reservation reservation = createReservation(user, machine, ReservationStatus.RESERVED);
                 List<Reservation> reservations = List.of(reservation);
+                Page<Reservation> reservationPage = new PageImpl<>(reservations,
+                        PageRequest.of(0, 10),
+                        reservations.size());
 
-                given(reservationRepository.findAllWithFilters(userName, machineName, status, startDate, endDate))
-                        .willReturn(reservations);
+                given(reservationRepository.findAllWithFilters(eq(
+                        userName), eq(machineName), eq(status), eq(startDate), eq(endDate), any(Pageable.class)))
+                        .willReturn(reservationPage);
 
                 // When
                 AdminReservationListResDto result = queryAllReservationsService
-                        .execute(userName, machineName, status, startDate, endDate);
+                        .execute(userName, machineName, status, startDate, endDate, PageRequest.of(0, 10));
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);
                 assertThat(result.reservations().get(0).userName()).contains("김");
                 assertThat(result.reservations().get(0).machineName()).contains("W-2F");
                 assertThat(result.reservations().get(0).status()).isEqualTo(ReservationStatus.RESERVED);
-                then(reservationRepository).should(times(1))
-                        .findAllWithFilters(userName, machineName, status, startDate, endDate);
+                then(reservationRepository).should(times(1)).findAllWithFilters(eq(
+                        userName), eq(machineName), eq(status), eq(startDate), eq(endDate), any(Pageable.class));
             }
         }
     }
