@@ -10,9 +10,10 @@ import org.springframework.stereotype.Repository;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.*;
+import team.washer.server.v2.domain.machine.repository.custom.MachineRepositoryCustom;
 
 @Repository
-public interface MachineRepository extends JpaRepository<Machine, Long> {
+public interface MachineRepository extends JpaRepository<Machine, Long>, MachineRepositoryCustom {
 
     Optional<Machine> findByDeviceId(String deviceId);
 

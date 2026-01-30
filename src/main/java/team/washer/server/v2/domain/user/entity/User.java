@@ -150,4 +150,26 @@ public class User extends BaseEntity {
                     HttpStatus.BAD_REQUEST);
         }
     }
+
+    /**
+     * 사용자 정보 수정
+     *
+     * @param roomNumber
+     *            호실 (null이면 유지)
+     * @param grade
+     *            학년 (null이면 유지)
+     * @param floor
+     *            층 (null이면 유지)
+     */
+    public void updateInfo(String roomNumber, Integer grade, Integer floor) {
+        if (roomNumber != null) {
+            this.roomNumber = roomNumber;
+        }
+        if (grade != null) {
+            this.grade = grade;
+        }
+        if (floor != null) {
+            this.floor = floor;
+        }
+    }
 }
