@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -99,11 +98,12 @@ class UpdateMachineStatusServiceTest {
                 void it_changes_machine_to_normal_and_available() {
                     // Given
                     Long machineId = 1L;
-                    Machine machine = createMachine(MachineStatus.MALFUNCTION, MachineAvailability.UNAVAILABLE);
+                    Machine machine = spy(createMachine(MachineStatus.MALFUNCTION, MachineAvailability.UNAVAILABLE));
+                    given(machine.getId()).willReturn(machineId);
 
                     given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
-                    given(reservationRepository.findByMachineAndStatusIn(any(Machine.class), anyList()))
-                            .willReturn(List.of());
+                    given(reservationRepository.findActiveReservationByMachineId(machineId))
+                            .willReturn(Optional.empty());
                     given(machineRepository.save(any(Machine.class)))
                             .willAnswer(invocation -> invocation.getArgument(0));
 
@@ -115,8 +115,7 @@ class UpdateMachineStatusServiceTest {
                     assertThat(result.status()).isEqualTo(MachineStatus.NORMAL);
                     assertThat(result.availability()).isEqualTo(MachineAvailability.AVAILABLE);
                     then(machineRepository).should(times(1)).findById(machineId);
-                    then(reservationRepository).should(times(1)).findByMachineAndStatusIn(any(Machine.class),
-                            anyList());
+                    then(reservationRepository).should(times(1)).findActiveReservationByMachineId(machineId);
                     then(machineRepository).should(times(1)).save(any(Machine.class));
                 }
             }
@@ -130,12 +129,13 @@ class UpdateMachineStatusServiceTest {
                 void it_changes_machine_to_normal_and_reserved() {
                     // Given
                     Long machineId = 1L;
-                    Machine machine = createMachine(MachineStatus.MALFUNCTION, MachineAvailability.UNAVAILABLE);
+                    Machine machine = spy(createMachine(MachineStatus.MALFUNCTION, MachineAvailability.UNAVAILABLE));
+                    given(machine.getId()).willReturn(machineId);
                     Reservation reservation = createReservation(machine, ReservationStatus.RESERVED);
 
                     given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
-                    given(reservationRepository.findByMachineAndStatusIn(any(Machine.class), anyList()))
-                            .willReturn(List.of(reservation));
+                    given(reservationRepository.findActiveReservationByMachineId(machineId))
+                            .willReturn(Optional.of(reservation));
                     given(machineRepository.save(any(Machine.class)))
                             .willAnswer(invocation -> invocation.getArgument(0));
 
@@ -147,8 +147,7 @@ class UpdateMachineStatusServiceTest {
                     assertThat(result.status()).isEqualTo(MachineStatus.NORMAL);
                     assertThat(result.availability()).isEqualTo(MachineAvailability.RESERVED);
                     then(machineRepository).should(times(1)).findById(machineId);
-                    then(reservationRepository).should(times(1)).findByMachineAndStatusIn(any(Machine.class),
-                            anyList());
+                    then(reservationRepository).should(times(1)).findActiveReservationByMachineId(machineId);
                     then(machineRepository).should(times(1)).save(any(Machine.class));
                 }
             }
