@@ -33,42 +33,91 @@
                 </feature>
             </dashboard>
 
-            <device_management implemented="false" requires="SmartThings" note="기기 관리 API 미구현">
+            <device_management implemented="true" requires="SmartThings">
                 <name>기기 상태 관리</name>
                 <description>전체 기기 정보 관리 (확정된 실제 상태)</description>
-                <feature name="기기_전체_조회" implemented="false">
+                <feature name="기기_전체_조회" implemented="true">
+                    <api>GET /api/v2/admin/machines</api>
                     <filters>
-                        <filter>기기명</filter>
-                        <filter>기기 유형 (건조기/세탁기)</filter>
+                        <filter>기기명 (부분 검색)</filter>
+                        <filter>기기 유형 (WASHER/DRYER)</filter>
+                        <filter>층</filter>
+                        <filter>기기 상태 (NORMAL/MALFUNCTION)</filter>
                     </filters>
+                    <pagination>Pageable 지원 (page, size, sort)</pagination>
+                    <response>
+                        <field>기기 목록</field>
+                        <field>총 기기 개수</field>
+                        <field>총 페이지 수</field>
+                        <field>현재 페이지 번호</field>
+                    </response>
                 </feature>
-                <feature name="기기_상태" implemented="false">
-                    <status>고장/정상</status>
-                    <availability>사용 가능 여부</availability>
+                <feature name="기기_상태" implemented="true">
+                    <api>PUT /api/v2/admin/machines/{id}/status</api>
+                    <status>NORMAL (정상)</status>
+                    <status>MALFUNCTION (고장)</status>
+                    <availability>상태 변경 시 활성 예약 여부에 따라 자동 업데이트</availability>
                 </feature>
-                <feature name="고장_등록" implemented="false">
-                    <action>고장 등록</action>
-                    <action>수리 완료</action>
+                <feature name="고장_등록" implemented="true">
+                    <action>고장 등록 (기기 상태를 MALFUNCTION으로 변경)</action>
+                    <action>수리 완료 (기기 상태를 NORMAL로 변경)</action>
+                    <note>활성 예약이 있으면 RESERVED로 자동 설정</note>
                 </feature>
             </device_management>
 
-            <reservation_management implemented="partial" note="일요일 예약 관리 및 패널티 관리만 구현, 전체 예약 목록 조회 미구현">
+            <reservation_management implemented="true">
                 <name>예약 관리</name>
                 <description>사용자 예약 현황 관리</description>
-                <feature name="전체_예약_목록_조회" implemented="false">
+                <feature name="전체_예약_목록_조회" implemented="true">
+                    <api>GET /api/v2/admin/reservations</api>
+                    <filters>
+                        <filter>사용자 이름 (부분 검색)</filter>
+                        <filter>기기명 (부분 검색)</filter>
+                        <filter>예약 상태 (RESERVED/CONFIRMED/RUNNING/COMPLETED/CANCELLED)</filter>
+                        <filter>시작일</filter>
+                        <filter>종료일</filter>
+                    </filters>
+                    <pagination>Pageable 지원 (page, size, sort)</pagination>
+                    <response>
+                        <field>예약 목록</field>
+                        <field>총 예약 개수</field>
+                        <field>총 페이지 수</field>
+                        <field>현재 페이지 번호</field>
+                    </response>
                     <data>
-                        <item>예약한 시간</item>
-                        <item>남은 시간</item>
-                        <item>예약된 기기</item>
-                        <item>예약한 호실</item>
+                        <item>예약 ID</item>
+                        <item>사용자 정보 (ID, 이름, 호실)</item>
+                        <item>기기 정보 (ID, 기기명)</item>
+                        <item>예약 시간</item>
+                        <item>시작 시간</item>
+                        <item>예상 완료 시간</item>
+                        <item>실제 완료 시간</item>
+                        <item>예약 상태</item>
+                        <item>확인 시간</item>
+                        <item>취소 시간</item>
                     </data>
                 </feature>
-                <feature name="필터_기능" implemented="false">
-                    <filter>기기명 검색</filter>
-                    <filter>기기 유형 (세탁기/건조기)</filter>
+                <feature name="필터_기능" implemented="true">
+                    <filter>사용자 이름 (부분 검색)</filter>
+                    <filter>기기명 (부분 검색)</filter>
+                    <filter>예약 상태</filter>
+                    <filter>날짜 범위 (시작일~종료일)</filter>
                 </feature>
-                <feature name="강제_종료" implemented="false">
-                    <description>예약한 호실 관리자가 강제 종료</description>
+                <feature name="강제_종료" implemented="true">
+                    <api>DELETE /api/v2/admin/reservations/{id}</api>
+                    <description>관리자가 예약을 강제로 취소 (패널티 없음)</description>
+                    <validation>
+                        <check>이미 완료된 예약은 취소 불가</check>
+                        <check>이미 취소된 예약은 취소 불가</check>
+                    </validation>
+                    <action>기기 상태를 AVAILABLE로 변경</action>
+                    <response>
+                        <field>예약 ID</field>
+                        <field>사용자 이름</field>
+                        <field>기기명</field>
+                        <field>취소 시각</field>
+                        <field>패널티 부과 여부 (false)</field>
+                    </response>
                 </feature>
                 <feature name="일요일_예약_관리" implemented="true">
                     <api>POST /api/v2/admin/reservations/sunday/activate</api>
@@ -101,25 +150,43 @@
                 </feature>
             </malfunction_management>
 
-            <user_management implemented="partial">
+            <user_management implemented="true">
                 <name>인원 관리</name>
                 <description>사용자 전체 인원 관리</description>
                 <feature name="전체_인원_조회" implemented="true">
+                    <api>GET /api/v2/admin/users</api>
                     <data>
                         <item>호실</item>
                         <item>이름</item>
                         <item>학번</item>
+                        <item>학년</item>
+                        <item>층</item>
+                        <item>패널티 누적 횟수</item>
                     </data>
-                    <api>GET /api/v2/admin/users</api>
                 </feature>
                 <feature name="필터_기능" implemented="true">
-                    <filter>이름</filter>
+                    <filter>이름 (부분 검색)</filter>
                     <filter>호실</filter>
                     <filter>학년</filter>
                     <filter>층</filter>
                 </feature>
-                <feature name="인원_변경_제거" implemented="false">
-                    <action>호수 인원 변경</action>
+                <feature name="인원_정보_수정" implemented="true">
+                    <api>PUT /api/v2/admin/users/{id}</api>
+                    <description>사용자 정보 수정</description>
+                    <modifiable_fields>
+                        <field>호실 (roomNumber)</field>
+                        <field>학년 (grade)</field>
+                        <field>층 (floor)</field>
+                    </modifiable_fields>
+                    <validation>호실, 학년, 층 필드 검증</validation>
+                </feature>
+                <feature name="인원_삭제" implemented="true">
+                    <api>DELETE /api/v2/admin/users/{id}</api>
+                    <description>사용자 계정 삭제 (Hard Delete)</description>
+                    <validation>
+                        <check>활성 예약이 있는 사용자는 삭제 불가</check>
+                    </validation>
+                    <note>Hard Delete는 의도된 비즈니스 로직</note>
                 </feature>
                 <feature name="패널티_관리" implemented="true">
                     <data>패널티 누적 횟수 조회</data>
@@ -226,23 +293,34 @@
         </user>
 
         <!-- 알림 기능 -->
-        <notification implemented="partial" note="Notification 엔티티 및 서비스 구현, Discord/FCM 발송 로직 미구현" requires="SmartThings">
-            <completion_notification implemented="partial" requires="SmartThings">
+        <notification implemented="partial" note="Notification 엔티티 및 저장 로직 구현, 조회 API/Discord/FCM 발송 로직 미구현" requires="SmartThings">
+            <entity_and_repository implemented="true">
+                <description>Notification 엔티티 및 Repository 완전 구현</description>
+                <entity>Notification (user, type, machine, message, isRead)</entity>
+                <enum>NotificationType (COMPLETION, MALFUNCTION, WARNING)</enum>
+                <repository>NotificationRepository (쿼리 메서드 구현)</repository>
+            </entity_and_repository>
+
+            <completion_notification implemented="partial" requires="SmartThings" note="DB 저장만 구현, FCM/Discord 발송 미구현">
                 <name>세탁/건조 완료 알림</name>
                 <trigger>세탁 및 건조가 완료 된다면 알림</trigger>
-                <service>NotificationService (생성 로직 구현)</service>
+                <service>SendCompletionNotificationServiceImpl (DB 저장 로직만 구현)</service>
                 <data>
                     <location>세탁기 및 건조기의 위치 알려줌</location>
                 </data>
                 <example>
                     Dryer-3F-L1의 세탁이 완료되었습니다. 빠른 시간 내에 수거해 주시기 바랍니다.
                 </example>
+                <missing>
+                    <item>FCM 푸시 발송 로직</item>
+                    <item>Discord 웹훅 발송 로직</item>
+                </missing>
             </completion_notification>
 
-            <malfunction_notification implemented="partial" requires="SmartThings">
+            <malfunction_notification implemented="false" requires="SmartThings" note="인터페이스만 정의, 구현 없음">
                 <name>세탁기/건조기 이상 알림</name>
                 <trigger>세탁 및 건조가 이상이 감지 된다면 알림</trigger>
-                <service>NotificationService (생성 로직 구현)</service>
+                <service>SendMalfunctionNotificationService (인터페이스만 존재)</service>
                 <data>
                     <location>세탁기 및 건조기의 위치 알려줌</location>
                 </data>
@@ -251,10 +329,10 @@
                 </example>
             </malfunction_notification>
 
-            <warning_notification implemented="partial">
+            <warning_notification implemented="false" note="인터페이스만 정의, 구현 없음">
                 <name>사용 경고 알림</name>
                 <trigger>사용했거나 사용중인 세탁기 및 건조기에 불편신고가 들어 왔을때 알림</trigger>
-                <service>NotificationService (생성 로직 구현)</service>
+                <service>SendWarningNotificationService (인터페이스만 존재)</service>
                 <data>
                     <location>세탁기 및 건조기의 위치 알려줌</location>
                     <reason>신고 사유를 알려줌</reason>
@@ -266,6 +344,22 @@
                     신고 사유: 빨래를 너무 늦게 뺌
                 </example>
             </warning_notification>
+
+            <user_notification_api implemented="false" note="사용자 알림 조회 API 미구현">
+                <feature name="알림_목록_조회">
+                    <endpoint>GET /api/notifications</endpoint>
+                    <description>사용자 알림 목록 조회</description>
+                </feature>
+                <feature name="알림_읽음_처리">
+                    <endpoint>PUT /api/notifications/{id}/read</endpoint>
+                    <description>알림 읽음 처리</description>
+                </feature>
+            </user_notification_api>
+
+            <discord_error_notification implemented="true" note="비즈니스 알림과 별개로 시스템 에러 로깅용">
+                <service>DiscordErrorNotificationService</service>
+                <description>시스템 에러를 Discord로 전송 (비즈니스 알림과 분리)</description>
+            </discord_error_notification>
         </notification>
     </features>
 
@@ -830,8 +924,8 @@
     ========================================= -->
     <api_endpoints_hints>
         <admin_api>
-            <dashboard>
-                <endpoint>GET /api/admin/dashboard</endpoint>
+            <dashboard implemented="true">
+                <endpoint>GET /api/v2/admin/dashboard</endpoint>
                 <response>
                     <active_reservations>활성 예약 수</active_reservations>
                     <pending_reports>대기 중인 고장 신고 수</pending_reports>
@@ -840,24 +934,50 @@
                 </response>
             </dashboard>
 
-            <machines>
-                <endpoint>GET /api/admin/machines</endpoint>
+            <machines implemented="true">
+                <endpoint implemented="true">GET /api/v2/admin/machines</endpoint>
                 <params>
-                    <filter>기기명</filter>
-                    <filter>기기 유형</filter>
+                    <filter>기기명 (부분 검색)</filter>
+                    <filter>기기 유형 (WASHER/DRYER)</filter>
+                    <filter>층</filter>
+                    <filter>기기 상태 (NORMAL/MALFUNCTION)</filter>
+                    <pagination>Pageable (page, size, sort)</pagination>
                 </params>
-                <endpoint>PUT /api/admin/machines/{id}/status</endpoint>
-                <description>기기 상태 변경 (정상/고장)</description>
+                <endpoint implemented="true">PUT /api/v2/admin/machines/{id}/status</endpoint>
+                <description>기기 상태 변경 (NORMAL/MALFUNCTION)</description>
+                <response>
+                    <field>기기 ID</field>
+                    <field>기기명</field>
+                    <field>상태</field>
+                    <field>가용성</field>
+                </response>
             </machines>
 
-            <reservations>
-                <endpoint>GET /api/admin/reservations</endpoint>
+            <reservations implemented="true">
+                <endpoint implemented="true">GET /api/v2/admin/reservations</endpoint>
                 <params>
-                    <filter>기기명</filter>
-                    <filter>기기 유형</filter>
+                    <filter>사용자 이름 (부분 검색)</filter>
+                    <filter>기기명 (부분 검색)</filter>
+                    <filter>예약 상태 (RESERVED/CONFIRMED/RUNNING/COMPLETED/CANCELLED)</filter>
+                    <filter>시작일</filter>
+                    <filter>종료일</filter>
+                    <pagination>Pageable (page, size, sort)</pagination>
                 </params>
-                <endpoint>DELETE /api/admin/reservations/{id}</endpoint>
-                <description>강제 종료</description>
+                <response>
+                    <field>예약 목록</field>
+                    <field>총 예약 개수</field>
+                    <field>총 페이지 수</field>
+                    <field>현재 페이지 번호</field>
+                </response>
+                <endpoint implemented="true">DELETE /api/v2/admin/reservations/{id}</endpoint>
+                <description>예약 강제 취소 (패널티 없음)</description>
+                <response>
+                    <field>예약 ID</field>
+                    <field>사용자 이름</field>
+                    <field>기기명</field>
+                    <field>취소 시각</field>
+                    <field>패널티 부과 여부 (false)</field>
+                </response>
             </reservations>
 
             <malfunction_reports implemented="true">
@@ -866,36 +986,83 @@
                 <description>신고 상태 변경</description>
             </malfunction_reports>
 
-            <users implemented="partial">
+            <users implemented="true">
                 <endpoint implemented="true">GET /api/v2/admin/users</endpoint>
                 <params>
-                    <filter>이름</filter>
+                    <filter>이름 (부분 검색)</filter>
                     <filter>호실</filter>
                     <filter>학년</filter>
                     <filter>층</filter>
                 </params>
-                <endpoint>PUT /api/admin/users/{id}</endpoint>
-                <description>인원 정보 수정</description>
-                <endpoint>DELETE /api/admin/users/{id}</endpoint>
-                <description>인원 제거</description>
+                <response>
+                    <field>사용자 목록</field>
+                    <field>총 사용자 수</field>
+                </response>
+                <endpoint implemented="true">PUT /api/v2/admin/users/{id}</endpoint>
+                <description>사용자 정보 수정 (호실, 학년, 층)</description>
+                <request>
+                    <field>roomNumber (필수)</field>
+                    <field>grade (필수)</field>
+                    <field>floor (필수)</field>
+                </request>
+                <response>
+                    <field>사용자 ID</field>
+                    <field>이름</field>
+                    <field>학번</field>
+                    <field>호실</field>
+                    <field>학년</field>
+                    <field>층</field>
+                    <field>패널티 횟수</field>
+                </response>
+                <endpoint implemented="true">DELETE /api/v2/admin/users/{id}</endpoint>
+                <description>사용자 계정 삭제 (Hard Delete)</description>
+                <validation>활성 예약이 있는 사용자는 삭제 불가</validation>
+                <endpoint implemented="true">GET /api/v2/admin/users/{id}</endpoint>
+                <description>사용자 상세 정보 조회</description>
+                <response>
+                    <field>사용자 ID</field>
+                    <field>이름</field>
+                    <field>학번</field>
+                    <field>호실</field>
+                    <field>학년</field>
+                    <field>층</field>
+                    <field>패널티 횟수</field>
+                </response>
             </users>
         </admin_api>
 
         <user_api>
-            <machines>
-                <endpoint>GET /api/machines/status</endpoint>
-                <description>현재 모든 기기 상태 조회</description>
+            <machines implemented="true">
+                <endpoint>GET /api/v2/machines/status</endpoint>
+                <description>현재 모든 기기 상태 조회 (SmartThings API 통합)</description>
+                <response>
+                    <field>기기 목록 (기기명, 타입, 층, 위치, 상태, 가용성)</field>
+                    <field>예약 정보 (예약자 호실, 남은 시간)</field>
+                    <field>완료 예정 시간</field>
+                </response>
             </machines>
 
-            <reservations implemented="partial">
+            <reservations implemented="true">
                 <endpoint implemented="true">POST /api/v2/reservations</endpoint>
                 <description>예약 생성</description>
-                <endpoint>PUT /api/reservations/{id}/confirm</endpoint>
+                <request>
+                    <field>machineId (기기 ID)</field>
+                    <field>startTime (시작 시간)</field>
+                </request>
+                <endpoint implemented="true">PUT /api/v2/reservations/{id}/confirm</endpoint>
                 <description>예약 확인 (시작)</description>
+                <note>2분 내 기계 시작 필요</note>
                 <endpoint implemented="true">DELETE /api/v2/reservations/{id}</endpoint>
-                <description>예약 취소</description>
+                <description>예약 취소 (10분 패널티)</description>
                 <endpoint implemented="true">GET /api/v2/reservations/history</endpoint>
-                <description>예약 히스토리</description>
+                <description>예약 히스토리 (페이지네이션 지원)</description>
+                <params>
+                    <filter>상태 (status)</filter>
+                    <filter>시작일 (startDate)</filter>
+                    <filter>종료일 (endDate)</filter>
+                    <filter>기기 타입 (machineType)</filter>
+                    <pagination>Pageable</pagination>
+                </params>
                 <endpoint implemented="true">GET /api/v2/reservations/active</endpoint>
                 <description>내 활성 예약 조회</description>
                 <endpoint implemented="true">GET /api/v2/reservations/{id}</endpoint>
@@ -910,11 +1077,18 @@
                 </body>
             </malfunction_reports>
 
-            <notifications>
-                <endpoint>GET /api/notifications</endpoint>
-                <description>사용자 알림 목록</description>
-                <endpoint>PUT /api/notifications/{id}/read</endpoint>
+            <notifications implemented="false" note="엔티티는 구현되었으나 API 미구현">
+                <endpoint implemented="false">GET /api/notifications</endpoint>
+                <description>사용자 알림 목록 조회</description>
+                <note>미구현 - Controller 없음</note>
+                <endpoint implemented="false">PUT /api/notifications/{id}/read</endpoint>
                 <description>알림 읽음 처리</description>
+                <note>미구현 - Controller 없음</note>
+                <data_layer>
+                    <entity>Notification (완전 구현)</entity>
+                    <repository>NotificationRepository (쿼리 메서드 구현)</repository>
+                    <service>SendCompletionNotificationServiceImpl (저장 로직만 구현)</service>
+                </data_layer>
             </notifications>
         </user_api>
     </api_endpoints_hints>
