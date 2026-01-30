@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.machine.service.impl;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,11 +21,18 @@ public class QueryAllMachinesServiceImpl implements QueryAllMachinesService {
 
     @Transactional(readOnly = true)
     @Override
-    public MachineListResDto execute(String name, MachineType type, Integer floor, MachineStatus status) {
-        final var machines = machineRepository.findAllWithFilters(name, type, floor, status);
-        final var machineDtos = machines.stream().map(this::toMachineResDto).toList();
+    public MachineListResDto execute(String name,
+            MachineType type,
+            Integer floor,
+            MachineStatus status,
+            Pageable pageable) {
+        final var machinesPage = machineRepository.findAllWithFilters(name, type, floor, status, pageable);
+        final var machineDtos = machinesPage.getContent().stream().map(this::toMachineResDto).toList();
 
-        return new MachineListResDto(machineDtos, machineDtos.size());
+        return new MachineListResDto(machineDtos,
+                machinesPage.getTotalElements(),
+                machinesPage.getTotalPages(),
+                machinesPage.getNumber());
     }
 
     private MachineResDto toMachineResDto(Machine machine) {

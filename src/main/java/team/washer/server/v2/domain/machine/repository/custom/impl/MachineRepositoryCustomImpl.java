@@ -1,7 +1,8 @@
 package team.washer.server.v2.domain.machine.repository.custom.impl;
 
-import java.util.List;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.util.StringUtils;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -20,12 +21,24 @@ public class MachineRepositoryCustomImpl implements MachineRepositoryCustom {
     private final JPAQueryFactory queryFactory;
 
     @Override
-    public List<Machine> findAllWithFilters(String name, MachineType type, Integer floor, MachineStatus status) {
+    public Page<Machine> findAllWithFilters(String name,
+            MachineType type,
+            Integer floor,
+            MachineStatus status,
+            Pageable pageable) {
         final var machine = QMachine.machine;
 
-        return queryFactory.selectFrom(machine)
+        final var content = queryFactory.selectFrom(machine)
                 .where(nameContains(name), typeEquals(type), floorEquals(floor), statusEquals(status))
-                .orderBy(machine.floor.asc(), machine.type.asc(), machine.number.asc()).fetch();
+                .orderBy(machine.floor.asc(), machine.type.asc(), machine.number.asc()).offset(pageable.getOffset())
+                .limit(pageable.getPageSize()).fetch();
+
+        final var total = queryFactory.select(machine.count()).from(machine)
+                .where(nameContains(name), typeEquals(type), floorEquals(floor), statusEquals(status)).fetchOne();
+
+        final var count = total != null ? total : 0L;
+
+        return new PageImpl<>(content, pageable, count);
     }
 
     private BooleanExpression nameContains(String name) {

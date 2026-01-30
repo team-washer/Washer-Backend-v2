@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.machine.controller;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,13 +29,14 @@ public class AdminMachineController {
     private final UpdateMachineStatusService updateMachineStatusService;
 
     @GetMapping
-    @Operation(summary = "전체 기기 조회", description = "필터링 옵션으로 기기 목록을 조회합니다")
+    @Operation(summary = "전체 기기 조회", description = "필터링 옵션으로 기기 목록을 조회합니다 (페이지네이션 지원)")
     public MachineListResDto getMachines(
             @Parameter(description = "기기명 (부분 검색)") @RequestParam(required = false) String name,
             @Parameter(description = "기기 유형") @RequestParam(required = false) MachineType type,
             @Parameter(description = "층") @RequestParam(required = false) Integer floor,
-            @Parameter(description = "기기 상태") @RequestParam(required = false) MachineStatus status) {
-        return queryAllMachinesService.execute(name, type, floor, status);
+            @Parameter(description = "기기 상태") @RequestParam(required = false) MachineStatus status,
+            Pageable pageable) {
+        return queryAllMachinesService.execute(name, type, floor, status, pageable);
     }
 
     @PutMapping("/{id}/status")
