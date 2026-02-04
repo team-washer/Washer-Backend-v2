@@ -9,7 +9,7 @@ public record SmartThingsEnvironment(String apiUrl, String oauthUrl, String clie
             apiUrl = "https://api.smartthings.com";
         }
         if (oauthUrl == null || oauthUrl.isBlank()) {
-            oauthUrl = "https://auth-global.api.smartthings.com/oauth/token";
+            oauthUrl = "https://api.smartthings.com/oauth/token";
         }
     }
 }
