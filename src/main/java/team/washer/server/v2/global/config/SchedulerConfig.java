@@ -16,11 +16,11 @@ public class SchedulerConfig implements SchedulingConfigurer {
 
     @Override
     public void configureTasks(final ScheduledTaskRegistrar taskRegistrar) {
-        taskRegistrar.setScheduler(taskScheduler());
+        taskRegistrar.setScheduler(customTaskScheduler());
     }
 
-    @Bean(name = "taskScheduler")
-    public Executor taskScheduler() {
+    @Bean(name = "customTaskScheduler")
+    public Executor customTaskScheduler() {
         final var scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(5);
         scheduler.setThreadNamePrefix("Scheduler-");
