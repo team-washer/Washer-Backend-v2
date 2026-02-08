@@ -28,29 +28,26 @@ public class SwaggerConfig {
     }
 
     private void wrapResponseWithCommonApiResDto(final Operation operation) {
-        final var response = operation.getResponses().get("200");
-        if (response == null) {
-            return;
-        }
+        operation.getResponses().forEach((statusCode, response) -> {
+            if (statusCode.startsWith("2")) {
+                if (response == null || response.getContent() == null) {
+                    return;
+                }
 
-        final var content = response.getContent();
-        if (content == null) {
-            return;
-        }
-
-        content.keySet().forEach(mediaTypeKey -> {
-            final var mediaType = content.get(mediaTypeKey);
-            final var originalSchema = mediaType.getSchema();
-            mediaType.schema(createWrappedSchema(originalSchema));
+                response.getContent().forEach((mediaTypeKey, mediaType) -> {
+                    final var originalSchema = mediaType.getSchema();
+                    mediaType.schema(createWrappedSchema(originalSchema));
+                });
+            }
         });
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private Schema<?> createWrappedSchema(final Schema<?> originalSchema) {
         final var wrapperSchema = new Schema<>();
-        wrapperSchema.addProperty("status", new Schema<>().type("string").example("OK"));
-        wrapperSchema.addProperty("code", new Schema<>().type("integer").example(200));
-        wrapperSchema.addProperty("message", new Schema<>().type("string").example("정상 처리되었습니다."));
+        wrapperSchema.addProperty("status", new Schema<String>().type("string").example("OK"));
+        wrapperSchema.addProperty("code", new Schema<Integer>().type("integer").format("int32").example(200));
+        wrapperSchema.addProperty("message", new Schema<String>().type("string").example("정상 처리되었습니다."));
         if (originalSchema != null) {
             wrapperSchema.addProperty("data", originalSchema);
         }
