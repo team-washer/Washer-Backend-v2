@@ -1,6 +1,5 @@
 package team.washer.server.v2.domain.user.controller;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,6 +17,7 @@ import team.washer.server.v2.domain.user.service.DeleteUserService;
 import team.washer.server.v2.domain.user.service.QueryUserByIdService;
 import team.washer.server.v2.domain.user.service.SearchUserService;
 import team.washer.server.v2.domain.user.service.UpdateUserInfoService;
+import team.washer.server.v2.global.common.response.data.response.CommonApiResDto;
 
 @RestController
 @RequestMapping("/api/v2/admin/users")
@@ -54,9 +54,9 @@ public class AdminUserController {
     }
 
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "사용자 삭제", description = "사용자를 삭제합니다 (활성 예약이 없는 경우에만 가능)")
-    public void deleteUser(@Parameter(description = "사용자 ID") @PathVariable @NotNull Long id) {
+    public CommonApiResDto deleteUser(@Parameter(description = "사용자 ID") @PathVariable @NotNull Long id) {
         deleteUserService.execute(id);
+        return CommonApiResDto.success("사용자가 삭제되었습니다.");
     }
 }
