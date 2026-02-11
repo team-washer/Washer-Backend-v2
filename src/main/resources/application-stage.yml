@@ -37,6 +37,8 @@ server:
 third-party:
   discord:
     webhook-url: ${THIRD_PARTY_DISCORD_WEBHOOK_URL}
+  datagsm:
+    client-secret: ${THIRD_PARTY_DATAGSM_CLIENT_SECRET}
 springdoc:
   swagger-ui:
     config-url: "/v3/api-docs/swagger-config"

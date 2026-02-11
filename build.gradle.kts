@@ -104,6 +104,9 @@ dependencies {
 
     // Documentation
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1")
+
+    //DataGSM Oauth SDK
+    implementation("com.github.themoment-team:datagsm-oauth-sdk-java:1.0.0-M2")
 }
 
 tasks.withType<Test> {

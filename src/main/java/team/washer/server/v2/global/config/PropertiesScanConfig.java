@@ -4,8 +4,9 @@ import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Configuration;
 
 import team.washer.server.v2.global.security.data.CorsEnvironment;
+import team.washer.server.v2.global.thirdparty.datagsm.config.DataGsmEnvironment;
 
 @Configuration
-@ConfigurationPropertiesScan(basePackageClasses = CorsEnvironment.class)
+@ConfigurationPropertiesScan(basePackageClasses = {CorsEnvironment.class, DataGsmEnvironment.class})
 public class PropertiesScanConfig {
 }
