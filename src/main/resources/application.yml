@@ -32,6 +32,10 @@ spring:
 server:
   port: 8080
   shutdown: immediate
+jwt:
+  secret: ${JWT_SECRET:your-256-bit-secret-key-change-this-in-production}
+  access-token-expiration: 3600
+  refresh-token-expiration: 2592000
 third-party:
   discord:
     webhook-url: ${DISCORD_WEBHOOK_URL:https://discord.com/api/webhooks/your-webhook-url}
