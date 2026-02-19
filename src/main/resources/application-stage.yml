@@ -39,6 +39,11 @@ third-party:
     webhook-url: ${THIRD_PARTY_DISCORD_WEBHOOK_URL}
   datagsm:
     client-secret: ${THIRD_PARTY_DATAGSM_CLIENT_SECRET}
+  smartthings:
+    api-url: ${THIRD_PARTY_SMARTTHINGS_API_URL:https://api.smartthings.com}
+    oauth-url: ${THIRD_PARTY_SMARTTHINGS_OAUTH_URL:https://api.smartthings.com/oauth/token}
+    client-id: ${THIRD_PARTY_SMARTTHINGS_CLIENT_ID}
+    client-secret: ${THIRD_PARTY_SMARTTHINGS_CLIENT_SECRET}
 springdoc:
   swagger-ui:
     config-url: "/v3/api-docs/swagger-config"

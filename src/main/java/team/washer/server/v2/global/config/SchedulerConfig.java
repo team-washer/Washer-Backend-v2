@@ -1,10 +1,10 @@
 package team.washer.server.v2.global.config;
 
-import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.SchedulingConfigurer;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
@@ -16,11 +16,11 @@ public class SchedulerConfig implements SchedulingConfigurer {
 
     @Override
     public void configureTasks(final ScheduledTaskRegistrar taskRegistrar) {
-        taskRegistrar.setScheduler(taskScheduler());
+        taskRegistrar.setScheduler(customTaskScheduler());
     }
 
-    @Bean(name = "taskScheduler")
-    public Executor taskScheduler() {
+    @Bean(name = "customTaskScheduler")
+    public TaskScheduler customTaskScheduler() {
         final var scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(5);
         scheduler.setThreadNamePrefix("Scheduler-");

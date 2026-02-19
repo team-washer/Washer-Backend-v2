@@ -1,6 +1,5 @@
 package team.washer.server.v2.domain.malfunction.controller;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,7 +23,6 @@ public class MalfunctionReportController {
     private final CreateMalfunctionReportService createMalfunctionReportService;
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "고장 신고 생성", description = "기기 고장을 신고합니다.")
     public MalfunctionReportResDto createMalfunctionReport(
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,

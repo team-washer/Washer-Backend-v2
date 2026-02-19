@@ -6,7 +6,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,6 +22,7 @@ import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryP
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.*;
+import team.washer.server.v2.global.common.response.data.response.CommonApiResDto;
 
 @RestController
 @RequestMapping("/api/v2/reservations")
@@ -39,7 +39,6 @@ public class ReservationController {
     private final QueryReservationService queryReservationService;
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "예약 생성", description = "세탁기/건조기 예약을 생성합니다. 시간 제한과 패널티 규칙이 적용됩니다.")
     public ReservationResDto createReservation(
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
@@ -49,10 +48,11 @@ public class ReservationController {
 
     @PutMapping("/{id}/confirm")
     @Operation(summary = "예약 확인", description = "예약을 확인합니다 (RESERVED → CONFIRMED). 사용자가 세탁기/건조기 앞에서 시작 버튼을 누를 때 호출됩니다.")
-    public void confirmReservation(
+    public CommonApiResDto confirmReservation(
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
             @Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
         confirmReservationService.execute(id, userId);
+        return CommonApiResDto.success("예약이 확인되었습니다.");
     }
 
     @DeleteMapping("/{id}")

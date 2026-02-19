@@ -19,7 +19,8 @@ import team.washer.server.v2.global.common.response.data.response.CommonApiResDt
 @RestControllerAdvice
 public class ApiResponseWrapper implements ResponseBodyAdvice<Object> {
 
-    private static final String[] NOT_WRAPPING_URL = {"/api-docs/**"};
+    private static final String[] NOT_WRAPPING_URL = {"/api-docs/**", "/v3/api-docs/**", "/swagger-ui/**",
+            "/swagger-resources/**"};
 
     private final AntPathMatcher matcher = new AntPathMatcher();
 
