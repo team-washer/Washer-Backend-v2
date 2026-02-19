@@ -84,7 +84,7 @@ class RefreshTokenServiceImplTest {
                 RefreshTokenEntity refreshTokenEntity = createRefreshTokenEntity(userId, oldRefreshToken);
                 TokenResDto newTokens = new TokenResDto("new.access.token", 3600L, "new.refresh.token");
 
-                given(jwtTokenProvider.parseToken(oldRefreshToken)).willReturn(payload);
+                given(jwtTokenProvider.parseRefreshToken(oldRefreshToken)).willReturn(payload);
                 given(refreshTokenRedisRepository.findByToken(oldRefreshToken))
                         .willReturn(Optional.of(refreshTokenEntity));
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
@@ -99,7 +99,7 @@ class RefreshTokenServiceImplTest {
                 assertThat(result.refreshToken()).isEqualTo("new.refresh.token");
                 assertThat(result.expiresIn()).isEqualTo(3600L);
 
-                then(jwtTokenProvider).should(times(1)).parseToken(oldRefreshToken);
+                then(jwtTokenProvider).should(times(1)).parseRefreshToken(oldRefreshToken);
                 then(refreshTokenRedisRepository).should(times(1)).findByToken(oldRefreshToken);
                 then(userRepository).should(times(1)).findById(userId);
                 then(generateTokenService).should(times(1)).execute(userId, role);
@@ -117,7 +117,7 @@ class RefreshTokenServiceImplTest {
                 String expiredToken = "expired.refresh.token";
                 RefreshTokenReqDto reqDto = createRefreshTokenReqDto(expiredToken);
 
-                given(jwtTokenProvider.parseToken(expiredToken))
+                given(jwtTokenProvider.parseRefreshToken(expiredToken))
                         .willThrow(new ExpectedException("JWT 토큰이 만료되었습니다.", HttpStatus.UNAUTHORIZED));
 
                 // When & Then
@@ -127,7 +127,7 @@ class RefreshTokenServiceImplTest {
                             assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
                         });
 
-                then(jwtTokenProvider).should(times(1)).parseToken(expiredToken);
+                then(jwtTokenProvider).should(times(1)).parseRefreshToken(expiredToken);
                 then(refreshTokenRedisRepository).shouldHaveNoInteractions();
                 then(userRepository).shouldHaveNoInteractions();
                 then(generateTokenService).shouldHaveNoInteractions();
@@ -147,7 +147,7 @@ class RefreshTokenServiceImplTest {
                 RefreshTokenReqDto reqDto = createRefreshTokenReqDto(unknownToken);
                 JwtPayload payload = createJwtPayload(userId, UserRole.USER);
 
-                given(jwtTokenProvider.parseToken(unknownToken)).willReturn(payload);
+                given(jwtTokenProvider.parseRefreshToken(unknownToken)).willReturn(payload);
                 given(refreshTokenRedisRepository.findByToken(unknownToken)).willReturn(Optional.empty());
 
                 // When & Then
@@ -157,7 +157,7 @@ class RefreshTokenServiceImplTest {
                             assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
                         });
 
-                then(jwtTokenProvider).should(times(1)).parseToken(unknownToken);
+                then(jwtTokenProvider).should(times(1)).parseRefreshToken(unknownToken);
                 then(refreshTokenRedisRepository).should(times(1)).findByToken(unknownToken);
                 then(userRepository).shouldHaveNoInteractions();
                 then(generateTokenService).shouldHaveNoInteractions();
@@ -178,7 +178,7 @@ class RefreshTokenServiceImplTest {
                 JwtPayload payload = createJwtPayload(deletedUserId, UserRole.USER);
                 RefreshTokenEntity refreshTokenEntity = createRefreshTokenEntity(deletedUserId, validToken);
 
-                given(jwtTokenProvider.parseToken(validToken)).willReturn(payload);
+                given(jwtTokenProvider.parseRefreshToken(validToken)).willReturn(payload);
                 given(refreshTokenRedisRepository.findByToken(validToken)).willReturn(Optional.of(refreshTokenEntity));
                 given(userRepository.findById(deletedUserId)).willReturn(Optional.empty());
 
@@ -189,7 +189,7 @@ class RefreshTokenServiceImplTest {
                             assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
                         });
 
-                then(jwtTokenProvider).should(times(1)).parseToken(validToken);
+                then(jwtTokenProvider).should(times(1)).parseRefreshToken(validToken);
                 then(refreshTokenRedisRepository).should(times(1)).findByToken(validToken);
                 then(userRepository).should(times(1)).findById(deletedUserId);
                 then(generateTokenService).shouldHaveNoInteractions();

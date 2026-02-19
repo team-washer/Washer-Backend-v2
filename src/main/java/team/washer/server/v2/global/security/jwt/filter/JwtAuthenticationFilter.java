@@ -3,6 +3,7 @@ package team.washer.server.v2.global.security.jwt.filter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -31,8 +32,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(final HttpServletRequest request,
-            final HttpServletResponse response,
-            final FilterChain filterChain) throws ServletException, IOException {
+            final @NonNull HttpServletResponse response,
+            final @NonNull FilterChain filterChain) throws ServletException, IOException {
 
         final var authorizationHeader = request.getHeader(AUTHORIZATION_HEADER);
 
@@ -44,7 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         final var token = authorizationHeader.substring(BEARER_PREFIX.length());
 
         try {
-            final var payload = jwtTokenProvider.parseToken(token);
+            final var payload = jwtTokenProvider.parseAccessToken(token);
 
             final var authorities = payload.role() != null
                     ? java.util.List.<org.springframework.security.core.GrantedAuthority>of(
