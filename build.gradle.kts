@@ -104,6 +104,9 @@ dependencies {
 
     // Documentation
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1")
+
+    // the-sdk
+    implementation("com.github.themoment-team:the-sdk:1.2")
 }
 
 tasks.withType<Test> {
