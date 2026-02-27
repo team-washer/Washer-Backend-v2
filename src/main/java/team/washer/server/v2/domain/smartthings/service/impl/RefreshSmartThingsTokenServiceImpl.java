@@ -8,11 +8,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsTokenExchangeResDto;
 import team.washer.server.v2.domain.smartthings.entity.SmartThingsToken;
 import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepository;
 import team.washer.server.v2.domain.smartthings.service.RefreshSmartThingsTokenService;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnvironment;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsOAuthClient;
 

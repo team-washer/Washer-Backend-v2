@@ -7,11 +7,11 @@ import org.springframework.http.HttpStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.malfunction.enums.MalfunctionReportStatus;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.global.common.entity.BaseEntity;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Entity
 @Table(name = "malfunction_reports", indexes = {@Index(name = "idx_status", columnList = "status"),
