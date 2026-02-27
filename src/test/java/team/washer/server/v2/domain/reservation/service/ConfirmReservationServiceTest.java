@@ -15,11 +15,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.ConfirmReservationServiceImpl;
 import team.washer.server.v2.domain.user.entity.User;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @ExtendWith(MockitoExtension.class)
 class ConfirmReservationServiceTest {
