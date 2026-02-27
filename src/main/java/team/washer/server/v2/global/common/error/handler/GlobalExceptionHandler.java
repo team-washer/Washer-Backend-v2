@@ -29,7 +29,7 @@ public class GlobalExceptionHandler {
     private DiscordErrorNotificationService discordErrorNotificationService;
 
     @ExceptionHandler(ExpectedException.class)
-    private CommonApiResponse expectedException(ExpectedException ex) {
+    public CommonApiResponse expectedException(ExpectedException ex) {
         log.warn("ExpectedException : {} ", ex.getMessage());
         log.trace("ExpectedException 세부사항 : ", ex);
         return CommonApiResponse.error(ex.getMessage(), ex.getStatusCode());
