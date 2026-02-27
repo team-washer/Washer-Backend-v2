@@ -52,7 +52,7 @@ public class ReservationController {
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
             @Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
         confirmReservationService.execute(id, userId);
-        return CommonApiResponse.Companion.success("예약이 확인되었습니다.");
+        return CommonApiResponse.success("예약이 확인되었습니다.");
     }
 
     @DeleteMapping("/{id}")

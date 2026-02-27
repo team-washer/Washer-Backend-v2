@@ -11,7 +11,7 @@ import team.themoment.sdk.response.CommonApiResponse;
 public class HealthController {
     @GetMapping
     public CommonApiResponse healthCheck() {
-        return CommonApiResponse.Companion.success("OK");
+        return CommonApiResponse.success("OK");
     }
 
     @GetMapping("/error")
@@ -21,6 +21,6 @@ public class HealthController {
 
     @GetMapping("/create")
     public CommonApiResponse createCheck() {
-        return CommonApiResponse.Companion.created("CREATED");
+        return CommonApiResponse.created("CREATED");
     }
 }

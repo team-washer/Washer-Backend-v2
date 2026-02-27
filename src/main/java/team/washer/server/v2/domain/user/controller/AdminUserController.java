@@ -57,6 +57,6 @@ public class AdminUserController {
     @Operation(summary = "사용자 삭제", description = "사용자를 삭제합니다 (활성 예약이 없는 경우에만 가능)")
     public CommonApiResponse deleteUser(@Parameter(description = "사용자 ID") @PathVariable @NotNull Long id) {
         deleteUserService.execute(id);
-        return CommonApiResponse.Companion.success("사용자가 삭제되었습니다.");
+        return CommonApiResponse.success("사용자가 삭제되었습니다.");
     }
 }

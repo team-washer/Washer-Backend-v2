@@ -32,7 +32,7 @@ public class GlobalExceptionHandler {
     private CommonApiResponse expectedException(ExpectedException ex) {
         log.warn("ExpectedException : {} ", ex.getMessage());
         log.trace("ExpectedException 세부사항 : ", ex);
-        return CommonApiResponse.Companion.error(ex.getMessage(), ex.getStatusCode());
+        return CommonApiResponse.error(ex.getMessage(), ex.getStatusCode());
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
@@ -46,7 +46,7 @@ public class GlobalExceptionHandler {
         } else {
             errorMessage = ex.getMessage();
         }
-        return CommonApiResponse.Companion.error(errorMessage, HttpStatus.BAD_REQUEST);
+        return CommonApiResponse.error(errorMessage, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(RuntimeException.class)
@@ -56,7 +56,7 @@ public class GlobalExceptionHandler {
             discordErrorNotificationService.notifyError(ex);
         }
 
-        return CommonApiResponse.Companion.error("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
+        return CommonApiResponse.error("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(Exception.class)
@@ -67,21 +67,21 @@ public class GlobalExceptionHandler {
             discordErrorNotificationService.notifyError(ex);
         }
 
-        return CommonApiResponse.Companion.error("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
+        return CommonApiResponse.error("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
     public CommonApiResponse noHandlerFoundException(NoHandlerFoundException ex) {
         log.warn("요청한 리소스를 찾을 수 없음 : {}", ex.getMessage());
         log.trace("요청한 리소스를 찾을 수 없음 세부사항 : ", ex);
-        return CommonApiResponse.Companion.error(ex.getMessage(), HttpStatus.NOT_FOUND);
+        return CommonApiResponse.error(ex.getMessage(), HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public CommonApiResponse maxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
         log.warn("파일 크기 초과 : {}", ex.getMessage());
         log.trace("파일 크기 초과 세부사항 : ", ex);
-        return CommonApiResponse.Companion.error("파일 크기가 허용된 최대 크기를 초과했습니다.", HttpStatus.CONTENT_TOO_LARGE);
+        return CommonApiResponse.error("파일 크기가 허용된 최대 크기를 초과했습니다.", HttpStatus.CONTENT_TOO_LARGE);
     }
 
     private static String methodArgumentNotValidExceptionToJson(MethodArgumentNotValidException ex) {

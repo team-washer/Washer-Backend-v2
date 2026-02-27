@@ -43,7 +43,7 @@ public class AdminReservationController {
             @Parameter(description = "활성화 요청 DTO") @RequestBody @Valid SundayActivationReqDto requestDto) {
 
         activateSundayReservationService.execute(adminId, requestDto.notes());
-        return CommonApiResponse.Companion.success("일요일 예약이 활성화되었습니다.");
+        return CommonApiResponse.success("일요일 예약이 활성화되었습니다.");
     }
 
     @PostMapping("/sunday/deactivate")
@@ -53,7 +53,7 @@ public class AdminReservationController {
             @Parameter(description = "비활성화 요청 DTO") @RequestBody @Valid SundayActivationReqDto requestDto) {
 
         deactivateSundayReservationService.execute(adminId, requestDto.notes());
-        return CommonApiResponse.Companion.success("일요일 예약이 비활성화되었습니다.");
+        return CommonApiResponse.success("일요일 예약이 비활성화되었습니다.");
     }
 
     @GetMapping("/sunday/status")
@@ -76,7 +76,7 @@ public class AdminReservationController {
             @Parameter(description = "사용자 ID") @PathVariable @NotNull Long userId) {
 
         clearUserPenaltyService.execute(adminId, userId);
-        return CommonApiResponse.Companion.success("사용자 패널티가 해제되었습니다.");
+        return CommonApiResponse.success("사용자 패널티가 해제되었습니다.");
     }
 
     @GetMapping
