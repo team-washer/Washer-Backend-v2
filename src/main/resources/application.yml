@@ -38,6 +38,8 @@ third-party:
   smartthings:
     api-url: ${SMARTTHINGS_API_URL:https://api.smartthings.com}
     oauth-url: ${SMARTTHINGS_OAUTH_URL:https://api.smartthings.com/oauth/token}
+    authorize-url: ${SMARTTHINGS_AUTHORIZE_URL:https://api.smartthings.com/oauth/authorize}
+    redirect-uri: ${SMARTTHINGS_REDIRECT_URI:http://localhost:8080/api/v2/admin/smartthings/oauth/callback}
     client-id: ${SMARTTHINGS_CLIENT_ID:your-client-id}
     client-secret: ${SMARTTHINGS_CLIENT_SECRET:your-client-secret}
 springdoc:
