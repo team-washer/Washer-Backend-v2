@@ -40,6 +40,8 @@ third-party:
   smartthings:
     api-url: ${THIRD_PARTY_SMARTTHINGS_API_URL:https://api.smartthings.com}
     oauth-url: ${THIRD_PARTY_SMARTTHINGS_OAUTH_URL:https://api.smartthings.com/oauth/token}
+    authorize-url: ${THIRD_PARTY_SMARTTHINGS_AUTHORIZE_URL:https://api.smartthings.com/oauth/authorize}
+    redirect-uri: ${THIRD_PARTY_SMARTTHINGS_REDIRECT_URI}
     client-id: ${THIRD_PARTY_SMARTTHINGS_CLIENT_ID}
     client-secret: ${THIRD_PARTY_SMARTTHINGS_CLIENT_SECRET}
 springdoc:
