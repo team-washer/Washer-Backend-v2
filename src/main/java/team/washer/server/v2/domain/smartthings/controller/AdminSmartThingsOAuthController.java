@@ -9,8 +9,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.smartthings.service.ExchangeSmartThingsTokenService;
-import team.washer.server.v2.global.common.response.data.response.CommonApiResDto;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnvironment;
 
 /**
@@ -38,11 +38,10 @@ public class AdminSmartThingsOAuthController {
     @GetMapping("/authorize")
     @Operation(summary = "SmartThings 인증 URL 조회", description = "SmartThings OAuth 인증을 시작하기 위한 인증 URL을 반환합니다. "
             + "반환된 URL을 브라우저에서 열어 SmartThings 계정으로 인증을 진행하세요.")
-    public CommonApiResDto<String> getAuthorizationUrl() {
-        var authUrl = smartThingsEnvironment.authorizeUrl() + "?response_type=code" + "&client_id="
+    public String getAuthorizationUrl() {
+        return smartThingsEnvironment.authorizeUrl() + "?response_type=code" + "&client_id="
                 + smartThingsEnvironment.clientId() + "&redirect_uri=" + smartThingsEnvironment.redirectUri()
                 + "&scope=" + SCOPE;
-        return CommonApiResDto.success("SmartThings 인증 URL 조회에 성공했습니다.", authUrl);
     }
 
     /**
@@ -55,9 +54,9 @@ public class AdminSmartThingsOAuthController {
     @GetMapping("/callback")
     @Operation(summary = "SmartThings OAuth 콜백 처리", description = "SmartThings 인증 완료 후 리다이렉트되는 콜백 엔드포인트입니다. "
             + "인증 코드를 액세스 토큰으로 교환하고 DB에 저장합니다.")
-    public CommonApiResDto<?> handleCallback(
+    public CommonApiResponse handleCallback(
             @Parameter(description = "SmartThings 인증 코드", required = true) @RequestParam String code) {
         exchangeSmartThingsTokenService.execute(code, smartThingsEnvironment.redirectUri());
-        return CommonApiResDto.success("SmartThings 토큰 교환에 성공했습니다.");
+        return CommonApiResponse.success("SmartThings 토큰 교환에 성공했습니다.");
     }
 }
