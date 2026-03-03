@@ -12,7 +12,7 @@ import feign.FeignException;
 import feign.Response;
 import feign.codec.ErrorDecoder;
 import lombok.extern.slf4j.Slf4j;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
+import team.themoment.sdk.exception.ExpectedException;
 
 @Slf4j
 public class FeignErrorDecoder implements ErrorDecoder {

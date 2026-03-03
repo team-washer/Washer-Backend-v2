@@ -5,10 +5,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.user.dto.response.UserUpdateResDto;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.UpdateUserInfoService;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Service
 @RequiredArgsConstructor

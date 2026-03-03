@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.dto.response.MachineStatusUpdateResDto;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineStatus;
@@ -14,7 +15,6 @@ import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.machine.service.UpdateMachineStatusService;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Service
 @RequiredArgsConstructor

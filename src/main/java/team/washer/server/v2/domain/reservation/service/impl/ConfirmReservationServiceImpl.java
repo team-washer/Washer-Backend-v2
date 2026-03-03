@@ -6,9 +6,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.ConfirmReservationService;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Service
 @RequiredArgsConstructor

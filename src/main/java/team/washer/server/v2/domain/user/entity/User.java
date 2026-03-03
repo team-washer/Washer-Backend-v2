@@ -12,13 +12,13 @@ import org.springframework.http.HttpStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.malfunction.entity.MalfunctionReport;
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.global.common.constants.TimeRestrictionConstants;
 import team.washer.server.v2.global.common.entity.BaseEntity;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Entity
 @Table(name = "users", indexes = {@Index(name = "idx_student_id", columnList = "student_id"),
