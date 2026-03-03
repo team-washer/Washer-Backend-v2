@@ -15,12 +15,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.impl.DeleteUserServiceImpl;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("DeleteUserServiceImpl 클래스의")

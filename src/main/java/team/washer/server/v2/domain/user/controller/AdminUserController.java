@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
+import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.user.dto.request.UpdateUserReqDto;
 import team.washer.server.v2.domain.user.dto.response.UserListResDto;
 import team.washer.server.v2.domain.user.dto.response.UserResDto;
@@ -17,7 +18,6 @@ import team.washer.server.v2.domain.user.service.DeleteUserService;
 import team.washer.server.v2.domain.user.service.QueryUserByIdService;
 import team.washer.server.v2.domain.user.service.SearchUserService;
 import team.washer.server.v2.domain.user.service.UpdateUserInfoService;
-import team.washer.server.v2.global.common.response.data.response.CommonApiResDto;
 
 @RestController
 @RequestMapping("/api/v2/admin/users")
@@ -55,8 +55,8 @@ public class AdminUserController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "사용자 삭제", description = "사용자를 삭제합니다 (활성 예약이 없는 경우에만 가능)")
-    public CommonApiResDto deleteUser(@Parameter(description = "사용자 ID") @PathVariable @NotNull Long id) {
+    public CommonApiResponse deleteUser(@Parameter(description = "사용자 ID") @PathVariable @NotNull Long id) {
         deleteUserService.execute(id);
-        return CommonApiResDto.success("사용자가 삭제되었습니다.");
+        return CommonApiResponse.success("사용자가 삭제되었습니다.");
     }
 }

@@ -14,11 +14,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.user.dto.response.UserUpdateResDto;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.impl.UpdateUserInfoServiceImpl;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("UpdateUserInfoServiceImpl 클래스의")

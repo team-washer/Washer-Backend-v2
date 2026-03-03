@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.malfunction.dto.request.CreateMalfunctionReportReqDto;
@@ -17,7 +18,6 @@ import team.washer.server.v2.domain.malfunction.repository.MalfunctionReportRepo
 import team.washer.server.v2.domain.malfunction.service.CreateMalfunctionReportService;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Slf4j
 @Service
