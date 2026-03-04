@@ -2,9 +2,9 @@ package team.washer.server.v2.global.thirdparty.smartthings.feign;
 
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsTokenExchangeResDto;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsFeignConfig;
@@ -13,8 +13,12 @@ import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsFei
 public interface SmartThingsOAuthClient {
 
     @PostMapping(consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    SmartThingsTokenExchangeResDto exchangeToken(@RequestBody MultiValueMap<String, String> formData);
+    SmartThingsTokenExchangeResDto exchangeToken(
+            @RequestHeader("Authorization") String basicAuth,
+            @RequestBody String formBody);
 
     @PostMapping(consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    SmartThingsTokenExchangeResDto refreshToken(@RequestBody MultiValueMap<String, String> formData);
+    SmartThingsTokenExchangeResDto refreshToken(
+            @RequestHeader("Authorization") String basicAuth,
+            @RequestBody String formBody);
 }

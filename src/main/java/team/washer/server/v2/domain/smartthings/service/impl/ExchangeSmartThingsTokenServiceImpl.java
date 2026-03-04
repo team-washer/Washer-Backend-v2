@@ -1,11 +1,13 @@
 package team.washer.server.v2.domain.smartthings.service.impl;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.Base64;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.LinkedMultiValueMap;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,14 +36,14 @@ public class ExchangeSmartThingsTokenServiceImpl implements ExchangeSmartThingsT
         try {
             log.info("Exchanging SmartThings authorization code for access token");
 
-            var formData = new LinkedMultiValueMap<String, String>();
-            formData.add("grant_type", GRANT_TYPE_AUTHORIZATION_CODE);
-            formData.add("client_id", smartThingsEnvironment.clientId());
-            formData.add("client_secret", smartThingsEnvironment.clientSecret());
-            formData.add("code", code);
-            formData.add("redirect_uri", redirectUri);
+            var basicAuth = "Basic " + Base64.getEncoder().encodeToString(
+                    (smartThingsEnvironment.clientId() + ":" + smartThingsEnvironment.clientSecret())
+                            .getBytes(StandardCharsets.UTF_8));
+            var formBody = "grant_type=" + GRANT_TYPE_AUTHORIZATION_CODE
+                    + "&code=" + URLEncoder.encode(code, StandardCharsets.UTF_8)
+                    + "&redirect_uri=" + URLEncoder.encode(redirectUri, StandardCharsets.UTF_8);
 
-            var response = smartThingsOAuthClient.exchangeToken(formData);
+            var response = smartThingsOAuthClient.exchangeToken(basicAuth, formBody);
 
             saveOrUpdateToken(response);
 
