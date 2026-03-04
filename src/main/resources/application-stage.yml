@@ -61,6 +61,11 @@ sdk:
       - "/v3/api-docs"
       - "/swagger-ui/**"
       - "/api/v2/admin/smartthings/oauth/authorize"
+logging:
+  level:
+    team.washer.server.v2.domain.smartthings: INFO
+    org.springframework.security: INFO
+    org.springframework.web.servlet.DispatcherServlet: DEBUG
 server:
   port: 8080
   shutdown: graceful
