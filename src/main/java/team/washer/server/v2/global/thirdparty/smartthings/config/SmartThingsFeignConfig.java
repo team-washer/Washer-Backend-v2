@@ -6,10 +6,6 @@ import org.springframework.context.annotation.Configuration;
 import feign.Logger;
 import feign.Request;
 import feign.Retryer;
-import feign.codec.Decoder;
-import feign.codec.Encoder;
-import feign.jackson.JacksonDecoder;
-import feign.jackson.JacksonEncoder;
 
 @Configuration
 public class SmartThingsFeignConfig {
@@ -31,15 +27,5 @@ public class SmartThingsFeignConfig {
     @Bean
     public Logger.Level smartThingsFeignLoggerLevel() {
         return Logger.Level.BASIC;
-    }
-
-    @Bean
-    public Encoder smartThingsEncoder() {
-        return new JacksonEncoder();
-    }
-
-    @Bean
-    public Decoder smartThingsDecoder() {
-        return new JacksonDecoder();
     }
 }
