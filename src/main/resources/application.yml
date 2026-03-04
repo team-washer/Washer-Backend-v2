@@ -64,6 +64,7 @@ sdk:
       - "/v3/api-docs/**"
       - "/v3/api-docs"
       - "/swagger-ui/**"
+      - "/api/v2/admin/smartthings/oauth/authorize"
 springdoc:
   api-docs:
     path: /v3/api-docs
