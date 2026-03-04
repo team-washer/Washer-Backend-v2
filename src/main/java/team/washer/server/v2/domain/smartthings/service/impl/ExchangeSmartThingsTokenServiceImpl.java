@@ -36,12 +36,12 @@ public class ExchangeSmartThingsTokenServiceImpl implements ExchangeSmartThingsT
         try {
             log.info("Exchanging SmartThings authorization code for access token");
 
-            var basicAuth = "Basic " + Base64.getEncoder().encodeToString(
-                    (smartThingsEnvironment.clientId() + ":" + smartThingsEnvironment.clientSecret())
+            var basicAuth = "Basic " + Base64.getEncoder()
+                    .encodeToString((smartThingsEnvironment.clientId() + ":" + smartThingsEnvironment.clientSecret())
                             .getBytes(StandardCharsets.UTF_8));
-            var formBody = "grant_type=" + GRANT_TYPE_AUTHORIZATION_CODE
-                    + "&code=" + URLEncoder.encode(code, StandardCharsets.UTF_8)
-                    + "&redirect_uri=" + URLEncoder.encode(redirectUri, StandardCharsets.UTF_8);
+            var formBody = "grant_type=" + GRANT_TYPE_AUTHORIZATION_CODE + "&code="
+                    + URLEncoder.encode(code, StandardCharsets.UTF_8) + "&redirect_uri="
+                    + URLEncoder.encode(redirectUri, StandardCharsets.UTF_8);
 
             var response = smartThingsOAuthClient.exchangeToken(basicAuth, formBody);
 

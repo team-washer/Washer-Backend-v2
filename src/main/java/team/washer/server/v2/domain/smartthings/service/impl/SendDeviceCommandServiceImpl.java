@@ -25,11 +25,10 @@ public class SendDeviceCommandServiceImpl implements SendDeviceCommandService {
     @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
     public void execute(String deviceId, SmartThingsCommandReqDto command) {
         try {
-            var token = tokenRepository.findSingletonToken()
-                    .orElseThrow(() -> {
-                        log.warn("[SmartThings] DB에 토큰이 없습니다. OAuth 인증을 먼저 완료해주세요.");
-                        return new ExpectedException("SmartThings 토큰이 존재하지 않습니다", HttpStatus.NOT_FOUND);
-                    });
+            var token = tokenRepository.findSingletonToken().orElseThrow(() -> {
+                log.warn("[SmartThings] DB에 토큰이 없습니다. OAuth 인증을 먼저 완료해주세요.");
+                return new ExpectedException("SmartThings 토큰이 존재하지 않습니다", HttpStatus.NOT_FOUND);
+            });
 
             if (!token.isValid()) {
                 log.warn("[SmartThings] 토큰이 만료됐습니다. expiresAt={}", token.getExpiresAt());

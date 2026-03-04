@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import feign.Logger;
 import feign.Request;
 import feign.Retryer;
+import feign.codec.Encoder;
 
 @Configuration
 public class SmartThingsFeignConfig {
@@ -27,5 +28,14 @@ public class SmartThingsFeignConfig {
     @Bean
     public Logger.Level smartThingsFeignLoggerLevel() {
         return Logger.Level.BASIC;
+    }
+
+    @Bean
+    public Encoder smartThingsFeignEncoder() {
+        return (object, bodyType, template) -> {
+            if (object instanceof String s) {
+                template.body(s);
+            }
+        };
     }
 }

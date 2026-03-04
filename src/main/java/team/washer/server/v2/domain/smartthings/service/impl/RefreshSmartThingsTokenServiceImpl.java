@@ -43,11 +43,10 @@ public class RefreshSmartThingsTokenServiceImpl implements RefreshSmartThingsTok
                 return;
             }
 
-            var basicAuth = "Basic " + Base64.getEncoder().encodeToString(
-                    (smartThingsEnvironment.clientId() + ":" + smartThingsEnvironment.clientSecret())
+            var basicAuth = "Basic " + Base64.getEncoder()
+                    .encodeToString((smartThingsEnvironment.clientId() + ":" + smartThingsEnvironment.clientSecret())
                             .getBytes(StandardCharsets.UTF_8));
-            var formBody = "grant_type=" + GRANT_TYPE_REFRESH_TOKEN
-                    + "&refresh_token=" + token.getRefreshToken();
+            var formBody = "grant_type=" + GRANT_TYPE_REFRESH_TOKEN + "&refresh_token=" + token.getRefreshToken();
 
             var response = smartThingsOAuthClient.refreshToken(basicAuth, formBody);
 

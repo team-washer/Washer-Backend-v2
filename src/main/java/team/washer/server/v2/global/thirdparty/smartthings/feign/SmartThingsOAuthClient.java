@@ -13,12 +13,10 @@ import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsFei
 public interface SmartThingsOAuthClient {
 
     @PostMapping(consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    SmartThingsTokenExchangeResDto exchangeToken(
-            @RequestHeader("Authorization") String basicAuth,
+    SmartThingsTokenExchangeResDto exchangeToken(@RequestHeader("Authorization") String basicAuth,
             @RequestBody String formBody);
 
     @PostMapping(consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    SmartThingsTokenExchangeResDto refreshToken(
-            @RequestHeader("Authorization") String basicAuth,
+    SmartThingsTokenExchangeResDto refreshToken(@RequestHeader("Authorization") String basicAuth,
             @RequestBody String formBody);
 }
