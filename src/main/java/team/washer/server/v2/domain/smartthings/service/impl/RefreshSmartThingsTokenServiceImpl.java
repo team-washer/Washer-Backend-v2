@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,10 +42,13 @@ public class RefreshSmartThingsTokenServiceImpl implements RefreshSmartThingsTok
                 return;
             }
 
-            var response = smartThingsOAuthClient.refreshToken(GRANT_TYPE_REFRESH_TOKEN,
-                    smartThingsEnvironment.clientId(),
-                    smartThingsEnvironment.clientSecret(),
-                    token.getRefreshToken());
+            var formData = new LinkedMultiValueMap<String, String>();
+            formData.add("grant_type", GRANT_TYPE_REFRESH_TOKEN);
+            formData.add("client_id", smartThingsEnvironment.clientId());
+            formData.add("client_secret", smartThingsEnvironment.clientSecret());
+            formData.add("refresh_token", token.getRefreshToken());
+
+            var response = smartThingsOAuthClient.refreshToken(formData);
 
             updateToken(token, response);
 

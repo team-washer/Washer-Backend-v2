@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,11 +34,14 @@ public class ExchangeSmartThingsTokenServiceImpl implements ExchangeSmartThingsT
         try {
             log.info("Exchanging SmartThings authorization code for access token");
 
-            var response = smartThingsOAuthClient.exchangeToken(GRANT_TYPE_AUTHORIZATION_CODE,
-                    smartThingsEnvironment.clientId(),
-                    smartThingsEnvironment.clientSecret(),
-                    code,
-                    redirectUri);
+            var formData = new LinkedMultiValueMap<String, String>();
+            formData.add("grant_type", GRANT_TYPE_AUTHORIZATION_CODE);
+            formData.add("client_id", smartThingsEnvironment.clientId());
+            formData.add("client_secret", smartThingsEnvironment.clientSecret());
+            formData.add("code", code);
+            formData.add("redirect_uri", redirectUri);
+
+            var response = smartThingsOAuthClient.exchangeToken(formData);
 
             saveOrUpdateToken(response);
 
