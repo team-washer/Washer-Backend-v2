@@ -42,8 +42,7 @@ public class UpdateMachineServiceImpl implements UpdateMachineService {
             machine.updateName();
         }
 
-        final var saved = machineRepository.save(machine);
-        return toResDto(saved);
+        return toResDto(machine);
     }
 
     private boolean hasLocationChange(UpdateMachineReqDto request) {
