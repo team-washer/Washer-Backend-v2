@@ -50,8 +50,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             final var payload = jwtTokenProvider.parseAccessToken(token);
 
             final var authorities = payload.role() != null
-                    ? List.<GrantedAuthority>of(
-                            new SimpleGrantedAuthority(payload.role().name()))
+                    ? List.<GrantedAuthority>of(new SimpleGrantedAuthority(payload.role().name()))
                     : List.<GrantedAuthority>of();
             final var authentication = new UsernamePasswordAuthenticationToken(payload.userId(), null, authorities);
 
