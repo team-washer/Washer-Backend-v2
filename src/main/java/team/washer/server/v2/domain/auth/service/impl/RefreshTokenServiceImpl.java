@@ -26,11 +26,17 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
         final var payload = jwtTokenProvider.parseRefreshToken(reqDto.refreshToken());
         final var userId = payload.userId();
 
-        refreshTokenRedisRepository.delete(refreshTokenRedisRepository.findByToken(reqDto.refreshToken())
-                .orElseThrow(() -> new ExpectedException("유효하지 않은 Refresh Token입니다.", HttpStatus.UNAUTHORIZED)));
+        final var refreshTokenEntity = refreshTokenRedisRepository.findByToken(reqDto.refreshToken())
+                .orElseThrow(() -> new ExpectedException("유효하지 않은 Refresh Token입니다.", HttpStatus.UNAUTHORIZED));
+
+        if (!refreshTokenEntity.getUserId().equals(userId)) {
+            throw new ExpectedException("유효하지 않은 Refresh Token입니다.", HttpStatus.UNAUTHORIZED);
+        }
 
         final var user = userRepository.findById(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+
+        refreshTokenRedisRepository.delete(refreshTokenEntity);
 
         return generateTokenService.execute(userId, user.getRole());
     }
