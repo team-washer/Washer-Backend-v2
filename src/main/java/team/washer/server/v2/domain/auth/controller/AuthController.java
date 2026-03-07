@@ -15,7 +15,6 @@ import team.washer.server.v2.domain.auth.dto.request.TokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
 import team.washer.server.v2.domain.auth.service.RefreshTokenService;
 import team.washer.server.v2.domain.auth.service.SignInService;
-import team.washer.server.v2.global.common.response.data.response.CommonApiResDto;
 
 @RestController
 @AllArgsConstructor
@@ -28,15 +27,13 @@ public class AuthController {
 
     @PostMapping("/login")
     @Operation(summary = "로그인", description = "DataGSM OAuth 인증 코드로 로그인합니다.")
-    public CommonApiResDto<TokenResDto> login(@Valid @RequestBody final TokenReqDto reqDto) {
-        final var result = signInService.execute(reqDto);
-        return CommonApiResDto.success("로그인에 성공했습니다.", result);
+    public TokenResDto login(@Valid @RequestBody final TokenReqDto reqDto) {
+        return signInService.execute(reqDto);
     }
 
     @PostMapping("/refresh")
     @Operation(summary = "토큰 갱신", description = "Refresh Token으로 새로운 Access Token을 발급받습니다.")
-    public CommonApiResDto<TokenResDto> refresh(@Valid @RequestBody final RefreshTokenReqDto reqDto) {
-        final var result = refreshTokenService.execute(reqDto);
-        return CommonApiResDto.success("토큰 갱신에 성공했습니다.", result);
+    public TokenResDto refresh(@Valid @RequestBody final RefreshTokenReqDto reqDto) {
+        return refreshTokenService.execute(reqDto);
     }
 }

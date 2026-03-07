@@ -16,8 +16,8 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.user.enums.UserRole;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 import team.washer.server.v2.global.security.jwt.config.JwtEnvironment;
 import team.washer.server.v2.global.security.jwt.dto.JwtPayload;
 

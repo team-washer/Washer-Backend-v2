@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.AllArgsConstructor;
 import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient;
 import team.themoment.datagsm.sdk.oauth.model.Student;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.TokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
 import team.washer.server.v2.domain.auth.service.GenerateTokenService;
@@ -14,7 +15,6 @@ import team.washer.server.v2.domain.auth.service.SignInService;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.SignUpService;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 import team.washer.server.v2.global.thirdparty.datagsm.config.DataGsmEnvironment;
 
 @Service

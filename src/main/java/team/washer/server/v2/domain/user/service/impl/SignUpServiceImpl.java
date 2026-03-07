@@ -6,10 +6,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import team.themoment.datagsm.sdk.oauth.model.Student;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.SignUpService;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Service
 @RequiredArgsConstructor
@@ -23,8 +23,7 @@ public class SignUpServiceImpl implements SignUpService {
         if (userRepository.findByStudentId(student.getStudentNumber().toString()).isPresent()) {
             throw new ExpectedException("이미 가입된 사용자입니다.", HttpStatus.BAD_REQUEST);
         }
-        User user = User.builder().studentId(student.getStudentNumber().toString())
-                .name(student.getName())
+        User user = User.builder().studentId(student.getStudentNumber().toString()).name(student.getName())
                 .roomNumber(student.getDormitoryRoom().toString()).grade(student.getGrade())
                 .floor(student.getDormitoryFloor()).build();
         userRepository.save(user);

@@ -18,7 +18,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.global.security.jwt.provider.JwtTokenProvider;
 
 @Component
