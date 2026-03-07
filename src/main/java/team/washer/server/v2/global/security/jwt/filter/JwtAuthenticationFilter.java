@@ -2,10 +2,12 @@ package team.washer.server.v2.global.security.jwt.filter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import org.jspecify.annotations.NonNull;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -48,10 +50,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             final var payload = jwtTokenProvider.parseAccessToken(token);
 
             final var authorities = payload.role() != null
-                    ? java.util.List.<org.springframework.security.core.GrantedAuthority>of(
+                    ? List.<GrantedAuthority>of(
                             new SimpleGrantedAuthority(payload.role().name()))
-                    : java.util.List.<org.springframework.security.core.GrantedAuthority>of();
-
+                    : List.<GrantedAuthority>of();
             final var authentication = new UsernamePasswordAuthenticationToken(payload.userId(), null, authorities);
 
             SecurityContextHolder.getContext().setAuthentication(authentication);
