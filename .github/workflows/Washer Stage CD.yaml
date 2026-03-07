@@ -39,6 +39,12 @@ jobs:
                   value: ${{ secrets.REDIS_PASSWORD }}
                 - name: THIRD_PARTY_DISCORD_WEBHOOK_URL
                   value: ${{ secrets.DISCORD_EMERGENCY_ALERT_CHANNEL_WEBHOOK }}
+                - name: THIRD_PARTY_SMARTTHINGS_REDIRECT_URI
+                  value: ${{ secrets.SMARTTHINGS_REDIRECT_URI }}
+                - name: THIRD_PARTY_SMARTTHINGS_CLIENT_ID
+                  value: ${{ secrets.SMARTTHINGS_CLIENT_ID }}
+                - name: THIRD_PARTY_SMARTTHINGS_CLIENT_SECRET
+                  value: ${{ secrets.SMARTTHINGS_CLIENT_SECRET }}
             context:
               git:
                 url: https://github.com/${{ github.repository }}.git

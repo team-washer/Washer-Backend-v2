@@ -6,13 +6,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.malfunction.dto.request.UpdateMalfunctionReportStatusReqDto;
 import team.washer.server.v2.domain.malfunction.dto.response.MalfunctionReportResDto;
 import team.washer.server.v2.domain.malfunction.entity.MalfunctionReport;
 import team.washer.server.v2.domain.malfunction.enums.MalfunctionReportStatus;
 import team.washer.server.v2.domain.malfunction.repository.MalfunctionReportRepository;
 import team.washer.server.v2.domain.malfunction.service.UpdateMalfunctionReportStatusService;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @Slf4j
 @Service

@@ -6,10 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import feign.Logger;
 import feign.Request;
 import feign.Retryer;
-import feign.codec.Decoder;
 import feign.codec.Encoder;
-import feign.jackson.JacksonDecoder;
-import feign.jackson.JacksonEncoder;
 
 @Configuration
 public class SmartThingsFeignConfig {
@@ -34,12 +31,11 @@ public class SmartThingsFeignConfig {
     }
 
     @Bean
-    public Encoder smartThingsEncoder() {
-        return new JacksonEncoder();
-    }
-
-    @Bean
-    public Decoder smartThingsDecoder() {
-        return new JacksonDecoder();
+    public Encoder smartThingsFeignEncoder() {
+        return (object, bodyType, template) -> {
+            if (object instanceof String s) {
+                template.body(s);
+            }
+        };
     }
 }

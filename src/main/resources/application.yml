@@ -12,6 +12,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
+    open-in-view: false
   data:
     redis:
       host: localhost
@@ -42,10 +43,35 @@ third-party:
   smartthings:
     api-url: ${SMARTTHINGS_API_URL:https://api.smartthings.com}
     oauth-url: ${SMARTTHINGS_OAUTH_URL:https://api.smartthings.com/oauth/token}
+    authorize-url: ${SMARTTHINGS_AUTHORIZE_URL:https://api.smartthings.com/oauth/authorize}
+    redirect-uri: ${SMARTTHINGS_REDIRECT_URI:http://localhost:8080/api/v2/admin/smartthings/oauth/callback}
     client-id: ${SMARTTHINGS_CLIENT_ID:your-client-id}
     client-secret: ${SMARTTHINGS_CLIENT_SECRET:your-client-secret}
   datagsm:
     client-secret: ${DATAGSM_CLIENT_SECRET:your-client-secret}
+sdk:
+  logging:
+    enabled: true
+    not-logging-urls:
+      - "/v3/api-docs/**"
+      - "/swagger-ui/**"
+  swagger:
+    enabled: true
+    title: "Washer API"
+    description: "기숙사 세탁기 예약 관리 시스템"
+    version: "v2"
+    group: "Washer"
+    paths-to-match:
+      - "/api/v2/**"
+  exception:
+    enabled: false
+  response:
+    enabled: true
+    not-wrapping-urls:
+      - "/v3/api-docs/**"
+      - "/v3/api-docs"
+      - "/swagger-ui/**"
+      - "/api/v2/admin/smartthings/oauth/authorize"
 springdoc:
   api-docs:
     path: /v3/api-docs

@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
+import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
@@ -22,7 +23,6 @@ import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryP
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.*;
-import team.washer.server.v2.global.common.response.data.response.CommonApiResDto;
 
 @RestController
 @RequestMapping("/api/v2/reservations")
@@ -48,11 +48,11 @@ public class ReservationController {
 
     @PutMapping("/{id}/confirm")
     @Operation(summary = "예약 확인", description = "예약을 확인합니다 (RESERVED → CONFIRMED). 사용자가 세탁기/건조기 앞에서 시작 버튼을 누를 때 호출됩니다.")
-    public CommonApiResDto confirmReservation(
+    public CommonApiResponse confirmReservation(
             @Parameter(description = "사용자 ID (임시: 인증 시스템 구현 후 제거 예정)", required = true) @RequestParam @NotNull Long userId,
             @Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
         confirmReservationService.execute(id, userId);
-        return CommonApiResDto.success("예약이 확인되었습니다.");
+        return CommonApiResponse.success("예약이 확인되었습니다.");
     }
 
     @DeleteMapping("/{id}")

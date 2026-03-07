@@ -120,4 +120,17 @@ public class Machine extends BaseEntity {
     public boolean isDryer() {
         return this.type == MachineType.DRYER;
     }
+
+    /** DeviceId를 업데이트합니다. */
+    public void updateDeviceId(String deviceId) {
+        this.deviceId = deviceId;
+    }
+
+    /** 위치 정보 및 기기 유형을 업데이트합니다. */
+    public void updateLocation(MachineType type, Integer floor, Position position, Integer number) {
+        this.type = type;
+        this.floor = floor;
+        this.position = position;
+        this.number = number;
+    }
 }

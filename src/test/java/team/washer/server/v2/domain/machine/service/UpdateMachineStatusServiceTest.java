@@ -15,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.dto.response.MachineStatusUpdateResDto;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -27,7 +28,6 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.user.entity.User;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("UpdateMachineStatusServiceImpl 클래스의")

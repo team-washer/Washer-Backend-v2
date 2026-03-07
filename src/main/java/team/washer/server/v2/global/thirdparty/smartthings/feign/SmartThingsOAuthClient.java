@@ -3,7 +3,8 @@ package team.washer.server.v2.global.thirdparty.smartthings.feign;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsTokenExchangeResDto;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsFeignConfig;
@@ -12,15 +13,10 @@ import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsFei
 public interface SmartThingsOAuthClient {
 
     @PostMapping(consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    SmartThingsTokenExchangeResDto exchangeToken(@RequestParam("grant_type") String grantType,
-            @RequestParam("client_id") String clientId,
-            @RequestParam("client_secret") String clientSecret,
-            @RequestParam("code") String code,
-            @RequestParam("redirect_uri") String redirectUri);
+    SmartThingsTokenExchangeResDto exchangeToken(@RequestHeader("Authorization") String basicAuth,
+            @RequestBody String formBody);
 
     @PostMapping(consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    SmartThingsTokenExchangeResDto refreshToken(@RequestParam("grant_type") String grantType,
-            @RequestParam("client_id") String clientId,
-            @RequestParam("client_secret") String clientSecret,
-            @RequestParam("refresh_token") String refreshToken);
+    SmartThingsTokenExchangeResDto refreshToken(@RequestHeader("Authorization") String basicAuth,
+            @RequestBody String formBody);
 }

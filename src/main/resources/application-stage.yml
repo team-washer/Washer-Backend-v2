@@ -6,12 +6,19 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximumPoolSize: 10
+      connectionTimeout: 30000
+      idleTimeout: 600000
+      maxLifetime: 1800000
+      poolName: washerPool
   jpa:
     hibernate:
       ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
+    open-in-view: false
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST}
@@ -31,6 +38,34 @@ spring:
   docker:
     compose:
       enabled: false
+sdk:
+  logging:
+    enabled: true
+    not-logging-urls:
+      - "/v3/api-docs/**"
+      - "/swagger-ui/**"
+  swagger:
+    enabled: true
+    title: "Washer API"
+    description: "기숙사 세탁기 예약 관리 시스템"
+    version: "v2"
+    group: "Washer"
+    paths-to-match:
+      - "/api/v2/**"
+  exception:
+    enabled: false
+  response:
+    enabled: true
+    not-wrapping-urls:
+      - "/v3/api-docs/**"
+      - "/v3/api-docs"
+      - "/swagger-ui/**"
+      - "/api/v2/admin/smartthings/oauth/authorize"
+logging:
+  level:
+    team.washer.server.v2.domain.smartthings: INFO
+    org.springframework.security: INFO
+    org.springframework.web.servlet.DispatcherServlet: DEBUG
 server:
   port: 8080
   shutdown: graceful
@@ -42,24 +77,10 @@ third-party:
   smartthings:
     api-url: ${THIRD_PARTY_SMARTTHINGS_API_URL:https://api.smartthings.com}
     oauth-url: ${THIRD_PARTY_SMARTTHINGS_OAUTH_URL:https://api.smartthings.com/oauth/token}
+    authorize-url: ${THIRD_PARTY_SMARTTHINGS_AUTHORIZE_URL:https://api.smartthings.com/oauth/authorize}
+    redirect-uri: ${THIRD_PARTY_SMARTTHINGS_REDIRECT_URI}
     client-id: ${THIRD_PARTY_SMARTTHINGS_CLIENT_ID}
     client-secret: ${THIRD_PARTY_SMARTTHINGS_CLIENT_SECRET}
 springdoc:
   swagger-ui:
-    config-url: "/v3/api-docs/swagger-config"
-    urls:
-      - name: "Washer-Backend-v2 API"
-        url: "/v3/api-docs"
-    operationsSorter: "method"
-    defaultModelsExpandDepth: -1
-    docExpansion: "none"
-    displayRequestDuration: true
-    filter: true
-    showCommonExtensions: true
-    showExtensions: true
-    deepLinking: true
-    persistAuthorization: true
-    tryItOutEnabled: true
-    validatorUrl: ""
-    csrf:
-      enabled: false
+    enabled: true

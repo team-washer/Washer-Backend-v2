@@ -35,12 +35,14 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
             try {
                 var hasActiveReservation = reservationRepository.existsByMachineAndStatusIn(machine, ACTIVE_STATUSES);
 
-                if (!hasActiveReservation) {
+                if (hasActiveReservation) {
+                    log.debug("[유휴 종료] 예약 진행 중, 건너뜀. machine={}", machine.getName());
+                } else {
                     sendDeviceCommandService.execute(machine.getDeviceId(), SmartThingsCommandReqDto.powerOff());
-                    log.info("Powered off idle machine: {}", machine.getName());
+                    log.info("[유휴 종료] 기기 전원 OFF. machine={}", machine.getName());
                 }
             } catch (Exception e) {
-                log.error("Failed to shutdown idle machine: {}", machine.getName(), e);
+                log.error("[유휴 종료] 기기 종료 실패. machine={}, reason={}", machine.getName(), e.getMessage());
             }
         }
     }

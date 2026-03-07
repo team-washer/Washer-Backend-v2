@@ -1,6 +1,8 @@
 package team.washer.server.v2.domain.smartthings.service.impl;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.Base64;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -8,11 +10,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsTokenExchangeResDto;
 import team.washer.server.v2.domain.smartthings.entity.SmartThingsToken;
 import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepository;
 import team.washer.server.v2.domain.smartthings.service.RefreshSmartThingsTokenService;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnvironment;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsOAuthClient;
 
@@ -41,10 +43,12 @@ public class RefreshSmartThingsTokenServiceImpl implements RefreshSmartThingsTok
                 return;
             }
 
-            var response = smartThingsOAuthClient.refreshToken(GRANT_TYPE_REFRESH_TOKEN,
-                    smartThingsEnvironment.clientId(),
-                    smartThingsEnvironment.clientSecret(),
-                    token.getRefreshToken());
+            var basicAuth = "Basic " + Base64.getEncoder()
+                    .encodeToString((smartThingsEnvironment.clientId() + ":" + smartThingsEnvironment.clientSecret())
+                            .getBytes(StandardCharsets.UTF_8));
+            var formBody = "grant_type=" + GRANT_TYPE_REFRESH_TOKEN + "&refresh_token=" + token.getRefreshToken();
+
+            var response = smartThingsOAuthClient.refreshToken(basicAuth, formBody);
 
             updateToken(token, response);
 

@@ -16,8 +16,8 @@ import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import net.minidev.json.JSONObject;
-import team.washer.server.v2.global.common.error.exception.ExpectedException;
-import team.washer.server.v2.global.common.response.data.response.CommonApiResDto;
+import team.themoment.sdk.exception.ExpectedException;
+import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 
 @Slf4j
@@ -29,15 +29,15 @@ public class GlobalExceptionHandler {
     private DiscordErrorNotificationService discordErrorNotificationService;
 
     @ExceptionHandler(ExpectedException.class)
-    private CommonApiResDto expectedException(ExpectedException ex) {
+    public CommonApiResponse expectedException(ExpectedException ex) {
         log.warn("ExpectedException : {} ", ex.getMessage());
         log.trace("ExpectedException 세부사항 : ", ex);
-        return CommonApiResDto.error(ex.getMessage(), ex.getStatusCode());
+        return CommonApiResponse.error(ex.getMessage(), ex.getStatusCode());
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
             ConstraintViolationException.class})
-    public CommonApiResDto validationException(Exception ex) {
+    public CommonApiResponse validationException(Exception ex) {
         log.warn("검증 실패 : {}", ex.getMessage());
         log.trace("검증 실패 세부사항 : ", ex);
         String errorMessage;
@@ -46,42 +46,42 @@ public class GlobalExceptionHandler {
         } else {
             errorMessage = ex.getMessage();
         }
-        return CommonApiResDto.error(errorMessage, HttpStatus.BAD_REQUEST);
+        return CommonApiResponse.error(errorMessage, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(RuntimeException.class)
-    public CommonApiResDto unExpectedException(RuntimeException ex) {
+    public CommonApiResponse unExpectedException(RuntimeException ex) {
         log.error("기타 런타임 예외 발생 : {}", ex.getMessage(), ex);
         if (discordErrorNotificationService != null) {
             discordErrorNotificationService.notifyError(ex);
         }
 
-        return CommonApiResDto.error("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
+        return CommonApiResponse.error("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(Exception.class)
-    public CommonApiResDto handleException(Exception ex) {
+    public CommonApiResponse handleException(Exception ex) {
         log.error("핸들링되지 않은 예외 발생 : {}", ex.getMessage(), ex);
 
         if (discordErrorNotificationService != null) {
             discordErrorNotificationService.notifyError(ex);
         }
 
-        return CommonApiResDto.error("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
+        return CommonApiResponse.error("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
-    public CommonApiResDto noHandlerFoundException(NoHandlerFoundException ex) {
+    public CommonApiResponse noHandlerFoundException(NoHandlerFoundException ex) {
         log.warn("요청한 리소스를 찾을 수 없음 : {}", ex.getMessage());
         log.trace("요청한 리소스를 찾을 수 없음 세부사항 : ", ex);
-        return CommonApiResDto.error(ex.getMessage(), HttpStatus.NOT_FOUND);
+        return CommonApiResponse.error(ex.getMessage(), HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public CommonApiResDto maxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
+    public CommonApiResponse maxUploadSizeExceededException(MaxUploadSizeExceededException ex) {
         log.warn("파일 크기 초과 : {}", ex.getMessage());
         log.trace("파일 크기 초과 세부사항 : ", ex);
-        return CommonApiResDto.error("파일 크기가 허용된 최대 크기를 초과했습니다.", HttpStatus.CONTENT_TOO_LARGE);
+        return CommonApiResponse.error("파일 크기가 허용된 최대 크기를 초과했습니다.", HttpStatus.CONTENT_TOO_LARGE);
     }
 
     private static String methodArgumentNotValidExceptionToJson(MethodArgumentNotValidException ex) {

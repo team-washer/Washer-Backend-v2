@@ -12,7 +12,7 @@ import team.washer.server.v2.domain.smartthings.service.ShutdownIdleMachinesServ
 @Slf4j
 public class IdleMachineShutdownScheduler {
 
-    private static final long SHUTDOWN_CHECK_INTERVAL = 2000;
+    private static final long SHUTDOWN_CHECK_INTERVAL = 17000;
 
     private final ShutdownIdleMachinesService shutdownIdleMachinesService;
 

@@ -105,6 +105,9 @@ dependencies {
     // Documentation
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1")
 
+    // the-sdk
+    implementation("com.github.themoment-team:the-sdk:1.4")
+
     //DataGSM Oauth SDK
     implementation("com.github.themoment-team:datagsm-oauth-sdk-java:1.1.0")
 
