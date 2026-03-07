@@ -36,7 +36,7 @@ public class SignInServiceImpl implements SignInService {
             throw new ExpectedException("학생정보가 없는 DataGSM 계정입니다.", HttpStatus.BAD_REQUEST);
         }
         User user = userRepository.findByStudentId(oauthUser.getStudentNumber().toString())
-                .orElse(signUpService.execute(oauthUser));
+                .orElseGet(() -> signUpService.execute(oauthUser));
 
         return generateTokenService.execute(user.getId(), user.getRole());
     }
