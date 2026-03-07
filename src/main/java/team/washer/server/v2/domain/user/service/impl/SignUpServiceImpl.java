@@ -24,6 +24,7 @@ public class SignUpServiceImpl implements SignUpService {
             throw new ExpectedException("이미 가입된 사용자입니다.", HttpStatus.BAD_REQUEST);
         }
         User user = User.builder().studentId(student.getStudentNumber().toString())
+                .name(student.getName())
                 .roomNumber(student.getDormitoryRoom().toString()).grade(student.getGrade())
                 .floor(student.getDormitoryFloor()).build();
         userRepository.save(user);
