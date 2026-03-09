@@ -49,6 +49,8 @@ third-party:
     client-secret: ${SMARTTHINGS_CLIENT_SECRET:your-client-secret}
   datagsm:
     client-secret: ${DATAGSM_CLIENT_SECRET:your-client-secret}
+    client-id: ${DATAGSM_CLIENT_ID:your-client-id}
+    redirect-uri: ${DATAGSM_REDIRECT_URI:http://localhost:8080/api/v2/admin/datagsm/oauth/callback}
 sdk:
   logging:
     enabled: true
