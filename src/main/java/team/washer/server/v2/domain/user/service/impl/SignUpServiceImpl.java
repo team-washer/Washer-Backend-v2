@@ -1,12 +1,10 @@
 package team.washer.server.v2.domain.user.service.impl;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import team.themoment.datagsm.sdk.oauth.model.Student;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.SignUpService;
@@ -20,7 +18,7 @@ public class SignUpServiceImpl implements SignUpService {
     @Override
     @Transactional
     /*
-    * 메서드를 호출하기전 중복된 User가 없음을 보장해야합니다.
+     * 메서드를 호출하기전 중복된 User가 없음을 보장해야합니다.
      */
     public User execute(Student student) {
         User user = User.builder().studentId(student.getStudentNumber().toString()).name(student.getName())
