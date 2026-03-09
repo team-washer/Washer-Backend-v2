@@ -69,11 +69,17 @@ logging:
 server:
   port: 8080
   shutdown: graceful
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 3600
+  refresh-token-expiration: 2592000
 third-party:
   discord:
     webhook-url: ${THIRD_PARTY_DISCORD_WEBHOOK_URL}
   datagsm:
     client-secret: ${THIRD_PARTY_DATAGSM_CLIENT_SECRET}
+    client-id: ${THIRD_PARTY_DATAGSM_CLIENT_ID}
+    redirect-uri: ${THIRD_PARTY_DATAGSM_REDIRECT_URI}
   smartthings:
     api-url: ${THIRD_PARTY_SMARTTHINGS_API_URL:https://api.smartthings.com}
     oauth-url: ${THIRD_PARTY_SMARTTHINGS_OAUTH_URL:https://api.smartthings.com/oauth/token}
