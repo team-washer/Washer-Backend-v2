@@ -1,8 +1,8 @@
 package team.washer.server.v2.domain.auth.service.impl;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.AllArgsConstructor;
 import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient;
@@ -27,7 +27,6 @@ public class SignInServiceImpl implements SignInService {
     private final GenerateTokenService generateTokenService;
 
     @Override
-    @Transactional
     public TokenResDto execute(TokenReqDto reqDto) {
         String accessToken = oauthClient.exchangeCodeForToken(reqDto.authCode(), dataGsmEnvironment.redirectUri())
                 .getAccessToken();
@@ -35,8 +34,14 @@ public class SignInServiceImpl implements SignInService {
         if (oauthUser == null) {
             throw new ExpectedException("학생정보가 없는 DataGSM 계정입니다.", HttpStatus.BAD_REQUEST);
         }
-        User user = userRepository.findByStudentId(oauthUser.getStudentNumber().toString())
-                .orElseGet(() -> signUpService.execute(oauthUser));
+        User user;
+        try {
+            user = userRepository.findByStudentId(oauthUser.getStudentNumber().toString())
+                    .orElseGet(() -> signUpService.execute(oauthUser));
+        } catch (DataIntegrityViolationException e) {
+            user = userRepository.findByStudentId(oauthUser.getStudentNumber().toString()).orElseThrow(
+                    () -> new ExpectedException("회원가입 과정에서 오류가 발생했습니다. 다시 시도해주세요.", HttpStatus.INTERNAL_SERVER_ERROR));
+        }
 
         return generateTokenService.execute(user.getId(), user.getRole());
     }
