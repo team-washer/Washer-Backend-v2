@@ -45,6 +45,12 @@ jobs:
                   value: ${{ secrets.SMARTTHINGS_CLIENT_ID }}
                 - name: THIRD_PARTY_SMARTTHINGS_CLIENT_SECRET
                   value: ${{ secrets.SMARTTHINGS_CLIENT_SECRET }}
+                - name: THIRD_PARTY_DATAGSM_CLIENT_ID
+                  value: ${{ secrets.DATAGSM_CLIENT_ID }}
+                - name: THIRD_PARTY_DATAGSM_CLIENT_SECRET
+                  value: ${{ secrets.DATAGSM_CLIENT_SECRET }}
+                - name: THIRD_PARTY_DATAGSM_REDIRECT_URI
+                  value: ${{ secrets.DATAGSM_REDIRECT_URI }}
             context:
               git:
                 url: https://github.com/${{ github.repository }}.git
