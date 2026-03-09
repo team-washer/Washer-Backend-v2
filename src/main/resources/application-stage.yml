@@ -77,9 +77,9 @@ third-party:
   discord:
     webhook-url: ${THIRD_PARTY_DISCORD_WEBHOOK_URL}
   datagsm:
-    client-secret: ${DATAGSM_CLIENT_SECRET}
-    client-id: ${DATAGSM_CLIENT_ID}
-    redirect-uri: ${DATAGSM_REDIRECT_URI}
+    client-secret: ${THIRD_PARTY_DATAGSM_CLIENT_SECRET}
+    client-id: ${THIRD_PARTY_DATAGSM_CLIENT_ID}
+    redirect-uri: ${THIRD_PARTY_DATAGSM_REDIRECT_URI}
   smartthings:
     api-url: ${THIRD_PARTY_SMARTTHINGS_API_URL:https://api.smartthings.com}
     oauth-url: ${THIRD_PARTY_SMARTTHINGS_OAUTH_URL:https://api.smartthings.com/oauth/token}
