@@ -51,6 +51,8 @@ jobs:
                   value: ${{ secrets.DATAGSM_CLIENT_SECRET }}
                 - name: THIRD_PARTY_DATAGSM_REDIRECT_URI
                   value: ${{ secrets.DATAGSM_REDIRECT_URI }}
+                - name: JWT_SECRET
+                  value: ${{ secrets.JWT_SECRET_KEY }}
             context:
               git:
                 url: https://github.com/${{ github.repository }}.git
