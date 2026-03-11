@@ -58,6 +58,12 @@ public class SyncSmartThingsDevicesServiceImpl implements SyncSmartThingsDevices
             processDeviceItem(item);
         }
 
+        // API 오류로 빈 목록이 반환된 경우 전체 비활성화 방지
+        if (smartThingsDeviceIds.isEmpty()) {
+            log.warn("SmartThings 기기 목록이 비어있습니다. 비활성화 처리를 건너뜁니다.");
+            return;
+        }
+
         // SmartThings에서 사라진 기기 비활성화
         deactivateMissingDevices(smartThingsDeviceIds);
     }
@@ -114,6 +120,9 @@ public class SyncSmartThingsDevicesServiceImpl implements SyncSmartThingsDevices
      * @return 파싱 결과, 형식 불일치 시 {@code Optional.empty()}
      */
     private Optional<ParsedLabel> parseLabel(String label) {
+        if (label == null) {
+            return Optional.empty();
+        }
         var matcher = LABEL_PATTERN.matcher(label);
         if (!matcher.matches()) {
             return Optional.empty();
