@@ -4,5 +4,5 @@ import team.washer.server.v2.domain.malfunction.dto.request.CreateMalfunctionRep
 import team.washer.server.v2.domain.malfunction.dto.response.MalfunctionReportResDto;
 
 public interface CreateMalfunctionReportService {
-    MalfunctionReportResDto execute(Long userId, CreateMalfunctionReportReqDto reqDto);
+    MalfunctionReportResDto execute(CreateMalfunctionReportReqDto reqDto);
 }
