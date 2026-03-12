@@ -7,6 +7,7 @@ import static org.mockito.BDDMockito.*;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
@@ -48,6 +52,19 @@ class CreateMalfunctionReportServiceTest {
     @Mock
     private MachineRepository machineRepository;
 
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void setUpSecurityContext(final Long userId) {
+        final SecurityContext securityContext = mock(SecurityContext.class);
+        final Authentication authentication = mock(Authentication.class);
+        given(authentication.getPrincipal()).willReturn(userId);
+        given(securityContext.getAuthentication()).willReturn(authentication);
+        SecurityContextHolder.setContext(securityContext);
+    }
+
     @Nested
     @DisplayName("execute 메서드는")
     class Describe_execute {
@@ -75,12 +92,13 @@ class CreateMalfunctionReportServiceTest {
                 MalfunctionReport savedReport = MalfunctionReport.builder().machine(machine).reporter(user)
                         .description(description).reportedAt(LocalDateTime.now()).build();
 
+                setUpSecurityContext(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
                 given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
                 given(malfunctionReportRepository.save(any(MalfunctionReport.class))).willReturn(savedReport);
 
                 // When
-                MalfunctionReportResDto result = createMalfunctionReportService.execute(userId, reqDto);
+                MalfunctionReportResDto result = createMalfunctionReportService.execute(reqDto);
 
                 // Then
                 assertThat(result).isNotNull();
@@ -105,10 +123,11 @@ class CreateMalfunctionReportServiceTest {
                 Long machineId = 1L;
                 CreateMalfunctionReportReqDto reqDto = new CreateMalfunctionReportReqDto(machineId, "고장 신고");
 
+                setUpSecurityContext(invalidUserId);
                 given(userRepository.findById(invalidUserId)).willReturn(Optional.empty());
 
                 // When & Then
-                assertThatThrownBy(() -> createMalfunctionReportService.execute(invalidUserId, reqDto))
+                assertThatThrownBy(() -> createMalfunctionReportService.execute(reqDto))
                         .isInstanceOf(ExpectedException.class).hasMessage("사용자를 찾을 수 없습니다").satisfies(exception -> {
                             ExpectedException expectedException = (ExpectedException) exception;
                             assertThat(expectedException.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
@@ -135,11 +154,12 @@ class CreateMalfunctionReportServiceTest {
                 User user = User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(3).floor(3)
                         .penaltyCount(0).build();
 
+                setUpSecurityContext(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
                 given(machineRepository.findById(invalidMachineId)).willReturn(Optional.empty());
 
                 // When & Then
-                assertThatThrownBy(() -> createMalfunctionReportService.execute(userId, reqDto))
+                assertThatThrownBy(() -> createMalfunctionReportService.execute(reqDto))
                         .isInstanceOf(ExpectedException.class).hasMessage("기기를 찾을 수 없습니다").satisfies(exception -> {
                             ExpectedException expectedException = (ExpectedException) exception;
                             assertThat(expectedException.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
