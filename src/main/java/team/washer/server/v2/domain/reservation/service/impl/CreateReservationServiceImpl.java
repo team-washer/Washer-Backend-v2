@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
+import team.washer.server.v2.domain.reservation.config.ReservationEnvironment;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -34,6 +35,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
     private final MachineRepository machineRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
     private final SundayReservationRedisUtil sundayReservationRedisUtil;
+    private final ReservationEnvironment reservationEnvironment;
 
     @Override
     @Transactional
@@ -49,9 +51,11 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
         user.validateNotPenalized(penaltyExpiresAt);
 
-        // 시간 제한 검증 (일요일 활성화 여부 포함)
-        final boolean isSundayActive = sundayReservationRedisUtil.isSundayActive();
-        user.validateTimeRestriction(reqDto.startTime(), isSundayActive);
+        // 시간 제한 검증 (일요일 활성화 여부 포함, 개발환경에서는 비활성화 가능)
+        if (!reservationEnvironment.disableTimeRestriction()) {
+            final boolean isSundayActive = sundayReservationRedisUtil.isSundayActive();
+            user.validateTimeRestriction(reqDto.startTime(), isSundayActive);
+        }
 
         final LocalDateTime expectedCompletionTime = reqDto.startTime()
                 .plusMinutes(ReservationConstants.DEFAULT_RESERVATION_DURATION_MINUTES);
