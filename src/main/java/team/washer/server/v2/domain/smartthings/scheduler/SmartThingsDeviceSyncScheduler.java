@@ -17,7 +17,7 @@ public class SmartThingsDeviceSyncScheduler {
 
     private final SyncSmartThingsDevicesService syncDevicesService;
 
-    @Scheduled(cron = "0 0 15 * * *")
+    @Scheduled(cron = "10 45 8 * * *")
     public void syncDevices() {
         try {
             log.info("SmartThings 기기 목록 동기화 스케줄러 시작");
