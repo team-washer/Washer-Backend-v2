@@ -21,6 +21,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
+import team.washer.server.v2.domain.reservation.config.ReservationEnvironment;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -47,6 +48,8 @@ class CreateReservationServiceTest {
     private PenaltyRedisUtil penaltyRedisUtil;
     @Mock
     private SundayReservationRedisUtil sundayReservationRedisUtil;
+    @Mock
+    private ReservationEnvironment reservationEnvironment;
 
     @Mock
     private User user;
@@ -80,6 +83,7 @@ class CreateReservationServiceTest {
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
         when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
+        when(reservationEnvironment.disableTimeRestriction()).thenReturn(false);
         when(sundayReservationRedisUtil.isSundayActive()).thenReturn(false);
         when(reservationRepository.existsConflictingReservation(any(), any(), any(), any())).thenReturn(false);
         when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
