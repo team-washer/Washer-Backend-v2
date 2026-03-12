@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,7 +20,8 @@ public class ConfirmReservationServiceImpl implements ConfirmReservationService 
 
     @Override
     @Transactional
-    public void execute(Long reservationId, Long userId) {
+    public void execute(Long reservationId) {
+        final var userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         var reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

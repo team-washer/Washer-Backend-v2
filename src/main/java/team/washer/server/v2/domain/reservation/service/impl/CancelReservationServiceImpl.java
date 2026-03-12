@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.reservation.service.impl;
 import java.time.LocalDateTime;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,7 +27,8 @@ public class CancelReservationServiceImpl implements CancelReservationService {
 
     @Override
     @Transactional
-    public CancellationResDto execute(final Long userId, final Long reservationId) {
+    public CancellationResDto execute(final Long reservationId) {
+        final var userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         final Reservation reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

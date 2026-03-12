@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,13 +26,13 @@ public class QueryReservationHistoryServiceImpl implements QueryReservationHisto
 
     @Override
     @Transactional(readOnly = true)
-    public ReservationHistoryPageResDto execute(final Long userId,
-            final ReservationStatus status,
+    public ReservationHistoryPageResDto execute(final ReservationStatus status,
             final LocalDateTime startDate,
             final LocalDateTime endDate,
             final MachineType machineType,
             final Pageable pageable) {
 
+        final var userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         final Page<Reservation> reservations = reservationRepository
                 .findReservationHistory(userId, status, startDate, endDate, machineType, pageable);
 

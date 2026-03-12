@@ -4,5 +4,5 @@ import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReq
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 
 public interface CreateReservationService {
-    ReservationResDto execute(Long userId, CreateReservationReqDto reqDto);
+    ReservationResDto execute(CreateReservationReqDto reqDto);
 }

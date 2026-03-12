@@ -9,8 +9,7 @@ import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryP
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 
 public interface QueryReservationHistoryService {
-    ReservationHistoryPageResDto execute(Long userId,
-            ReservationStatus status,
+    ReservationHistoryPageResDto execute(ReservationStatus status,
             LocalDateTime startDate,
             LocalDateTime endDate,
             MachineType machineType,
