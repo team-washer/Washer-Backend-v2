@@ -26,7 +26,7 @@ import team.washer.server.v2.domain.user.repository.UserRepository;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@Profile("!prod && !stage")
+@Profile("!prod")
 public class DataInitializer {
 
     private final UserRepository userRepository;
