@@ -19,6 +19,7 @@ import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
+import team.washer.server.v2.domain.reservation.dto.response.ReservationAvailabilityResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryPageResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
@@ -37,6 +38,7 @@ public class ReservationController {
     private final QueryActiveReservationService queryActiveReservationService;
     private final QueryReservationHistoryService queryReservationHistoryService;
     private final QueryReservationService queryReservationService;
+    private final QueryReservationAvailabilityService queryReservationAvailabilityService;
 
     @PostMapping
     @Operation(summary = "예약 생성", description = "세탁기/건조기 예약을 생성합니다. 시간 제한과 패널티 규칙이 적용됩니다.")
@@ -73,6 +75,12 @@ public class ReservationController {
             @Parameter(description = "기기 타입 필터") @RequestParam(required = false) MachineType machineType,
             @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
         return queryReservationHistoryService.execute(status, startDate, endDate, machineType, pageable);
+    }
+
+    @GetMapping("/availability")
+    @Operation(summary = "예약 가능 상태 조회", description = "현재 로그인된 사용자의 예약 가능 여부와 패널티 해제 시간을 조회합니다.")
+    public ReservationAvailabilityResDto getReservationAvailability() {
+        return queryReservationAvailabilityService.execute();
     }
 
     @GetMapping("/{id}")
