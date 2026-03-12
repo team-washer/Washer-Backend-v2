@@ -82,7 +82,8 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
                 expectedCompletionTime,
                 remainingMinutes,
                 reservation != null ? reservation.getId() : null,
-                reservation != null ? reservation.getUser().getId() : null);
+                reservation != null ? reservation.getUser().getId() : null,
+                reservation != null ? reservation.getUser().getRoomNumber() : null);
     }
 
     private String getOperatingState(Machine machine, SmartThingsDeviceStatusResDto deviceStatus) {

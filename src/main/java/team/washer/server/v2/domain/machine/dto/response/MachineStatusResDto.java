@@ -30,5 +30,7 @@ public record MachineStatusResDto(@Schema(description = "기기 ID", example = "
 
         @Schema(description = "예약 ID (예약이 있는 경우)", example = "1") Long reservationId,
 
-        @Schema(description = "예약 사용자 ID (예약이 있는 경우)", example = "1") Long userId) {
+        @Schema(description = "예약 사용자 ID (예약이 있는 경우)", example = "1") Long userId,
+
+        @Schema(description = "사용 호실 (예약이 있는 경우)", example = "301") String roomNumber) {
 }
