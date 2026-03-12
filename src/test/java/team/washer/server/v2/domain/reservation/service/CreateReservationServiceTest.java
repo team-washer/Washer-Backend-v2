@@ -2,18 +2,22 @@ package team.washer.server.v2.domain.reservation.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
@@ -51,16 +55,31 @@ class CreateReservationServiceTest {
     @Mock
     private Reservation reservation;
 
+    private static final Long USER_ID = 1L;
+
+    @BeforeEach
+    void setUpSecurityContext() {
+        final SecurityContext securityContext = mock(SecurityContext.class);
+        final Authentication authentication = mock(Authentication.class);
+        when(authentication.getPrincipal()).thenReturn(USER_ID);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        SecurityContextHolder.setContext(securityContext);
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     @DisplayName("정상적인 예약 생성 요청이 들어오면 예약이 생성된다")
     void execute_ShouldCreateReservation_WhenValidRequest() {
         // Given
-        Long userId = 1L;
         CreateReservationReqDto reqDto = new CreateReservationReqDto(1L, LocalDateTime.now().plusHours(1));
 
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
-        when(penaltyRedisUtil.getPenaltyExpiryTime(userId)).thenReturn(null);
+        when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
         when(sundayReservationRedisUtil.isSundayActive()).thenReturn(false);
         when(reservationRepository.existsConflictingReservation(any(), any(), any(), any())).thenReturn(false);
         when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
@@ -69,11 +88,11 @@ class CreateReservationServiceTest {
         when(reservation.getUser()).thenReturn(user);
         when(reservation.getMachine()).thenReturn(machine);
         when(reservation.getStartTime()).thenReturn(reqDto.startTime());
-        when(user.getId()).thenReturn(userId);
+        when(user.getId()).thenReturn(USER_ID);
         when(machine.getId()).thenReturn(1L);
 
         // When
-        ReservationResDto result = createReservationService.execute(userId, reqDto);
+        ReservationResDto result = createReservationService.execute(reqDto);
 
         // Then
         assertThat(result).isNotNull();
