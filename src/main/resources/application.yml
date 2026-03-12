@@ -51,6 +51,8 @@ third-party:
     client-secret: ${THIRD_PARTY_DATAGSM_CLIENT_SECRET:your-client-secret}
     client-id: ${THIRD_PARTY_DATAGSM_CLIENT_ID:your-client-id}
     redirect-uri: ${THIRD_PARTY_DATAGSM_REDIRECT_URI:http://localhost:8080/api/v2/admin/datagsm/oauth/callback}
+reservation:
+  disable-time-restriction: true
 sdk:
   logging:
     enabled: true

@@ -38,6 +38,8 @@ spring:
   docker:
     compose:
       enabled: false
+reservation:
+  disable-time-restriction: true
 sdk:
   logging:
     enabled: true
