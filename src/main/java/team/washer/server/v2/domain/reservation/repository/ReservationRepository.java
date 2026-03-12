@@ -53,8 +53,8 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 
     default Optional<Reservation> findActiveReservationByMachineId(Long machineId) {
         return findFirstActiveReservationByMachineId(machineId,
-                List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING))
-                .stream().findFirst();
+                List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING)).stream()
+                .findFirst();
     }
 
     @Query("SELECT r FROM Reservation r WHERE r.status = :status AND r.startTime < :threshold")
