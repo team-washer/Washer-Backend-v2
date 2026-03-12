@@ -6,7 +6,9 @@ import org.springframework.context.annotation.Configuration;
 import feign.Logger;
 import feign.Request;
 import feign.Retryer;
+import feign.codec.EncodeException;
 import feign.codec.Encoder;
+import tools.jackson.databind.ObjectMapper;
 
 @Configuration
 public class SmartThingsFeignConfig {
@@ -31,10 +33,16 @@ public class SmartThingsFeignConfig {
     }
 
     @Bean
-    public Encoder smartThingsFeignEncoder() {
+    public Encoder smartThingsFeignEncoder(ObjectMapper objectMapper) {
         return (object, bodyType, template) -> {
-            if (object instanceof String s) {
-                template.body(s);
+            try {
+                if (object instanceof String s) {
+                    template.body(s);
+                } else {
+                    template.body(objectMapper.writeValueAsString(object));
+                }
+            } catch (Exception e) {
+                throw new EncodeException("요청 바디 직렬화에 실패했습니다", e);
             }
         };
     }
