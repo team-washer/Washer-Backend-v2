@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import net.minidev.json.JSONObject;
@@ -50,24 +51,28 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(RuntimeException.class)
-    public CommonApiResponse unExpectedException(RuntimeException ex) {
+    public CommonApiResponse unExpectedException(RuntimeException ex, HttpServletRequest request) {
         log.error("기타 런타임 예외 발생 : {}", ex.getMessage(), ex);
         if (discordErrorNotificationService != null) {
-            discordErrorNotificationService.notifyError(ex);
+            discordErrorNotificationService.notifyError(ex, null, buildRequestInfo(request));
         }
 
         return CommonApiResponse.error("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     @ExceptionHandler(Exception.class)
-    public CommonApiResponse handleException(Exception ex) {
+    public CommonApiResponse handleException(Exception ex, HttpServletRequest request) {
         log.error("핸들링되지 않은 예외 발생 : {}", ex.getMessage(), ex);
 
         if (discordErrorNotificationService != null) {
-            discordErrorNotificationService.notifyError(ex);
+            discordErrorNotificationService.notifyError(ex, null, buildRequestInfo(request));
         }
 
         return CommonApiResponse.error("Internal Server Error", HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    private static Map<String, Object> buildRequestInfo(HttpServletRequest request) {
+        return Map.of("HTTP Method", request.getMethod(), "Request Path", request.getRequestURI());
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
