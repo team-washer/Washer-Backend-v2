@@ -33,7 +33,7 @@ import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnv
 @Tag(name = "Admin SmartThings OAuth", description = "SmartThings OAuth 인증 API (관리자용)")
 public class AdminSmartThingsOAuthController {
 
-    private static final String SCOPE = "r:devices:* w:devices:*";
+    private static final String SCOPE = "r:devices:* w:devices:* x:devices:*";
 
     private final SmartThingsEnvironment smartThingsEnvironment;
     private final ExchangeSmartThingsTokenService exchangeSmartThingsTokenService;
