@@ -8,6 +8,8 @@ import feign.Request;
 import feign.Retryer;
 import feign.codec.EncodeException;
 import feign.codec.Encoder;
+import feign.codec.ErrorDecoder;
+import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeignErrorDecoder;
 import tools.jackson.databind.ObjectMapper;
 
 @Configuration
@@ -25,6 +27,11 @@ public class SmartThingsFeignConfig {
     @Bean
     public Retryer smartThingsRetryer() {
         return new Retryer.Default(100, 1000, MAX_ATTEMPTS);
+    }
+
+    @Bean
+    public ErrorDecoder smartThingsFeignErrorDecoder() {
+        return new SmartThingsFeignErrorDecoder();
     }
 
     @Bean
