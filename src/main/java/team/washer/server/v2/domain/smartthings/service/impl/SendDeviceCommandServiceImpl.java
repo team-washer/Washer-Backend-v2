@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
+import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepository;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeignClient;
@@ -39,6 +40,8 @@ public class SendDeviceCommandServiceImpl implements SendDeviceCommandService {
             feignClient.sendDeviceCommand(authorization, deviceId, command);
 
             log.info("[SmartThings] 기기 명령 전송 성공. deviceId={}, command={}", deviceId, command);
+        } catch (SmartThingsPermissionException e) {
+            throw e;
         } catch (ExpectedException e) {
             throw e;
         } catch (Exception e) {
