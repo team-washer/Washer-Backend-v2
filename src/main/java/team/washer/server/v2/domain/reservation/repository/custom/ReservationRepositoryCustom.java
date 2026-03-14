@@ -51,4 +51,25 @@ public interface ReservationRepositoryCustom {
             LocalDateTime startDate,
             LocalDateTime endDate,
             Pageable pageable);
+
+    /**
+     * 기기별 예약 히스토리 조회
+     *
+     * @param machineId
+     *            기기 ID (필수)
+     * @param status
+     *            예약 상태 (null 가능)
+     * @param startDate
+     *            시작일 (null 가능)
+     * @param endDate
+     *            종료일 (null 가능)
+     * @param pageable
+     *            페이지네이션 정보
+     * @return 기기별 예약 히스토리 페이지 (생성일 기준 내림차순)
+     */
+    Page<Reservation> findMachineReservationHistory(Long machineId,
+            ReservationStatus status,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Pageable pageable);
 }

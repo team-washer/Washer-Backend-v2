@@ -119,6 +119,34 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
         return new PageImpl<>(content, pageable, count);
     }
 
+    @Override
+    public Page<Reservation> findMachineReservationHistory(Long machineId,
+            ReservationStatus status,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Pageable pageable) {
+
+        List<Reservation> results = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
+                .leftJoin(reservation.machine, machine).fetchJoin()
+                .where(reservation.machine.id.eq(machineId),
+                        status != null ? reservation.status.eq(status) : null,
+                        startDate != null ? reservation.startTime.goe(startDate) : null,
+                        endDate != null ? reservation.startTime.loe(endDate) : null)
+                .orderBy(reservation.createdAt.desc()).offset(pageable.getOffset()).limit(pageable.getPageSize())
+                .fetch();
+
+        Long total = jpaQueryFactory.select(reservation.count()).from(reservation)
+                .where(reservation.machine.id.eq(machineId),
+                        status != null ? reservation.status.eq(status) : null,
+                        startDate != null ? reservation.startTime.goe(startDate) : null,
+                        endDate != null ? reservation.startTime.loe(endDate) : null)
+                .fetchOne();
+
+        long count = total != null ? total : 0L;
+
+        return new PageImpl<>(results, pageable, count);
+    }
+
     private BooleanExpression userNameContains(String userName) {
         return StringUtils.hasText(userName) ? reservation.user.name.contains(userName) : null;
     }
