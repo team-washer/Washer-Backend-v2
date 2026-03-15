@@ -73,8 +73,8 @@ public class Reservation extends BaseEntity {
         LocalDateTime now = LocalDateTime.now();
 
         return switch (this.status) {
-            case RESERVED -> Duration.between(this.startTime, now).toMinutes() >= 5;
-            case CONFIRMED -> this.confirmedAt != null && Duration.between(this.confirmedAt, now).toMinutes() >= 2;
+            case RESERVED -> Duration.between(this.startTime, now).toMinutes() >= ReservationStatus.RESERVED.getTimeoutMinutes();
+            case CONFIRMED -> this.confirmedAt != null && Duration.between(this.confirmedAt, now).toMinutes() >= ReservationStatus.CONFIRMED.getTimeoutMinutes();
             default -> false;
         };
     }
@@ -84,13 +84,13 @@ public class Reservation extends BaseEntity {
 
         return switch (this.status) {
             case RESERVED -> {
-                long minutes = 5 - Duration.between(this.startTime, now).toMinutes();
+                long minutes = ReservationStatus.RESERVED.getTimeoutMinutes() - Duration.between(this.startTime, now).toMinutes();
                 yield Duration.ofMinutes(Math.max(0, minutes));
             }
             case CONFIRMED -> {
                 if (this.confirmedAt == null)
                     yield Duration.ZERO;
-                long minutes = 2 - Duration.between(this.confirmedAt, now).toMinutes();
+                long minutes = ReservationStatus.CONFIRMED.getTimeoutMinutes() - Duration.between(this.confirmedAt, now).toMinutes();
                 yield Duration.ofMinutes(Math.max(0, minutes));
             }
             default -> Duration.ZERO;
