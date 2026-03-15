@@ -24,9 +24,11 @@ import team.washer.server.v2.domain.machine.enums.Position;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.machine.service.impl.QueryAllMachinesStatusServiceImpl;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.service.QueryAllDevicesStatusService;
+import team.washer.server.v2.domain.user.entity.User;
 
 @ExtendWith(MockitoExtension.class)
 class QueryAllMachinesStatusServiceTest {
@@ -45,6 +47,9 @@ class QueryAllMachinesStatusServiceTest {
 
     @Mock
     private Reservation reservation;
+
+    @Mock
+    private User user;
 
     @Nested
     @DisplayName("전체 기기 상태 조회")
@@ -106,6 +111,98 @@ class QueryAllMachinesStatusServiceTest {
 
             // Then
             assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("기기 가용성 동적 계산")
+    class ComputeAvailabilityTest {
+
+        private Machine buildMachine(MachineAvailability availability) {
+            return Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
+                    .position(Position.LEFT).number(1).status(MachineStatus.NORMAL).availability(availability).build();
+        }
+
+        private void givenMachineWithReservation(Machine machine, Reservation reservationOrNull) {
+            when(machineRepository.findAll()).thenReturn(List.of(machine));
+            when(queryAllDevicesStatusService.execute(any())).thenReturn(Map.of());
+            when(reservationRepository.findActiveReservationByMachineId(any()))
+                    .thenReturn(Optional.ofNullable(reservationOrNull));
+        }
+
+        @Test
+        @DisplayName("예약이 없으면 AVAILABLE을 반환한다")
+        void computeAvailability_ShouldReturnAvailable_WhenNoReservation() {
+            // Given
+            givenMachineWithReservation(buildMachine(MachineAvailability.AVAILABLE), null);
+
+            // When
+            var result = queryAllMachinesStatusService.execute();
+
+            // Then
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.AVAILABLE);
+        }
+
+        @Test
+        @DisplayName("예약 상태가 RESERVED이면 RESERVED를 반환한다")
+        void computeAvailability_ShouldReturnReserved_WhenReservationStatusIsReserved() {
+            // Given
+            when(reservation.getStatus()).thenReturn(ReservationStatus.RESERVED);
+            when(reservation.getUser()).thenReturn(null);
+            when(reservation.getId()).thenReturn(null);
+            givenMachineWithReservation(buildMachine(MachineAvailability.AVAILABLE), reservation);
+
+            // When
+            var result = queryAllMachinesStatusService.execute();
+
+            // Then
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.RESERVED);
+        }
+
+        @Test
+        @DisplayName("예약 상태가 CONFIRMED이면 RESERVED를 반환한다")
+        void computeAvailability_ShouldReturnReserved_WhenReservationStatusIsConfirmed() {
+            // Given
+            when(reservation.getStatus()).thenReturn(ReservationStatus.CONFIRMED);
+            when(reservation.getUser()).thenReturn(null);
+            when(reservation.getId()).thenReturn(null);
+            givenMachineWithReservation(buildMachine(MachineAvailability.AVAILABLE), reservation);
+
+            // When
+            var result = queryAllMachinesStatusService.execute();
+
+            // Then
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.RESERVED);
+        }
+
+        @Test
+        @DisplayName("예약 상태가 RUNNING이면 IN_USE를 반환한다")
+        void computeAvailability_ShouldReturnInUse_WhenReservationStatusIsRunning() {
+            // Given
+            when(reservation.getStatus()).thenReturn(ReservationStatus.RUNNING);
+            when(reservation.getUser()).thenReturn(null);
+            when(reservation.getId()).thenReturn(null);
+            givenMachineWithReservation(buildMachine(MachineAvailability.AVAILABLE), reservation);
+
+            // When
+            var result = queryAllMachinesStatusService.execute();
+
+            // Then
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.IN_USE);
+        }
+
+        @Test
+        @DisplayName("기기가 UNAVAILABLE이면 예약과 무관하게 UNAVAILABLE을 반환한다")
+        void computeAvailability_ShouldReturnUnavailable_WhenMachineIsUnavailable() {
+            // Given
+            when(reservation.getStatus()).thenReturn(ReservationStatus.RESERVED);
+            givenMachineWithReservation(buildMachine(MachineAvailability.UNAVAILABLE), reservation);
+
+            // When
+            var result = queryAllMachinesStatusService.execute();
+
+            // Then
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.UNAVAILABLE);
         }
     }
 }
