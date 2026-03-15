@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.machine.dto.response.MachineStatusResDto;
 import team.washer.server.v2.domain.machine.entity.Machine;
+import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.machine.service.QueryAllMachinesStatusService;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -75,7 +76,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
                 machine.getName(),
                 machine.getType(),
                 machine.getStatus(),
-                machine.getAvailability(),
+                computeAvailability(machine, reservation),
                 operatingState,
                 jobState,
                 switchStatus,
@@ -84,6 +85,24 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
                 reservation != null ? reservation.getId() : null,
                 reservation != null ? reservation.getUser().getId() : null,
                 reservation != null ? reservation.getUser().getRoomNumber() : null);
+    }
+
+    /**
+     * 예약 정보를 기반으로 기기의 가용성을 동적으로 계산한다. machine.availability 필드 대신 예약 상태를 source of
+     * truth로 사용한다.
+     */
+    private MachineAvailability computeAvailability(Machine machine, Reservation reservation) {
+        if (machine.getAvailability() == MachineAvailability.UNAVAILABLE) {
+            return MachineAvailability.UNAVAILABLE;
+        }
+        if (reservation == null) {
+            return MachineAvailability.AVAILABLE;
+        }
+        return switch (reservation.getStatus()) {
+            case RUNNING -> MachineAvailability.IN_USE;
+            case RESERVED, CONFIRMED -> MachineAvailability.RESERVED;
+            default -> throw new IllegalStateException("활성 예약의 상태가 유효하지 않습니다: " + reservation.getStatus());
+        };
     }
 
     private String getOperatingState(Machine machine, SmartThingsDeviceStatusResDto deviceStatus) {
