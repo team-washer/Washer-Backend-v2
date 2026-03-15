@@ -148,8 +148,7 @@ class QueryAllMachinesStatusServiceTest {
         void computeAvailability_ShouldReturnReserved_WhenReservationStatusIsReserved() {
             // Given
             when(reservation.getStatus()).thenReturn(ReservationStatus.RESERVED);
-            when(reservation.getUser()).thenReturn(null);
-            when(reservation.getId()).thenReturn(null);
+            when(reservation.getUser()).thenReturn(user);
             givenMachineWithReservation(buildMachine(MachineAvailability.AVAILABLE), reservation);
 
             // When
@@ -164,8 +163,7 @@ class QueryAllMachinesStatusServiceTest {
         void computeAvailability_ShouldReturnReserved_WhenReservationStatusIsConfirmed() {
             // Given
             when(reservation.getStatus()).thenReturn(ReservationStatus.CONFIRMED);
-            when(reservation.getUser()).thenReturn(null);
-            when(reservation.getId()).thenReturn(null);
+            when(reservation.getUser()).thenReturn(user);
             givenMachineWithReservation(buildMachine(MachineAvailability.AVAILABLE), reservation);
 
             // When
@@ -180,8 +178,7 @@ class QueryAllMachinesStatusServiceTest {
         void computeAvailability_ShouldReturnInUse_WhenReservationStatusIsRunning() {
             // Given
             when(reservation.getStatus()).thenReturn(ReservationStatus.RUNNING);
-            when(reservation.getUser()).thenReturn(null);
-            when(reservation.getId()).thenReturn(null);
+            when(reservation.getUser()).thenReturn(user);
             givenMachineWithReservation(buildMachine(MachineAvailability.AVAILABLE), reservation);
 
             // When
@@ -195,7 +192,7 @@ class QueryAllMachinesStatusServiceTest {
         @DisplayName("기기가 UNAVAILABLE이면 예약과 무관하게 UNAVAILABLE을 반환한다")
         void computeAvailability_ShouldReturnUnavailable_WhenMachineIsUnavailable() {
             // Given
-            when(reservation.getStatus()).thenReturn(ReservationStatus.RESERVED);
+            when(reservation.getUser()).thenReturn(user);
             givenMachineWithReservation(buildMachine(MachineAvailability.UNAVAILABLE), reservation);
 
             // When
