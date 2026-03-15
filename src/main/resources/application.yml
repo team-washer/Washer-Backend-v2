@@ -47,6 +47,8 @@ third-party:
     redirect-uri: ${SMARTTHINGS_REDIRECT_URI:http://localhost:8080/api/v2/admin/smartthings/oauth/callback}
     client-id: ${SMARTTHINGS_CLIENT_ID:your-client-id}
     client-secret: ${SMARTTHINGS_CLIENT_SECRET:your-client-secret}
+    operation-schedule:
+      enabled: false
   datagsm:
     client-secret: ${THIRD_PARTY_DATAGSM_CLIENT_SECRET:your-client-secret}
     client-id: ${THIRD_PARTY_DATAGSM_CLIENT_ID:your-client-id}

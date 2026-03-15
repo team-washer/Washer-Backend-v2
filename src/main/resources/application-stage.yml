@@ -89,6 +89,8 @@ third-party:
     redirect-uri: ${THIRD_PARTY_SMARTTHINGS_REDIRECT_URI}
     client-id: ${THIRD_PARTY_SMARTTHINGS_CLIENT_ID}
     client-secret: ${THIRD_PARTY_SMARTTHINGS_CLIENT_SECRET}
+    operation-schedule:
+      enabled: ${THIRD_PARTY_SMARTTHINGS_OPERATION_SCHEDULE_ENABLED:false}
 springdoc:
   swagger-ui:
     enabled: true
