@@ -159,8 +159,8 @@ class QueryAllMachinesStatusServiceTest {
         }
 
         @Test
-        @DisplayName("예약 상태가 CONFIRMED이면 RESERVED를 반환한다")
-        void computeAvailability_ShouldReturnReserved_WhenReservationStatusIsConfirmed() {
+        @DisplayName("예약 상태가 CONFIRMED이면 CONFIRMED를 반환한다")
+        void computeAvailability_ShouldReturnConfirmed_WhenReservationStatusIsConfirmed() {
             // Given
             when(reservation.getStatus()).thenReturn(ReservationStatus.CONFIRMED);
             when(reservation.getUser()).thenReturn(user);
@@ -170,7 +170,7 @@ class QueryAllMachinesStatusServiceTest {
             var result = queryAllMachinesStatusService.execute();
 
             // Then
-            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.RESERVED);
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.CONFIRMED);
         }
 
         @Test
