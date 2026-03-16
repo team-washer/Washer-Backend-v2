@@ -1,6 +1,8 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -28,22 +30,18 @@ public class QueryActiveReservationServiceImpl implements QueryActiveReservation
     @Transactional(readOnly = true)
     public ReservationResDto execute() {
         final var userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        final User user = userRepository.findById(userId)
+        final User user = userRepository.findById(Objects.requireNonNull(userId))
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final List<Reservation> activeReservations = reservationRepository.findByUserAndStatusIn(user,
                 List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
 
-        final List<Reservation> validReservations = activeReservations.stream()
-                .filter(r -> !r.isExpired())
-                .toList();
+        final Reservation latest = activeReservations.stream().filter(r -> !r.isExpired())
+                .max(Comparator.comparing(Reservation::getCreatedAt)).orElse(null);
 
-        if (validReservations.isEmpty()) {
+        if (latest == null) {
             return null;
         }
-
-        final Reservation latest = validReservations.stream()
-                .max((r1, r2) -> r1.getCreatedAt().compareTo(r2.getCreatedAt())).orElse(null);
 
         return new ReservationResDto(latest.getId(),
                 latest.getUser().getId(),
