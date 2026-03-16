@@ -60,6 +60,14 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final LocalDateTime expectedCompletionTime = reqDto.startTime()
                 .plusMinutes(ReservationConstants.DEFAULT_RESERVATION_DURATION_MINUTES);
 
+        // 동일 호실의 동일 유형 기기 중복 예약 검증
+        final boolean hasDuplicateTypeReservation = reservationRepository
+                .existsActiveReservationByRoomAndMachineType(user.getRoomNumber(), machine.getType());
+        if (hasDuplicateTypeReservation) {
+            throw new ExpectedException(String.format("해당 호실에 이미 %s 예약이 존재합니다. 동일 유형의 기기는 동시에 두 개 이상 예약할 수 없습니다.",
+                    machine.getType().getDescription()), HttpStatus.BAD_REQUEST);
+        }
+
         // 기계 가용성 검증 (인라인)
         final boolean hasConflict = reservationRepository
                 .existsConflictingReservation(machine.getId(), reqDto.startTime(), expectedCompletionTime, null);

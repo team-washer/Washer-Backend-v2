@@ -24,6 +24,17 @@ public interface ReservationRepositoryCustom {
             LocalDateTime endTime,
             Long excludeReservationId);
 
+    /**
+     * 동일 호실의 동일 유형 기기 활성 예약 존재 여부 확인
+     *
+     * @param roomNumber
+     *            호실 번호
+     * @param machineType
+     *            기기 유형 (세탁기/건조기)
+     * @return 동일 유형 활성 예약 존재 여부
+     */
+    boolean existsActiveReservationByRoomAndMachineType(String roomNumber, MachineType machineType);
+
     List<Reservation> findExpiredReservations(ReservationStatus status,
             LocalDateTime threshold,
             LocalDateTime recentCutoff);
