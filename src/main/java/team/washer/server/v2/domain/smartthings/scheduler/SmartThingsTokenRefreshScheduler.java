@@ -15,7 +15,7 @@ import team.washer.server.v2.domain.smartthings.service.RefreshSmartThingsTokenS
 @Slf4j
 public class SmartThingsTokenRefreshScheduler {
 
-    private static final long REFRESH_INTERVAL = 55 * 60 * 1000;
+    private static final long REFRESH_INTERVAL = 550000;
 
     private final RefreshSmartThingsTokenService refreshTokenService;
 
