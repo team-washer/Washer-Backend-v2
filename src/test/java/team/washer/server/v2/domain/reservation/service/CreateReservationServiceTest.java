@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.reservation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import java.time.LocalDateTime;
@@ -95,6 +96,7 @@ class CreateReservationServiceTest {
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.WASHER);
+            when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(false);
             when(reservationRepository.existsActiveReservationByRoomAndMachineType(ROOM_NUMBER, MachineType.WASHER))
                     .thenReturn(false);
             when(reservationRepository.existsConflictingReservation(any(), any(), any(), any())).thenReturn(false);
@@ -127,7 +129,8 @@ class CreateReservationServiceTest {
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.DRYER);
-            // 세탁기 예약은 이미 있지만 건조기 예약은 없는 상태
+            // 룸메이트가 세탁기 예약 중 → 본인은 활성 예약 없음, 건조기 유형도 호실에 없음
+            when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(false);
             when(reservationRepository.existsActiveReservationByRoomAndMachineType(ROOM_NUMBER, MachineType.DRYER))
                     .thenReturn(false);
             when(reservationRepository.existsConflictingReservation(any(), any(), any(), any())).thenReturn(false);
@@ -149,6 +152,23 @@ class CreateReservationServiceTest {
         }
 
         @Test
+        @DisplayName("이미 활성 예약이 있는 개인이 추가 예약을 시도하면 예외를 발생시킨다")
+        void execute_ShouldThrowException_WhenUserAlreadyHasActiveReservation() {
+            // Given
+            final var reqDto = new CreateReservationReqDto(1L, LocalDateTime.now().plusHours(1));
+
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
+            when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
+            when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
+            when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(true);
+
+            // When & Then
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+                    .hasMessageContaining("1인 1예약");
+        }
+
+        @Test
         @DisplayName("동일 호실에 같은 유형의 활성 예약이 있으면 예외를 발생시킨다")
         void execute_ShouldThrowException_WhenRoomAlreadyHasSameTypeActiveReservation() {
             // Given
@@ -160,6 +180,7 @@ class CreateReservationServiceTest {
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.WASHER);
+            when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(false);
             when(reservationRepository.existsActiveReservationByRoomAndMachineType(ROOM_NUMBER, MachineType.WASHER))
                     .thenReturn(true);
 
@@ -180,6 +201,7 @@ class CreateReservationServiceTest {
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.WASHER);
+            when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(false);
             when(reservationRepository.existsActiveReservationByRoomAndMachineType(ROOM_NUMBER, MachineType.WASHER))
                     .thenReturn(false);
             when(reservationRepository.existsConflictingReservation(any(), any(), any(), any())).thenReturn(true);
