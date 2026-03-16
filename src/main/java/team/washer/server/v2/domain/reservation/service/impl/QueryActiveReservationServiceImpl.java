@@ -34,11 +34,15 @@ public class QueryActiveReservationServiceImpl implements QueryActiveReservation
         final List<Reservation> activeReservations = reservationRepository.findByUserAndStatusIn(user,
                 List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
 
-        if (activeReservations.isEmpty()) {
+        final List<Reservation> validReservations = activeReservations.stream()
+                .filter(r -> !r.isExpired())
+                .toList();
+
+        if (validReservations.isEmpty()) {
             return null;
         }
 
-        final Reservation latest = activeReservations.stream()
+        final Reservation latest = validReservations.stream()
                 .max((r1, r2) -> r1.getCreatedAt().compareTo(r2.getCreatedAt())).orElse(null);
 
         return new ReservationResDto(latest.getId(),
