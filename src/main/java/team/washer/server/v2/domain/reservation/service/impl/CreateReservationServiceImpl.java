@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -59,6 +60,13 @@ public class CreateReservationServiceImpl implements CreateReservationService {
 
         final LocalDateTime expectedCompletionTime = reqDto.startTime()
                 .plusMinutes(ReservationConstants.DEFAULT_RESERVATION_DURATION_MINUTES);
+
+        // 개인 중복 예약 검증 (1인 1예약)
+        final boolean hasUserActiveReservation = reservationRepository.existsByUserAndStatusIn(user,
+                List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
+        if (hasUserActiveReservation) {
+            throw new ExpectedException("이미 활성 예약이 존재합니다. 1인 1예약만 가능합니다.", HttpStatus.BAD_REQUEST);
+        }
 
         // 동일 호실의 동일 유형 기기 중복 예약 검증
         final boolean hasDuplicateTypeReservation = reservationRepository
