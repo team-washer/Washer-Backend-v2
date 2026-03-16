@@ -2,6 +2,7 @@ package team.washer.server.v2.domain.reservation.service.impl;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -41,8 +42,8 @@ public class CreateReservationServiceImpl implements CreateReservationService {
     @Override
     @Transactional
     public ReservationResDto execute(final CreateReservationReqDto reqDto) {
-        final var userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        final User user = userRepository.findById(userId)
+        final var userId = (Long) Objects.requireNonNull(SecurityContextHolder.getContext().getAuthentication()).getPrincipal();
+        final User user = userRepository.findById(Objects.requireNonNull(userId))
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final Machine machine = machineRepository.findById(reqDto.machineId())
