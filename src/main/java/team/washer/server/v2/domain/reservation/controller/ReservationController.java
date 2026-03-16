@@ -41,7 +41,13 @@ public class ReservationController {
     private final QueryReservationAvailabilityService queryReservationAvailabilityService;
 
     @PostMapping
-    @Operation(summary = "예약 생성", description = "세탁기/건조기 예약을 생성합니다. 시간 제한과 패널티 규칙이 적용됩니다.")
+    @Operation(summary = "예약 생성", description = """
+            세탁기/건조기 예약을 생성합니다.
+            - 시간 제한 규칙이 적용됩니다 (평일/주말 예약 가능 시간대 제한).
+            - 패널티 상태인 경우 예약이 불가합니다.
+            - 동일 호실에 같은 유형(세탁기 또는 건조기)의 활성 예약이 이미 존재하면 예약이 불가합니다.
+            - 세탁기와 건조기는 동시에 각 1개씩 예약 가능합니다.
+            """)
     public ReservationResDto createReservation(
             @Parameter(description = "예약 생성 요청 DTO") @RequestBody @Valid CreateReservationReqDto requestDto) {
         return createReservationService.execute(requestDto);
