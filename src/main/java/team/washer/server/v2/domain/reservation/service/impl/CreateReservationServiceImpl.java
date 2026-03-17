@@ -54,6 +54,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
         user.validateNotPenalized(penaltyExpiresAt);
 
+
         // 시간 제한 검증 (일요일 활성화 여부 포함, 개발환경에서는 비활성화 가능)
         if (!reservationEnvironment.disableTimeRestriction()) {
             final boolean isSundayActive = sundayReservationRedisUtil.isSundayActive();
