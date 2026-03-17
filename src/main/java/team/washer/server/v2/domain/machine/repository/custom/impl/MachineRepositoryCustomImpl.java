@@ -29,8 +29,10 @@ public class MachineRepositoryCustomImpl implements MachineRepositoryCustom {
             Pageable pageable) {
         final var machine = QMachine.machine;
 
-        final var query = queryFactory.selectFrom(machine)
-                .where(nameContains(name), typeEquals(type), floorEquals(floor), statusEquals(status));
+        final var predicates = new BooleanExpression[]{nameContains(name), typeEquals(type), floorEquals(floor),
+                statusEquals(status)};
+
+        final var query = queryFactory.selectFrom(machine).where(predicates);
 
         if (sorted) {
             query.orderBy(machine.floor.asc(), machine.type.desc(), machine.position.asc(), machine.number.asc());
@@ -38,8 +40,7 @@ public class MachineRepositoryCustomImpl implements MachineRepositoryCustom {
 
         final var content = query.offset(pageable.getOffset()).limit(pageable.getPageSize()).fetch();
 
-        final var total = queryFactory.select(machine.count()).from(machine)
-                .where(nameContains(name), typeEquals(type), floorEquals(floor), statusEquals(status)).fetchOne();
+        final var total = queryFactory.select(machine.count()).from(machine).where(predicates).fetchOne();
 
         final var count = total != null ? total : 0L;
 

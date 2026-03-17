@@ -27,6 +27,9 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 @Slf4j
 public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatusService {
 
+    private static final Sort DEFAULT_SORT = Sort
+            .by(Order.asc("floor"), Order.desc("type"), Order.asc("position"), Order.asc("number"));
+
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
     private final QueryAllDevicesStatusService queryAllDevicesStatusService;
@@ -36,10 +39,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
     public List<MachineStatusResDto> execute(boolean sorted) {
         log.info("Querying all machines status");
 
-        var machines = sorted
-                ? machineRepository.findAll(
-                        Sort.by(Order.asc("floor"), Order.desc("type"), Order.asc("position"), Order.asc("number")))
-                : machineRepository.findAll();
+        var machines = sorted ? machineRepository.findAll(DEFAULT_SORT) : machineRepository.findAll();
         var deviceIds = machines.stream().map(Machine::getDeviceId).toList();
 
         var deviceStatusMap = queryAllDevicesStatusService.execute(deviceIds);
