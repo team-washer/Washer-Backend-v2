@@ -159,7 +159,7 @@ public class Reservation extends BaseEntity {
     }
 
     public void validateFutureTime() {
-        if (this.startTime.isBefore(LocalDateTime.now())) {
+        if (this.startTime.isBefore(LocalDateTime.now().minusSeconds(10))) {
             throw new ExpectedException("예약 시간은 현재 시간 이후여야 합니다", HttpStatus.BAD_REQUEST);
         }
     }
