@@ -12,5 +12,6 @@ public interface MachineRepositoryCustom {
             MachineType type,
             Integer floor,
             MachineStatus status,
+            boolean sorted,
             Pageable pageable);
 }

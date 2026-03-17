@@ -29,8 +29,9 @@ public class MachineController {
 
     @GetMapping("/status")
     @Operation(summary = "전체 기기 현황 조회", description = "모든 세탁기/건조기의 실시간 상태를 조회합니다. SmartThings API와 예약 정보를 결합하여 반환합니다.")
-    public MachineStatusListResDto getAllMachinesStatus() {
-        var result = queryAllMachinesStatusService.execute();
+    public MachineStatusListResDto getAllMachinesStatus(
+            @Parameter(description = "정렬 여부 (층 → 기기종류(세탁기 우선) → 위치(왼쪽 우선) → 번호)") @RequestParam(defaultValue = "true") boolean sorted) {
+        var result = queryAllMachinesStatusService.execute(sorted);
         return new MachineStatusListResDto(result, result.size());
     }
 

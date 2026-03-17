@@ -45,8 +45,9 @@ public class AdminMachineController {
             @Parameter(description = "기기 유형") @RequestParam(required = false) MachineType type,
             @Parameter(description = "층") @RequestParam(required = false) Integer floor,
             @Parameter(description = "기기 상태") @RequestParam(required = false) MachineStatus status,
+            @Parameter(description = "정렬 여부 (층 → 기기종류(세탁기 우선) → 위치(왼쪽 우선) → 번호)") @RequestParam(defaultValue = "true") boolean sorted,
             Pageable pageable) {
-        return queryAllMachinesService.execute(name, type, floor, status, pageable);
+        return queryAllMachinesService.execute(name, type, floor, status, sorted, pageable);
     }
 
     @PutMapping("/{id}/status")

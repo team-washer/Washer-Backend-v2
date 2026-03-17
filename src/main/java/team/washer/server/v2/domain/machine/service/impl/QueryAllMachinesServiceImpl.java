@@ -25,8 +25,9 @@ public class QueryAllMachinesServiceImpl implements QueryAllMachinesService {
             MachineType type,
             Integer floor,
             MachineStatus status,
+            boolean sorted,
             Pageable pageable) {
-        final var machinesPage = machineRepository.findAllWithFilters(name, type, floor, status, pageable);
+        final var machinesPage = machineRepository.findAllWithFilters(name, type, floor, status, sorted, pageable);
         final var machineDtos = machinesPage.getContent().stream().map(this::toMachineResDto).toList();
 
         return new MachineListResDto(machineDtos,
