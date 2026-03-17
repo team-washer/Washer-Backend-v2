@@ -42,7 +42,8 @@ public class CreateReservationServiceImpl implements CreateReservationService {
     @Override
     @Transactional
     public ReservationResDto execute(final CreateReservationReqDto reqDto) {
-        final var userId = (Long) Objects.requireNonNull(SecurityContextHolder.getContext().getAuthentication()).getPrincipal();
+        final var userId = (Long) Objects.requireNonNull(SecurityContextHolder.getContext().getAuthentication())
+                .getPrincipal();
         final User user = userRepository.findById(Objects.requireNonNull(userId))
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

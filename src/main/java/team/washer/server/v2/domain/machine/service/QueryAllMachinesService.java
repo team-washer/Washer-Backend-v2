@@ -7,5 +7,10 @@ import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 
 public interface QueryAllMachinesService {
-    MachineListResDto execute(String name, MachineType type, Integer floor, MachineStatus status, Pageable pageable);
+    MachineListResDto execute(String name,
+            MachineType type,
+            Integer floor,
+            MachineStatus status,
+            boolean sorted,
+            Pageable pageable);
 }

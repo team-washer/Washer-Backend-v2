@@ -60,19 +60,19 @@ class QueryAllMachinesServiceTest {
                 List<Machine> machines = Arrays.asList(machine1, machine2);
                 Page<Machine> machinePage = new PageImpl<>(machines, PageRequest.of(0, 10), machines.size());
 
-                given(machineRepository
-                        .findAllWithFilters(eq(searchName), eq(null), eq(null), eq(null), any(Pageable.class)))
+                given(machineRepository.findAllWithFilters(eq(
+                        searchName), eq(null), eq(null), eq(null), eq(true), any(Pageable.class)))
                         .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
-                        .execute(searchName, null, null, null, PageRequest.of(0, 10));
+                        .execute(searchName, null, null, null, true, PageRequest.of(0, 10));
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(2);
                 assertThat(result.machines()).allMatch(m -> m.name().contains("W-2F"));
-                then(machineRepository).should(times(1))
-                        .findAllWithFilters(eq(searchName), eq(null), eq(null), eq(null), any(Pageable.class));
+                then(machineRepository).should(times(1)).findAllWithFilters(eq(
+                        searchName), eq(null), eq(null), eq(null), eq(true), any(Pageable.class));
             }
         }
 
@@ -89,18 +89,19 @@ class QueryAllMachinesServiceTest {
                 List<Machine> machines = List.of(machine);
                 Page<Machine> machinePage = new PageImpl<>(machines, PageRequest.of(0, 10), machines.size());
 
-                given(machineRepository.findAllWithFilters(eq(null), eq(type), eq(null), eq(null), any(Pageable.class)))
+                given(machineRepository
+                        .findAllWithFilters(eq(null), eq(type), eq(null), eq(null), eq(true), any(Pageable.class)))
                         .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
-                        .execute(null, type, null, null, PageRequest.of(0, 10));
+                        .execute(null, type, null, null, true, PageRequest.of(0, 10));
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);
                 assertThat(result.machines().get(0).type()).isEqualTo(MachineType.WASHER);
                 then(machineRepository).should(times(1))
-                        .findAllWithFilters(eq(null), eq(type), eq(null), eq(null), any(Pageable.class));
+                        .findAllWithFilters(eq(null), eq(type), eq(null), eq(null), eq(true), any(Pageable.class));
             }
         }
 
@@ -118,18 +119,18 @@ class QueryAllMachinesServiceTest {
                 Page<Machine> machinePage = new PageImpl<>(machines, PageRequest.of(0, 10), machines.size());
 
                 given(machineRepository
-                        .findAllWithFilters(eq(null), eq(null), eq(floor), eq(null), any(Pageable.class)))
+                        .findAllWithFilters(eq(null), eq(null), eq(floor), eq(null), eq(true), any(Pageable.class)))
                         .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
-                        .execute(null, null, floor, null, PageRequest.of(0, 10));
+                        .execute(null, null, floor, null, true, PageRequest.of(0, 10));
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);
                 assertThat(result.machines().get(0).floor()).isEqualTo(3);
                 then(machineRepository).should(times(1))
-                        .findAllWithFilters(eq(null), eq(null), eq(floor), eq(null), any(Pageable.class));
+                        .findAllWithFilters(eq(null), eq(null), eq(floor), eq(null), eq(true), any(Pageable.class));
             }
         }
 
@@ -147,18 +148,18 @@ class QueryAllMachinesServiceTest {
                 Page<Machine> machinePage = new PageImpl<>(machines, PageRequest.of(0, 10), machines.size());
 
                 given(machineRepository
-                        .findAllWithFilters(eq(null), eq(null), eq(null), eq(status), any(Pageable.class)))
+                        .findAllWithFilters(eq(null), eq(null), eq(null), eq(status), eq(true), any(Pageable.class)))
                         .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
-                        .execute(null, null, null, status, PageRequest.of(0, 10));
+                        .execute(null, null, null, status, true, PageRequest.of(0, 10));
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);
                 assertThat(result.machines().get(0).status()).isEqualTo(MachineStatus.MALFUNCTION);
                 then(machineRepository).should(times(1))
-                        .findAllWithFilters(eq(null), eq(null), eq(null), eq(status), any(Pageable.class));
+                        .findAllWithFilters(eq(null), eq(null), eq(null), eq(status), eq(true), any(Pageable.class));
             }
         }
 
@@ -175,17 +176,41 @@ class QueryAllMachinesServiceTest {
                 List<Machine> machines = Arrays.asList(machine1, machine2);
                 Page<Machine> machinePage = new PageImpl<>(machines, PageRequest.of(0, 10), machines.size());
 
-                given(machineRepository.findAllWithFilters(eq(null), eq(null), eq(null), eq(null), any(Pageable.class)))
+                given(machineRepository
+                        .findAllWithFilters(eq(null), eq(null), eq(null), eq(null), eq(true), any(Pageable.class)))
                         .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
-                        .execute(null, null, null, null, PageRequest.of(0, 10));
+                        .execute(null, null, null, null, true, PageRequest.of(0, 10));
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(2);
                 then(machineRepository).should(times(1))
-                        .findAllWithFilters(eq(null), eq(null), eq(null), eq(null), any(Pageable.class));
+                        .findAllWithFilters(eq(null), eq(null), eq(null), eq(null), eq(true), any(Pageable.class));
+            }
+
+            @Test
+            @DisplayName("sorted=false이면 정렬 없이 모든 기기 목록을 반환해야 한다")
+            void it_returns_all_machines_without_sort() {
+                // Given
+                Machine machine1 = createMachine("W-2F-L1", MachineType.WASHER, 2, MachineStatus.NORMAL);
+                Machine machine2 = createMachine("D-3F-R1", MachineType.DRYER, 3, MachineStatus.NORMAL);
+                List<Machine> machines = Arrays.asList(machine1, machine2);
+                Page<Machine> machinePage = new PageImpl<>(machines, PageRequest.of(0, 10), machines.size());
+
+                given(machineRepository
+                        .findAllWithFilters(eq(null), eq(null), eq(null), eq(null), eq(false), any(Pageable.class)))
+                        .willReturn(machinePage);
+
+                // When
+                MachineListResDto result = queryAllMachinesService
+                        .execute(null, null, null, null, false, PageRequest.of(0, 10));
+
+                // Then
+                assertThat(result.totalCount()).isEqualTo(2);
+                then(machineRepository).should(times(1))
+                        .findAllWithFilters(eq(null), eq(null), eq(null), eq(null), eq(false), any(Pageable.class));
             }
         }
 
@@ -206,12 +231,12 @@ class QueryAllMachinesServiceTest {
                 Page<Machine> machinePage = new PageImpl<>(machines, PageRequest.of(0, 10), machines.size());
 
                 given(machineRepository
-                        .findAllWithFilters(eq(name), eq(type), eq(floor), eq(status), any(Pageable.class)))
+                        .findAllWithFilters(eq(name), eq(type), eq(floor), eq(status), eq(true), any(Pageable.class)))
                         .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
-                        .execute(name, type, floor, status, PageRequest.of(0, 10));
+                        .execute(name, type, floor, status, true, PageRequest.of(0, 10));
 
                 // Then
                 assertThat(result.totalCount()).isEqualTo(1);
@@ -220,7 +245,7 @@ class QueryAllMachinesServiceTest {
                 assertThat(result.machines().get(0).floor()).isEqualTo(2);
                 assertThat(result.machines().get(0).status()).isEqualTo(MachineStatus.NORMAL);
                 then(machineRepository).should(times(1))
-                        .findAllWithFilters(eq(name), eq(type), eq(floor), eq(status), any(Pageable.class));
+                        .findAllWithFilters(eq(name), eq(type), eq(floor), eq(status), eq(true), any(Pageable.class));
             }
         }
     }
