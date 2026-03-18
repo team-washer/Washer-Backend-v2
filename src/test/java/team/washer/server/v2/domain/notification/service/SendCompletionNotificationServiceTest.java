@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.notification.service;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,6 +29,9 @@ class SendCompletionNotificationServiceTest {
     private NotificationRepository notificationRepository;
 
     @Mock
+    private SendFcmNotificationService sendFcmNotificationService;
+
+    @Mock
     private User user;
 
     @Mock
@@ -48,6 +52,7 @@ class SendCompletionNotificationServiceTest {
 
             // Then
             verify(notificationRepository).save(any(Notification.class));
+            verify(sendFcmNotificationService).execute(any(User.class), anyString(), anyString());
         }
 
         @Test
