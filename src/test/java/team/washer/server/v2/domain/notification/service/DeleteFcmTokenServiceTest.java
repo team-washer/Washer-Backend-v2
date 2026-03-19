@@ -5,8 +5,6 @@ import static org.mockito.BDDMockito.*;
 
 import java.util.Optional;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -15,9 +13,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.notification.service.impl.DeleteFcmTokenServiceImpl;
@@ -35,20 +30,6 @@ class DeleteFcmTokenServiceTest {
     private UserRepository userRepository;
 
     private static final Long USER_ID = 1L;
-
-    @BeforeEach
-    void setUpSecurityContext() {
-        final SecurityContext securityContext = mock(SecurityContext.class);
-        final Authentication authentication = mock(Authentication.class);
-        when(authentication.getPrincipal()).thenReturn(USER_ID);
-        when(securityContext.getAuthentication()).thenReturn(authentication);
-        SecurityContextHolder.setContext(securityContext);
-    }
-
-    @AfterEach
-    void clearSecurityContext() {
-        SecurityContextHolder.clearContext();
-    }
 
     private User createUserWithToken(String token) {
         User user = User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(3).floor(3).build();
@@ -73,7 +54,7 @@ class DeleteFcmTokenServiceTest {
                 given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
 
                 // When
-                deleteFcmTokenService.execute();
+                deleteFcmTokenService.execute(USER_ID);
 
                 // Then
                 assertThat(user.getFcmToken()).isNull();
@@ -95,7 +76,7 @@ class DeleteFcmTokenServiceTest {
                 given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
 
                 // When
-                deleteFcmTokenService.execute();
+                deleteFcmTokenService.execute(USER_ID);
 
                 // Then
                 assertThat(user.getFcmToken()).isNull();
@@ -114,7 +95,7 @@ class DeleteFcmTokenServiceTest {
                 given(userRepository.findById(USER_ID)).willReturn(Optional.empty());
 
                 // When & Then
-                assertThatThrownBy(() -> deleteFcmTokenService.execute()).isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> deleteFcmTokenService.execute(USER_ID)).isInstanceOf(ExpectedException.class)
                         .hasMessage("사용자를 찾을 수 없습니다").hasFieldOrPropertyWithValue("statusCode", HttpStatus.NOT_FOUND);
 
                 then(userRepository).should(times(1)).findById(USER_ID);
