@@ -72,6 +72,9 @@ public class User extends BaseEntity {
     @Column(name = "last_cancellation_at")
     private LocalDateTime lastCancellationAt;
 
+    @Column(name = "fcm_token", length = 255)
+    private String fcmToken;
+
     // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
@@ -109,6 +112,23 @@ public class User extends BaseEntity {
 
     public void clearLastCancellationTime() {
         this.lastCancellationAt = null;
+    }
+
+    /**
+     * FCM 토큰을 등록하거나 갱신합니다.
+     *
+     * @param token
+     *            FCM 토큰
+     */
+    public void updateFcmToken(final String token) {
+        this.fcmToken = token;
+    }
+
+    /**
+     * FCM 토큰을 삭제합니다.
+     */
+    public void clearFcmToken() {
+        this.fcmToken = null;
     }
 
     public boolean hasRecentCancellation(int penaltyMinutes) {

@@ -55,6 +55,8 @@ third-party:
     redirect-uri: ${THIRD_PARTY_DATAGSM_REDIRECT_URI:http://localhost:8080/api/v2/admin/datagsm/oauth/callback}
 reservation:
   disable-time-restriction: true
+fcm:
+  service-account-json: ${FIREBASE_SERVICE_ACCOUNT_JSON:}
 sdk:
   logging:
     enabled: true

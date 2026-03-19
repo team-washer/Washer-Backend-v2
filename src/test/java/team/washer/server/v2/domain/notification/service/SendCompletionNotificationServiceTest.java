@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.notification.service;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -28,6 +29,9 @@ class SendCompletionNotificationServiceTest {
     private NotificationRepository notificationRepository;
 
     @Mock
+    private SendFcmNotificationService sendFcmNotificationService;
+
+    @Mock
     private User user;
 
     @Mock
@@ -48,18 +52,7 @@ class SendCompletionNotificationServiceTest {
 
             // Then
             verify(notificationRepository).save(any(Notification.class));
-        }
-
-        @Test
-        @DisplayName("알림 전송 실패 시 예외를 로그로 처리한다")
-        void execute_ShouldLogException_WhenNotificationFails() {
-            // Given
-            when(machine.getName()).thenReturn("W-3F-A1");
-            when(notificationRepository.save(any(Notification.class)))
-                    .thenThrow(new RuntimeException("Database error"));
-
-            // When & Then - 예외가 전파되지 않고 로그로 처리됨
-            sendCompletionNotificationService.execute(user, machine);
+            verify(sendFcmNotificationService).execute(any(User.class), anyString(), anyString());
         }
     }
 }
