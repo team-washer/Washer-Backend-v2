@@ -1,7 +1,6 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.ConfirmReservationService;
+import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @Service
 @RequiredArgsConstructor
@@ -17,11 +17,12 @@ import team.washer.server.v2.domain.reservation.service.ConfirmReservationServic
 public class ConfirmReservationServiceImpl implements ConfirmReservationService {
 
     private final ReservationRepository reservationRepository;
+    private final CurrentUserProvider currentUserProvider;
 
     @Override
     @Transactional
     public void execute(Long reservationId) {
-        final var userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        final var userId = currentUserProvider.getCurrentUserId();
         var reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

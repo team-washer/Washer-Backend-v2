@@ -5,7 +5,6 @@ import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,12 +16,14 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.QueryReservationHistoryService;
+import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @Service
 @RequiredArgsConstructor
 public class QueryReservationHistoryServiceImpl implements QueryReservationHistoryService {
 
     private final ReservationRepository reservationRepository;
+    private final CurrentUserProvider currentUserProvider;
 
     @Override
     @Transactional(readOnly = true)
@@ -32,7 +33,7 @@ public class QueryReservationHistoryServiceImpl implements QueryReservationHisto
             final MachineType machineType,
             final Pageable pageable) {
 
-        final var userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        final var userId = currentUserProvider.getCurrentUserId();
         final Page<Reservation> reservations = reservationRepository
                 .findReservationHistory(userId, status, startDate, endDate, machineType, pageable);
 

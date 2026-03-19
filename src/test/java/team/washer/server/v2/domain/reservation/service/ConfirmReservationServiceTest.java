@@ -5,8 +5,6 @@ import static org.mockito.Mockito.*;
 
 import java.util.Optional;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -14,15 +12,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.ConfirmReservationServiceImpl;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
 class ConfirmReservationServiceTest {
@@ -34,26 +30,15 @@ class ConfirmReservationServiceTest {
     private ReservationRepository reservationRepository;
 
     @Mock
+    private CurrentUserProvider currentUserProvider;
+
+    @Mock
     private Reservation reservation;
 
     @Mock
     private User user;
 
     private static final Long USER_ID = 100L;
-
-    @BeforeEach
-    void setUpSecurityContext() {
-        final SecurityContext securityContext = mock(SecurityContext.class);
-        final Authentication authentication = mock(Authentication.class);
-        when(authentication.getPrincipal()).thenReturn(USER_ID);
-        when(securityContext.getAuthentication()).thenReturn(authentication);
-        SecurityContextHolder.setContext(securityContext);
-    }
-
-    @AfterEach
-    void clearSecurityContext() {
-        SecurityContextHolder.clearContext();
-    }
 
     @Nested
     @DisplayName("예약 확인")
@@ -63,6 +48,7 @@ class ConfirmReservationServiceTest {
         @DisplayName("본인의 예약을 성공적으로 확인한다")
         void execute_ShouldConfirmReservation_WhenValidUserAndReservation() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             Long reservationId = 1L;
 
             when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(reservation));
@@ -81,6 +67,7 @@ class ConfirmReservationServiceTest {
         @DisplayName("예약이 존재하지 않으면 예외를 발생시킨다")
         void execute_ShouldThrowException_WhenReservationNotFound() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             Long reservationId = 999L;
 
             when(reservationRepository.findById(reservationId)).thenReturn(Optional.empty());
@@ -94,6 +81,7 @@ class ConfirmReservationServiceTest {
         @DisplayName("다른 사용자의 예약을 확인하려고 하면 예외를 발생시킨다")
         void execute_ShouldThrowException_WhenUnauthorizedUser() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             Long reservationId = 1L;
             Long differentUserId = 200L;
 
