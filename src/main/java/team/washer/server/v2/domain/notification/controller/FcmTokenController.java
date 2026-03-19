@@ -1,8 +1,5 @@
 package team.washer.server.v2.domain.notification.controller;
 
-import java.util.Objects;
-
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,6 +18,7 @@ import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.notification.dto.request.FcmTokenReqDto;
 import team.washer.server.v2.domain.notification.service.DeleteFcmTokenService;
 import team.washer.server.v2.domain.notification.service.RegisterFcmTokenService;
+import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @RestController
 @RequestMapping("/api/v2/notifications/fcm-token")
@@ -32,6 +30,7 @@ public class FcmTokenController {
 
     private final RegisterFcmTokenService registerFcmTokenService;
     private final DeleteFcmTokenService deleteFcmTokenService;
+    private final CurrentUserProvider currentUserProvider;
 
     @PostMapping
     @Operation(summary = "FCM 토큰 등록/갱신", description = "현재 로그인된 사용자의 FCM 토큰을 등록하거나 갱신합니다.")
@@ -51,11 +50,7 @@ public class FcmTokenController {
             @ApiResponse(responseCode = "401", description = "인증 필요", content = @Content(schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{'status':401,'message':'인증이 필요합니다'}"))),
             @ApiResponse(responseCode = "404", description = "사용자 없음", content = @Content(schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{'status':404,'message':'사용자를 찾을 수 없습니다'}")))})
     public CommonApiResponse deleteFcmToken() {
-        deleteFcmTokenService.execute(getCurrentUserId());
+        deleteFcmTokenService.execute(currentUserProvider.getCurrentUserId());
         return CommonApiResponse.success("FCM 토큰이 삭제되었습니다.");
-    }
-
-    private Long getCurrentUserId() {
-        return (Long) Objects.requireNonNull(SecurityContextHolder.getContext().getAuthentication()).getPrincipal();
     }
 }

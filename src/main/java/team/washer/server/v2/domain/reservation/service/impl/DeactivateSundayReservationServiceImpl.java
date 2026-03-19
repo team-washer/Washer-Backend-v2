@@ -1,9 +1,6 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import java.util.Objects;
-
 import org.springframework.http.HttpStatus;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +11,7 @@ import team.washer.server.v2.domain.reservation.service.DeactivateSundayReservat
 import team.washer.server.v2.domain.reservation.util.SundayReservationRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @Slf4j
 @Service
@@ -22,12 +20,13 @@ public class DeactivateSundayReservationServiceImpl implements DeactivateSundayR
 
     private final UserRepository userRepository;
     private final SundayReservationRedisUtil sundayReservationRedisUtil;
+    private final CurrentUserProvider currentUserProvider;
 
     @Override
     @Transactional
     public void execute(final String notes) {
-        final var adminId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        final User admin = userRepository.findById(Objects.requireNonNull(adminId))
+        final var adminId = currentUserProvider.getCurrentUserId();
+        final User admin = userRepository.findById(adminId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         if (!admin.getRole().canManageSundayReservation()) {

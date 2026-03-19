@@ -9,8 +9,6 @@ import static org.mockito.Mockito.*;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,9 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
@@ -36,6 +31,7 @@ import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.reservation.util.SundayReservationRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
 class CreateReservationServiceTest {
@@ -55,6 +51,8 @@ class CreateReservationServiceTest {
     private SundayReservationRedisUtil sundayReservationRedisUtil;
     @Mock
     private ReservationEnvironment reservationEnvironment;
+    @Mock
+    private CurrentUserProvider currentUserProvider;
 
     @Mock
     private User user;
@@ -66,20 +64,6 @@ class CreateReservationServiceTest {
     private static final Long USER_ID = 1L;
     private static final String ROOM_NUMBER = "101";
 
-    @BeforeEach
-    void setUpSecurityContext() {
-        final SecurityContext securityContext = mock(SecurityContext.class);
-        final Authentication authentication = mock(Authentication.class);
-        when(authentication.getPrincipal()).thenReturn(USER_ID);
-        when(securityContext.getAuthentication()).thenReturn(authentication);
-        SecurityContextHolder.setContext(securityContext);
-    }
-
-    @AfterEach
-    void clearSecurityContext() {
-        SecurityContextHolder.clearContext();
-    }
-
     @Nested
     @DisplayName("예약 생성")
     class ExecuteTest {
@@ -88,6 +72,7 @@ class CreateReservationServiceTest {
         @DisplayName("유효한 요청이면 예약이 정상적으로 생성된다")
         void execute_ShouldCreateReservation_WhenValidRequest() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L, LocalDateTime.now().plusHours(1));
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
@@ -121,6 +106,7 @@ class CreateReservationServiceTest {
         @DisplayName("세탁기와 건조기는 동시에 각 1개씩 예약할 수 있다")
         void execute_ShouldCreateReservation_WhenRoomHasDifferentTypeActiveReservation() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(2L, LocalDateTime.now().plusHours(1));
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
@@ -155,6 +141,7 @@ class CreateReservationServiceTest {
         @DisplayName("이미 활성 예약이 있는 개인이 추가 예약을 시도하면 예외를 발생시킨다")
         void execute_ShouldThrowException_WhenUserAlreadyHasActiveReservation() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L, LocalDateTime.now().plusHours(1));
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
@@ -172,6 +159,7 @@ class CreateReservationServiceTest {
         @DisplayName("동일 호실에 같은 유형의 활성 예약이 있으면 예외를 발생시킨다")
         void execute_ShouldThrowException_WhenRoomAlreadyHasSameTypeActiveReservation() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L, LocalDateTime.now().plusHours(1));
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
@@ -193,6 +181,7 @@ class CreateReservationServiceTest {
         @DisplayName("해당 시간에 기기가 이미 예약되어 있으면 예외를 발생시킨다")
         void execute_ShouldThrowException_WhenMachineHasConflictingReservation() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L, LocalDateTime.now().plusHours(1));
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));

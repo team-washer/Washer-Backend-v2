@@ -12,8 +12,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -21,9 +19,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContext;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
@@ -34,6 +29,7 @@ import team.washer.server.v2.domain.reservation.repository.ReservationRepository
 import team.washer.server.v2.domain.reservation.service.impl.QueryActiveReservationServiceImpl;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
 class QueryActiveReservationServiceTest {
@@ -48,26 +44,15 @@ class QueryActiveReservationServiceTest {
     private UserRepository userRepository;
 
     @Mock
+    private CurrentUserProvider currentUserProvider;
+
+    @Mock
     private User user;
 
     @Mock
     private Machine machine;
 
     private static final Long USER_ID = 1L;
-
-    @BeforeEach
-    void setUpSecurityContext() {
-        final SecurityContext securityContext = mock(SecurityContext.class);
-        final Authentication authentication = mock(Authentication.class);
-        when(authentication.getPrincipal()).thenReturn(USER_ID);
-        when(securityContext.getAuthentication()).thenReturn(authentication);
-        SecurityContextHolder.setContext(securityContext);
-    }
-
-    @AfterEach
-    void clearSecurityContext() {
-        SecurityContextHolder.clearContext();
-    }
 
     @Nested
     @DisplayName("활성 예약 조회")
@@ -77,6 +62,7 @@ class QueryActiveReservationServiceTest {
         @DisplayName("만료되지 않은 활성 예약이 있으면 해당 예약을 반환한다")
         void execute_ShouldReturnReservation_WhenValidActiveReservationExists() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final Reservation reservation = mock(Reservation.class);
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(reservationRepository.findByUserAndStatusIn(eq(user), anyList())).thenReturn(List.of(reservation));
@@ -96,6 +82,7 @@ class QueryActiveReservationServiceTest {
         @DisplayName("만료 예약과 유효 예약이 혼재하면 유효한 예약을 반환한다")
         void execute_ShouldReturnValidReservation_WhenMixedExpiredAndValidReservationsExist() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final Reservation expiredReservation = mock(Reservation.class);
             final Reservation validReservation = mock(Reservation.class);
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
@@ -118,6 +105,7 @@ class QueryActiveReservationServiceTest {
         @DisplayName("유효한 예약이 여러 개이면 생성 시각이 가장 최근인 예약을 반환한다")
         void execute_ShouldReturnLatestReservation_WhenMultipleValidReservationsExist() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final Reservation olderReservation = mock(Reservation.class);
             final Reservation newerReservation = mock(Reservation.class);
             final LocalDateTime older = LocalDateTime.now().minusMinutes(10);
@@ -143,6 +131,7 @@ class QueryActiveReservationServiceTest {
         @DisplayName("만료된 예약만 존재하면 null을 반환한다")
         void execute_ShouldReturnNull_WhenOnlyExpiredReservationsExist() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final Reservation expiredReservation = mock(Reservation.class);
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(reservationRepository.findByUserAndStatusIn(eq(user), anyList()))
@@ -160,6 +149,7 @@ class QueryActiveReservationServiceTest {
         @DisplayName("활성 예약이 없으면 null을 반환한다")
         void execute_ShouldReturnNull_WhenNoActiveReservationsExist() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(reservationRepository.findByUserAndStatusIn(eq(user), anyList())).thenReturn(Collections.emptyList());
 
@@ -174,6 +164,7 @@ class QueryActiveReservationServiceTest {
         @DisplayName("사용자를 찾을 수 없으면 예외를 발생시킨다")
         void execute_ShouldThrowException_WhenUserNotFound() {
             // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
 
             // When & Then
