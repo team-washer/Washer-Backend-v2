@@ -22,23 +22,12 @@ public class SendCompletionNotificationServiceImpl implements SendCompletionNoti
 
     @Override
     public void execute(User user, Machine machine) {
-        try {
-            var notification = Notification.createCompletionNotification(user, machine);
-            notificationRepository.save(notification);
-            log.info("Completion notification sent to user {} for machine {}", user.getId(), machine.getName());
-        } catch (Exception e) {
-            log.error("Failed to send completion notification to user {} for machine {}",
-                    user.getId(),
-                    machine.getName(),
-                    e);
-        }
+        var notification = Notification.createCompletionNotification(user, machine);
+        notificationRepository.save(notification);
+        log.info("Completion notification sent to user {} for machine {}", user.getId(), machine.getName());
 
-        try {
-            final var fcmTitle = "세탁 완료 알림";
-            final var fcmBody = NotificationType.COMPLETION.formatMessage(machine.getName());
-            sendFcmNotificationService.execute(user, fcmTitle, fcmBody);
-        } catch (Exception e) {
-            log.error("Error sending FCM notification: userId={}, machineName={}", user.getId(), machine.getName(), e);
-        }
+        final var fcmTitle = "세탁 완료 알림";
+        final var fcmBody = NotificationType.COMPLETION.formatMessage(machine.getName());
+        sendFcmNotificationService.execute(user, fcmTitle, fcmBody);
     }
 }
