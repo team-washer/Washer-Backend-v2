@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.notification.service.impl;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,7 +21,8 @@ public class DeleteFcmTokenServiceImpl implements DeleteFcmTokenService {
 
     @Override
     @Transactional
-    public void execute(final Long userId) {
+    public void execute() {
+        final var userId = (Long) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
