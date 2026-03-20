@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -25,6 +26,7 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 public class CancelOverdueConfirmedReservationServiceImpl implements CancelOverdueConfirmedReservationService {
 
     private final ReservationRepository reservationRepository;
+    private final MachineRepository machineRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
     private final DetectMachineRunningService detectMachineRunningService;
     private final QueryDeviceStatusService queryDeviceStatusService;
@@ -53,7 +55,9 @@ public class CancelOverdueConfirmedReservationServiceImpl implements CancelOverd
                     var expectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(queryDeviceStatusService,
                             machine.getDeviceId());
                     reservation.start(expectedCompletionTime);
+                    machine.markAsInUse();
                     reservationRepository.save(reservation);
+                    machineRepository.save(machine);
 
                     log.info("만료된 CONFIRMED 예약 {}이 기기 작동 중으로 자동 시작됨", reservation.getId());
                 } else {
@@ -65,7 +69,9 @@ public class CancelOverdueConfirmedReservationServiceImpl implements CancelOverd
                     }
 
                     reservation.cancel();
+                    machine.markAsAvailable();
                     reservationRepository.save(reservation);
+                    machineRepository.save(machine);
                     User user = reservation.getUser();
                     penaltyRedisUtil.applyPenalty(user);
 

@@ -94,6 +94,8 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         // 미래 시간 검증
         reservation.validateFutureTime();
 
+        machine.markAsReserved();
+        machineRepository.save(machine);
         final Reservation saved = reservationRepository.save(reservation);
         log.info("Created reservation {} for user {} on machine {}", saved.getId(), userId, machine.getId());
 
