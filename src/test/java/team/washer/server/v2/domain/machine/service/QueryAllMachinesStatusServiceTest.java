@@ -70,19 +70,14 @@ class QueryAllMachinesStatusServiceTest {
 
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine1, machine2));
 
-            var completionTimeValue = new SmartThingsDeviceStatusResDto.Value("2026-01-26T15:30:00Z",
+            var washerJobAttr = new SmartThingsDeviceStatusResDto.AttributeState("run", "2026-01-26T14:00:00Z", null);
+            var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
                     "2026-01-26T14:30:00Z",
                     null);
-            var completionTimeCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(completionTimeValue);
-            var washerJobStateValue = new SmartThingsDeviceStatusResDto.Value("run", "2026-01-26T14:00:00Z", null);
-            var washerJobStateCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(washerJobStateValue);
-
-            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null,
-                    null,
-                    washerJobStateCapability,
-                    null,
-                    completionTimeCapability,
-                    null);
+            var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null,
+                    washerJobAttr,
+                    completionTimeAttr);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
 
             when(queryAllDevicesStatusService.execute(List.of("device-1", "device-2")))

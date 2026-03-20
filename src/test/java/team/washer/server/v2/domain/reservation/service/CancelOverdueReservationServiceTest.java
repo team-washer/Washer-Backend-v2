@@ -19,6 +19,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
+import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -37,6 +38,9 @@ class CancelOverdueReservationServiceTest {
 
     @Mock
     private ReservationRepository reservationRepository;
+
+    @Mock
+    private MachineRepository machineRepository;
 
     @Mock
     private PenaltyRedisUtil penaltyRedisUtil;
@@ -92,16 +96,11 @@ class CancelOverdueReservationServiceTest {
         when(detectMachineRunningService.execute("device-123")).thenReturn(true);
 
         // SmartThingsDeviceStatusResDto Mock 생성
-        var completionTimeValue = new SmartThingsDeviceStatusResDto.Value("2026-01-26T15:30:00Z",
+        var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
                 "2026-01-26T14:30:00Z",
                 null);
-        var completionTimeCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(completionTimeValue);
-        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null,
-                null,
-                null,
-                null,
-                completionTimeCapability,
-                null);
+        var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
+        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
         var deviceStatus = new SmartThingsDeviceStatusResDto(java.util.Map.of("main", componentStatus));
         when(queryDeviceStatusService.execute("device-123")).thenReturn(deviceStatus);
 
@@ -109,6 +108,7 @@ class CancelOverdueReservationServiceTest {
         cancelOverdueReservationService.execute();
 
         // Then
+        verify(reservation, times(1)).confirm();
         verify(reservation, times(1)).start(any(LocalDateTime.class));
         verify(reservationRepository, times(1)).save(reservation);
         verify(reservation, never()).cancel();

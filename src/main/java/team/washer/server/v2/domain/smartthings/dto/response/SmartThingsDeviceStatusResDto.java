@@ -13,34 +13,29 @@ public record SmartThingsDeviceStatusResDto(
         @Schema(description = "컴포넌트 목록") @JsonProperty("components") Map<String, ComponentStatus> components) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record ComponentStatus(
-            @JsonProperty("washerOperatingState") WasherOperatingState washerOperatingState,
+    public record ComponentStatus(@JsonProperty("washerOperatingState") WasherOperatingState washerOperatingState,
             @JsonProperty("dryerOperatingState") DryerOperatingState dryerOperatingState,
             @JsonProperty("switch") SwitchCapability switchCapability) {
     }
 
     /**
-     * washerOperatingState capability 내부 속성.
-     * machineState: "run" | "pause" | "stop"
+     * washerOperatingState capability 내부 속성. machineState: "run" | "pause" | "stop"
      * washerJobState: "wash" | "rinse" | "spin" | "finish" | "none" | ...
      * completionTime: ISO 8601 문자열
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record WasherOperatingState(
-            @JsonProperty("machineState") AttributeState machineState,
+    public record WasherOperatingState(@JsonProperty("machineState") AttributeState machineState,
             @JsonProperty("washerJobState") AttributeState washerJobState,
             @JsonProperty("completionTime") AttributeState completionTime) {
     }
 
     /**
-     * dryerOperatingState capability 내부 속성.
-     * machineState: "run" | "pause" | "stop"
+     * dryerOperatingState capability 내부 속성. machineState: "run" | "pause" | "stop"
      * dryerJobState: "drying" | "cooling" | "finished" | "none" | ...
      * completionTime: ISO 8601 문자열
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record DryerOperatingState(
-            @JsonProperty("machineState") AttributeState machineState,
+    public record DryerOperatingState(@JsonProperty("machineState") AttributeState machineState,
             @JsonProperty("dryerJobState") AttributeState dryerJobState,
             @JsonProperty("completionTime") AttributeState completionTime) {
     }
@@ -50,8 +45,7 @@ public record SmartThingsDeviceStatusResDto(
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record AttributeState(@JsonProperty("value") String value,
-            @JsonProperty("timestamp") String timestamp,
+    public record AttributeState(@JsonProperty("value") String value, @JsonProperty("timestamp") String timestamp,
             @JsonProperty("unit") String unit) {
     }
 
