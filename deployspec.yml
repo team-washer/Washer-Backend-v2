@@ -7,11 +7,7 @@ hooks:
 
   ApplicationStart:
     - location: scripts/start.sh
-      timeout: 60
-
-  ValidateService:
-    - location: scripts/validate.sh
-      timeout: 600
+      timeout: 120
 
 permissions:
   - object: scripts
