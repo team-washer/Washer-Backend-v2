@@ -44,3 +44,6 @@ src/main/generated/
 
 ### LLM ###
 PR_BODY.md
+
+### Env ###
+.env*

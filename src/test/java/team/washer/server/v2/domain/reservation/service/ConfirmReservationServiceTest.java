@@ -14,6 +14,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.domain.machine.entity.Machine;
+import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.ConfirmReservationServiceImpl;
@@ -30,10 +32,16 @@ class ConfirmReservationServiceTest {
     private ReservationRepository reservationRepository;
 
     @Mock
+    private MachineRepository machineRepository;
+
+    @Mock
     private CurrentUserProvider currentUserProvider;
 
     @Mock
     private Reservation reservation;
+
+    @Mock
+    private Machine machine;
 
     @Mock
     private User user;
@@ -54,6 +62,7 @@ class ConfirmReservationServiceTest {
             when(reservationRepository.findById(reservationId)).thenReturn(Optional.of(reservation));
             when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(USER_ID);
+            when(reservation.getMachine()).thenReturn(machine);
 
             // When
             confirmReservationService.execute(reservationId);

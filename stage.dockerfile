@@ -1,15 +1,7 @@
-FROM gradle:jdk25-alpine AS build
-WORKDIR /app
-COPY gradlew build.gradle.kts settings.gradle.kts eclipse-formatter.xml ./
-COPY gradle gradle
-RUN chmod +x ./gradlew
-RUN ./gradlew dependencies --no-daemon
-COPY src src
-RUN ./gradlew bootJar --no-daemon
 FROM amazoncorretto:25-alpine
 WORKDIR /app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-COPY --from=build /app/build/libs/*.jar app.jar
+COPY build/libs/app.jar app.jar
 RUN chown appuser:appgroup app.jar
 USER appuser
 EXPOSE 8080

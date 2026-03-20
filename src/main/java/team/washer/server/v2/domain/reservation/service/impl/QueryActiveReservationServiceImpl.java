@@ -36,8 +36,8 @@ public class QueryActiveReservationServiceImpl implements QueryActiveReservation
         final List<Reservation> activeReservations = reservationRepository.findByUserAndStatusIn(user,
                 List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
 
-        final Reservation latest = activeReservations.stream().max(Comparator.comparing(Reservation::getCreatedAt))
-                .orElse(null);
+        final Reservation latest = activeReservations.stream().filter(r -> !r.isExpired())
+                .max(Comparator.comparing(Reservation::getCreatedAt)).orElse(null);
 
         if (latest == null) {
             return null;
