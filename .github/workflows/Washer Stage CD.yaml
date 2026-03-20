@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - develop
+      - cicd/*
   workflow_dispatch:
 jobs:
   Stage-CD:
