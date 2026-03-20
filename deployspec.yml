@@ -7,9 +7,14 @@ hooks:
 
   ApplicationStart:
     - location: scripts/start.sh
+      timeout: 60
+
+  ValidateService:
+    - location: scripts/validate.sh
       timeout: 600
+
 permissions:
-  - object: /app/washer/scripts
+  - object: scripts
     pattern: "*.sh"
     owner: root
     group: root
