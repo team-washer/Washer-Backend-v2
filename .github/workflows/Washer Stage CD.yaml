@@ -27,7 +27,9 @@ jobs:
         run: ./gradlew bootJar -x test --no-daemon
 
       - name: Create .env.stage
-        run: echo "${{ secrets.ENV_STAGE }}" > .env.stage
+        env:
+          ENV_STAGE: ${{ secrets.ENV_STAGE }}
+        run: printf '%s' "$ENV_STAGE" > .env.stage
 
       - name: Deploy to Server
         uses: 8G4B/GSM-SV-Deploy@v1.2.1
