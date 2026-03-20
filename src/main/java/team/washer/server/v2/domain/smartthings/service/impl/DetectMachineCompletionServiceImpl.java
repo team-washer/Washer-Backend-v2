@@ -28,7 +28,8 @@ public class DetectMachineCompletionServiceImpl implements DetectMachineCompleti
             var washerJobState = status.getWasherJobState();
             var dryerJobState = status.getDryerJobState();
 
-            var isFinished = "finished".equalsIgnoreCase(washerJobState) || "finished".equalsIgnoreCase(dryerJobState);
+            // 세탁기: "finish", 건조기: "finished" (SmartThings 명세 기준)
+            var isFinished = "finish".equalsIgnoreCase(washerJobState) || "finished".equalsIgnoreCase(dryerJobState);
 
             if (isFinished) {
                 log.debug("Device {} job is finished", deviceId);
