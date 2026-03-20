@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -23,6 +24,7 @@ import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 public class CancelReservationServiceImpl implements CancelReservationService {
 
     private final ReservationRepository reservationRepository;
+    private final MachineRepository machineRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
     private final CurrentUserProvider currentUserProvider;
 
@@ -52,8 +54,11 @@ public class CancelReservationServiceImpl implements CancelReservationService {
             log.info("Applied penalty to user {} for cancelling reservation {}", userId, reservationId);
         }
 
+        final var machine = reservation.getMachine();
         reservation.cancel();
+        machine.markAsAvailable();
         reservationRepository.save(reservation);
+        machineRepository.save(machine);
         log.info("Cancelled reservation {} by user {}", reservationId, userId);
 
         return mapToCancellationResDto(applyPenalty, penaltyExpiresAt);
