@@ -95,6 +95,10 @@ public class Machine extends BaseEntity {
         this.availability = MachineAvailability.RESERVED;
     }
 
+    public void markAsConfirmed() {
+        this.availability = MachineAvailability.CONFIRMED;
+    }
+
     public void markAsUnavailable() {
         this.availability = MachineAvailability.UNAVAILABLE;
     }
