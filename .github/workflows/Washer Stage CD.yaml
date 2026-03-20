@@ -9,68 +9,39 @@ jobs:
     runs-on: ubuntu-latest
     environment: Stage-CD
     steps:
-      - name: Checkout Repository
+      - name: Repository Checkout
         uses: actions/checkout@v6
 
-      - name: Deploy
-        uses: cloudtype-github-actions/deploy@v1
-        with:
-          token: ${{ secrets.CLOUDTYPE_TOKEN }}
-          project: snowykte0426/daram
-          stage: main
-          yaml: |
-            name: washer-backend-v2
-            app: dockerfile
-            options:
-              ports: "8080"
-              dockerfile: stage.dockerfile
-              env:
-                - name: SPRING_DATASOURCE_URL
-                  value: ${{ secrets.RDB_URL }}
-                - name: SPRING_DATASOURCE_USERNAME
-                  value: ${{ secrets.RDB_USERNAME }}
-                - name: SPRING_DATASOURCE_PASSWORD
-                  value: ${{ secrets.RDB_PASSWORD }}
-                - name: SPRING_DATA_REDIS_HOST
-                  value: ${{ secrets.REDIS_HOST }}
-                - name: SPRING_DATA_REDIS_PORT
-                  value: ${{ secrets.REDIS_PORT }}
-                - name: SPRING_DATA_REDIS_PASSWORD
-                  value: ${{ secrets.REDIS_PASSWORD }}
-                - name: THIRD_PARTY_DISCORD_WEBHOOK_URL
-                  value: ${{ secrets.DISCORD_EMERGENCY_ALERT_CHANNEL_WEBHOOK }}
-                - name: THIRD_PARTY_SMARTTHINGS_REDIRECT_URI
-                  value: ${{ secrets.SMARTTHINGS_REDIRECT_URI }}
-                - name: THIRD_PARTY_SMARTTHINGS_CLIENT_ID
-                  value: ${{ secrets.SMARTTHINGS_CLIENT_ID }}
-                - name: THIRD_PARTY_SMARTTHINGS_CLIENT_SECRET
-                  value: ${{ secrets.SMARTTHINGS_CLIENT_SECRET }}
-                - name: THIRD_PARTY_SMARTTHINGS_OPERATION_SCHEDULE_ENABLED
-                  value: ${{ secrets.SMARTTHINGS_OPERATION_SCHEDULE_ENABLED }}
-                - name: THIRD_PARTY_DATAGSM_CLIENT_ID
-                  value: ${{ secrets.DATAGSM_CLIENT_ID }}
-                - name: THIRD_PARTY_DATAGSM_CLIENT_SECRET
-                  value: ${{ secrets.DATAGSM_CLIENT_SECRET }}
-                - name: THIRD_PARTY_DATAGSM_REDIRECT_URI
-                  value: ${{ secrets.DATAGSM_REDIRECT_URI }}
-                - name: JWT_SECRET
-                  value: ${{ secrets.JWT_SECRET_KEY }}
-            context:
-              git:
-                url: https://github.com/${{ github.repository }}.git
-                ref: ${{ github.ref }}
-              preset: dockerfile
+      - name: Set Environment Variables
+        run: echo "${{ secrets.ENV_STAGE }}" > .env.stage
 
-      - name: CD Success Notification
+      - name: Deploy to Stage Server
+        uses: 8G4B/GSM-SV-Deploy@v1.2.1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          user: ${{ secrets.SSH_USER }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          source_path: .
+          target_path: /app/washer
+
+      - name: Notify Stage CD Success
         uses: sarisia/actions-status-discord@v1
         if: success()
         with:
           webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
           color: 0x4CAF50
 
-      - name: CD Failure Notification
+      - name: Notify Stage CD Failure
         uses: sarisia/actions-status-discord@v1
         if: failure()
+        with:
+          webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
+          color: 0xFF4C4C
+
+      - name: Notify Stage CD Cancelled
+        uses: sarisia/actions-status-discord@v1
+        if: cancelled()
         with:
           webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
           color: 0xFF4C4C
