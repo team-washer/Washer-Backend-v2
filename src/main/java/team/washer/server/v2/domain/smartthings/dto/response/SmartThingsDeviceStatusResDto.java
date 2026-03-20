@@ -13,79 +13,117 @@ public record SmartThingsDeviceStatusResDto(
         @Schema(description = "컴포넌트 목록") @JsonProperty("components") Map<String, ComponentStatus> components) {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record ComponentStatus(@JsonProperty("washerOperatingState") CapabilityStatus washerOperatingState,
+    public record ComponentStatus(
+            @JsonProperty("washerOperatingState") WasherOperatingState washerOperatingState,
+            @JsonProperty("dryerOperatingState") DryerOperatingState dryerOperatingState,
+            @JsonProperty("switch") SwitchCapability switchCapability) {
+    }
 
-            @JsonProperty("dryerOperatingState") CapabilityStatus dryerOperatingState,
+    /**
+     * washerOperatingState capability 내부 속성.
+     * machineState: "run" | "pause" | "stop"
+     * washerJobState: "wash" | "rinse" | "spin" | "finish" | "none" | ...
+     * completionTime: ISO 8601 문자열
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record WasherOperatingState(
+            @JsonProperty("machineState") AttributeState machineState,
+            @JsonProperty("washerJobState") AttributeState washerJobState,
+            @JsonProperty("completionTime") AttributeState completionTime) {
+    }
 
-            @JsonProperty("washerJobState") CapabilityStatus washerJobState,
-
-            @JsonProperty("dryerJobState") CapabilityStatus dryerJobState,
-
-            @JsonProperty("completionTime") CapabilityStatus completionTime,
-
-            @JsonProperty("switch") CapabilityStatus switchStatus) {
+    /**
+     * dryerOperatingState capability 내부 속성.
+     * machineState: "run" | "pause" | "stop"
+     * dryerJobState: "drying" | "cooling" | "finished" | "none" | ...
+     * completionTime: ISO 8601 문자열
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DryerOperatingState(
+            @JsonProperty("machineState") AttributeState machineState,
+            @JsonProperty("dryerJobState") AttributeState dryerJobState,
+            @JsonProperty("completionTime") AttributeState completionTime) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record CapabilityStatus(@JsonProperty("value") Value value) {
+    public record SwitchCapability(@JsonProperty("switch") AttributeState switchState) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Value(@JsonProperty("value") String value,
-
+    public record AttributeState(@JsonProperty("value") String value,
             @JsonProperty("timestamp") String timestamp,
-
             @JsonProperty("unit") String unit) {
     }
 
+    /** 세탁기 machineState 값 반환: "run" | "pause" | "stop" */
     public String getWasherOperatingState() {
-        return getCapabilityValue("main", "washerOperatingState");
+        var main = getMainComponent();
+        if (main == null || main.washerOperatingState() == null) {
+            return null;
+        }
+        var ms = main.washerOperatingState().machineState();
+        return ms != null ? ms.value() : null;
     }
 
+    /** 건조기 machineState 값 반환: "run" | "pause" | "stop" */
     public String getDryerOperatingState() {
-        return getCapabilityValue("main", "dryerOperatingState");
+        var main = getMainComponent();
+        if (main == null || main.dryerOperatingState() == null) {
+            return null;
+        }
+        var ms = main.dryerOperatingState().machineState();
+        return ms != null ? ms.value() : null;
     }
 
+    /** washerJobState 값 반환: "wash" | "rinse" | "spin" | "finish" | ... */
     public String getWasherJobState() {
-        return getCapabilityValue("main", "washerJobState");
+        var main = getMainComponent();
+        if (main == null || main.washerOperatingState() == null) {
+            return null;
+        }
+        var js = main.washerOperatingState().washerJobState();
+        return js != null ? js.value() : null;
     }
 
+    /** dryerJobState 값 반환: "drying" | "cooling" | "finished" | ... */
     public String getDryerJobState() {
-        return getCapabilityValue("main", "dryerJobState");
+        var main = getMainComponent();
+        if (main == null || main.dryerOperatingState() == null) {
+            return null;
+        }
+        var js = main.dryerOperatingState().dryerJobState();
+        return js != null ? js.value() : null;
     }
 
+    /** 완료 예정 시간 반환 (세탁기 우선, 없으면 건조기) */
     public String getCompletionTime() {
-        return getCapabilityValue("main", "completionTime");
+        var main = getMainComponent();
+        if (main == null) {
+            return null;
+        }
+        if (main.washerOperatingState() != null && main.washerOperatingState().completionTime() != null) {
+            return main.washerOperatingState().completionTime().value();
+        }
+        if (main.dryerOperatingState() != null && main.dryerOperatingState().completionTime() != null) {
+            return main.dryerOperatingState().completionTime().value();
+        }
+        return null;
     }
 
+    /** 스위치 상태 값 반환: "on" | "off" */
     public String getSwitchStatus() {
-        return getCapabilityValue("main", "switch");
+        var main = getMainComponent();
+        if (main == null || main.switchCapability() == null) {
+            return null;
+        }
+        var sw = main.switchCapability().switchState();
+        return sw != null ? sw.value() : null;
     }
 
-    private String getCapabilityValue(String componentId, String capabilityName) {
-        if (components == null || !components.containsKey(componentId)) {
+    private ComponentStatus getMainComponent() {
+        if (components == null) {
             return null;
         }
-
-        var component = components.get(componentId);
-        if (component == null) {
-            return null;
-        }
-
-        var capability = switch (capabilityName) {
-            case "washerOperatingState" -> component.washerOperatingState();
-            case "dryerOperatingState" -> component.dryerOperatingState();
-            case "washerJobState" -> component.washerJobState();
-            case "dryerJobState" -> component.dryerJobState();
-            case "completionTime" -> component.completionTime();
-            case "switch" -> component.switchStatus();
-            default -> null;
-        };
-
-        if (capability == null || capability.value() == null) {
-            return null;
-        }
-
-        return capability.value().value();
+        return components.get("main");
     }
 }
