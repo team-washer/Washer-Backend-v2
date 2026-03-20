@@ -13,7 +13,7 @@ import team.washer.server.v2.global.thirdparty.smartthings.SmartThingsOperationT
 @Slf4j
 public class ReservationLifecycleScheduler {
 
-    private static final long LIFECYCLE_CHECK_INTERVAL = 15000;
+    private static final long LIFECYCLE_CHECK_INTERVAL = 10000;
 
     private final ProcessReservationLifecycleService processReservationLifecycleService;
     private final SmartThingsOperationTimePolicy operationTimePolicy;
