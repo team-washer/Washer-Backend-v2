@@ -35,20 +35,16 @@ class DetectMachineCompletionServiceTest {
             // Given
             String deviceId = "device-123";
 
-            var jobStateValue = new SmartThingsDeviceStatusResDto.Value("finished", "2026-01-26T14:30:00Z", null);
-            var jobStateCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(jobStateValue);
-
-            var completionTimeValue = new SmartThingsDeviceStatusResDto.Value("2026-01-26T15:30:00Z",
+            var washerJobAttr = new SmartThingsDeviceStatusResDto.AttributeState("finish",
                     "2026-01-26T14:30:00Z",
                     null);
-            var completionTimeCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(completionTimeValue);
-
-            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null,
-                    null,
-                    jobStateCapability,
-                    null,
-                    completionTimeCapability,
+            var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
+                    "2026-01-26T14:30:00Z",
                     null);
+            var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null,
+                    washerJobAttr,
+                    completionTimeAttr);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
 
             when(queryDeviceStatusService.execute(deviceId)).thenReturn(deviceStatus);
@@ -66,20 +62,16 @@ class DetectMachineCompletionServiceTest {
             // Given
             String deviceId = "device-456";
 
-            var jobStateValue = new SmartThingsDeviceStatusResDto.Value("finished", "2026-01-26T14:30:00Z", null);
-            var jobStateCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(jobStateValue);
-
-            var completionTimeValue = new SmartThingsDeviceStatusResDto.Value("2026-01-26T15:30:00Z",
+            var dryerJobAttr = new SmartThingsDeviceStatusResDto.AttributeState("finished",
                     "2026-01-26T14:30:00Z",
                     null);
-            var completionTimeCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(completionTimeValue);
-
-            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null,
-                    null,
-                    null,
-                    jobStateCapability,
-                    completionTimeCapability,
+            var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
+                    "2026-01-26T14:30:00Z",
                     null);
+            var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(null,
+                    dryerJobAttr,
+                    completionTimeAttr);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null, dryerOpState, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
 
             when(queryDeviceStatusService.execute(deviceId)).thenReturn(deviceStatus);
@@ -97,15 +89,9 @@ class DetectMachineCompletionServiceTest {
             // Given
             String deviceId = "device-789";
 
-            var jobStateValue = new SmartThingsDeviceStatusResDto.Value("run", "2026-01-26T14:30:00Z", null);
-            var jobStateCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(jobStateValue);
-
-            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null,
-                    null,
-                    jobStateCapability,
-                    null,
-                    null,
-                    null);
+            var washerJobAttr = new SmartThingsDeviceStatusResDto.AttributeState("wash", "2026-01-26T14:30:00Z", null);
+            var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, washerJobAttr, null);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
 
             when(queryDeviceStatusService.execute(deviceId)).thenReturn(deviceStatus);
