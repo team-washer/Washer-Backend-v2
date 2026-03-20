@@ -1,9 +1,21 @@
-ApplicationStop:
-  - location: scripts/stop.sh
-    timeout: 300
-    runas: root
+version: 1.0
 
-ApplicationStart:
-  - location: scripts/start.sh
-    timeout: 600
-    runas: root
+hooks:
+  ApplicationStop:
+    - location: scripts/stop.sh
+      timeout: 300
+      runas: root
+
+  ApplicationStart:
+    - location: scripts/start.sh
+      timeout: 600
+      runas: root
+
+permissions:
+  - object: /app/washer/scripts
+    pattern: "*.sh"
+    owner: root
+    group: root
+    mode: 755
+    type:
+      - file
