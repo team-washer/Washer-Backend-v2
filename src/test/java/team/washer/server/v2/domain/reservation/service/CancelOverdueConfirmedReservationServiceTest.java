@@ -12,12 +12,14 @@ import java.util.Collections;
 import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import jakarta.persistence.EntityManager;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
@@ -48,6 +50,9 @@ class CancelOverdueConfirmedReservationServiceTest {
     private QueryDeviceStatusService queryDeviceStatusService;
 
     @Mock
+    private EntityManager entityManager;
+
+    @Mock
     private Reservation reservation;
 
     @Mock
@@ -56,76 +61,112 @@ class CancelOverdueConfirmedReservationServiceTest {
     @Mock
     private User user;
 
-    @Test
-    @DisplayName("만료된 CONFIRMED 예약이 있고 기기가 작동 중이지 않으면 취소하고 패널티를 부여한다")
-    void execute_ShouldCancelAndPenalize_WhenExpiredConfirmedExistsAndMachineNotRunning() {
-        // Given
-        when(reservationRepository.findExpiredConfirmedReservations(eq(ReservationStatus.CONFIRMED),
-                any(LocalDateTime.class))).thenReturn(List.of(reservation));
+    @Nested
+    @DisplayName("만료된 CONFIRMED 예약이 없으면")
+    class NoExpiredReservations {
 
-        when(reservation.getMachine()).thenReturn(machine);
-        when(machine.getDeviceId()).thenReturn("device-123");
-        when(detectMachineRunningService.execute("device-123")).thenReturn(false);
-        when(reservation.getUser()).thenReturn(user);
+        @Test
+        @DisplayName("아무 동작도 하지 않는다")
+        void execute_ShouldDoNothing_WhenNoExpiredConfirmedReservations() {
+            // Given
+            when(reservationRepository.findExpiredConfirmedReservations(eq(ReservationStatus.CONFIRMED),
+                    any(LocalDateTime.class))).thenReturn(Collections.emptyList());
 
-        // When
-        cancelOverdueConfirmedReservationService.execute();
+            // When
+            cancelOverdueConfirmedReservationService.execute();
 
-        // Then
-        verify(reservation, times(1)).cancel();
-        verify(reservationRepository, times(1)).save(reservation);
-        verify(penaltyRedisUtil, times(1)).applyPenalty(user);
-        verify(reservation, never()).start(any());
+            // Then
+            verify(reservation, never()).cancel();
+            verify(reservationRepository, never()).save(any());
+            verify(penaltyRedisUtil, never()).applyPenalty(any());
+        }
     }
 
-    @Test
-    @DisplayName("만료된 CONFIRMED 예약이 있고 기기가 작동 중이면 자동으로 시작한다")
-    void execute_ShouldAutoStart_WhenExpiredConfirmedExistsAndMachineRunning() {
-        // Given
-        when(reservationRepository.findExpiredConfirmedReservations(eq(ReservationStatus.CONFIRMED),
-                any(LocalDateTime.class))).thenReturn(List.of(reservation));
+    @Nested
+    @DisplayName("만료된 CONFIRMED 예약이 있고 기기가 작동 중이면")
+    class MachineRunning {
 
-        when(reservation.getMachine()).thenReturn(machine);
-        when(machine.getDeviceId()).thenReturn("device-123");
-        when(detectMachineRunningService.execute("device-123")).thenReturn(true);
+        @Test
+        @DisplayName("자동으로 RUNNING 상태로 시작한다")
+        void execute_ShouldAutoStart_WhenMachineRunning() {
+            // Given
+            when(reservationRepository.findExpiredConfirmedReservations(eq(ReservationStatus.CONFIRMED),
+                    any(LocalDateTime.class))).thenReturn(List.of(reservation));
+            when(reservation.getMachine()).thenReturn(machine);
+            when(machine.getDeviceId()).thenReturn("device-123");
+            when(detectMachineRunningService.execute("device-123")).thenReturn(true);
 
-        // SmartThingsDeviceStatusResDto Mock 생성
-        var completionTimeValue = new SmartThingsDeviceStatusResDto.Value("2026-01-26T15:30:00Z",
-                "2026-01-26T14:30:00Z",
-                null);
-        var completionTimeCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(completionTimeValue);
-        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null,
-                null,
-                null,
-                null,
-                completionTimeCapability,
-                null);
-        var deviceStatus = new SmartThingsDeviceStatusResDto(java.util.Map.of("main", componentStatus));
-        when(queryDeviceStatusService.execute("device-123")).thenReturn(deviceStatus);
+            var completionTimeValue = new SmartThingsDeviceStatusResDto.Value("2026-01-26T15:30:00Z",
+                    "2026-01-26T14:30:00Z",
+                    null);
+            var completionTimeCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(completionTimeValue);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null,
+                    null,
+                    null,
+                    null,
+                    completionTimeCapability,
+                    null);
+            var deviceStatus = new SmartThingsDeviceStatusResDto(java.util.Map.of("main", componentStatus));
+            when(queryDeviceStatusService.execute("device-123")).thenReturn(deviceStatus);
 
-        // When
-        cancelOverdueConfirmedReservationService.execute();
+            // When
+            cancelOverdueConfirmedReservationService.execute();
 
-        // Then
-        verify(reservation, times(1)).start(any(LocalDateTime.class));
-        verify(reservationRepository, times(1)).save(reservation);
-        verify(reservation, never()).cancel();
-        verify(penaltyRedisUtil, never()).applyPenalty(any());
+            // Then
+            verify(reservation, times(1)).start(any(LocalDateTime.class));
+            verify(reservationRepository, times(1)).save(reservation);
+            verify(reservation, never()).cancel();
+            verify(penaltyRedisUtil, never()).applyPenalty(any());
+        }
     }
 
-    @Test
-    @DisplayName("만료된 CONFIRMED 예약이 없으면 아무 동작도 하지 않는다")
-    void execute_ShouldDoNothing_WhenNoExpiredConfirmedReservations() {
-        // Given
-        when(reservationRepository.findExpiredConfirmedReservations(eq(ReservationStatus.CONFIRMED),
-                any(LocalDateTime.class))).thenReturn(Collections.emptyList());
+    @Nested
+    @DisplayName("만료된 CONFIRMED 예약이 있고 기기가 작동 중이지 않으면")
+    class MachineNotRunning {
 
-        // When
-        cancelOverdueConfirmedReservationService.execute();
+        @Test
+        @DisplayName("DB 재조회 후 여전히 CONFIRMED이면 취소하고 패널티를 부여한다")
+        void execute_ShouldCancelAndPenalize_WhenStillConfirmedAfterRefresh() {
+            // Given
+            when(reservationRepository.findExpiredConfirmedReservations(eq(ReservationStatus.CONFIRMED),
+                    any(LocalDateTime.class))).thenReturn(List.of(reservation));
+            when(reservation.getMachine()).thenReturn(machine);
+            when(machine.getDeviceId()).thenReturn("device-123");
+            when(detectMachineRunningService.execute("device-123")).thenReturn(false);
+            when(reservation.isConfirmed()).thenReturn(true); // refresh 후에도 CONFIRMED
+            when(reservation.getUser()).thenReturn(user);
 
-        // Then
-        verify(reservation, never()).cancel();
-        verify(reservationRepository, never()).save(any());
-        verify(penaltyRedisUtil, never()).applyPenalty(any());
+            // When
+            cancelOverdueConfirmedReservationService.execute();
+
+            // Then
+            verify(entityManager, times(1)).refresh(reservation);
+            verify(reservation, times(1)).cancel();
+            verify(reservationRepository, times(1)).save(reservation);
+            verify(penaltyRedisUtil, times(1)).applyPenalty(user);
+            verify(reservation, never()).start(any());
+        }
+
+        @Test
+        @DisplayName("DB 재조회 후 이미 RUNNING으로 전환됐으면 취소하지 않는다 (경합 조건)")
+        void execute_ShouldSkipCancel_WhenAlreadyTransitionedToRunning() {
+            // Given
+            when(reservationRepository.findExpiredConfirmedReservations(eq(ReservationStatus.CONFIRMED),
+                    any(LocalDateTime.class))).thenReturn(List.of(reservation));
+            when(reservation.getMachine()).thenReturn(machine);
+            when(machine.getDeviceId()).thenReturn("device-123");
+            when(detectMachineRunningService.execute("device-123")).thenReturn(false);
+            when(reservation.isConfirmed()).thenReturn(false); // refresh 후 RUNNING 등 다른 상태
+            when(reservation.getStatus()).thenReturn(ReservationStatus.RUNNING);
+
+            // When
+            cancelOverdueConfirmedReservationService.execute();
+
+            // Then
+            verify(entityManager, times(1)).refresh(reservation);
+            verify(reservation, never()).cancel();
+            verify(reservationRepository, never()).save(any());
+            verify(penaltyRedisUtil, never()).applyPenalty(any());
+        }
     }
 }
