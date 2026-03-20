@@ -3,6 +3,8 @@ package team.washer.server.v2.domain.reservation.service.impl;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import jakarta.persistence.EntityManager;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +29,7 @@ public class CancelOverdueConfirmedReservationServiceImpl implements CancelOverd
     private final PenaltyRedisUtil penaltyRedisUtil;
     private final DetectMachineRunningService detectMachineRunningService;
     private final QueryDeviceStatusService queryDeviceStatusService;
+    private final EntityManager entityManager;
 
     @Override
     @Transactional
@@ -55,6 +58,13 @@ public class CancelOverdueConfirmedReservationServiceImpl implements CancelOverd
 
                     log.info("만료된 CONFIRMED 예약 {}이 기기 작동 중으로 자동 시작됨", reservation.getId());
                 } else {
+                    // 라이프사이클 스케줄러와의 경합 방지: 취소 전 DB 최신 상태 재조회
+                    entityManager.refresh(reservation);
+                    if (!reservation.isConfirmed()) {
+                        log.info("예약 {}이 이미 {} 상태로 전환됨, 취소 건너뜀", reservation.getId(), reservation.getStatus());
+                        continue;
+                    }
+
                     reservation.cancel();
                     reservationRepository.save(reservation);
                     User user = reservation.getUser();
