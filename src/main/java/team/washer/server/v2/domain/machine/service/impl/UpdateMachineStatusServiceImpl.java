@@ -34,8 +34,16 @@ public class UpdateMachineStatusServiceImpl implements UpdateMachineStatusServic
         } else if (status == MachineStatus.NORMAL) {
             machine.markAsNormal();
 
-            // 활성 예약이 있는지 확인
-            findActiveReservation(machine).ifPresent(reservation -> machine.markAsReserved());
+            // 복구 후 실제 예약 상태에 맞게 availability 재동기화
+            findActiveReservation(machine).ifPresent(reservation -> {
+                switch (reservation.getStatus()) {
+                    case RESERVED -> machine.markAsReserved();
+                    case CONFIRMED -> machine.markAsConfirmed();
+                    case RUNNING -> machine.markAsInUse();
+                    default -> {
+                    }
+                }
+            });
         }
 
         final var savedMachine = machineRepository.save(machine);
