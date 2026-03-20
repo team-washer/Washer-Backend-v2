@@ -3,6 +3,7 @@ plugins {
     id("org.springframework.boot") version "4.0.1"
     id("io.spring.dependency-management") version "1.1.7"
     id("com.diffplug.spotless") version "8.1.0"
+    id("com.gorylenko.gradle-git-properties") version "2.5.3"
 }
 
 ext {
@@ -41,6 +42,10 @@ tasks.compileTestJava {
 
 group = "team.washer"
 version = "0.0.1-SNAPSHOT"
+
+springBoot {
+    buildInfo()
+}
 
 java {
     toolchain {
@@ -140,4 +145,15 @@ tasks.withType<JavaCompile> {
 
 tasks.named<Delete>("clean") {
     delete(generatedDir)
+}
+
+gitProperties {
+    failOnNoGitDirectory = false
+    keys = listOf(
+            "git.branch",
+            "git.commit.id",
+            "git.commit.id.abbrev",
+            "git.commit.message.short",
+            "git.commit.time"
+    )
 }
