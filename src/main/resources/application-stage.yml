@@ -75,8 +75,6 @@ jwt:
   secret: ${JWT_SECRET}
   access-token-expiration: 3600
   refresh-token-expiration: 2592000
-fcm:
-  service-account-json: ${FIREBASE_SERVICE_ACCOUNT_JSON}
 third-party:
   discord:
     webhook-url: ${THIRD_PARTY_DISCORD_WEBHOOK_URL}
@@ -93,6 +91,8 @@ third-party:
     client-secret: ${THIRD_PARTY_SMARTTHINGS_CLIENT_SECRET}
     operation-schedule:
       enabled: ${THIRD_PARTY_SMARTTHINGS_OPERATION_SCHEDULE_ENABLED:false}
+  fcm:
+    service-account-json: ${THIRD_PARTY_FCM_SERVICE_ACCOUNT_JSON}
 springdoc:
   swagger-ui:
     enabled: true
