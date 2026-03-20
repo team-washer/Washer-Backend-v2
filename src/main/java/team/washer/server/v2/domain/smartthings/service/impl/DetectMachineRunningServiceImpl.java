@@ -24,8 +24,8 @@ public class DetectMachineRunningServiceImpl implements DetectMachineRunningServ
             var washerOperatingState = status.getWasherOperatingState();
             var dryerOperatingState = status.getDryerOperatingState();
 
-            var isRunning = "running".equalsIgnoreCase(washerOperatingState)
-                    || "running".equalsIgnoreCase(dryerOperatingState);
+            var isRunning = "run".equalsIgnoreCase(washerOperatingState)
+                    || "run".equalsIgnoreCase(dryerOperatingState);
 
             if (isRunning) {
                 log.debug("Device {} is running", deviceId);
