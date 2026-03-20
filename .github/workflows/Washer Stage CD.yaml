@@ -3,20 +3,32 @@ on:
   push:
     branches:
       - develop
-      - cicd/*
   workflow_dispatch:
 jobs:
   Stage-CD:
     runs-on: ubuntu-latest
     environment: Stage-CD
     steps:
-      - name: Repository Checkout
+      - name: 레포지토리 체크아웃
         uses: actions/checkout@v6
 
-      - name: Set Environment Variables
+      - name: JDK 25 설정
+        uses: actions/setup-java@v4
+        with:
+          java-version: 25
+          distribution: zulu
+          cache: gradle
+
+      - name: Gradle 설정
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: bootJar 빌드
+        run: ./gradlew bootJar -x test --no-daemon
+
+      - name: .env.stage 생성
         run: echo "${{ secrets.ENV_STAGE }}" > .env.stage
 
-      - name: Deploy to Stage Server
+      - name: 서버 배포
         uses: 8G4B/GSM-SV-Deploy@v1.2.1
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -26,21 +38,21 @@ jobs:
           source_path: .
           target_path: /app/washer
 
-      - name: Notify Stage CD Success
+      - name: CD 성공 알림
         uses: sarisia/actions-status-discord@v1
         if: success()
         with:
           webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
           color: 0x4CAF50
 
-      - name: Notify Stage CD Failure
+      - name: CD 실패 알림
         uses: sarisia/actions-status-discord@v1
         if: failure()
         with:
           webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
           color: 0xFF4C4C
 
-      - name: Notify Stage CD Cancelled
+      - name: CD 취소 알림
         uses: sarisia/actions-status-discord@v1
         if: cancelled()
         with:
