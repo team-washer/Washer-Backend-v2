@@ -35,14 +35,10 @@ class DetectMachineRunningServiceTest {
             // Given
             String deviceId = "device-123";
 
-            var operatingStateValue = new SmartThingsDeviceStatusResDto.Value("running", "2026-01-26T14:30:00Z", null);
-            var operatingStateCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(operatingStateValue);
-            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(operatingStateCapability,
-                    null,
-                    null,
-                    null,
-                    null,
+            var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("run", "2026-01-26T14:30:00Z",
                     null);
+            var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(machineStateAttr, null, null);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
 
             when(queryDeviceStatusService.execute(deviceId)).thenReturn(deviceStatus);
@@ -60,14 +56,10 @@ class DetectMachineRunningServiceTest {
             // Given
             String deviceId = "device-456";
 
-            var operatingStateValue = new SmartThingsDeviceStatusResDto.Value("running", "2026-01-26T14:30:00Z", null);
-            var operatingStateCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(operatingStateValue);
-            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null,
-                    operatingStateCapability,
-                    null,
-                    null,
-                    null,
+            var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("run", "2026-01-26T14:30:00Z",
                     null);
+            var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(machineStateAttr, null, null);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null, dryerOpState, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
 
             when(queryDeviceStatusService.execute(deviceId)).thenReturn(deviceStatus);
@@ -85,14 +77,10 @@ class DetectMachineRunningServiceTest {
             // Given
             String deviceId = "device-789";
 
-            var operatingStateValue = new SmartThingsDeviceStatusResDto.Value("pause", "2026-01-26T14:30:00Z", null);
-            var operatingStateCapability = new SmartThingsDeviceStatusResDto.CapabilityStatus(operatingStateValue);
-            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(operatingStateCapability,
-                    null,
-                    null,
-                    null,
-                    null,
+            var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("pause", "2026-01-26T14:30:00Z",
                     null);
+            var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(machineStateAttr, null, null);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
 
             when(queryDeviceStatusService.execute(deviceId)).thenReturn(deviceStatus);
