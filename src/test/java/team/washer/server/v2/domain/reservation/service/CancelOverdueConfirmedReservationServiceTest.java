@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import jakarta.persistence.EntityManager;
 import team.washer.server.v2.domain.machine.entity.Machine;
+import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -48,6 +49,9 @@ class CancelOverdueConfirmedReservationServiceTest {
 
     @Mock
     private QueryDeviceStatusService queryDeviceStatusService;
+
+    @Mock
+    private MachineRepository machineRepository;
 
     @Mock
     private EntityManager entityManager;
