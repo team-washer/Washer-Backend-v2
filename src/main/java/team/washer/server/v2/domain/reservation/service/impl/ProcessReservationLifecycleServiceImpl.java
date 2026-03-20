@@ -5,6 +5,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.service.SendCompletionNotificationService;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -20,6 +21,7 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 public class ProcessReservationLifecycleServiceImpl implements ProcessReservationLifecycleService {
 
     private final ReservationRepository reservationRepository;
+    private final MachineRepository machineRepository;
     private final DetectMachineRunningService detectMachineRunningService;
     private final DetectMachineCompletionService detectMachineCompletionService;
     private final QueryDeviceStatusService queryDeviceStatusService;
@@ -44,7 +46,9 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     var expectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(queryDeviceStatusService,
                             machine.getDeviceId());
                     reservation.start(expectedCompletionTime);
+                    machine.markAsInUse();
                     reservationRepository.save(reservation);
+                    machineRepository.save(machine);
 
                     log.info("Reservation {} started (CONFIRMED → RUNNING)", reservation.getId());
                 }
@@ -64,7 +68,9 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
 
                 if (completionTime.isPresent()) {
                     reservation.complete();
+                    machine.markAsAvailable();
                     reservationRepository.save(reservation);
+                    machineRepository.save(machine);
 
                     sendCompletionNotificationService.execute(reservation.getUser(), machine);
 
