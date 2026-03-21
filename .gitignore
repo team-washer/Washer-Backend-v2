@@ -47,3 +47,6 @@ PR_BODY.md
 
 ### Env ###
 .env*
+
+### Stage Profile ###
+src/main/resources/application-stage.yml
