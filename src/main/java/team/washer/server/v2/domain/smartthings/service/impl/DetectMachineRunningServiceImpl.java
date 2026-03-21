@@ -27,12 +27,12 @@ public class DetectMachineRunningServiceImpl implements DetectMachineRunningServ
             var isRunning = "run".equalsIgnoreCase(washerOperatingState) || "run".equalsIgnoreCase(dryerOperatingState);
 
             if (isRunning) {
-                log.debug("Device {} is running", deviceId);
+                log.debug("device {} is running", deviceId);
             }
 
             return isRunning;
         } catch (Exception e) {
-            log.warn("Failed to detect running state for device: {}", deviceId, e);
+            log.warn("failed to detect running state for device {}", deviceId, e);
             return false;
         }
     }

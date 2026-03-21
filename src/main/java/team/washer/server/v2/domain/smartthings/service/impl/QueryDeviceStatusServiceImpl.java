@@ -34,10 +34,10 @@ public class QueryDeviceStatusServiceImpl implements QueryDeviceStatusService {
             var authorization = "Bearer " + token.getAccessToken();
             return feignClient.getDeviceStatus(authorization, deviceId);
         } catch (ExpectedException e) {
-            log.error("SmartThings token not found or invalid", e);
+            log.error("smartthings token not found or invalid", e);
             throw e;
         } catch (Exception e) {
-            log.error("Failed to query device status for deviceId: {}", deviceId, e);
+            log.error("smartthings failed to query device status deviceId={}", deviceId, e);
             throw new ExpectedException("기기 상태 조회에 실패했습니다: " + e.getMessage(), HttpStatus.BAD_GATEWAY);
         }
     }

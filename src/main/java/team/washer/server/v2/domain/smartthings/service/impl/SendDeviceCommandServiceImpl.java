@@ -27,25 +27,23 @@ public class SendDeviceCommandServiceImpl implements SendDeviceCommandService {
     public void execute(String deviceId, SmartThingsCommandReqDto command) {
         try {
             var token = tokenRepository.findSingletonToken().orElseThrow(() -> {
-                log.warn("[SmartThings] DB에 토큰이 없습니다. OAuth 인증을 먼저 완료해주세요.");
+                log.warn("smartthings no token found in db, OAuth authorization required");
                 return new ExpectedException("SmartThings 토큰이 존재하지 않습니다", HttpStatus.NOT_FOUND);
             });
 
             if (!token.isValid()) {
-                log.warn("[SmartThings] 토큰이 만료됐습니다. expiresAt={}", token.getExpiresAt());
+                log.warn("smartthings token expired or invalid expiresAt={}", token.getExpiresAt());
                 throw new ExpectedException("SmartThings 토큰이 만료되었거나 유효하지 않습니다", HttpStatus.NOT_FOUND);
             }
 
             var authorization = "Bearer " + token.getAccessToken();
             feignClient.sendDeviceCommand(authorization, deviceId, command);
 
-            log.info("[SmartThings] 기기 명령 전송 성공. deviceId={}, command={}", deviceId, command);
-        } catch (SmartThingsPermissionException e) {
-            throw e;
-        } catch (ExpectedException e) {
+            log.debug("smartthings command sent successfully deviceId={} command={}", deviceId, command);
+        } catch (SmartThingsPermissionException | ExpectedException e) {
             throw e;
         } catch (Exception e) {
-            log.error("[SmartThings] 기기 명령 전송 실패. deviceId={}", deviceId, e);
+            log.error("smartthings failed to send command deviceId={}", deviceId, e);
             throw new ExpectedException("기기 명령 전송에 실패했습니다: " + e.getMessage(), HttpStatus.BAD_GATEWAY);
         }
     }
