@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -44,7 +45,9 @@ public class CancelOverdueConfirmedReservationServiceImpl implements CancelOverd
             return;
         }
 
-        log.info("만료된 CONFIRMED 예약 {}건 발견", expiredReservations.size());
+        var autoStarted = new ArrayList<Long>();
+        var cancelled = new ArrayList<Long>();
+        var skippedAlreadyTransitioned = new ArrayList<Long>();
 
         for (Reservation reservation : expiredReservations) {
             try {
@@ -58,13 +61,15 @@ public class CancelOverdueConfirmedReservationServiceImpl implements CancelOverd
                     machine.markAsInUse();
                     reservationRepository.save(reservation);
                     machineRepository.save(machine);
-
-                    log.info("만료된 CONFIRMED 예약 {}이 기기 작동 중으로 자동 시작됨", reservation.getId());
+                    autoStarted.add(reservation.getId());
                 } else {
                     // 라이프사이클 스케줄러와의 경합 방지: 취소 전 DB 최신 상태 재조회
                     entityManager.refresh(reservation);
                     if (!reservation.isConfirmed()) {
-                        log.info("예약 {}이 이미 {} 상태로 전환됨, 취소 건너뜀", reservation.getId(), reservation.getStatus());
+                        log.debug("reservation {} already transitioned to {} skipping cancellation",
+                                reservation.getId(),
+                                reservation.getStatus());
+                        skippedAlreadyTransitioned.add(reservation.getId());
                         continue;
                     }
 
@@ -74,12 +79,21 @@ public class CancelOverdueConfirmedReservationServiceImpl implements CancelOverd
                     machineRepository.save(machine);
                     User user = reservation.getUser();
                     penaltyRedisUtil.applyPenalty(user);
-
-                    log.info("만료된 CONFIRMED 예약 {} 취소 및 사용자 {}에게 패널티 부여", reservation.getId(), user.getId());
+                    cancelled.add(reservation.getId());
                 }
             } catch (Exception e) {
-                log.error("CONFIRMED 예약 {} 타임아웃 처리 중 오류 발생", reservation.getId(), e);
+                log.error("reservation timeout error processing CONFIRMED reservation={}", reservation.getId(), e);
             }
         }
+
+        log.info(
+                "reservation timeout CONFIRMED processed={} auto_started={} {} cancelled={} {} skipped_transitioned={} {}",
+                expiredReservations.size(),
+                autoStarted.size(),
+                autoStarted,
+                cancelled.size(),
+                cancelled,
+                skippedAlreadyTransitioned.size(),
+                skippedAlreadyTransitioned);
     }
 }

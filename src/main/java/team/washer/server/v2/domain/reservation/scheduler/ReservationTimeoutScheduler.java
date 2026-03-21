@@ -21,12 +21,12 @@ public class ReservationTimeoutScheduler {
         try {
             cancelOverdueReservationService.execute();
         } catch (Exception e) {
-            log.error("Error checking reservation timeouts", e);
+            log.error("reservation timeout check failed for RESERVED", e);
         }
         try {
             cancelOverdueConfirmedReservationService.execute();
         } catch (Exception e) {
-            log.error("CONFIRMED 예약 타임아웃 확인 중 오류 발생", e);
+            log.error("reservation timeout check failed for CONFIRMED", e);
         }
     }
 }

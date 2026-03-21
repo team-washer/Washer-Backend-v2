@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
@@ -43,7 +44,8 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
             return;
         }
 
-        log.info("Found {} expired RESERVED reservations", expiredReservations.size());
+        var autoStarted = new ArrayList<Long>();
+        var cancelled = new ArrayList<Long>();
 
         for (Reservation reservation : expiredReservations) {
             try {
@@ -59,8 +61,7 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
                     machine.markAsInUse();
                     reservationRepository.save(reservation);
                     machineRepository.save(machine);
-
-                    log.info("만료된 RESERVED 예약 {}이 기기 작동 중으로 자동 시작됨", reservation.getId());
+                    autoStarted.add(reservation.getId());
                 } else {
                     reservation.cancel();
                     machine.markAsAvailable();
@@ -68,12 +69,18 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
                     machineRepository.save(machine);
                     User user = reservation.getUser();
                     penaltyRedisUtil.applyPenalty(user);
-
-                    log.info("만료된 RESERVED 예약 {} 취소 및 사용자 {}에게 패널티 부여", reservation.getId(), user.getId());
+                    cancelled.add(reservation.getId());
                 }
             } catch (Exception e) {
-                log.error("Error processing timeout for reservation {}", reservation.getId(), e);
+                log.error("reservation timeout error processing RESERVED reservation={}", reservation.getId(), e);
             }
         }
+
+        log.info("reservation timeout RESERVED processed={} auto_started={} {} cancelled={} {}",
+                expiredReservations.size(),
+                autoStarted.size(),
+                autoStarted,
+                cancelled.size(),
+                cancelled);
     }
 }
