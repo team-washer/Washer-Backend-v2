@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.smartthings.service.impl;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -37,19 +38,26 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
     @Transactional(readOnly = true)
     public void execute() {
         var machines = machineRepository.findAll();
+        if (machines.isEmpty()) {
+            return;
+        }
+
+        var offMachines = new ArrayList<String>();
+        var failedMachines = new ArrayList<String>();
+        var skippedCount = 0;
 
         for (var machine : machines) {
             try {
                 var hasActiveReservation = reservationRepository.existsByMachineAndStatusIn(machine, ACTIVE_STATUSES);
 
                 if (hasActiveReservation) {
-                    log.debug("[유휴 종료] 예약 진행 중, 건너뜀. machine={}", machine.getName());
+                    skippedCount++;
                 } else {
                     sendDeviceCommandService.execute(machine.getDeviceId(), SmartThingsCommandReqDto.powerOff());
-                    log.info("[유휴 종료] 기기 전원 OFF. machine={}", machine.getName());
+                    offMachines.add(machine.getName());
                 }
             } catch (SmartThingsPermissionException e) {
-                log.warn("[유휴 종료] SmartThings 권한 오류 감지. 배치를 중단합니다. machine={}, reason={}",
+                log.warn("idle shutdown SmartThings permission error detected, stopping batch. machine={} reason={}",
                         machine.getName(),
                         e.getMessage());
                 if (discordErrorNotificationService != null) {
@@ -62,8 +70,18 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                 }
                 break;
             } catch (Exception e) {
-                log.error("[유휴 종료] 기기 종료 실패. machine={}, reason={}", machine.getName(), e.getMessage());
+                failedMachines.add(machine.getName());
+                log.error("idle shutdown failed to turn off machine={} reason={}", machine.getName(), e.getMessage());
             }
+        }
+
+        if (!offMachines.isEmpty() || !failedMachines.isEmpty()) {
+            log.info("idle shutdown batch done. turned_off={} {} skipped_active_reservation={} failed={}{}",
+                    offMachines.size(),
+                    offMachines,
+                    skippedCount,
+                    failedMachines.size(),
+                    failedMachines.isEmpty() ? "" : " " + failedMachines);
         }
     }
 }

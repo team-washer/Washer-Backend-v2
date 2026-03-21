@@ -21,15 +21,13 @@ public class IdleMachineShutdownScheduler {
     @Scheduled(fixedRate = SHUTDOWN_CHECK_INTERVAL)
     public void shutdownIdleMachines() {
         if (!operationTimePolicy.isOperationAllowed()) {
-            log.debug("운영 시간 외 - 유휴 기기 종료 스케줄러 건너뜀");
+            log.debug("idle shutdown skipped outside operation hours");
             return;
         }
         try {
-            log.debug("Starting idle machine shutdown check");
             shutdownIdleMachinesService.execute();
-            log.debug("Idle machine shutdown check completed");
         } catch (Exception e) {
-            log.error("Idle machine shutdown check failed", e);
+            log.error("idle shutdown check failed", e);
         }
     }
 }
