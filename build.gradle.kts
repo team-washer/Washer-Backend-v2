@@ -41,7 +41,7 @@ tasks.compileTestJava {
 }
 
 group = "team.washer"
-version = "0.0.1-SNAPSHOT"
+version = "v20260323.0"
 
 springBoot {
     buildInfo()
