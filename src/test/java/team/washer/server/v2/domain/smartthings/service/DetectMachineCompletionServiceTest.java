@@ -1,0 +1,121 @@
+package team.washer.server.v2.domain.smartthings.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.when;
+
+import java.util.Map;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.service.impl.DetectMachineCompletionServiceImpl;
+
+@ExtendWith(MockitoExtension.class)
+class DetectMachineCompletionServiceTest {
+
+    @InjectMocks
+    private DetectMachineCompletionServiceImpl detectMachineCompletionService;
+
+    @Mock
+    private QueryDeviceStatusService queryDeviceStatusService;
+
+    @Nested
+    @DisplayName("기기 완료 감지")
+    class ExecuteTest {
+
+        @Test
+        @DisplayName("세탁기 작업이 완료되면 완료 시간을 반환한다")
+        void execute_ShouldReturnCompletionTime_WhenWasherJobFinished() {
+            // Given
+            String deviceId = "device-123";
+
+            var washerJobAttr = new SmartThingsDeviceStatusResDto.AttributeState("finish",
+                    "2026-01-26T14:30:00Z",
+                    null);
+            var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
+                    "2026-01-26T14:30:00Z",
+                    null);
+            var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null,
+                    washerJobAttr,
+                    completionTimeAttr);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
+            var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
+
+            when(queryDeviceStatusService.execute(deviceId)).thenReturn(deviceStatus);
+
+            // When
+            var result = detectMachineCompletionService.execute(deviceId);
+
+            // Then
+            assertThat(result).isPresent();
+        }
+
+        @Test
+        @DisplayName("건조기 작업이 완료되면 완료 시간을 반환한다")
+        void execute_ShouldReturnCompletionTime_WhenDryerJobFinished() {
+            // Given
+            String deviceId = "device-456";
+
+            var dryerJobAttr = new SmartThingsDeviceStatusResDto.AttributeState("finished",
+                    "2026-01-26T14:30:00Z",
+                    null);
+            var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
+                    "2026-01-26T14:30:00Z",
+                    null);
+            var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(null,
+                    dryerJobAttr,
+                    completionTimeAttr);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null, dryerOpState, null);
+            var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
+
+            when(queryDeviceStatusService.execute(deviceId)).thenReturn(deviceStatus);
+
+            // When
+            var result = detectMachineCompletionService.execute(deviceId);
+
+            // Then
+            assertThat(result).isPresent();
+        }
+
+        @Test
+        @DisplayName("작업이 완료되지 않았으면 빈 Optional을 반환한다")
+        void execute_ShouldReturnEmpty_WhenJobNotFinished() {
+            // Given
+            String deviceId = "device-789";
+
+            var washerJobAttr = new SmartThingsDeviceStatusResDto.AttributeState("wash", "2026-01-26T14:30:00Z", null);
+            var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, washerJobAttr, null);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
+            var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
+
+            when(queryDeviceStatusService.execute(deviceId)).thenReturn(deviceStatus);
+
+            // When
+            var result = detectMachineCompletionService.execute(deviceId);
+
+            // Then
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("API 호출 실패 시 빈 Optional을 반환한다")
+        void execute_ShouldReturnEmpty_WhenApiCallFails() {
+            // Given
+            String deviceId = "device-error";
+
+            when(queryDeviceStatusService.execute(deviceId)).thenThrow(new RuntimeException("API Error"));
+
+            // When
+            var result = detectMachineCompletionService.execute(deviceId);
+
+            // Then
+            assertThat(result).isEmpty();
+        }
+    }
+}

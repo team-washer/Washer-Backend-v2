@@ -12,6 +12,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
+    open-in-view: false
   data:
     redis:
       host: localhost
@@ -32,18 +33,61 @@ spring:
 server:
   port: 8080
   shutdown: immediate
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 3600
+  refresh-token-expiration: 2592000
 third-party:
   discord:
     webhook-url: ${DISCORD_WEBHOOK_URL:https://discord.com/api/webhooks/your-webhook-url}
+  smartthings:
+    api-url: ${SMARTTHINGS_API_URL:https://api.smartthings.com}
+    oauth-url: ${SMARTTHINGS_OAUTH_URL:https://api.smartthings.com/oauth/token}
+    authorize-url: ${SMARTTHINGS_AUTHORIZE_URL:https://api.smartthings.com/oauth/authorize}
+    redirect-uri: ${SMARTTHINGS_REDIRECT_URI:http://localhost:8080/api/v2/admin/smartthings/oauth/callback}
+    client-id: ${SMARTTHINGS_CLIENT_ID:your-client-id}
+    client-secret: ${SMARTTHINGS_CLIENT_SECRET:your-client-secret}
+    operation-schedule:
+      enabled: false
+  datagsm:
+    client-secret: ${THIRD_PARTY_DATAGSM_CLIENT_SECRET:your-client-secret}
+    client-id: ${THIRD_PARTY_DATAGSM_CLIENT_ID:your-client-id}
+    redirect-uri: ${THIRD_PARTY_DATAGSM_REDIRECT_URI:http://localhost:8080/api/v2/admin/datagsm/oauth/callback}
+  fcm:
+    service-account-json: ${THIRD_PARTY_FCM_SERVICE_ACCOUNT_JSON:}
+reservation:
+  disable-time-restriction: true
+sdk:
+  logging:
+    enabled: true
+    not-logging-urls:
+      - "/v3/api-docs/**"
+      - "/swagger-ui/**"
+  swagger:
+    enabled: true
+    title: "Washer API"
+    description: "기숙사 세탁기 예약 관리 시스템"
+    version: "v2"
+    group: "Washer"
+    paths-to-match:
+      - "/api/v2/**"
+  exception:
+    enabled: false
+  response:
+    enabled: true
+    not-wrapping-urls:
+      - "/v3/api-docs/**"
+      - "/v3/api-docs"
+      - "/swagger-ui/**"
+      - "/api/v2/admin/smartthings/oauth/authorize"
 springdoc:
+  api-docs:
+    path: /v3/api-docs
   swagger-ui:
-    config-url: "/v3/api-docs/swagger-config"
-    urls:
-      - name: "Washer-Backend-v2 API"
-        url: "/v3/api-docs"
-    operationsSorter: "method"
+    path: /swagger-ui.html
+    operationsSorter: method
     defaultModelsExpandDepth: -1
-    docExpansion: "none"
+    docExpansion: list
     displayRequestDuration: true
     filter: true
     showCommonExtensions: true
@@ -51,6 +95,5 @@ springdoc:
     deepLinking: true
     persistAuthorization: true
     tryItOutEnabled: true
-    validatorUrl: ""
     csrf:
       enabled: false

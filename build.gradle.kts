@@ -3,6 +3,7 @@ plugins {
     id("org.springframework.boot") version "4.0.1"
     id("io.spring.dependency-management") version "1.1.7"
     id("com.diffplug.spotless") version "8.1.0"
+    id("com.gorylenko.gradle-git-properties") version "2.5.3"
 }
 
 ext {
@@ -18,7 +19,7 @@ dependencyManagement {
 spotless {
     java {
         target("src/main/java/**/*.java", "src/test/java/**/*.java")
-        eclipse()
+        eclipse().configFile("eclipse-formatter.xml")
         leadingTabsToSpaces(4)
         importOrder("java", "javax", "org", "com", " ")
         removeUnusedImports()
@@ -40,7 +41,11 @@ tasks.compileTestJava {
 }
 
 group = "team.washer"
-version = "0.0.1-SNAPSHOT"
+version = "v20260323.0"
+
+springBoot {
+    buildInfo()
+}
 
 java {
     toolchain {
@@ -87,6 +92,9 @@ dependencies {
 
     // QueryDSL
     implementation("io.github.openfeign.querydsl:querydsl-jpa:7.1")
+    annotationProcessor("io.github.openfeign.querydsl:querydsl-apt:7.1:jakarta")
+    annotationProcessor("jakarta.persistence:jakarta.persistence-api")
+    annotationProcessor("jakarta.annotation:jakarta.annotation-api")
 
     // JSON
     implementation("net.minidev:json-smart:2.6.0")
@@ -101,8 +109,51 @@ dependencies {
 
     // Documentation
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1")
+
+    // the-sdk
+    implementation("com.github.themoment-team:the-sdk:1.4")
+
+    //DataGSM Oauth SDK
+    implementation("com.github.themoment-team:datagsm-oauth-sdk-java:1.1.0")
+
+    // JWT
+    implementation("io.jsonwebtoken:jjwt-api:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
+    runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
+
+    // Firebase Admin SDK
+    implementation("com.google.firebase:firebase-admin:9.4.3")
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+val generatedDir = file("$projectDir/src/main/generated")
+
+sourceSets {
+    main {
+        java {
+            srcDir(generatedDir)
+        }
+    }
+}
+
+tasks.withType<JavaCompile> {
+    options.generatedSourceOutputDirectory.set(generatedDir)
+}
+
+tasks.named<Delete>("clean") {
+    delete(generatedDir)
+}
+
+gitProperties {
+    failOnNoGitDirectory = false
+    keys = listOf(
+            "git.branch",
+            "git.commit.id",
+            "git.commit.id.abbrev",
+            "git.commit.message.short",
+            "git.commit.time"
+    )
 }

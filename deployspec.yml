@@ -1,0 +1,19 @@
+version: 1.0
+
+hooks:
+  ApplicationStop:
+    - location: scripts/stop.sh
+      timeout: 300
+
+  ApplicationStart:
+    - location: scripts/start.sh
+      timeout: 120
+
+permissions:
+  - object: scripts
+    pattern: "*.sh"
+    owner: root
+    group: root
+    mode: 755
+    type:
+      - file

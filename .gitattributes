@@ -1,3 +1,9 @@
 /gradlew text eol=lf
 *.bat text eol=crlf
 *.jar binary
+*.md linguist-detectable
+*.yaml linguist-detectable
+*.yml linguist-detectable
+*.json linguist-detectable
+*.xml linguist-detectable
+*.toml linguist-detectable
