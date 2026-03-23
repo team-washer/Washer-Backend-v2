@@ -68,11 +68,13 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
             jobState = getJobState(machine, deviceStatus);
             switchStatus = deviceStatus.getSwitchStatus();
 
-            var completionTimeStr = deviceStatus.getCompletionTime();
-            if (completionTimeStr != null && !completionTimeStr.isBlank()) {
-                expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr);
-                if (expectedCompletionTime != null) {
-                    remainingMinutes = calculateRemainingMinutes(expectedCompletionTime);
+            if (reservation != null) {
+                var completionTimeStr = deviceStatus.getCompletionTime();
+                if (completionTimeStr != null && !completionTimeStr.isBlank()) {
+                    expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr);
+                    if (expectedCompletionTime != null) {
+                        remainingMinutes = calculateRemainingMinutes(expectedCompletionTime);
+                    }
                 }
             }
         }
