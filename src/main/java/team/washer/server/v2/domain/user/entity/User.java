@@ -28,7 +28,7 @@ import team.washer.server.v2.global.common.entity.BaseEntity;
                 @UniqueConstraint(name = "uk_student_id", columnNames = "student_id")})
 @Getter
 @Builder
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class User extends BaseEntity {
 
@@ -75,7 +75,7 @@ public class User extends BaseEntity {
     @Column(name = "fcm_token", length = 255)
     private String fcmToken;
 
-    // Relationships
+    // 연관관계
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Reservation> reservations = new ArrayList<>();
@@ -88,28 +88,48 @@ public class User extends BaseEntity {
     @Builder.Default
     private List<Notification> notifications = new ArrayList<>();
 
+    /**
+     * 패널티 횟수를 1 증가시킵니다.
+     */
     public void incrementPenalty() {
         this.penaltyCount++;
     }
 
+    /**
+     * 패널티 횟수를 1 감소시킵니다. 이미 0이면 변경하지 않습니다.
+     */
     public void decrementPenalty() {
         if (this.penaltyCount > 0) {
             this.penaltyCount--;
         }
     }
 
+    /**
+     * 패널티 횟수를 0으로 초기화합니다.
+     */
     public void resetPenalty() {
         this.penaltyCount = 0;
     }
 
+    /**
+     * 시간 제한 규칙 우회 권한 여부를 반환합니다.
+     *
+     * @return 시간 제한 우회 가능 여부
+     */
     public boolean canBypassTimeRestrictions() {
         return this.role.canBypassTimeRestrictions();
     }
 
+    /**
+     * 마지막 취소 시각을 현재 시각으로 갱신합니다.
+     */
     public void updateLastCancellationTime() {
         this.lastCancellationAt = LocalDateTime.now();
     }
 
+    /**
+     * 마지막 취소 시각을 초기화합니다.
+     */
     public void clearLastCancellationTime() {
         this.lastCancellationAt = null;
     }
@@ -131,6 +151,13 @@ public class User extends BaseEntity {
         this.fcmToken = null;
     }
 
+    /**
+     * 최근 취소로 인한 패널티 적용 여부를 반환합니다.
+     *
+     * @param penaltyMinutes
+     *            패널티 지속 시간 (분)
+     * @return 패널티 기간 내 취소 이력 존재 여부
+     */
     public boolean hasRecentCancellation(int penaltyMinutes) {
         if (this.lastCancellationAt == null) {
             return false;
@@ -139,6 +166,14 @@ public class User extends BaseEntity {
         return LocalDateTime.now().isBefore(penaltyExpiry);
     }
 
+    /**
+     * 예약 시간에 대한 시간 제한 규칙을 검증합니다. 규칙을 위반하면 예외를 발생시킵니다.
+     *
+     * @param startTime
+     *            예약 시작 시간
+     * @param isSundayActive
+     *            일요일 예약 활성화 여부
+     */
     public void validateTimeRestriction(final LocalDateTime startTime, final boolean isSundayActive) {
         if (this.canBypassTimeRestrictions()) {
             return;
@@ -163,6 +198,12 @@ public class User extends BaseEntity {
         }
     }
 
+    /**
+     * 패널티 상태를 검증합니다. 패널티 기간이 유효하면 예외를 발생시킵니다.
+     *
+     * @param penaltyExpiresAt
+     *            패널티 만료 시각 (null이면 패널티 없음)
+     */
     public void validateNotPenalized(final LocalDateTime penaltyExpiresAt) {
         if (penaltyExpiresAt != null && LocalDateTime.now().isBefore(penaltyExpiresAt)) {
             final long remainingMinutes = Duration.between(LocalDateTime.now(), penaltyExpiresAt).toMinutes();

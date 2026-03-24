@@ -38,7 +38,7 @@ public class DeleteUserServiceImpl implements DeleteUserService {
             throw new ExpectedException("활성 예약이 있는 사용자는 삭제할 수 없습니다", HttpStatus.BAD_REQUEST);
         }
 
-        // Hard delete
+        // 물리적 삭제
         userRepository.delete(user);
     }
 }
