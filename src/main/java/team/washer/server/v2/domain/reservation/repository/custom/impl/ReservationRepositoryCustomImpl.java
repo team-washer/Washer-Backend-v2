@@ -86,6 +86,16 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
     }
 
     @Override
+    public List<Reservation> findActiveReservationsByRoomNumber(String roomNumber) {
+        return jpaQueryFactory.selectFrom(reservation).join(reservation.user, user).fetchJoin()
+                .join(reservation.machine, machine).fetchJoin()
+                .where(reservation.user.roomNumber.eq(roomNumber),
+                        reservation.status
+                                .in(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING))
+                .orderBy(reservation.createdAt.desc()).fetch();
+    }
+
+    @Override
     public List<Reservation> findExpiredReservations(ReservationStatus status,
             LocalDateTime threshold,
             LocalDateTime recentCutoff) {
