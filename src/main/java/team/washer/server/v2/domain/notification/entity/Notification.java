@@ -17,7 +17,7 @@ import team.washer.server.v2.global.common.entity.BaseEntity;
         @Index(name = "idx_created_at", columnList = "created_at")})
 @Getter
 @Builder
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class Notification extends BaseEntity {
 
@@ -44,10 +44,15 @@ public class Notification extends BaseEntity {
     @Builder.Default
     private boolean isRead = false;
 
-    // Note: createdAt from BaseEntity serves as the notification creation time
-
-    // Business Methods
-
+    /**
+     * 세탁/건조 완료 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            완료된 기기
+     * @return 생성된 완료 알림
+     */
     public static Notification createCompletionNotification(User user, Machine machine) {
         String message = NotificationType.COMPLETION.getMessageTemplate().replace("{machineName}", machine.getName());
 
@@ -55,6 +60,15 @@ public class Notification extends BaseEntity {
                 .isRead(false).build();
     }
 
+    /**
+     * 기기 고장 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            고장 기기
+     * @return 생성된 고장 알림
+     */
     public static Notification createMalfunctionNotification(User user, Machine machine) {
         String message = NotificationType.MALFUNCTION.getMessageTemplate().replace("{machineName}", machine.getName());
 
@@ -62,6 +76,17 @@ public class Notification extends BaseEntity {
                 .isRead(false).build();
     }
 
+    /**
+     * 경고 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            대상 기기
+     * @param reason
+     *            경고 사유
+     * @return 생성된 경고 알림
+     */
     public static Notification createWarningNotification(User user, Machine machine, String reason) {
         String message = NotificationType.WARNING.getMessageTemplate().replace("{machineName}", machine.getName())
                 .replace("{reason}", reason);
@@ -70,10 +95,16 @@ public class Notification extends BaseEntity {
                 .isRead(false).build();
     }
 
+    /**
+     * 알림을 읽음 상태로 변경합니다.
+     */
     public void markAsRead() {
         this.isRead = true;
     }
 
+    /**
+     * 알림을 읽지 않음 상태로 변경합니다.
+     */
     public void markAsUnread() {
         this.isRead = false;
     }
