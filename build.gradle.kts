@@ -114,7 +114,7 @@ dependencies {
     implementation("com.github.themoment-team:the-sdk:1.4")
 
     //DataGSM Oauth SDK
-    implementation("com.github.themoment-team:datagsm-oauth-sdk-java:1.1.0")
+    implementation("com.github.themoment-team:datagsm-oauth-sdk-java:1.3.0")
 
     // JWT
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
