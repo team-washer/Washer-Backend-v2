@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.reservation.controller;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -24,6 +25,7 @@ import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryP
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.*;
+import team.washer.server.v2.domain.reservation.service.QueryRoomActiveReservationsService;
 
 @RestController
 @RequestMapping("/api/v2/reservations")
@@ -39,6 +41,7 @@ public class ReservationController {
     private final QueryReservationHistoryService queryReservationHistoryService;
     private final QueryReservationService queryReservationService;
     private final QueryReservationAvailabilityService queryReservationAvailabilityService;
+    private final QueryRoomActiveReservationsService queryRoomActiveReservationsService;
 
     @PostMapping
     @Operation(summary = "예약 생성", description = """
@@ -71,6 +74,12 @@ public class ReservationController {
     @Operation(summary = "내 활성 예약 조회", description = "현재 활성 상태인 나의 예약을 조회합니다.")
     public ReservationResDto getActiveReservation() {
         return queryActiveReservationService.execute();
+    }
+
+    @GetMapping("/active/room")
+    @Operation(summary = "내 호실 활성 예약 목록 조회", description = "현재 로그인된 사용자의 호실에 있는 모든 활성 예약 목록을 조회합니다.")
+    public List<ReservationResDto> getRoomActiveReservations() {
+        return queryRoomActiveReservationsService.execute();
     }
 
     @GetMapping("/history")
