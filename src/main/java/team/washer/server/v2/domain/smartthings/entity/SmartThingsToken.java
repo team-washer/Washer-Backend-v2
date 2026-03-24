@@ -16,7 +16,7 @@ import lombok.*;
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Builder
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class SmartThingsToken {
 
