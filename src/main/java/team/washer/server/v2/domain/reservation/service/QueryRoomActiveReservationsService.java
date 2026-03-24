@@ -1,10 +1,8 @@
 package team.washer.server.v2.domain.reservation.service;
 
-import java.util.List;
-
-import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
+import team.washer.server.v2.domain.reservation.dto.response.RoomActiveReservationsResDto;
 
 public interface QueryRoomActiveReservationsService {
 
-    List<ReservationResDto> execute();
+    RoomActiveReservationsResDto execute();
 }

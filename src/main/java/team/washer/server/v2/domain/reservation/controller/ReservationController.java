@@ -1,7 +1,6 @@
 package team.washer.server.v2.domain.reservation.controller;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -23,6 +22,7 @@ import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationAvailabilityResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryPageResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
+import team.washer.server.v2.domain.reservation.dto.response.RoomActiveReservationsResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.*;
 import team.washer.server.v2.domain.reservation.service.QueryRoomActiveReservationsService;
@@ -78,7 +78,7 @@ public class ReservationController {
 
     @GetMapping("/active/room")
     @Operation(summary = "내 호실 활성 예약 목록 조회", description = "현재 로그인된 사용자의 호실에 있는 모든 활성 예약 목록을 조회합니다.")
-    public List<ReservationResDto> getRoomActiveReservations() {
+    public RoomActiveReservationsResDto getRoomActiveReservations() {
         return queryRoomActiveReservationsService.execute();
     }
 
