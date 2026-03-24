@@ -64,6 +64,15 @@ public interface ReservationRepositoryCustom {
             Pageable pageable);
 
     /**
+     * 호실 번호 기준 활성 예약 목록 조회
+     *
+     * @param roomNumber
+     *            호실 번호
+     * @return 해당 호실의 활성(RESERVED/CONFIRMED/RUNNING) 예약 목록 (createdAt 내림차순)
+     */
+    List<Reservation> findActiveReservationsByRoomNumber(String roomNumber);
+
+    /**
      * 기기별 예약 히스토리 조회
      *
      * @param machineId
