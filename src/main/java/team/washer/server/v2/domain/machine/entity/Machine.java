@@ -20,7 +20,7 @@ import team.washer.server.v2.global.common.entity.BaseEntity;
                 @UniqueConstraint(name = "uk_machine_location", columnNames = {"type", "floor", "position", "number"})})
 @Getter
 @Builder
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class Machine extends BaseEntity {
 
@@ -66,7 +66,7 @@ public class Machine extends BaseEntity {
     @Builder.Default
     private MachineAvailability availability = MachineAvailability.AVAILABLE;
 
-    // Relationships
+    // 연관관계
     @OneToMany(mappedBy = "machine", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Reservation> reservations = new ArrayList<>();
@@ -75,52 +75,104 @@ public class Machine extends BaseEntity {
     @Builder.Default
     private List<MalfunctionReport> malfunctionReports = new ArrayList<>();
 
+    /**
+     * 기기 유형, 층, 위치, 번호를 조합하여 기기명을 생성합니다.
+     *
+     * @param type
+     *            기기 유형
+     * @param floor
+     *            층
+     * @param position
+     *            위치
+     * @param number
+     *            번호
+     * @return 생성된 기기명
+     */
     public static String generateName(MachineType type, Integer floor, Position position, Integer number) {
         return String.format("%s-%dF-%s%d", type.getCode(), floor, position.getCode(), number);
     }
 
+    /**
+     * 현재 위치 정보를 기반으로 기기명을 재생성합니다.
+     */
     public void updateName() {
         this.name = generateName(this.type, this.floor, this.position, this.number);
     }
 
+    /**
+     * 기기 사용 가능 상태로 변경합니다.
+     */
     public void markAsAvailable() {
         this.availability = MachineAvailability.AVAILABLE;
     }
 
+    /**
+     * 기기 사용 중 상태로 변경합니다.
+     */
     public void markAsInUse() {
         this.availability = MachineAvailability.IN_USE;
     }
 
+    /**
+     * 기기 예약됨 상태로 변경합니다.
+     */
     public void markAsReserved() {
         this.availability = MachineAvailability.RESERVED;
     }
 
+    /**
+     * 기기 확인됨 상태로 변경합니다.
+     */
     public void markAsConfirmed() {
         this.availability = MachineAvailability.CONFIRMED;
     }
 
+    /**
+     * 기기 사용 불가 상태로 변경합니다.
+     */
     public void markAsUnavailable() {
         this.availability = MachineAvailability.UNAVAILABLE;
     }
 
+    /**
+     * 기기를 고장 상태로 변경하고 사용 불가 처리합니다.
+     */
     public void markAsMalfunction() {
         this.status = MachineStatus.MALFUNCTION;
         this.availability = MachineAvailability.UNAVAILABLE;
     }
 
+    /**
+     * 기기를 정상 상태로 복구하고 사용 가능 처리합니다.
+     */
     public void markAsNormal() {
         this.status = MachineStatus.NORMAL;
         this.availability = MachineAvailability.AVAILABLE;
     }
 
+    /**
+     * 기기가 정상 상태이며 사용 가능한지 반환합니다.
+     *
+     * @return 사용 가능 여부
+     */
     public boolean isAvailable() {
         return this.status == MachineStatus.NORMAL && this.availability == MachineAvailability.AVAILABLE;
     }
 
+    /**
+     * 세탁기 여부를 반환합니다.
+     *
+     * @return 세탁기 여부
+     */
     public boolean isWasher() {
         return this.type == MachineType.WASHER;
     }
 
+    /**
+     * 건조기 여부를 반환합니다.
+     *
+     * @return 건조기 여부
+     */
     public boolean isDryer() {
         return this.type == MachineType.DRYER;
     }
