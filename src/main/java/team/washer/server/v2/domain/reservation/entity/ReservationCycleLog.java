@@ -13,7 +13,7 @@ import team.washer.server.v2.global.common.entity.BaseEntity;
         @Index(name = "idx_performed_by", columnList = "performed_by_id")})
 @Getter
 @Builder
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class ReservationCycleLog extends BaseEntity {
 

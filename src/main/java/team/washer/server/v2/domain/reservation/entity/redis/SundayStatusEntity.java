@@ -16,7 +16,7 @@ import lombok.NoArgsConstructor;
 public class SundayStatusEntity {
 
     @Id
-    private String id; // Fixed ID "active"
+    private String id; // 고정 ID "active"
 
     private boolean isActive;
 }
