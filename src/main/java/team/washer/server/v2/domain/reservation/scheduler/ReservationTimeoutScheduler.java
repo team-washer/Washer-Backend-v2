@@ -16,7 +16,7 @@ public class ReservationTimeoutScheduler {
     private final CancelOverdueReservationService cancelOverdueReservationService;
     private final CancelOverdueConfirmedReservationService cancelOverdueConfirmedReservationService;
 
-    @Scheduled(fixedRate = 10000)
+    @Scheduled(fixedDelay = 10000)
     public void checkReservationTimeouts() {
         try {
             cancelOverdueReservationService.execute();
