@@ -11,6 +11,7 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
+import team.washer.server.v2.domain.notification.service.SendAutoCancellationNotificationService;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -29,6 +30,7 @@ public class CancelOverdueConfirmedReservationServiceImpl implements CancelOverd
     private final ReservationRepository reservationRepository;
     private final MachineRepository machineRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
+    private final SendAutoCancellationNotificationService sendAutoCancellationNotificationService;
     private final DetectMachineRunningService detectMachineRunningService;
     private final QueryDeviceStatusService queryDeviceStatusService;
     private final EntityManager entityManager;
@@ -79,6 +81,7 @@ public class CancelOverdueConfirmedReservationServiceImpl implements CancelOverd
                     machineRepository.save(machine);
                     User user = reservation.getUser();
                     penaltyRedisUtil.applyPenalty(user);
+                    sendAutoCancellationNotificationService.execute(user, machine);
                     cancelled.add(reservation.getId());
                 }
             } catch (Exception e) {
