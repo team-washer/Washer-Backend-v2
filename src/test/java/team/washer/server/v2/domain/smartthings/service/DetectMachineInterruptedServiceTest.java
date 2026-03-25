@@ -25,8 +25,11 @@ class DetectMachineInterruptedServiceTest {
     @Mock
     private QueryDeviceStatusService queryDeviceStatusService;
 
-    private SmartThingsDeviceStatusResDto buildStatus(String switchState, String washerMachineState,
-            String washerJobState, String dryerMachineState, String dryerJobState) {
+    private SmartThingsDeviceStatusResDto buildStatus(String switchState,
+            String washerMachineState,
+            String washerJobState,
+            String dryerMachineState,
+            String dryerJobState) {
         var switchAttr = switchState != null
                 ? new SmartThingsDeviceStatusResDto.AttributeState(switchState, null, null)
                 : null;
@@ -76,8 +79,7 @@ class DetectMachineInterruptedServiceTest {
         void execute_ShouldNotTrigger_WhenSwitchIsOn() {
             // Given
             String deviceId = "device-123";
-            when(queryDeviceStatusService.execute(deviceId))
-                    .thenReturn(buildStatus("on", "run", "wash", null, null));
+            when(queryDeviceStatusService.execute(deviceId)).thenReturn(buildStatus("on", "run", "wash", null, null));
 
             // When & Then
             assertThat(detectMachineInterruptedService.execute(deviceId)).isFalse();
@@ -93,8 +95,7 @@ class DetectMachineInterruptedServiceTest {
         void execute_ShouldReturnTrue_WhenWasherStoppedWithoutFinish() {
             // Given
             String deviceId = "device-123";
-            when(queryDeviceStatusService.execute(deviceId))
-                    .thenReturn(buildStatus("on", "stop", "wash", null, null));
+            when(queryDeviceStatusService.execute(deviceId)).thenReturn(buildStatus("on", "stop", "wash", null, null));
 
             // When & Then
             assertThat(detectMachineInterruptedService.execute(deviceId)).isTrue();
@@ -151,8 +152,7 @@ class DetectMachineInterruptedServiceTest {
         void execute_ShouldReturnFalse_WhenMachineIsRunning() {
             // Given
             String deviceId = "device-123";
-            when(queryDeviceStatusService.execute(deviceId))
-                    .thenReturn(buildStatus("on", "run", "wash", null, null));
+            when(queryDeviceStatusService.execute(deviceId)).thenReturn(buildStatus("on", "run", "wash", null, null));
 
             // When & Then
             assertThat(detectMachineInterruptedService.execute(deviceId)).isFalse();
