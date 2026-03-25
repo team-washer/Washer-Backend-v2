@@ -1,6 +1,6 @@
-package team.washer.server.v2.domain.notification.service.impl;
+package team.washer.server.v2.domain.notification.support;
 
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
@@ -11,19 +11,23 @@ import com.google.firebase.messaging.Notification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.notification.service.DeleteFcmTokenService;
-import team.washer.server.v2.domain.notification.service.SendFcmNotificationService;
 import team.washer.server.v2.domain.user.entity.User;
 
+/**
+ * FCM 푸시 알림 전송을 담당하는 지원 컴포넌트.
+ */
 @Slf4j
-@Service
+@Component
 @RequiredArgsConstructor
-public class SendFcmNotificationServiceImpl implements SendFcmNotificationService {
+public class FcmNotificationSupport {
 
     private final FirebaseMessaging firebaseMessaging;
     private final DeleteFcmTokenService deleteFcmTokenService;
 
-    @Override
-    public void execute(final User user, final String title, final String body) {
+    /**
+     * FCM 푸시 알림을 전송한다.
+     */
+    public void send(final User user, final String title, final String body) {
         final String token = user.getFcmToken();
         if (token == null || token.isBlank()) {
             log.debug("FCM token not found, skipping notification: userId={}", user.getId());
