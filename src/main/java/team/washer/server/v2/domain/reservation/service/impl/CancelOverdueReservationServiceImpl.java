@@ -13,6 +13,7 @@ import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
+import team.washer.server.v2.domain.notification.service.SendAutoCancellationNotificationService;
 import team.washer.server.v2.domain.reservation.service.CancelOverdueReservationService;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.smartthings.service.DetectMachineRunningService;
@@ -28,6 +29,7 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
     private final ReservationRepository reservationRepository;
     private final MachineRepository machineRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
+    private final SendAutoCancellationNotificationService sendAutoCancellationNotificationService;
     private final DetectMachineRunningService detectMachineRunningService;
     private final QueryDeviceStatusService queryDeviceStatusService;
 
@@ -69,6 +71,7 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
                     machineRepository.save(machine);
                     User user = reservation.getUser();
                     penaltyRedisUtil.applyPenalty(user);
+                    sendAutoCancellationNotificationService.execute(user, machine);
                     cancelled.add(reservation.getId());
                 }
             } catch (Exception e) {
