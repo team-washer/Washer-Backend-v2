@@ -138,8 +138,8 @@ class ProcessReservationLifecycleServiceTest {
         }
 
         @Test
-        @DisplayName("RUNNING 상태이지만 기기 작업이 완료되지 않으면 전환하지 않는다")
-        void execute_ShouldNotCompleteReservation_WhenRunningButMachineNotCompleted() {
+        @DisplayName("RUNNING 상태이고 기기 작업이 완료되지 않으면 예상 완료 시각을 갱신한다")
+        void execute_ShouldUpdateExpectedCompletionTime_WhenRunningAndMachineNotCompleted() {
             // Given
             when(reservationRepository.findByStatus(ReservationStatus.CONFIRMED)).thenReturn(List.of());
             when(reservationRepository.findByStatus(ReservationStatus.RUNNING)).thenReturn(List.of(reservation));
@@ -147,12 +147,21 @@ class ProcessReservationLifecycleServiceTest {
             when(machine.getDeviceId()).thenReturn("device-123");
             when(detectMachineCompletionService.execute("device-123")).thenReturn(Optional.empty());
 
+            var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
+                    "2026-01-26T14:30:00Z",
+                    null);
+            var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
+            var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
+            when(queryDeviceStatusService.execute("device-123")).thenReturn(deviceStatus);
+
             // When
             processReservationLifecycleService.execute();
 
             // Then
             verify(reservation, never()).complete();
-            verify(reservationRepository, never()).save(reservation);
+            verify(reservation, times(1)).updateExpectedCompletionTime(any(LocalDateTime.class));
+            verify(reservationRepository, times(1)).save(reservation);
             verify(sendCompletionNotificationService, never()).execute(any(), any());
         }
     }
