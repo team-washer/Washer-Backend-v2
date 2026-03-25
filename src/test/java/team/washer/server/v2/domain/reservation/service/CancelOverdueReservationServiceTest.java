@@ -20,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
+import team.washer.server.v2.domain.notification.service.SendAutoCancellationNotificationService;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -44,6 +45,9 @@ class CancelOverdueReservationServiceTest {
 
     @Mock
     private PenaltyRedisUtil penaltyRedisUtil;
+
+    @Mock
+    private SendAutoCancellationNotificationService sendAutoCancellationNotificationService;
 
     @Mock
     private DetectMachineRunningService detectMachineRunningService;
@@ -80,6 +84,7 @@ class CancelOverdueReservationServiceTest {
         verify(reservation, times(1)).cancel();
         verify(reservationRepository, times(1)).save(reservation);
         verify(penaltyRedisUtil, times(1)).applyPenalty(user);
+        verify(sendAutoCancellationNotificationService, times(1)).execute(user, machine);
         verify(reservation, never()).start(any());
     }
 
