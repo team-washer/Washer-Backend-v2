@@ -86,7 +86,8 @@ public class Notification extends BaseEntity {
      * @return 생성된 자동 취소 알림
      */
     public static Notification createAutoCancellationNotification(User user, Machine machine) {
-        String message = NotificationType.AUTO_CANCELLED.getMessageTemplate().replace("{machineName}", machine.getName());
+        String message = NotificationType.AUTO_CANCELLED.getMessageTemplate().replace("{machineName}",
+                machine.getName());
 
         return Notification.builder().user(user).machine(machine).type(NotificationType.AUTO_CANCELLED).message(message)
                 .isRead(false).build();
