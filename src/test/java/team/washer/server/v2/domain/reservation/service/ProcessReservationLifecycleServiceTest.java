@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.service.SendCompletionNotificationService;
+import team.washer.server.v2.domain.notification.service.SendInterruptionNotificationService;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -59,6 +60,9 @@ class ProcessReservationLifecycleServiceTest {
 
     @Mock
     private SendCompletionNotificationService sendCompletionNotificationService;
+
+    @Mock
+    private SendInterruptionNotificationService sendInterruptionNotificationService;
 
     @Mock
     private Reservation reservation;
@@ -178,14 +182,15 @@ class ProcessReservationLifecycleServiceTest {
         }
 
         @Test
-        @DisplayName("RUNNING 상태에서 기기가 비정상 종료되면 패널티 없이 CANCELLED로 전환한다")
-        void execute_ShouldCancelWithoutPenalty_WhenMachineInterrupted() {
+        @DisplayName("RUNNING 상태에서 기기가 비정상 종료되면 패널티 없이 CANCELLED로 전환하고 중단 알림을 전송한다")
+        void execute_ShouldCancelWithoutPenaltyAndNotify_WhenMachineInterrupted() {
             // Given
             when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED))
                     .thenReturn(List.of());
             when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING))
                     .thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
+            when(reservation.getUser()).thenReturn(user);
             when(machine.getDeviceId()).thenReturn("device-123");
             when(detectMachineCompletionService.execute("device-123")).thenReturn(Optional.empty());
             when(detectMachineInterruptedService.execute("device-123")).thenReturn(true);
@@ -198,6 +203,7 @@ class ProcessReservationLifecycleServiceTest {
             verify(machine, times(1)).markAsAvailable();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
+            verify(sendInterruptionNotificationService, times(1)).execute(user, machine);
             verify(reservation, never()).complete();
             verify(reservation, never()).updateExpectedCompletionTime(any());
             verify(sendCompletionNotificationService, never()).execute(any(), any());
