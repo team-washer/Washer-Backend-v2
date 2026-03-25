@@ -73,7 +73,7 @@ class ProcessReservationLifecycleServiceTest {
         @DisplayName("CONFIRMED 상태이고 기기가 작동 중이면 RUNNING으로 전환한다")
         void execute_ShouldStartReservation_WhenConfirmedAndMachineRunning() {
             // Given
-            when(reservationRepository.findByStatus(ReservationStatus.CONFIRMED)).thenReturn(List.of(reservation));
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED)).thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
             when(detectMachineRunningService.execute("device-123")).thenReturn(true);
@@ -99,7 +99,7 @@ class ProcessReservationLifecycleServiceTest {
         @DisplayName("CONFIRMED 상태이지만 기기가 작동 중이지 않으면 전환하지 않는다")
         void execute_ShouldNotStartReservation_WhenConfirmedButMachineNotRunning() {
             // Given
-            when(reservationRepository.findByStatus(ReservationStatus.CONFIRMED)).thenReturn(List.of(reservation));
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED)).thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
             when(detectMachineRunningService.execute("device-123")).thenReturn(false);
@@ -121,8 +121,8 @@ class ProcessReservationLifecycleServiceTest {
         @DisplayName("RUNNING 상태이고 기기 작업이 완료되면 COMPLETED로 전환하고 알림을 전송한다")
         void execute_ShouldCompleteReservation_WhenRunningAndMachineCompleted() {
             // Given
-            when(reservationRepository.findByStatus(ReservationStatus.CONFIRMED)).thenReturn(List.of());
-            when(reservationRepository.findByStatus(ReservationStatus.RUNNING)).thenReturn(List.of(reservation));
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED)).thenReturn(List.of());
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING)).thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
             when(reservation.getUser()).thenReturn(user);
             when(machine.getDeviceId()).thenReturn("device-123");
@@ -141,8 +141,8 @@ class ProcessReservationLifecycleServiceTest {
         @DisplayName("RUNNING 상태이고 기기 작업이 완료되지 않으면 예상 완료 시각을 갱신한다")
         void execute_ShouldUpdateExpectedCompletionTime_WhenRunningAndMachineNotCompleted() {
             // Given
-            when(reservationRepository.findByStatus(ReservationStatus.CONFIRMED)).thenReturn(List.of());
-            when(reservationRepository.findByStatus(ReservationStatus.RUNNING)).thenReturn(List.of(reservation));
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED)).thenReturn(List.of());
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING)).thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
             when(detectMachineCompletionService.execute("device-123")).thenReturn(Optional.empty());
