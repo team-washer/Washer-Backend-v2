@@ -54,7 +54,7 @@ public class Notification extends BaseEntity {
      * @return 생성된 완료 알림
      */
     public static Notification createCompletionNotification(User user, Machine machine) {
-        String message = NotificationType.COMPLETION.getMessageTemplate().replace("{machineName}", machine.getName());
+        String message = NotificationType.COMPLETION.formatMessage(machine.getName(), machine.getType());
 
         return Notification.builder().user(user).machine(machine).type(NotificationType.COMPLETION).message(message)
                 .isRead(false).build();
@@ -103,7 +103,7 @@ public class Notification extends BaseEntity {
      * @return 생성된 세탁 중단 알림
      */
     public static Notification createInterruptionNotification(User user, Machine machine) {
-        String message = NotificationType.INTERRUPTION.getMessageTemplate().replace("{machineName}", machine.getName());
+        String message = NotificationType.INTERRUPTION.formatMessage(machine.getName(), machine.getType());
 
         return Notification.builder().user(user).machine(machine).type(NotificationType.INTERRUPTION).message(message)
                 .isRead(false).build();
