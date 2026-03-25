@@ -77,6 +77,22 @@ public class Notification extends BaseEntity {
     }
 
     /**
+     * 세탁 중단 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            중단된 기기
+     * @return 생성된 세탁 중단 알림
+     */
+    public static Notification createInterruptionNotification(User user, Machine machine) {
+        String message = NotificationType.INTERRUPTION.getMessageTemplate().replace("{machineName}", machine.getName());
+
+        return Notification.builder().user(user).machine(machine).type(NotificationType.INTERRUPTION).message(message)
+                .isRead(false).build();
+    }
+
+    /**
      * 경고 알림을 생성합니다.
      *
      * @param user
