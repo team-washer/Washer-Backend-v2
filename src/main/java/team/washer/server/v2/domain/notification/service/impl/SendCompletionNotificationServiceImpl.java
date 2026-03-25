@@ -26,8 +26,8 @@ public class SendCompletionNotificationServiceImpl implements SendCompletionNoti
         notificationRepository.save(notification);
         log.info("Completion notification sent to user {} for machine {}", user.getId(), machine.getName());
 
-        final var fcmTitle = "세탁 완료 알림";
-        final var fcmBody = NotificationType.COMPLETION.formatMessage(machine.getName());
+        final var fcmTitle = machine.getType().getDescription() + " 완료 알림";
+        final var fcmBody = NotificationType.COMPLETION.formatMessage(machine.getName(), machine.getType());
         sendFcmNotificationService.execute(user, fcmTitle, fcmBody);
     }
 }

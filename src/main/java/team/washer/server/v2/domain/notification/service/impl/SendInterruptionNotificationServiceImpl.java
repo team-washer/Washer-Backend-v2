@@ -26,8 +26,8 @@ public class SendInterruptionNotificationServiceImpl implements SendInterruption
         notificationRepository.save(notification);
         log.info("세탁 중단 알림 저장 완료 - 사용자: {}, 기기: {}", user.getId(), machine.getName());
 
-        final var fcmTitle = "세탁 중단 알림";
-        final var fcmBody = NotificationType.INTERRUPTION.formatMessage(machine.getName());
+        final var fcmTitle = machine.getType().getDescription() + " 중단 알림";
+        final var fcmBody = NotificationType.INTERRUPTION.formatMessage(machine.getName(), machine.getType());
         sendFcmNotificationService.execute(user, fcmTitle, fcmBody);
     }
 }
