@@ -5,7 +5,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 import lombok.extern.slf4j.Slf4j;
-import team.washer.server.v2.domain.smartthings.service.QueryDeviceStatusService;
+import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 
 @Slf4j
 public final class DateTimeUtil {
@@ -24,10 +24,10 @@ public final class DateTimeUtil {
         }
     }
 
-    public static LocalDateTime getExpectedCompletionTime(QueryDeviceStatusService queryDeviceStatusService,
+    public static LocalDateTime getExpectedCompletionTime(DeviceStatusQuerySupport deviceStatusQuerySupport,
             String deviceId) {
         try {
-            var status = queryDeviceStatusService.execute(deviceId);
+            var status = deviceStatusQuerySupport.queryDeviceStatus(deviceId);
             var completionTimeStr = status.getCompletionTime();
 
             if (completionTimeStr != null && !completionTimeStr.isBlank()) {
