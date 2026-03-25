@@ -28,7 +28,6 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     private final SendCompletionNotificationService sendCompletionNotificationService;
 
     @Override
-    @Transactional
     public void execute() {
         processConfirmedToRunning();
         processRunningToCompleted();
