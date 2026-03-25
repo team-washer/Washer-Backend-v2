@@ -1,7 +1,6 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -11,6 +10,7 @@ import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.ProcessReservationLifecycleService;
 import team.washer.server.v2.domain.smartthings.service.DetectMachineCompletionService;
+import team.washer.server.v2.domain.smartthings.service.DetectMachineInterruptedService;
 import team.washer.server.v2.domain.smartthings.service.DetectMachineRunningService;
 import team.washer.server.v2.domain.smartthings.service.QueryDeviceStatusService;
 import team.washer.server.v2.global.util.DateTimeUtil;
@@ -24,6 +24,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     private final MachineRepository machineRepository;
     private final DetectMachineRunningService detectMachineRunningService;
     private final DetectMachineCompletionService detectMachineCompletionService;
+    private final DetectMachineInterruptedService detectMachineInterruptedService;
     private final QueryDeviceStatusService queryDeviceStatusService;
     private final SendCompletionNotificationService sendCompletionNotificationService;
 
@@ -74,6 +75,15 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     sendCompletionNotificationService.execute(reservation.getUser(), machine);
 
                     log.info("Reservation {} completed (RUNNING → COMPLETED)", reservation.getId());
+                } else if (detectMachineInterruptedService.execute(machine.getDeviceId())) {
+                    reservation.cancel();
+                    machine.markAsAvailable();
+                    reservationRepository.save(reservation);
+                    machineRepository.save(machine);
+
+                    log.warn(
+                            "Reservation {} cancelled due to machine interruption, no penalty applied (RUNNING → CANCELLED)",
+                            reservation.getId());
                 } else {
                     var updatedExpectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(queryDeviceStatusService,
                             machine.getDeviceId());
