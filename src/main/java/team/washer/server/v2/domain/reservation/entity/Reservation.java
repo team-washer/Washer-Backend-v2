@@ -137,6 +137,19 @@ public class Reservation extends BaseEntity {
     }
 
     /**
+     * 실행 중인 예약의 예상 완료 시각을 갱신합니다. RUNNING 상태가 아니면 예외를 발생시킵니다.
+     *
+     * @param expectedCompletionTime
+     *            갱신할 예상 완료 시각
+     */
+    public void updateExpectedCompletionTime(LocalDateTime expectedCompletionTime) {
+        if (this.status != ReservationStatus.RUNNING) {
+            throw new ExpectedException("실행 중인 예약만 완료 시각을 갱신할 수 있습니다", HttpStatus.BAD_REQUEST);
+        }
+        this.expectedCompletionTime = expectedCompletionTime;
+    }
+
+    /**
      * 예약을 완료 상태(COMPLETED)로 전환합니다. RUNNING 상태가 아니면 예외를 발생시킵니다.
      */
     public void complete() {
