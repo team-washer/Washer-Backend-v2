@@ -34,7 +34,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     }
 
     private void processConfirmedToRunning() {
-        var confirmedReservations = reservationRepository.findByStatus(ReservationStatus.CONFIRMED);
+        var confirmedReservations = reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED);
 
         for (var reservation : confirmedReservations) {
             try {
@@ -58,7 +58,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     }
 
     private void processRunningToCompleted() {
-        var runningReservations = reservationRepository.findByStatus(ReservationStatus.RUNNING);
+        var runningReservations = reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING);
 
         for (var reservation : runningReservations) {
             try {
