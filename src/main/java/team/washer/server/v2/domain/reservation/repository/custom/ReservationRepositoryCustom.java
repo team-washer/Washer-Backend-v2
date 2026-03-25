@@ -52,6 +52,8 @@ public interface ReservationRepositoryCustom {
      *            시작일 (null 가능)
      * @param endDate
      *            종료일 (null 가능)
+     * @param machineType
+     *            기기 유형 (세탁기/건조기, null 가능)
      * @param pageable
      *            페이지네이션 정보
      * @return 필터링된 예약 페이지 (생성일 기준 내림차순)
@@ -61,6 +63,7 @@ public interface ReservationRepositoryCustom {
             ReservationStatus status,
             LocalDateTime startDate,
             LocalDateTime endDate,
+            MachineType machineType,
             Pageable pageable);
 
     /**
