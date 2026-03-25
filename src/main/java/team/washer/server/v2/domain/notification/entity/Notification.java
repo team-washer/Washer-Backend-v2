@@ -110,6 +110,22 @@ public class Notification extends BaseEntity {
     }
 
     /**
+     * 일시정지 초과 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            대상 기기
+     * @return 생성된 일시정지 초과 알림
+     */
+    public static Notification createPauseTimeoutNotification(User user, Machine machine) {
+        String message = NotificationType.PAUSE_TIMEOUT.formatMessage(machine.getName(), machine.getType());
+
+        return Notification.builder().user(user).machine(machine).type(NotificationType.PAUSE_TIMEOUT).message(message)
+                .isRead(false).build();
+    }
+
+    /**
      * 경고 알림을 생성합니다.
      *
      * @param user
