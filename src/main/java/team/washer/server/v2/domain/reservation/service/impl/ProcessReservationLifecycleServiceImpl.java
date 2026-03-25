@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.service.SendCompletionNotificationService;
+import team.washer.server.v2.domain.notification.service.SendInterruptionNotificationService;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.ProcessReservationLifecycleService;
@@ -27,6 +28,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     private final DetectMachineInterruptedService detectMachineInterruptedService;
     private final QueryDeviceStatusService queryDeviceStatusService;
     private final SendCompletionNotificationService sendCompletionNotificationService;
+    private final SendInterruptionNotificationService sendInterruptionNotificationService;
 
     @Override
     public void execute() {
@@ -80,6 +82,8 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     machine.markAsAvailable();
                     reservationRepository.save(reservation);
                     machineRepository.save(machine);
+
+                    sendInterruptionNotificationService.execute(reservation.getUser(), machine);
 
                     log.warn(
                             "Reservation {} cancelled due to machine interruption, no penalty applied (RUNNING → CANCELLED)",
