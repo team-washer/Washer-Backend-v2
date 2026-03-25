@@ -23,6 +23,7 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.service.SendCompletionNotificationService;
 import team.washer.server.v2.domain.notification.service.SendInterruptionNotificationService;
+import team.washer.server.v2.domain.notification.service.SendPauseTimeoutNotificationService;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -30,6 +31,7 @@ import team.washer.server.v2.domain.reservation.service.impl.ProcessReservationL
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.service.DetectMachineCompletionService;
 import team.washer.server.v2.domain.smartthings.service.DetectMachineInterruptedService;
+import team.washer.server.v2.domain.smartthings.service.DetectMachinePausedService;
 import team.washer.server.v2.domain.smartthings.service.DetectMachineRunningService;
 import team.washer.server.v2.domain.smartthings.service.QueryDeviceStatusService;
 import team.washer.server.v2.domain.user.entity.User;
@@ -59,10 +61,16 @@ class ProcessReservationLifecycleServiceTest {
     private QueryDeviceStatusService queryDeviceStatusService;
 
     @Mock
+    private DetectMachinePausedService detectMachinePausedService;
+
+    @Mock
     private SendCompletionNotificationService sendCompletionNotificationService;
 
     @Mock
     private SendInterruptionNotificationService sendInterruptionNotificationService;
+
+    @Mock
+    private SendPauseTimeoutNotificationService sendPauseTimeoutNotificationService;
 
     @Mock
     private Reservation reservation;
@@ -207,6 +215,94 @@ class ProcessReservationLifecycleServiceTest {
             verify(reservation, never()).complete();
             verify(reservation, never()).updateExpectedCompletionTime(any());
             verify(sendCompletionNotificationService, never()).execute(any(), any());
+        }
+
+        @Test
+        @DisplayName("RUNNING 상태에서 기기가 최초 일시정지되면 pausedAt을 기록한다")
+        void execute_ShouldMarkPausedAt_WhenMachineFirstPaused() {
+            // Given
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED))
+                    .thenReturn(List.of());
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING))
+                    .thenReturn(List.of(reservation));
+            when(reservation.getMachine()).thenReturn(machine);
+            when(machine.getDeviceId()).thenReturn("device-123");
+            when(detectMachineCompletionService.execute("device-123")).thenReturn(Optional.empty());
+            when(detectMachineInterruptedService.execute("device-123")).thenReturn(false);
+            when(detectMachinePausedService.execute("device-123")).thenReturn(true);
+            when(reservation.getPausedAt()).thenReturn(null);
+
+            // When
+            processReservationLifecycleService.execute();
+
+            // Then
+            verify(reservation, times(1)).markAsPaused();
+            verify(reservationRepository, times(1)).save(reservation);
+            verify(reservation, never()).cancel();
+            verify(sendPauseTimeoutNotificationService, never()).execute(any(), any());
+        }
+
+        @Test
+        @DisplayName("RUNNING 상태에서 일시정지가 10분 이상 지속되면 패널티 없이 CANCELLED로 전환하고 알림을 전송한다")
+        void execute_ShouldCancelWithoutPenaltyAndNotify_WhenPausedTooLong() {
+            // Given
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED))
+                    .thenReturn(List.of());
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING))
+                    .thenReturn(List.of(reservation));
+            when(reservation.getMachine()).thenReturn(machine);
+            when(reservation.getUser()).thenReturn(user);
+            when(machine.getDeviceId()).thenReturn("device-123");
+            when(detectMachineCompletionService.execute("device-123")).thenReturn(Optional.empty());
+            when(detectMachineInterruptedService.execute("device-123")).thenReturn(false);
+            when(detectMachinePausedService.execute("device-123")).thenReturn(true);
+            when(reservation.getPausedAt()).thenReturn(LocalDateTime.now().minusMinutes(11));
+
+            // When
+            processReservationLifecycleService.execute();
+
+            // Then
+            verify(reservation, times(1)).cancel();
+            verify(reservation, times(1)).clearPausedAt();
+            verify(machine, times(1)).markAsAvailable();
+            verify(reservationRepository, times(1)).save(reservation);
+            verify(machineRepository, times(1)).save(machine);
+            verify(sendPauseTimeoutNotificationService, times(1)).execute(user, machine);
+            verify(reservation, never()).complete();
+            verify(reservation, never()).markAsPaused();
+        }
+
+        @Test
+        @DisplayName("RUNNING 상태에서 일시정지 후 재개되면 pausedAt을 초기화하고 예상 완료 시각을 갱신한다")
+        void execute_ShouldClearPausedAtAndUpdateExpectedTime_WhenMachineResumed() {
+            // Given
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED))
+                    .thenReturn(List.of());
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING))
+                    .thenReturn(List.of(reservation));
+            when(reservation.getMachine()).thenReturn(machine);
+            when(machine.getDeviceId()).thenReturn("device-123");
+            when(detectMachineCompletionService.execute("device-123")).thenReturn(Optional.empty());
+            when(detectMachineInterruptedService.execute("device-123")).thenReturn(false);
+            when(detectMachinePausedService.execute("device-123")).thenReturn(false);
+            when(reservation.getPausedAt()).thenReturn(LocalDateTime.now().minusMinutes(3));
+
+            var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
+                    "2026-01-26T14:30:00Z",
+                    null);
+            var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
+            var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
+            when(queryDeviceStatusService.execute("device-123")).thenReturn(deviceStatus);
+
+            // When
+            processReservationLifecycleService.execute();
+
+            // Then
+            verify(reservation, times(1)).clearPausedAt();
+            verify(reservation, times(1)).updateExpectedCompletionTime(any(LocalDateTime.class));
+            verify(reservationRepository, times(1)).save(reservation);
+            verify(reservation, never()).cancel();
         }
     }
 }
