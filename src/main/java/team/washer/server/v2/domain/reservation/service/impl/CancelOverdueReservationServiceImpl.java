@@ -10,14 +10,14 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.notification.service.SendAutoCancellationNotificationService;
+import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.CancelOverdueReservationService;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
-import team.washer.server.v2.domain.smartthings.service.DetectMachineRunningService;
-import team.washer.server.v2.domain.smartthings.service.QueryDeviceStatusService;
+import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -29,9 +29,9 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
     private final ReservationRepository reservationRepository;
     private final MachineRepository machineRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
-    private final SendAutoCancellationNotificationService sendAutoCancellationNotificationService;
-    private final DetectMachineRunningService detectMachineRunningService;
-    private final QueryDeviceStatusService queryDeviceStatusService;
+    private final ReservationNotificationSupport reservationNotificationSupport;
+    private final MachineStateDetectionSupport machineStateDetectionSupport;
+    private final DeviceStatusQuerySupport deviceStatusQuerySupport;
 
     @Override
     @Transactional
@@ -52,10 +52,10 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
         for (Reservation reservation : expiredReservations) {
             try {
                 var machine = reservation.getMachine();
-                var isRunning = detectMachineRunningService.execute(machine.getDeviceId());
+                var isRunning = machineStateDetectionSupport.isRunning(machine.getDeviceId());
 
                 if (isRunning) {
-                    var expectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(queryDeviceStatusService,
+                    var expectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(deviceStatusQuerySupport,
                             machine.getDeviceId());
                     // RESERVED → CONFIRMED → RUNNING: start()은 CONFIRMED에서만 가능하므로 confirm() 선행
                     reservation.confirm();
@@ -71,7 +71,7 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
                     machineRepository.save(machine);
                     User user = reservation.getUser();
                     penaltyRedisUtil.applyPenalty(user);
-                    sendAutoCancellationNotificationService.execute(user, machine);
+                    reservationNotificationSupport.sendAutoCancellation(user, machine);
                     cancelled.add(reservation.getId());
                 }
             } catch (Exception e) {

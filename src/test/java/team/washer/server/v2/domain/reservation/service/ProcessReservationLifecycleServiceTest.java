@@ -21,19 +21,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.notification.service.SendCompletionNotificationService;
-import team.washer.server.v2.domain.notification.service.SendInterruptionNotificationService;
-import team.washer.server.v2.domain.notification.service.SendPauseTimeoutNotificationService;
+import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.ProcessReservationLifecycleServiceImpl;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.service.DetectMachineCompletionService;
-import team.washer.server.v2.domain.smartthings.service.DetectMachineInterruptedService;
-import team.washer.server.v2.domain.smartthings.service.DetectMachinePausedService;
-import team.washer.server.v2.domain.smartthings.service.DetectMachineRunningService;
-import team.washer.server.v2.domain.smartthings.service.QueryDeviceStatusService;
+import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,28 +44,13 @@ class ProcessReservationLifecycleServiceTest {
     private MachineRepository machineRepository;
 
     @Mock
-    private DetectMachineRunningService detectMachineRunningService;
+    private MachineStateDetectionSupport machineStateDetectionSupport;
 
     @Mock
-    private DetectMachineCompletionService detectMachineCompletionService;
+    private ReservationNotificationSupport reservationNotificationSupport;
 
     @Mock
-    private DetectMachineInterruptedService detectMachineInterruptedService;
-
-    @Mock
-    private QueryDeviceStatusService queryDeviceStatusService;
-
-    @Mock
-    private DetectMachinePausedService detectMachinePausedService;
-
-    @Mock
-    private SendCompletionNotificationService sendCompletionNotificationService;
-
-    @Mock
-    private SendInterruptionNotificationService sendInterruptionNotificationService;
-
-    @Mock
-    private SendPauseTimeoutNotificationService sendPauseTimeoutNotificationService;
+    private DeviceStatusQuerySupport deviceStatusQuerySupport;
 
     @Mock
     private Reservation reservation;
@@ -93,7 +73,7 @@ class ProcessReservationLifecycleServiceTest {
                     .thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
-            when(detectMachineRunningService.execute("device-123")).thenReturn(true);
+            when(machineStateDetectionSupport.isRunning("device-123")).thenReturn(true);
 
             // SmartThings 상태 Mock
             var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
@@ -102,7 +82,7 @@ class ProcessReservationLifecycleServiceTest {
             var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
             var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
-            when(queryDeviceStatusService.execute("device-123")).thenReturn(deviceStatus);
+            when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
 
             // When
             processReservationLifecycleService.execute();
@@ -120,7 +100,7 @@ class ProcessReservationLifecycleServiceTest {
                     .thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
-            when(detectMachineRunningService.execute("device-123")).thenReturn(false);
+            when(machineStateDetectionSupport.isRunning("device-123")).thenReturn(false);
 
             // When
             processReservationLifecycleService.execute();
@@ -146,7 +126,7 @@ class ProcessReservationLifecycleServiceTest {
             when(reservation.getMachine()).thenReturn(machine);
             when(reservation.getUser()).thenReturn(user);
             when(machine.getDeviceId()).thenReturn("device-123");
-            when(detectMachineCompletionService.execute("device-123")).thenReturn(Optional.of(LocalDateTime.now()));
+            when(machineStateDetectionSupport.isCompleted("device-123")).thenReturn(Optional.of(LocalDateTime.now()));
 
             // When
             processReservationLifecycleService.execute();
@@ -154,7 +134,7 @@ class ProcessReservationLifecycleServiceTest {
             // Then
             verify(reservation, times(1)).complete();
             verify(reservationRepository, times(1)).save(reservation);
-            verify(sendCompletionNotificationService, times(1)).execute(user, machine);
+            verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
         }
 
         @Test
@@ -167,8 +147,8 @@ class ProcessReservationLifecycleServiceTest {
                     .thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
-            when(detectMachineCompletionService.execute("device-123")).thenReturn(Optional.empty());
-            when(detectMachineInterruptedService.execute("device-123")).thenReturn(false);
+            when(machineStateDetectionSupport.isCompleted("device-123")).thenReturn(Optional.empty());
+            when(machineStateDetectionSupport.isInterrupted("device-123")).thenReturn(false);
 
             var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
                     "2026-01-26T14:30:00Z",
@@ -176,7 +156,7 @@ class ProcessReservationLifecycleServiceTest {
             var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
             var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
-            when(queryDeviceStatusService.execute("device-123")).thenReturn(deviceStatus);
+            when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
 
             // When
             processReservationLifecycleService.execute();
@@ -186,7 +166,7 @@ class ProcessReservationLifecycleServiceTest {
             verify(reservation, never()).cancel();
             verify(reservation, times(1)).updateExpectedCompletionTime(any(LocalDateTime.class));
             verify(reservationRepository, times(1)).save(reservation);
-            verify(sendCompletionNotificationService, never()).execute(any(), any());
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
         }
 
         @Test
@@ -200,8 +180,8 @@ class ProcessReservationLifecycleServiceTest {
             when(reservation.getMachine()).thenReturn(machine);
             when(reservation.getUser()).thenReturn(user);
             when(machine.getDeviceId()).thenReturn("device-123");
-            when(detectMachineCompletionService.execute("device-123")).thenReturn(Optional.empty());
-            when(detectMachineInterruptedService.execute("device-123")).thenReturn(true);
+            when(machineStateDetectionSupport.isCompleted("device-123")).thenReturn(Optional.empty());
+            when(machineStateDetectionSupport.isInterrupted("device-123")).thenReturn(true);
 
             // When
             processReservationLifecycleService.execute();
@@ -211,10 +191,10 @@ class ProcessReservationLifecycleServiceTest {
             verify(machine, times(1)).markAsAvailable();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
-            verify(sendInterruptionNotificationService, times(1)).execute(user, machine);
+            verify(reservationNotificationSupport, times(1)).sendInterruption(user, machine);
             verify(reservation, never()).complete();
             verify(reservation, never()).updateExpectedCompletionTime(any());
-            verify(sendCompletionNotificationService, never()).execute(any(), any());
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
         }
 
         @Test
@@ -227,9 +207,9 @@ class ProcessReservationLifecycleServiceTest {
                     .thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
-            when(detectMachineCompletionService.execute("device-123")).thenReturn(Optional.empty());
-            when(detectMachineInterruptedService.execute("device-123")).thenReturn(false);
-            when(detectMachinePausedService.execute("device-123")).thenReturn(true);
+            when(machineStateDetectionSupport.isCompleted("device-123")).thenReturn(Optional.empty());
+            when(machineStateDetectionSupport.isInterrupted("device-123")).thenReturn(false);
+            when(machineStateDetectionSupport.isPaused("device-123")).thenReturn(true);
             when(reservation.getPausedAt()).thenReturn(null);
 
             // When
@@ -239,7 +219,7 @@ class ProcessReservationLifecycleServiceTest {
             verify(reservation, times(1)).markAsPaused();
             verify(reservationRepository, times(1)).save(reservation);
             verify(reservation, never()).cancel();
-            verify(sendPauseTimeoutNotificationService, never()).execute(any(), any());
+            verify(reservationNotificationSupport, never()).sendPauseTimeout(any(), any());
         }
 
         @Test
@@ -253,9 +233,9 @@ class ProcessReservationLifecycleServiceTest {
             when(reservation.getMachine()).thenReturn(machine);
             when(reservation.getUser()).thenReturn(user);
             when(machine.getDeviceId()).thenReturn("device-123");
-            when(detectMachineCompletionService.execute("device-123")).thenReturn(Optional.empty());
-            when(detectMachineInterruptedService.execute("device-123")).thenReturn(false);
-            when(detectMachinePausedService.execute("device-123")).thenReturn(true);
+            when(machineStateDetectionSupport.isCompleted("device-123")).thenReturn(Optional.empty());
+            when(machineStateDetectionSupport.isInterrupted("device-123")).thenReturn(false);
+            when(machineStateDetectionSupport.isPaused("device-123")).thenReturn(true);
             when(reservation.getPausedAt()).thenReturn(LocalDateTime.now().minusMinutes(11));
 
             // When
@@ -267,7 +247,7 @@ class ProcessReservationLifecycleServiceTest {
             verify(machine, times(1)).markAsAvailable();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
-            verify(sendPauseTimeoutNotificationService, times(1)).execute(user, machine);
+            verify(reservationNotificationSupport, times(1)).sendPauseTimeout(user, machine);
             verify(reservation, never()).complete();
             verify(reservation, never()).markAsPaused();
         }
@@ -282,9 +262,9 @@ class ProcessReservationLifecycleServiceTest {
                     .thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
-            when(detectMachineCompletionService.execute("device-123")).thenReturn(Optional.empty());
-            when(detectMachineInterruptedService.execute("device-123")).thenReturn(false);
-            when(detectMachinePausedService.execute("device-123")).thenReturn(false);
+            when(machineStateDetectionSupport.isCompleted("device-123")).thenReturn(Optional.empty());
+            when(machineStateDetectionSupport.isInterrupted("device-123")).thenReturn(false);
+            when(machineStateDetectionSupport.isPaused("device-123")).thenReturn(false);
             when(reservation.getPausedAt()).thenReturn(LocalDateTime.now().minusMinutes(3));
 
             var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
@@ -293,7 +273,7 @@ class ProcessReservationLifecycleServiceTest {
             var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
             var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
-            when(queryDeviceStatusService.execute("device-123")).thenReturn(deviceStatus);
+            when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
 
             // When
             processReservationLifecycleService.execute();

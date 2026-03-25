@@ -19,7 +19,7 @@ import team.washer.server.v2.domain.machine.service.QueryAllMachinesStatusServic
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.service.QueryAllDevicesStatusService;
+import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Service
@@ -32,7 +32,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
 
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
-    private final QueryAllDevicesStatusService queryAllDevicesStatusService;
+    private final DeviceStatusQuerySupport deviceStatusQuerySupport;
 
     @Override
     @Transactional(readOnly = true)
@@ -42,7 +42,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
         var machines = sorted ? machineRepository.findAll(DEFAULT_SORT) : machineRepository.findAll();
         var deviceIds = machines.stream().map(Machine::getDeviceId).toList();
 
-        var deviceStatusMap = queryAllDevicesStatusService.execute(deviceIds);
+        var deviceStatusMap = deviceStatusQuerySupport.queryAllDevicesStatus(deviceIds);
 
         var results = machines.stream().map(machine -> {
             var reservation = reservationRepository.findActiveReservationByMachineId(machine.getId()).orElse(null);

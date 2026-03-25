@@ -8,17 +8,12 @@ import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.notification.service.SendCompletionNotificationService;
-import team.washer.server.v2.domain.notification.service.SendInterruptionNotificationService;
-import team.washer.server.v2.domain.notification.service.SendPauseTimeoutNotificationService;
+import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.ProcessReservationLifecycleService;
-import team.washer.server.v2.domain.smartthings.service.DetectMachineCompletionService;
-import team.washer.server.v2.domain.smartthings.service.DetectMachineInterruptedService;
-import team.washer.server.v2.domain.smartthings.service.DetectMachinePausedService;
-import team.washer.server.v2.domain.smartthings.service.DetectMachineRunningService;
-import team.washer.server.v2.domain.smartthings.service.QueryDeviceStatusService;
+import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -29,14 +24,9 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
 
     private final ReservationRepository reservationRepository;
     private final MachineRepository machineRepository;
-    private final DetectMachineRunningService detectMachineRunningService;
-    private final DetectMachineCompletionService detectMachineCompletionService;
-    private final DetectMachineInterruptedService detectMachineInterruptedService;
-    private final DetectMachinePausedService detectMachinePausedService;
-    private final QueryDeviceStatusService queryDeviceStatusService;
-    private final SendCompletionNotificationService sendCompletionNotificationService;
-    private final SendInterruptionNotificationService sendInterruptionNotificationService;
-    private final SendPauseTimeoutNotificationService sendPauseTimeoutNotificationService;
+    private final MachineStateDetectionSupport machineStateDetectionSupport;
+    private final ReservationNotificationSupport reservationNotificationSupport;
+    private final DeviceStatusQuerySupport deviceStatusQuerySupport;
 
     @Override
     public void execute() {
@@ -50,10 +40,10 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         for (var reservation : confirmedReservations) {
             try {
                 var machine = reservation.getMachine();
-                var isRunning = detectMachineRunningService.execute(machine.getDeviceId());
+                var isRunning = machineStateDetectionSupport.isRunning(machine.getDeviceId());
 
                 if (isRunning) {
-                    var expectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(queryDeviceStatusService,
+                    var expectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(deviceStatusQuerySupport,
                             machine.getDeviceId());
                     reservation.start(expectedCompletionTime);
                     machine.markAsInUse();
@@ -74,7 +64,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         for (var reservation : runningReservations) {
             try {
                 var machine = reservation.getMachine();
-                var completionTime = detectMachineCompletionService.execute(machine.getDeviceId());
+                var completionTime = machineStateDetectionSupport.isCompleted(machine.getDeviceId());
 
                 if (completionTime.isPresent()) {
                     reservation.complete();
@@ -82,21 +72,21 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     reservationRepository.save(reservation);
                     machineRepository.save(machine);
 
-                    sendCompletionNotificationService.execute(reservation.getUser(), machine);
+                    reservationNotificationSupport.sendCompletion(reservation.getUser(), machine);
 
                     log.info("Reservation {} completed (RUNNING → COMPLETED)", reservation.getId());
-                } else if (detectMachineInterruptedService.execute(machine.getDeviceId())) {
+                } else if (machineStateDetectionSupport.isInterrupted(machine.getDeviceId())) {
                     reservation.cancel();
                     machine.markAsAvailable();
                     reservationRepository.save(reservation);
                     machineRepository.save(machine);
 
-                    sendInterruptionNotificationService.execute(reservation.getUser(), machine);
+                    reservationNotificationSupport.sendInterruption(reservation.getUser(), machine);
 
                     log.warn(
                             "Reservation {} cancelled due to machine interruption, no penalty applied (RUNNING → CANCELLED)",
                             reservation.getId());
-                } else if (detectMachinePausedService.execute(machine.getDeviceId())) {
+                } else if (machineStateDetectionSupport.isPaused(machine.getDeviceId())) {
                     if (reservation.getPausedAt() == null) {
                         reservation.markAsPaused();
                         reservationRepository.save(reservation);
@@ -109,7 +99,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                         reservationRepository.save(reservation);
                         machineRepository.save(machine);
 
-                        sendPauseTimeoutNotificationService.execute(reservation.getUser(), machine);
+                        reservationNotificationSupport.sendPauseTimeout(reservation.getUser(), machine);
 
                         log.warn(
                                 "Reservation {} cancelled due to prolonged pause ({}min+), no penalty applied (RUNNING → CANCELLED)",
@@ -121,7 +111,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                         reservation.clearPausedAt();
                         log.info("Reservation {} resumed from pause, clearing pause tracking", reservation.getId());
                     }
-                    var updatedExpectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(queryDeviceStatusService,
+                    var updatedExpectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(deviceStatusQuerySupport,
                             machine.getDeviceId());
                     reservation.updateExpectedCompletionTime(updatedExpectedCompletionTime);
                     reservationRepository.save(reservation);

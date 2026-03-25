@@ -20,15 +20,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.notification.service.SendAutoCancellationNotificationService;
+import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.CancelOverdueReservationServiceImpl;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.service.DetectMachineRunningService;
-import team.washer.server.v2.domain.smartthings.service.QueryDeviceStatusService;
+import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,13 +47,13 @@ class CancelOverdueReservationServiceTest {
     private PenaltyRedisUtil penaltyRedisUtil;
 
     @Mock
-    private SendAutoCancellationNotificationService sendAutoCancellationNotificationService;
+    private ReservationNotificationSupport reservationNotificationSupport;
 
     @Mock
-    private DetectMachineRunningService detectMachineRunningService;
+    private MachineStateDetectionSupport machineStateDetectionSupport;
 
     @Mock
-    private QueryDeviceStatusService queryDeviceStatusService;
+    private DeviceStatusQuerySupport deviceStatusQuerySupport;
 
     @Mock
     private Reservation reservation;
@@ -74,7 +74,7 @@ class CancelOverdueReservationServiceTest {
 
         when(reservation.getMachine()).thenReturn(machine);
         when(machine.getDeviceId()).thenReturn("device-123");
-        when(detectMachineRunningService.execute("device-123")).thenReturn(false);
+        when(machineStateDetectionSupport.isRunning("device-123")).thenReturn(false);
         when(reservation.getUser()).thenReturn(user);
 
         // When
@@ -84,7 +84,7 @@ class CancelOverdueReservationServiceTest {
         verify(reservation, times(1)).cancel();
         verify(reservationRepository, times(1)).save(reservation);
         verify(penaltyRedisUtil, times(1)).applyPenalty(user);
-        verify(sendAutoCancellationNotificationService, times(1)).execute(user, machine);
+        verify(reservationNotificationSupport, times(1)).sendAutoCancellation(user, machine);
         verify(reservation, never()).start(any());
     }
 
@@ -98,7 +98,7 @@ class CancelOverdueReservationServiceTest {
 
         when(reservation.getMachine()).thenReturn(machine);
         when(machine.getDeviceId()).thenReturn("device-123");
-        when(detectMachineRunningService.execute("device-123")).thenReturn(true);
+        when(machineStateDetectionSupport.isRunning("device-123")).thenReturn(true);
 
         // SmartThingsDeviceStatusResDto Mock 생성
         var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
@@ -107,7 +107,7 @@ class CancelOverdueReservationServiceTest {
         var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
         var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
         var deviceStatus = new SmartThingsDeviceStatusResDto(java.util.Map.of("main", componentStatus));
-        when(queryDeviceStatusService.execute("device-123")).thenReturn(deviceStatus);
+        when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
 
         // When
         cancelOverdueReservationService.execute();
