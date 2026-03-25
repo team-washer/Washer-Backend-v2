@@ -75,6 +75,11 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     sendCompletionNotificationService.execute(reservation.getUser(), machine);
 
                     log.info("Reservation {} completed (RUNNING → COMPLETED)", reservation.getId());
+                } else {
+                    var updatedExpectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(queryDeviceStatusService,
+                            machine.getDeviceId());
+                    reservation.updateExpectedCompletionTime(updatedExpectedCompletionTime);
+                    reservationRepository.save(reservation);
                 }
             } catch (Exception e) {
                 log.error("Failed to process RUNNING reservation: {}", reservation.getId(), e);
