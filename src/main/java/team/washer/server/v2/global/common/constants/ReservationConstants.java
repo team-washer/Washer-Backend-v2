@@ -5,4 +5,5 @@ public final class ReservationConstants {
     }
 
     public static final int DEFAULT_RESERVATION_DURATION_MINUTES = 90;
+    public static final int PAUSE_TIMEOUT_MINUTES = 10;
 }

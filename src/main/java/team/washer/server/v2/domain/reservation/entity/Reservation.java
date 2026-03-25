@@ -69,6 +69,23 @@ public class Reservation extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private DayOfWeek dayOfWeek;
 
+    @Column(name = "paused_at")
+    private LocalDateTime pausedAt;
+
+    /**
+     * 기기 일시정지 시각을 기록합니다.
+     */
+    public void markAsPaused() {
+        this.pausedAt = LocalDateTime.now();
+    }
+
+    /**
+     * 일시정지 추적을 초기화합니다. 기기가 재개되거나 예약이 취소될 때 호출합니다.
+     */
+    public void clearPausedAt() {
+        this.pausedAt = null;
+    }
+
     /**
      * 예약 타임아웃 초과 여부를 반환합니다.
      *
