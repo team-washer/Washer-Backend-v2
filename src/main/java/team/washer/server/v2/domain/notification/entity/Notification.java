@@ -77,6 +77,22 @@ public class Notification extends BaseEntity {
     }
 
     /**
+     * 예약 자동 취소 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            대상 기기
+     * @return 생성된 자동 취소 알림
+     */
+    public static Notification createAutoCancellationNotification(User user, Machine machine) {
+        String message = NotificationType.AUTO_CANCELLED.getMessageTemplate().replace("{machineName}", machine.getName());
+
+        return Notification.builder().user(user).machine(machine).type(NotificationType.AUTO_CANCELLED).message(message)
+                .isRead(false).build();
+    }
+
+    /**
      * 세탁 중단 알림을 생성합니다.
      *
      * @param user
