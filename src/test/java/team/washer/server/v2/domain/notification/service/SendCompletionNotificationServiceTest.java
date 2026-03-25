@@ -14,6 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
+import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.notification.repository.NotificationRepository;
 import team.washer.server.v2.domain.notification.service.impl.SendCompletionNotificationServiceImpl;
@@ -46,6 +47,7 @@ class SendCompletionNotificationServiceTest {
         void execute_ShouldSendNotification_WhenValidUserAndMachine() {
             // Given
             when(machine.getName()).thenReturn("W-3F-L1");
+            when(machine.getType()).thenReturn(MachineType.WASHER);
 
             // When
             sendCompletionNotificationService.execute(user, machine);
