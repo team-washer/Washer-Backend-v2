@@ -1,10 +1,16 @@
 package team.washer.server.v2.domain.user.repository.custom;
 
-import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import team.washer.server.v2.domain.user.entity.User;
 
 public interface UserRepositoryCustom {
 
-    List<User> findUsersByFilter(String name, String roomNumber, Integer grade, Integer floor);
+    Page<User> findUsersByFilter(String name,
+            String studentId,
+            String roomNumber,
+            Integer grade,
+            Integer floor,
+            Pageable pageable);
 }

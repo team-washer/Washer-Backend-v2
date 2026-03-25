@@ -1,8 +1,7 @@
 package team.washer.server.v2.domain.user.service.impl;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,23 +20,30 @@ public class SearchUserServiceImpl implements SearchUserService {
 
     @Override
     @Transactional(readOnly = true)
-    public UserListResDto getUsersByFilter(String name, String roomNumber, Integer grade, Integer floor) {
-        List<User> users = userRepository.findUsersByFilter(name, roomNumber, grade, floor);
-        return buildUserListResponse(users);
+    public UserListResDto execute(String name,
+            String studentId,
+            String roomNumber,
+            Integer grade,
+            Integer floor,
+            Pageable pageable) {
+        final Page<User> usersPage = userRepository
+                .findUsersByFilter(name, studentId, roomNumber, grade, floor, pageable);
+        final var userDtos = usersPage.getContent().stream().map(this::toUserResDto).toList();
+        return new UserListResDto(userDtos,
+                usersPage.getTotalElements(),
+                usersPage.getTotalPages(),
+                usersPage.getNumber());
     }
 
-    private UserListResDto buildUserListResponse(List<User> users) {
-        List<UserResDto> userDtos = users.stream()
-                .map(user -> new UserResDto(user.getId(),
-                        user.getName(),
-                        user.getStudentId(),
-                        user.getRoomNumber(),
-                        user.getGrade(),
-                        user.getFloor(),
-                        user.getPenaltyCount(),
-                        user.getCreatedAt(),
-                        user.getUpdatedAt()))
-                .collect(Collectors.toList());
-        return new UserListResDto(userDtos, userDtos.size());
+    private UserResDto toUserResDto(User user) {
+        return new UserResDto(user.getId(),
+                user.getName(),
+                user.getStudentId(),
+                user.getRoomNumber(),
+                user.getGrade(),
+                user.getFloor(),
+                user.getPenaltyCount(),
+                user.getCreatedAt(),
+                user.getUpdatedAt());
     }
 }
