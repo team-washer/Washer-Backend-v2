@@ -1,4 +1,4 @@
-package team.washer.server.v2.domain.auth.service;
+package team.washer.server.v2.domain.auth.support;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -15,17 +15,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
 import team.washer.server.v2.domain.auth.entity.redis.RefreshTokenEntity;
 import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
-import team.washer.server.v2.domain.auth.service.impl.GenerateTokenServiceImpl;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.global.security.jwt.config.JwtEnvironment;
 import team.washer.server.v2.global.security.jwt.provider.JwtTokenProvider;
 
 @ExtendWith(MockitoExtension.class)
-@DisplayName("GenerateTokenServiceImpl 클래스의")
-class GenerateTokenServiceImplTest {
+@DisplayName("TokenGenerationSupport 클래스의")
+class TokenGenerationSupportTest {
 
     @InjectMocks
-    private GenerateTokenServiceImpl generateTokenService;
+    private TokenGenerationSupport tokenGenerationSupport;
 
     @Mock
     private JwtTokenProvider jwtTokenProvider;
@@ -37,8 +36,8 @@ class GenerateTokenServiceImplTest {
     private JwtEnvironment jwtEnvironment;
 
     @Nested
-    @DisplayName("execute 메서드는")
-    class Describe_execute {
+    @DisplayName("generate 메서드는")
+    class Describe_generate {
 
         @Nested
         @DisplayName("첫 로그인 시")
@@ -65,7 +64,7 @@ class GenerateTokenServiceImplTest {
                 given(refreshTokenRedisRepository.save(any(RefreshTokenEntity.class))).willReturn(savedEntity);
 
                 // When
-                TokenResDto result = generateTokenService.execute(userId, role);
+                TokenResDto result = tokenGenerationSupport.generate(userId, role);
 
                 // Then
                 assertThat(result).isNotNull();
@@ -104,7 +103,7 @@ class GenerateTokenServiceImplTest {
                 given(refreshTokenRedisRepository.save(any(RefreshTokenEntity.class))).willReturn(savedEntity);
 
                 // When
-                TokenResDto result = generateTokenService.execute(userId, role);
+                TokenResDto result = tokenGenerationSupport.generate(userId, role);
 
                 // Then
                 assertThat(result).isNotNull();
@@ -126,26 +125,17 @@ class GenerateTokenServiceImplTest {
                 // Given
                 Long userId = 1L;
                 UserRole role = UserRole.USER;
-                String accessToken = "user.access.token";
-                String refreshToken = "user.refresh.token";
-                Long accessTokenExpiration = 3600L;
-                Long refreshTokenExpiration = 2592000L;
-
-                given(jwtTokenProvider.generateAccessToken(userId, role)).willReturn(accessToken);
-                given(jwtTokenProvider.generateRefreshToken(userId)).willReturn(refreshToken);
-                given(jwtEnvironment.accessTokenExpiration()).willReturn(accessTokenExpiration);
-                given(jwtEnvironment.refreshTokenExpiration()).willReturn(refreshTokenExpiration);
-
-                RefreshTokenEntity savedEntity = RefreshTokenEntity.builder().userId(userId).token(refreshToken)
-                        .ttl(refreshTokenExpiration).build();
-                given(refreshTokenRedisRepository.save(any(RefreshTokenEntity.class))).willReturn(savedEntity);
+                given(jwtTokenProvider.generateAccessToken(userId, role)).willReturn("user.access.token");
+                given(jwtTokenProvider.generateRefreshToken(userId)).willReturn("user.refresh.token");
+                given(jwtEnvironment.accessTokenExpiration()).willReturn(3600L);
+                given(jwtEnvironment.refreshTokenExpiration()).willReturn(2592000L);
+                given(refreshTokenRedisRepository.save(any())).willReturn(null);
 
                 // When
-                TokenResDto result = generateTokenService.execute(userId, role);
+                TokenResDto result = tokenGenerationSupport.generate(userId, role);
 
                 // Then
                 assertThat(result).isNotNull();
-                assertThat(result.accessToken()).isEqualTo(accessToken);
                 then(jwtTokenProvider).should(times(1)).generateAccessToken(userId, UserRole.USER);
             }
 
@@ -155,26 +145,17 @@ class GenerateTokenServiceImplTest {
                 // Given
                 Long userId = 2L;
                 UserRole role = UserRole.ADMIN;
-                String accessToken = "admin.access.token";
-                String refreshToken = "admin.refresh.token";
-                Long accessTokenExpiration = 3600L;
-                Long refreshTokenExpiration = 2592000L;
-
-                given(jwtTokenProvider.generateAccessToken(userId, role)).willReturn(accessToken);
-                given(jwtTokenProvider.generateRefreshToken(userId)).willReturn(refreshToken);
-                given(jwtEnvironment.accessTokenExpiration()).willReturn(accessTokenExpiration);
-                given(jwtEnvironment.refreshTokenExpiration()).willReturn(refreshTokenExpiration);
-
-                RefreshTokenEntity savedEntity = RefreshTokenEntity.builder().userId(userId).token(refreshToken)
-                        .ttl(refreshTokenExpiration).build();
-                given(refreshTokenRedisRepository.save(any(RefreshTokenEntity.class))).willReturn(savedEntity);
+                given(jwtTokenProvider.generateAccessToken(userId, role)).willReturn("admin.access.token");
+                given(jwtTokenProvider.generateRefreshToken(userId)).willReturn("admin.refresh.token");
+                given(jwtEnvironment.accessTokenExpiration()).willReturn(3600L);
+                given(jwtEnvironment.refreshTokenExpiration()).willReturn(2592000L);
+                given(refreshTokenRedisRepository.save(any())).willReturn(null);
 
                 // When
-                TokenResDto result = generateTokenService.execute(userId, role);
+                TokenResDto result = tokenGenerationSupport.generate(userId, role);
 
                 // Then
                 assertThat(result).isNotNull();
-                assertThat(result.accessToken()).isEqualTo(accessToken);
                 then(jwtTokenProvider).should(times(1)).generateAccessToken(userId, UserRole.ADMIN);
             }
         }

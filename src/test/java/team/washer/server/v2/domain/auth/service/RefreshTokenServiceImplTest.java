@@ -20,6 +20,7 @@ import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
 import team.washer.server.v2.domain.auth.entity.redis.RefreshTokenEntity;
 import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
 import team.washer.server.v2.domain.auth.service.impl.RefreshTokenServiceImpl;
+import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.UserRepository;
@@ -43,7 +44,7 @@ class RefreshTokenServiceImplTest {
     private UserRepository userRepository;
 
     @Mock
-    private GenerateTokenService generateTokenService;
+    private TokenGenerationSupport tokenGenerationSupport;
 
     private User createUser(final Long userId, final UserRole role) {
         return User.builder().name("김철수").studentId("2021000" + userId).roomNumber("30" + userId).grade(3).floor(3)
@@ -88,7 +89,7 @@ class RefreshTokenServiceImplTest {
                 given(refreshTokenRedisRepository.findByToken(oldRefreshToken))
                         .willReturn(Optional.of(refreshTokenEntity));
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(generateTokenService.execute(userId, role)).willReturn(newTokens);
+                given(tokenGenerationSupport.generate(userId, role)).willReturn(newTokens);
 
                 // When
                 TokenResDto result = refreshTokenService.execute(reqDto);
@@ -102,7 +103,7 @@ class RefreshTokenServiceImplTest {
                 then(jwtTokenProvider).should(times(1)).parseRefreshToken(oldRefreshToken);
                 then(refreshTokenRedisRepository).should(times(1)).findByToken(oldRefreshToken);
                 then(userRepository).should(times(1)).findById(userId);
-                then(generateTokenService).should(times(1)).execute(userId, role);
+                then(tokenGenerationSupport).should(times(1)).generate(userId, role);
             }
         }
 
@@ -130,7 +131,7 @@ class RefreshTokenServiceImplTest {
                 then(jwtTokenProvider).should(times(1)).parseRefreshToken(expiredToken);
                 then(refreshTokenRedisRepository).shouldHaveNoInteractions();
                 then(userRepository).shouldHaveNoInteractions();
-                then(generateTokenService).shouldHaveNoInteractions();
+                then(tokenGenerationSupport).shouldHaveNoInteractions();
             }
         }
 
@@ -160,7 +161,7 @@ class RefreshTokenServiceImplTest {
                 then(jwtTokenProvider).should(times(1)).parseRefreshToken(unknownToken);
                 then(refreshTokenRedisRepository).should(times(1)).findByToken(unknownToken);
                 then(userRepository).shouldHaveNoInteractions();
-                then(generateTokenService).shouldHaveNoInteractions();
+                then(tokenGenerationSupport).shouldHaveNoInteractions();
             }
         }
 
@@ -192,7 +193,7 @@ class RefreshTokenServiceImplTest {
                 then(jwtTokenProvider).should(times(1)).parseRefreshToken(validToken);
                 then(refreshTokenRedisRepository).should(times(1)).findByToken(validToken);
                 then(userRepository).should(times(1)).findById(deletedUserId);
-                then(generateTokenService).shouldHaveNoInteractions();
+                then(tokenGenerationSupport).shouldHaveNoInteractions();
             }
         }
     }
