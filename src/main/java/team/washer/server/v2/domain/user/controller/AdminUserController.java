@@ -1,5 +1,8 @@
 package team.washer.server.v2.domain.user.controller;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,12 +35,14 @@ public class AdminUserController {
     private final DeleteUserService deleteUserService;
 
     @GetMapping
-    @Operation(summary = "전체 사용자 조회", description = "필터링 옵션으로 사용자 목록을 조회합니다")
+    @Operation(summary = "전체 사용자 조회", description = "필터링 옵션으로 사용자 목록을 조회합니다. 이름, 학번(부분 검색) 및 페이지네이션을 지원합니다.")
     public UserListResDto getUsers(@Parameter(description = "이름 (부분 검색)") @RequestParam(required = false) String name,
+            @Parameter(description = "학번 (부분 검색)") @RequestParam(required = false) String studentId,
             @Parameter(description = "호실") @RequestParam(required = false) String roomNumber,
             @Parameter(description = "학년") @RequestParam(required = false) Integer grade,
-            @Parameter(description = "층") @RequestParam(required = false) Integer floor) {
-        return searchUserService.getUsersByFilter(name, roomNumber, grade, floor);
+            @Parameter(description = "층") @RequestParam(required = false) Integer floor,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return searchUserService.execute(name, studentId, roomNumber, grade, floor, pageable);
     }
 
     @GetMapping("/{id}")

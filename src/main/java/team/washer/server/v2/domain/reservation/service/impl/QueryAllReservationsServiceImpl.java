@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.response.AdminReservationListResDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminReservationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -27,10 +28,11 @@ public class QueryAllReservationsServiceImpl implements QueryAllReservationsServ
             ReservationStatus status,
             LocalDateTime startDate,
             LocalDateTime endDate,
+            MachineType machineType,
             Pageable pageable) {
 
         final var reservationsPage = reservationRepository
-                .findAllWithFilters(userName, machineName, status, startDate, endDate, pageable);
+                .findAllWithFilters(userName, machineName, status, startDate, endDate, machineType, pageable);
         final var reservationDtos = reservationsPage.getContent().stream().map(this::toAdminReservationResDto).toList();
 
         return new AdminReservationListResDto(reservationDtos,

@@ -114,6 +114,7 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
             ReservationStatus status,
             LocalDateTime startDate,
             LocalDateTime endDate,
+            MachineType machineType,
             Pageable pageable) {
 
         final var content = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
@@ -122,7 +123,8 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                         machineNameContains(machineName),
                         statusEquals(status),
                         startTimeAfter(startDate),
-                        startTimeBefore(endDate))
+                        startTimeBefore(endDate),
+                        machineTypeEquals(machineType))
                 .orderBy(reservation.createdAt.desc()).offset(pageable.getOffset()).limit(pageable.getPageSize())
                 .fetch();
 
@@ -131,7 +133,8 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                         machineNameContains(machineName),
                         statusEquals(status),
                         startTimeAfter(startDate),
-                        startTimeBefore(endDate))
+                        startTimeBefore(endDate),
+                        machineTypeEquals(machineType))
                 .fetchOne();
 
         final var count = total != null ? total : 0L;
@@ -185,5 +188,9 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     private BooleanExpression startTimeBefore(LocalDateTime endDate) {
         return endDate != null ? reservation.startTime.loe(endDate) : null;
+    }
+
+    private BooleanExpression machineTypeEquals(MachineType machineType) {
+        return machineType != null ? reservation.machine.type.eq(machineType) : null;
     }
 }

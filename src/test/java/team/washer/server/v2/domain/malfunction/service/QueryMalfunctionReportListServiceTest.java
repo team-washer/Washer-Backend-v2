@@ -13,6 +13,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -35,6 +39,8 @@ class QueryMalfunctionReportListServiceTest {
 
     @Mock
     private MalfunctionReportRepository malfunctionReportRepository;
+
+    private final Pageable defaultPageable = PageRequest.of(0, 20);
 
     private User createTestUser() {
         return User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(3).floor(3).penaltyCount(0)
@@ -72,17 +78,18 @@ class QueryMalfunctionReportListServiceTest {
                 MalfunctionReport report2 = createTestReport(machine2, user, MalfunctionReportStatus.IN_PROGRESS);
 
                 List<MalfunctionReport> allReports = List.of(report1, report2);
-                given(malfunctionReportRepository.findWithDetails(null)).willReturn(allReports);
+                Page<MalfunctionReport> reportPage = new PageImpl<>(allReports, defaultPageable, allReports.size());
+                given(malfunctionReportRepository.findWithDetails(null, defaultPageable)).willReturn(reportPage);
 
                 // When
-                MalfunctionReportListResDto result = queryMalfunctionReportListService.execute(null);
+                MalfunctionReportListResDto result = queryMalfunctionReportListService.execute(null, defaultPageable);
 
                 // Then
                 assertThat(result).isNotNull();
                 assertThat(result.totalCount()).isEqualTo(2);
                 assertThat(result.reports()).hasSize(2);
 
-                then(malfunctionReportRepository).should(times(1)).findWithDetails(null);
+                then(malfunctionReportRepository).should(times(1)).findWithDetails(null, defaultPageable);
             }
         }
 
@@ -99,19 +106,23 @@ class QueryMalfunctionReportListServiceTest {
                 MalfunctionReport pendingReport = createTestReport(machine, user, MalfunctionReportStatus.PENDING);
 
                 List<MalfunctionReport> pendingReports = List.of(pendingReport);
-                given(malfunctionReportRepository.findWithDetails(MalfunctionReportStatus.PENDING))
-                        .willReturn(pendingReports);
+                Page<MalfunctionReport> reportPage = new PageImpl<>(pendingReports,
+                        defaultPageable,
+                        pendingReports.size());
+                given(malfunctionReportRepository.findWithDetails(MalfunctionReportStatus.PENDING, defaultPageable))
+                        .willReturn(reportPage);
 
                 // When
                 MalfunctionReportListResDto result = queryMalfunctionReportListService
-                        .execute(MalfunctionReportStatus.PENDING);
+                        .execute(MalfunctionReportStatus.PENDING, defaultPageable);
 
                 // Then
                 assertThat(result).isNotNull();
                 assertThat(result.totalCount()).isEqualTo(1);
                 assertThat(result.reports()).hasSize(1);
 
-                then(malfunctionReportRepository).should(times(1)).findWithDetails(MalfunctionReportStatus.PENDING);
+                then(malfunctionReportRepository).should(times(1)).findWithDetails(MalfunctionReportStatus.PENDING,
+                        defaultPageable);
             }
         }
 
@@ -123,17 +134,18 @@ class QueryMalfunctionReportListServiceTest {
             @DisplayName("빈 목록을 반환해야 한다")
             void it_returns_empty_list() {
                 // Given
-                given(malfunctionReportRepository.findWithDetails(null)).willReturn(List.of());
+                Page<MalfunctionReport> emptyPage = new PageImpl<>(List.of(), defaultPageable, 0);
+                given(malfunctionReportRepository.findWithDetails(null, defaultPageable)).willReturn(emptyPage);
 
                 // When
-                MalfunctionReportListResDto result = queryMalfunctionReportListService.execute(null);
+                MalfunctionReportListResDto result = queryMalfunctionReportListService.execute(null, defaultPageable);
 
                 // Then
                 assertThat(result).isNotNull();
                 assertThat(result.totalCount()).isEqualTo(0);
                 assertThat(result.reports()).isEmpty();
 
-                then(malfunctionReportRepository).should(times(1)).findWithDetails(null);
+                then(malfunctionReportRepository).should(times(1)).findWithDetails(null, defaultPageable);
             }
         }
     }

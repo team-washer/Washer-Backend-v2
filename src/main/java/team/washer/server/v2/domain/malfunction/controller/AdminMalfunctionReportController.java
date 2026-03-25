@@ -1,5 +1,8 @@
 package team.washer.server.v2.domain.malfunction.controller;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -27,10 +30,11 @@ public class AdminMalfunctionReportController {
     private final UpdateMalfunctionReportStatusService updateMalfunctionReportStatusService;
 
     @GetMapping
-    @Operation(summary = "고장 신고 목록 조회", description = "고장 신고 목록을 조회합니다. 상태별 필터링을 지원합니다.")
+    @Operation(summary = "고장 신고 목록 조회", description = "고장 신고 목록을 최근 순으로 조회합니다. 상태별 필터링과 페이지네이션을 지원합니다.")
     public MalfunctionReportListResDto getMalfunctionReports(
-            @Parameter(description = "신고 상태 필터") @RequestParam(required = false) MalfunctionReportStatus status) {
-        return queryMalfunctionReportListService.execute(status);
+            @Parameter(description = "신고 상태 필터") @RequestParam(required = false) MalfunctionReportStatus status,
+            @PageableDefault(size = 20, sort = "reportedAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        return queryMalfunctionReportListService.execute(status, pageable);
     }
 
     @PutMapping("/{id}/status")
