@@ -24,6 +24,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 
     List<Reservation> findByStatus(ReservationStatus status);
 
+    @Query("SELECT r FROM Reservation r JOIN FETCH r.machine JOIN FETCH r.user WHERE r.status = :status")
+    List<Reservation> findByStatusWithMachineAndUser(@Param("status") ReservationStatus status);
+
     List<Reservation> findByStatusIn(List<ReservationStatus> statuses);
 
     @Query("SELECT r FROM Reservation r WHERE r.user = :user AND r.status IN :statuses")
