@@ -1,7 +1,7 @@
 package team.washer.server.v2.domain.malfunction.service.impl;
 
-import java.util.List;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,12 +21,15 @@ public class QueryMalfunctionReportListServiceImpl implements QueryMalfunctionRe
 
     @Override
     @Transactional(readOnly = true)
-    public MalfunctionReportListResDto execute(final MalfunctionReportStatus status) {
-        final List<MalfunctionReport> reports = malfunctionReportRepository.findWithDetails(status);
+    public MalfunctionReportListResDto execute(final MalfunctionReportStatus status, final Pageable pageable) {
+        final Page<MalfunctionReport> reportsPage = malfunctionReportRepository.findWithDetails(status, pageable);
 
-        final List<MalfunctionReportResDto> reportDtos = reports.stream().map(this::toResDto).toList();
+        final var reportDtos = reportsPage.getContent().stream().map(this::toResDto).toList();
 
-        return new MalfunctionReportListResDto(reportDtos, reportDtos.size());
+        return new MalfunctionReportListResDto(reportDtos,
+                reportsPage.getTotalElements(),
+                reportsPage.getTotalPages(),
+                reportsPage.getNumber());
     }
 
     private MalfunctionReportResDto toResDto(final MalfunctionReport report) {
