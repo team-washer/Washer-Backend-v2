@@ -43,8 +43,7 @@ public class Reservation extends BaseEntity {
     @Column(name = "reserved_at", nullable = false)
     private LocalDateTime reservedAt;
 
-    @NotNull(message = "시작 시간은 필수입니다")
-    @Column(name = "start_time", nullable = false)
+    @Column(name = "start_time")
     private LocalDateTime startTime;
 
     @Column(name = "expected_completion_time")
@@ -58,9 +57,6 @@ public class Reservation extends BaseEntity {
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private ReservationStatus status = ReservationStatus.RESERVED;
-
-    @Column(name = "confirmed_at")
-    private LocalDateTime confirmedAt;
 
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
@@ -96,9 +92,7 @@ public class Reservation extends BaseEntity {
 
         return switch (this.status) {
             case RESERVED ->
-                Duration.between(this.startTime, now).toMinutes() >= ReservationStatus.RESERVED.getTimeoutMinutes();
-            case CONFIRMED -> this.confirmedAt != null && Duration.between(this.confirmedAt, now)
-                    .toMinutes() >= ReservationStatus.CONFIRMED.getTimeoutMinutes();
+                Duration.between(this.reservedAt, now).toMinutes() >= ReservationStatus.RESERVED.getTimeoutMinutes();
             default -> false;
         };
     }
@@ -114,14 +108,7 @@ public class Reservation extends BaseEntity {
         return switch (this.status) {
             case RESERVED -> {
                 long minutes = ReservationStatus.RESERVED.getTimeoutMinutes()
-                        - Duration.between(this.startTime, now).toMinutes();
-                yield Duration.ofMinutes(Math.max(0, minutes));
-            }
-            case CONFIRMED -> {
-                if (this.confirmedAt == null)
-                    yield Duration.ZERO;
-                long minutes = ReservationStatus.CONFIRMED.getTimeoutMinutes()
-                        - Duration.between(this.confirmedAt, now).toMinutes();
+                        - Duration.between(this.reservedAt, now).toMinutes();
                 yield Duration.ofMinutes(Math.max(0, minutes));
             }
             default -> Duration.ZERO;
@@ -129,27 +116,17 @@ public class Reservation extends BaseEntity {
     }
 
     /**
-     * 예약을 확인 상태(CONFIRMED)로 전환합니다. RESERVED 상태가 아니면 예외를 발생시킵니다.
-     */
-    public void confirm() {
-        if (this.status != ReservationStatus.RESERVED) {
-            throw new ExpectedException("예약 상태에서만 확인할 수 있습니다", HttpStatus.BAD_REQUEST);
-        }
-        this.status = ReservationStatus.CONFIRMED;
-        this.confirmedAt = LocalDateTime.now();
-    }
-
-    /**
-     * 예약을 실행 중 상태(RUNNING)로 전환합니다. CONFIRMED 상태가 아니면 예외를 발생시킵니다.
+     * 예약을 실행 중 상태(RUNNING)로 전환합니다. RESERVED 상태가 아니면 예외를 발생시킵니다.
      *
      * @param expectedCompletionTime
      *            예상 완료 시각
      */
     public void start(LocalDateTime expectedCompletionTime) {
-        if (this.status != ReservationStatus.CONFIRMED) {
-            throw new ExpectedException("확인된 예약만 시작할 수 있습니다", HttpStatus.BAD_REQUEST);
+        if (this.status != ReservationStatus.RESERVED) {
+            throw new ExpectedException("예약 중인 예약만 시작할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
         this.status = ReservationStatus.RUNNING;
+        this.startTime = LocalDateTime.now();
         this.expectedCompletionTime = expectedCompletionTime;
     }
 
@@ -189,21 +166,16 @@ public class Reservation extends BaseEntity {
     }
 
     /**
-     * 활성 예약 여부를 반환합니다. RESERVED, CONFIRMED, RUNNING 상태가 활성으로 간주됩니다.
+     * 활성 예약 여부를 반환합니다. RESERVED, RUNNING 상태가 활성으로 간주됩니다.
      *
      * @return 활성 여부
      */
     public boolean isActive() {
-        return this.status == ReservationStatus.RESERVED || this.status == ReservationStatus.CONFIRMED
-                || this.status == ReservationStatus.RUNNING;
+        return this.status == ReservationStatus.RESERVED || this.status == ReservationStatus.RUNNING;
     }
 
     public boolean isReserved() {
         return this.status == ReservationStatus.RESERVED;
-    }
-
-    public boolean isConfirmed() {
-        return this.status == ReservationStatus.CONFIRMED;
     }
 
     public boolean isRunning() {
@@ -218,12 +190,4 @@ public class Reservation extends BaseEntity {
         return this.status == ReservationStatus.CANCELLED;
     }
 
-    /**
-     * 예약 시작 시간이 현재 시각 이후인지 검증합니다. 과거 시간이면 예외를 발생시킵니다.
-     */
-    public void validateFutureTime() {
-        if (this.startTime.isBefore(LocalDateTime.now().minusSeconds(10))) {
-            throw new ExpectedException("예약 시간은 현재 시간 이후여야 합니다", HttpStatus.BAD_REQUEST);
-        }
-    }
 }
