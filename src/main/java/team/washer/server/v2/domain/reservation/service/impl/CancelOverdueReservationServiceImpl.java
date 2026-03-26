@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -97,7 +98,7 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
      * 4. 48시간 내 {maxCount}회 초과 시 48h 블록 적용
      * </p>
      */
-    private void applyTimeoutPenalty(User user, team.washer.server.v2.domain.machine.entity.Machine machine) {
+    private void applyTimeoutPenalty(User user, Machine machine) {
         final long userId = user.getId();
 
         penaltyRedisUtil.applyCooldown(userId);

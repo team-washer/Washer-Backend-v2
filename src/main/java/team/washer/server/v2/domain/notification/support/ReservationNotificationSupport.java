@@ -90,9 +90,7 @@ public class ReservationNotificationSupport {
         log.info("세탁 시작 알림 저장 완료 - 사용자: {}, 기기: {}", user.getId(), machine.getName());
 
         final var fcmTitle = machine.getType().getDescription() + " 시작 알림";
-        final var fcmBody = NotificationType.STARTED
-                .formatMessage(machine.getName(), machine.getType(), expectedCompletionTime);
-        fcmNotificationSupport.send(user, fcmTitle, fcmBody);
+        fcmNotificationSupport.send(user, fcmTitle, notification.getMessage());
     }
 
     /**
@@ -105,7 +103,6 @@ public class ReservationNotificationSupport {
         log.info("예약 취소 경고 알림 저장 완료 - 사용자: {}, 기기: {}", user.getId(), machine.getName());
 
         final var fcmTitle = "예약 취소 경고";
-        final var fcmBody = NotificationType.TIMEOUT_WARNING.formatMessage(machine.getName());
-        fcmNotificationSupport.send(user, fcmTitle, fcmBody);
+        fcmNotificationSupport.send(user, fcmTitle, notification.getMessage());
     }
 }

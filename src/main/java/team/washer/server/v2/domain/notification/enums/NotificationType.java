@@ -22,6 +22,8 @@ public enum NotificationType {
                                                             "예약 취소 경고",
                                                             "{machineName}의 예약이 시간 초과로 자동 취소되었습니다.\n첫 번째라 패널티는 없습니다. 다음부터는 패널티가 부과됩니다.");
 
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+
     private final String description;
     private final String messageTemplate;
 
@@ -38,7 +40,7 @@ public enum NotificationType {
     }
 
     public String formatMessage(String machineName, MachineType machineType, LocalDateTime completionTime) {
-        var formatted = completionTime != null ? completionTime.format(DateTimeFormatter.ofPattern("HH:mm")) : "미정";
+        var formatted = completionTime != null ? completionTime.format(TIME_FORMATTER) : "미정";
         return messageTemplate.replace("{machineName}", machineName).replace("{action}", machineType.getActionNoun())
                 .replace("{completionTime}", formatted);
     }
