@@ -45,7 +45,7 @@ public class ReservationNotificationSupport {
     public void sendInterruption(User user, Machine machine) {
         var notification = Notification.createInterruptionNotification(user, machine);
         notificationRepository.save(notification);
-        log.info("세탁 중단 알림 저장 완료 - 사용자: {}, 기기: {}", user.getId(), machine.getName());
+        log.info("Interruption notification sent to user {} for machine {}", user.getId(), machine.getName());
 
         final var fcmTitle = machine.getType().getDescription() + " 중단 알림";
         final var fcmBody = NotificationType.INTERRUPTION.formatMessage(machine.getName(), machine.getType());
@@ -59,7 +59,7 @@ public class ReservationNotificationSupport {
     public void sendPauseTimeout(User user, Machine machine) {
         var notification = Notification.createPauseTimeoutNotification(user, machine);
         notificationRepository.save(notification);
-        log.info("일시정지 초과 알림 저장 완료 - 사용자: {}, 기기: {}", user.getId(), machine.getName());
+        log.info("Pause timeout notification sent to user {} for machine {}", user.getId(), machine.getName());
 
         final var fcmTitle = machine.getType().getDescription() + " 일시정지 초과 알림";
         final var fcmBody = NotificationType.PAUSE_TIMEOUT.formatMessage(machine.getName(), machine.getType());
@@ -73,7 +73,7 @@ public class ReservationNotificationSupport {
     public void sendAutoCancellation(User user, Machine machine) {
         var notification = Notification.createAutoCancellationNotification(user, machine);
         notificationRepository.save(notification);
-        log.info("예약 자동 취소 알림 저장 완료 - 사용자: {}, 기기: {}", user.getId(), machine.getName());
+        log.info("Auto cancellation notification sent to user {} for machine {}", user.getId(), machine.getName());
 
         final var fcmTitle = "예약 자동 취소 알림";
         final var fcmBody = NotificationType.AUTO_CANCELLED.formatMessage(machine.getName());
@@ -87,7 +87,7 @@ public class ReservationNotificationSupport {
     public void sendStarted(User user, Machine machine, LocalDateTime expectedCompletionTime) {
         var notification = Notification.createStartedNotification(user, machine, expectedCompletionTime);
         notificationRepository.save(notification);
-        log.info("세탁 시작 알림 저장 완료 - 사용자: {}, 기기: {}", user.getId(), machine.getName());
+        log.info("Start notification sent to user {} for machine {}", user.getId(), machine.getName());
 
         final var fcmTitle = machine.getType().getDescription() + " 시작 알림";
         fcmNotificationSupport.send(user, fcmTitle, notification.getMessage());
@@ -100,7 +100,7 @@ public class ReservationNotificationSupport {
     public void sendTimeoutWarning(User user, Machine machine) {
         var notification = Notification.createTimeoutWarningNotification(user, machine);
         notificationRepository.save(notification);
-        log.info("예약 취소 경고 알림 저장 완료 - 사용자: {}, 기기: {}", user.getId(), machine.getName());
+        log.info("Timeout warning notification sent to user {} for machine {}", user.getId(), machine.getName());
 
         final var fcmTitle = "예약 취소 경고";
         fcmNotificationSupport.send(user, fcmTitle, notification.getMessage());

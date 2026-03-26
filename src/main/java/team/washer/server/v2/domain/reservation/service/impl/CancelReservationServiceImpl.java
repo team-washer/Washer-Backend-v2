@@ -50,11 +50,11 @@ public class CancelReservationServiceImpl implements CancelReservationService {
             penaltyRedisUtil.applyCooldown(userId);
             penaltyRedisUtil.recordCancellation(userId);
             if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
-                penaltyRedisUtil.applyBlock(userId);
-                log.warn("수동 취소 48시간 예약 차단 적용 - 사용자: {}", userId);
+                penaltyRedisUtil.applyBlock(user.getRoomNumber());
+                log.warn("48h block applied roomNumber {}", user.getRoomNumber());
             }
             applyPenalty = true;
-            log.info("수동 취소 패널티(쿨다운) 적용 - 사용자: {}, 예약: {}", userId, reservationId);
+            log.info("manual cancel penalty applied userId {} reservationId {}", userId, reservationId);
         }
 
         final var machine = reservation.getMachine();
