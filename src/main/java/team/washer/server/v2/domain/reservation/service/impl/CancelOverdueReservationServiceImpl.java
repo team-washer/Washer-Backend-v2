@@ -107,15 +107,17 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
         if (!penaltyRedisUtil.hasWarning(userId)) {
             penaltyRedisUtil.applyWarning(userId);
             reservationNotificationSupport.sendTimeoutWarning(user, machine);
-            log.info("타임아웃 첫 번째 경고 적용 - 사용자: {}", userId);
+            log.info("timeout first warning applied userId={}", userId);
         } else {
             reservationNotificationSupport.sendAutoCancellation(user, machine);
-            log.info("타임아웃 패널티 적용 - 사용자: {}", userId);
+            log.info("timeout penalty applied userId={}", userId);
         }
 
         if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
-            penaltyRedisUtil.applyBlock(userId);
-            log.warn("48시간 예약 차단 적용 - 사용자: {} (취소 {}회 초과)", userId, PenaltyConstants.MAX_CANCELLATIONS_IN_48H);
+            penaltyRedisUtil.applyBlock(user.getRoomNumber());
+            log.warn("48h block applied roomNumber={} exceeded max cancellations {}",
+                    user.getRoomNumber(),
+                    PenaltyConstants.MAX_CANCELLATIONS_IN_48H);
         }
     }
 }

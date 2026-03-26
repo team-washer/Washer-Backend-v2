@@ -91,9 +91,11 @@ public class PenaltyRedisUtil {
         try {
             final long ttlSeconds = PenaltyConstants.COOLDOWN_DURATION_MINUTES * 60L;
             cooldownRedisRepository.save(CooldownEntity.builder().userId(userId).ttl(ttlSeconds).build());
-            log.info("쿨다운 적용 - 사용자: {}, 만료: {}분 후", userId, PenaltyConstants.COOLDOWN_DURATION_MINUTES);
+            log.info("cooldown applied userId={} expiresInMinutes={}",
+                    userId,
+                    PenaltyConstants.COOLDOWN_DURATION_MINUTES);
         } catch (Exception e) {
-            log.error("쿨다운 적용 실패 - 사용자: {}", userId, e);
+            log.error("failed to apply cooldown userId={}", userId, e);
         }
     }
 
@@ -104,7 +106,7 @@ public class PenaltyRedisUtil {
         try {
             return cooldownRedisRepository.existsById(userId);
         } catch (Exception e) {
-            log.warn("쿨다운 조회 실패 - 사용자: {}", userId, e);
+            log.warn("failed to check cooldown userId={}", userId, e);
             return false;
         }
     }
@@ -118,9 +120,9 @@ public class PenaltyRedisUtil {
         try {
             final long ttlSeconds = PenaltyConstants.WARNING_DURATION_DAYS * 24L * 3600L;
             timeoutWarningRedisRepository.save(TimeoutWarningEntity.builder().userId(userId).ttl(ttlSeconds).build());
-            log.info("타임아웃 경고 기록 - 사용자: {}", userId);
+            log.info("timeout warning applied userId={}", userId);
         } catch (Exception e) {
-            log.error("타임아웃 경고 기록 실패 - 사용자: {}", userId, e);
+            log.error("failed to apply timeout warning userId={}", userId, e);
         }
     }
 
@@ -131,7 +133,7 @@ public class PenaltyRedisUtil {
         try {
             return timeoutWarningRedisRepository.existsById(userId);
         } catch (Exception e) {
-            log.warn("경고 조회 실패 - 사용자: {}", userId, e);
+            log.warn("failed to check warning userId={}", userId, e);
             return false;
         }
     }
@@ -151,9 +153,9 @@ public class PenaltyRedisUtil {
             stringRedisTemplate.opsForZSet().removeRangeByScore(key, Double.NEGATIVE_INFINITY, windowStart);
             // TTL: 윈도우 크기 + 여유 1시간
             stringRedisTemplate.expire(key, java.time.Duration.ofHours(PenaltyConstants.CANCELLATION_WINDOW_HOURS + 1));
-            log.info("취소 이력 기록 - 사용자: {}", userId);
+            log.info("cancellation recorded userId={}", userId);
         } catch (Exception e) {
-            log.error("취소 이력 기록 실패 - 사용자: {}", userId, e);
+            log.error("failed to record cancellation userId={}", userId, e);
         }
     }
 
@@ -168,35 +170,35 @@ public class PenaltyRedisUtil {
             Long count = stringRedisTemplate.opsForZSet().count(key, windowStart, Double.POSITIVE_INFINITY);
             return count != null ? count : 0L;
         } catch (Exception e) {
-            log.warn("취소 횟수 조회 실패 - 사용자: {}", userId, e);
+            log.warn("failed to get cancellation count userId={}", userId, e);
             return 0L;
         }
     }
 
-    // ===== 48시간 예약 차단 =====
+    // ===== 48시간 예약 차단 (호실 단위) =====
 
     /**
-     * 48시간 예약 차단을 적용합니다.
+     * 48시간 예약 차단을 호실 단위로 적용합니다.
      */
-    public void applyBlock(final Long userId) {
+    public void applyBlock(final String roomNumber) {
         try {
             final long ttlSeconds = PenaltyConstants.CANCELLATION_WINDOW_HOURS * 3600L;
             cancellationBlockRedisRepository
-                    .save(CancellationBlockEntity.builder().userId(userId).ttl(ttlSeconds).build());
-            log.info("48시간 예약 차단 적용 - 사용자: {}", userId);
+                    .save(CancellationBlockEntity.builder().roomNumber(roomNumber).ttl(ttlSeconds).build());
+            log.info("48h block applied roomNumber={}", roomNumber);
         } catch (Exception e) {
-            log.error("48시간 예약 차단 적용 실패 - 사용자: {}", userId, e);
+            log.error("failed to apply 48h block roomNumber={}", roomNumber, e);
         }
     }
 
     /**
-     * 현재 48시간 예약 차단 중인지 여부를 반환합니다.
+     * 현재 호실이 48시간 예약 차단 중인지 여부를 반환합니다.
      */
-    public boolean isBlocked(final Long userId) {
+    public boolean isBlocked(final String roomNumber) {
         try {
-            return cancellationBlockRedisRepository.existsById(userId);
+            return cancellationBlockRedisRepository.existsById(roomNumber);
         } catch (Exception e) {
-            log.warn("차단 조회 실패 - 사용자: {}", userId, e);
+            log.warn("failed to check block roomNumber={}", roomNumber, e);
             return false;
         }
     }
