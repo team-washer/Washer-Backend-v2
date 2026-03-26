@@ -108,7 +108,6 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
         return switch (reservation.getStatus()) {
             case RUNNING -> MachineAvailability.IN_USE;
             case RESERVED -> MachineAvailability.RESERVED;
-            case CONFIRMED -> MachineAvailability.CONFIRMED;
             default -> throw new IllegalStateException("활성 예약의 상태가 유효하지 않습니다: " + reservation.getStatus());
         };
     }

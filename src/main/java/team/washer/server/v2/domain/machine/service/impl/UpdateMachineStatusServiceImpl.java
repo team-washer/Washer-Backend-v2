@@ -38,7 +38,6 @@ public class UpdateMachineStatusServiceImpl implements UpdateMachineStatusServic
             findActiveReservation(machine).ifPresent(reservation -> {
                 switch (reservation.getStatus()) {
                     case RESERVED -> machine.markAsReserved();
-                    case CONFIRMED -> machine.markAsConfirmed();
                     case RUNNING -> machine.markAsInUse();
                     default -> {
                     }

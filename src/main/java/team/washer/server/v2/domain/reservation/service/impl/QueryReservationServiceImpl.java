@@ -34,7 +34,6 @@ public class QueryReservationServiceImpl implements QueryReservationService {
                 reservation.getExpectedCompletionTime(),
                 reservation.getActualCompletionTime(),
                 reservation.getStatus(),
-                reservation.getConfirmedAt(),
                 reservation.getCancelledAt(),
                 reservation.getDayOfWeek(),
                 reservation.getCreatedAt(),
