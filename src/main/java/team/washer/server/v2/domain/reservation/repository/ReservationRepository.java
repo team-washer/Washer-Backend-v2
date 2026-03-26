@@ -38,16 +38,14 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
             @Param("statuses") List<ReservationStatus> statuses);
 
     default List<Reservation> findAllActiveReservations() {
-        return findByStatusIn(
-                List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
+        return findByStatusIn(List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING));
     }
 
     @Query("SELECT COUNT(r) FROM Reservation r WHERE r.status IN :statuses")
     long countAllActiveReservations(@Param("statuses") List<ReservationStatus> statuses);
 
     default long countActiveReservations() {
-        return countAllActiveReservations(
-                List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
+        return countAllActiveReservations(List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING));
     }
 
     @Query("SELECT r FROM Reservation r WHERE r.machine.id = :machineId AND r.status IN :statuses ORDER BY r.createdAt DESC")
@@ -56,16 +54,11 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 
     default Optional<Reservation> findActiveReservationByMachineId(Long machineId) {
         return findFirstActiveReservationByMachineId(machineId,
-                List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING)).stream()
-                .findFirst();
+                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)).stream().findFirst();
     }
 
     @Query("SELECT r FROM Reservation r WHERE r.status = :status AND r.startTime < :threshold")
     List<Reservation> findExpiredReservedReservations(@Param("status") ReservationStatus status,
-            @Param("threshold") LocalDateTime threshold);
-
-    @Query("SELECT r FROM Reservation r WHERE r.status = :status AND r.confirmedAt < :threshold")
-    List<Reservation> findExpiredConfirmedReservations(@Param("status") ReservationStatus status,
             @Param("threshold") LocalDateTime threshold);
 
     @Query("SELECT COUNT(r) FROM Reservation r WHERE r.machine = :machine AND r.status IN :statuses")

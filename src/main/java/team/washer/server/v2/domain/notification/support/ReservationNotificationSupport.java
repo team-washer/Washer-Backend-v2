@@ -1,5 +1,7 @@
 package team.washer.server.v2.domain.notification.support;
 
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,6 +77,35 @@ public class ReservationNotificationSupport {
 
         final var fcmTitle = "예약 자동 취소 알림";
         final var fcmBody = NotificationType.AUTO_CANCELLED.formatMessage(machine.getName());
+        fcmNotificationSupport.send(user, fcmTitle, fcmBody);
+    }
+
+    /**
+     * 세탁/건조 시작 알림을 전송한다.
+     */
+    @Transactional
+    public void sendStarted(User user, Machine machine, LocalDateTime expectedCompletionTime) {
+        var notification = Notification.createStartedNotification(user, machine, expectedCompletionTime);
+        notificationRepository.save(notification);
+        log.info("세탁 시작 알림 저장 완료 - 사용자: {}, 기기: {}", user.getId(), machine.getName());
+
+        final var fcmTitle = machine.getType().getDescription() + " 시작 알림";
+        final var fcmBody = NotificationType.STARTED
+                .formatMessage(machine.getName(), machine.getType(), expectedCompletionTime);
+        fcmNotificationSupport.send(user, fcmTitle, fcmBody);
+    }
+
+    /**
+     * 예약 취소 경고 알림(첫 번째 타임아웃)을 전송한다.
+     */
+    @Transactional
+    public void sendTimeoutWarning(User user, Machine machine) {
+        var notification = Notification.createTimeoutWarningNotification(user, machine);
+        notificationRepository.save(notification);
+        log.info("예약 취소 경고 알림 저장 완료 - 사용자: {}, 기기: {}", user.getId(), machine.getName());
+
+        final var fcmTitle = "예약 취소 경고";
+        final var fcmBody = NotificationType.TIMEOUT_WARNING.formatMessage(machine.getName());
         fcmNotificationSupport.send(user, fcmTitle, fcmBody);
     }
 }

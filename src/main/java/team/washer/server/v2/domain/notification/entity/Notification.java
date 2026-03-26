@@ -1,5 +1,7 @@
 package team.washer.server.v2.domain.notification.entity;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -142,6 +144,43 @@ public class Notification extends BaseEntity {
 
         return Notification.builder().user(user).machine(machine).type(NotificationType.WARNING).message(message)
                 .isRead(false).build();
+    }
+
+    /**
+     * 세탁/건조 시작 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            시작된 기기
+     * @param expectedCompletionTime
+     *            예상 완료 시각
+     * @return 생성된 시작 알림
+     */
+    public static Notification createStartedNotification(User user,
+            Machine machine,
+            LocalDateTime expectedCompletionTime) {
+        String message = NotificationType.STARTED
+                .formatMessage(machine.getName(), machine.getType(), expectedCompletionTime);
+
+        return Notification.builder().user(user).machine(machine).type(NotificationType.STARTED).message(message)
+                .isRead(false).build();
+    }
+
+    /**
+     * 예약 취소 경고 알림(첫 번째 타임아웃)을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            대상 기기
+     * @return 생성된 경고 알림
+     */
+    public static Notification createTimeoutWarningNotification(User user, Machine machine) {
+        String message = NotificationType.TIMEOUT_WARNING.formatMessage(machine.getName());
+
+        return Notification.builder().user(user).machine(machine).type(NotificationType.TIMEOUT_WARNING)
+                .message(message).isRead(false).build();
     }
 
     /**
