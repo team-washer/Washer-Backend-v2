@@ -173,21 +173,6 @@ class QueryAllMachinesStatusServiceTest {
         }
 
         @Test
-        @DisplayName("예약 상태가 CONFIRMED이면 CONFIRMED를 반환한다")
-        void computeAvailability_ShouldReturnConfirmed_WhenReservationStatusIsConfirmed() {
-            // Given
-            when(reservation.getStatus()).thenReturn(ReservationStatus.CONFIRMED);
-            when(reservation.getUser()).thenReturn(user);
-            givenMachineWithReservation(buildMachine(MachineAvailability.AVAILABLE), reservation);
-
-            // When
-            var result = queryAllMachinesStatusService.execute(true);
-
-            // Then
-            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.CONFIRMED);
-        }
-
-        @Test
         @DisplayName("예약 상태가 RUNNING이면 IN_USE를 반환한다")
         void computeAvailability_ShouldReturnInUse_WhenReservationStatusIsRunning() {
             // Given

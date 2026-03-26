@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -19,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
+import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.config.ReservationEnvironment;
@@ -73,24 +73,25 @@ class CreateReservationServiceTest {
         void execute_ShouldCreateReservation_WhenValidRequest() {
             // Given
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
-            final var reqDto = new CreateReservationReqDto(1L, LocalDateTime.now().plusHours(1));
+            final var reqDto = new CreateReservationReqDto(1L);
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
+            when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(false);
+            when(penaltyRedisUtil.isBlocked(USER_ID)).thenReturn(false);
             when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
+            when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.WASHER);
             when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(false);
             when(reservationRepository.existsActiveReservationByRoomAndMachineType(ROOM_NUMBER, MachineType.WASHER))
                     .thenReturn(false);
-            when(reservationRepository.existsConflictingReservation(any(), any(), any(), any())).thenReturn(false);
             when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
 
             when(reservation.getId()).thenReturn(1L);
             when(reservation.getUser()).thenReturn(user);
             when(reservation.getMachine()).thenReturn(machine);
-            when(reservation.getStartTime()).thenReturn(reqDto.startTime());
             when(user.getId()).thenReturn(USER_ID);
             when(machine.getId()).thenReturn(1L);
 
@@ -107,25 +108,25 @@ class CreateReservationServiceTest {
         void execute_ShouldCreateReservation_WhenRoomHasDifferentTypeActiveReservation() {
             // Given
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
-            final var reqDto = new CreateReservationReqDto(2L, LocalDateTime.now().plusHours(1));
+            final var reqDto = new CreateReservationReqDto(2L);
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
+            when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(false);
+            when(penaltyRedisUtil.isBlocked(USER_ID)).thenReturn(false);
             when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
+            when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.DRYER);
-            // 룸메이트가 세탁기 예약 중 → 본인은 활성 예약 없음, 건조기 유형도 호실에 없음
             when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(false);
             when(reservationRepository.existsActiveReservationByRoomAndMachineType(ROOM_NUMBER, MachineType.DRYER))
                     .thenReturn(false);
-            when(reservationRepository.existsConflictingReservation(any(), any(), any(), any())).thenReturn(false);
             when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
 
             when(reservation.getId()).thenReturn(2L);
             when(reservation.getUser()).thenReturn(user);
             when(reservation.getMachine()).thenReturn(machine);
-            when(reservation.getStartTime()).thenReturn(reqDto.startTime());
             when(user.getId()).thenReturn(USER_ID);
             when(machine.getId()).thenReturn(2L);
 
@@ -138,16 +139,73 @@ class CreateReservationServiceTest {
         }
 
         @Test
+        @DisplayName("쿨다운 중이면 예약이 제한된다")
+        void execute_ShouldThrowException_WhenUserIsInCooldown() {
+            // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
+            final var reqDto = new CreateReservationReqDto(1L);
+
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
+            when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(true);
+
+            // When & Then
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+                    .hasMessageContaining("5분간 예약이 제한");
+        }
+
+        @Test
+        @DisplayName("48시간 블록 중이면 예약이 제한된다")
+        void execute_ShouldThrowException_WhenUserIsBlocked() {
+            // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
+            final var reqDto = new CreateReservationReqDto(1L);
+
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
+            when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(false);
+            when(penaltyRedisUtil.isBlocked(USER_ID)).thenReturn(true);
+
+            // When & Then
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+                    .hasMessageContaining("48시간 내 취소 횟수를 초과");
+        }
+
+        @Test
+        @DisplayName("기기가 사용 불가 상태이면 예외를 발생시킨다")
+        void execute_ShouldThrowException_WhenMachineNotAvailable() {
+            // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
+            final var reqDto = new CreateReservationReqDto(1L);
+
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
+            when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(false);
+            when(penaltyRedisUtil.isBlocked(USER_ID)).thenReturn(false);
+            when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
+            when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
+            when(machine.getAvailability()).thenReturn(MachineAvailability.IN_USE);
+            when(machine.getName()).thenReturn("세탁기-1");
+
+            // When & Then
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+                    .hasMessageContaining("해당 기기를 사용할 수 없습니다");
+        }
+
+        @Test
         @DisplayName("이미 활성 예약이 있는 개인이 추가 예약을 시도하면 예외를 발생시킨다")
         void execute_ShouldThrowException_WhenUserAlreadyHasActiveReservation() {
             // Given
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
-            final var reqDto = new CreateReservationReqDto(1L, LocalDateTime.now().plusHours(1));
+            final var reqDto = new CreateReservationReqDto(1L);
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
+            when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(false);
+            when(penaltyRedisUtil.isBlocked(USER_ID)).thenReturn(false);
             when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
+            when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(true);
 
             // When & Then
@@ -160,12 +218,15 @@ class CreateReservationServiceTest {
         void execute_ShouldThrowException_WhenRoomAlreadyHasSameTypeActiveReservation() {
             // Given
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
-            final var reqDto = new CreateReservationReqDto(1L, LocalDateTime.now().plusHours(1));
+            final var reqDto = new CreateReservationReqDto(1L);
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
+            when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(false);
+            when(penaltyRedisUtil.isBlocked(USER_ID)).thenReturn(false);
             when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
+            when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.WASHER);
             when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(false);
@@ -175,30 +236,6 @@ class CreateReservationServiceTest {
             // When & Then
             assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
                     .hasMessageContaining("세탁기");
-        }
-
-        @Test
-        @DisplayName("해당 시간에 기기가 이미 예약되어 있으면 예외를 발생시킨다")
-        void execute_ShouldThrowException_WhenMachineHasConflictingReservation() {
-            // Given
-            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
-            final var reqDto = new CreateReservationReqDto(1L, LocalDateTime.now().plusHours(1));
-
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-            when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
-            when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
-            when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
-            when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
-            when(machine.getType()).thenReturn(MachineType.WASHER);
-            when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(false);
-            when(reservationRepository.existsActiveReservationByRoomAndMachineType(ROOM_NUMBER, MachineType.WASHER))
-                    .thenReturn(false);
-            when(reservationRepository.existsConflictingReservation(any(), any(), any(), any())).thenReturn(true);
-            when(machine.getName()).thenReturn("세탁기-1");
-
-            // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
-                    .hasMessageContaining("해당 시간에 기기를 사용할 수 없습니다");
         }
     }
 }

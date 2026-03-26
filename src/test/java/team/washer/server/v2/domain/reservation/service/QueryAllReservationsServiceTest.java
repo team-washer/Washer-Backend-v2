@@ -74,7 +74,7 @@ class QueryAllReservationsServiceTest {
                 User user2 = createUser("김영희", "302");
                 Machine machine = createMachine("W-2F-L1");
                 Reservation reservation1 = createReservation(user1, machine, ReservationStatus.RESERVED);
-                Reservation reservation2 = createReservation(user2, machine, ReservationStatus.CONFIRMED);
+                Reservation reservation2 = createReservation(user2, machine, ReservationStatus.RUNNING);
                 List<Reservation> reservations = Arrays.asList(reservation1, reservation2);
                 Page<Reservation> reservationPage = new PageImpl<>(reservations,
                         PageRequest.of(0, 10),
@@ -239,7 +239,7 @@ class QueryAllReservationsServiceTest {
                 User user2 = createUser("이영희", "302");
                 Machine machine = createMachine("W-2F-L1");
                 Reservation reservation1 = createReservation(user1, machine, ReservationStatus.RESERVED);
-                Reservation reservation2 = createReservation(user2, machine, ReservationStatus.CONFIRMED);
+                Reservation reservation2 = createReservation(user2, machine, ReservationStatus.RUNNING);
                 List<Reservation> reservations = Arrays.asList(reservation1, reservation2);
                 Page<Reservation> reservationPage = new PageImpl<>(reservations,
                         PageRequest.of(0, 10),
