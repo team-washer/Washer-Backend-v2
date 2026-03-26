@@ -27,6 +27,7 @@ public class QueryReservationServiceImpl implements QueryReservationService {
                 reservation.getUser().getId(),
                 reservation.getUser().getName(),
                 reservation.getUser().getRoomNumber(),
+                reservation.getUser().getStudentId(),
                 reservation.getMachine().getId(),
                 reservation.getMachine().getName(),
                 reservation.getReservedAt(),

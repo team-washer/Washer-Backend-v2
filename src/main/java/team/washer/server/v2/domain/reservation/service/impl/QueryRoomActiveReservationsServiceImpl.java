@@ -35,6 +35,7 @@ public class QueryRoomActiveReservationsServiceImpl implements QueryRoomActiveRe
                         r.getUser().getId(),
                         r.getUser().getName(),
                         r.getUser().getRoomNumber(),
+                        r.getUser().getStudentId(),
                         r.getMachine().getId(),
                         r.getMachine().getName(),
                         r.getReservedAt(),

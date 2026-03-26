@@ -103,6 +103,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
                 saved.getUser().getId(),
                 saved.getUser().getName(),
                 saved.getUser().getRoomNumber(),
+                saved.getUser().getStudentId(),
                 saved.getMachine().getId(),
                 saved.getMachine().getName(),
                 saved.getReservedAt(),

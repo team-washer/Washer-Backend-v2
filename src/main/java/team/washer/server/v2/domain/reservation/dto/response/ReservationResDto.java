@@ -11,6 +11,7 @@ public record ReservationResDto(@Schema(description = "예약 ID", example = "1"
         @Schema(description = "사용자 ID", example = "1") Long userId,
         @Schema(description = "사용자 이름", example = "김철수") String userName,
         @Schema(description = "사용자 호실", example = "301") String userRoomNumber,
+        @Schema(description = "사용자 학번", example = "2404") String userStudentId,
         @Schema(description = "기기 ID", example = "1") Long machineId,
         @Schema(description = "기기 이름", example = "세탁기 1") String machineName,
         @Schema(description = "예약 시간", example = "2026-01-27T21:30:00") LocalDateTime reservedAt,

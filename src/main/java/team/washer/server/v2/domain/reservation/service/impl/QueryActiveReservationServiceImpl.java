@@ -47,6 +47,7 @@ public class QueryActiveReservationServiceImpl implements QueryActiveReservation
                 latest.getUser().getId(),
                 latest.getUser().getName(),
                 latest.getUser().getRoomNumber(),
+                latest.getUser().getStudentId(),
                 latest.getMachine().getId(),
                 latest.getMachine().getName(),
                 latest.getReservedAt(),
