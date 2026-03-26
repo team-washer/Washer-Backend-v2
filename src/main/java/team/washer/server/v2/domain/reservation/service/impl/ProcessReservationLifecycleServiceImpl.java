@@ -30,14 +30,14 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
 
     @Override
     public void execute() {
-        processConfirmedToRunning();
+        processReservedToRunning();
         processRunningToCompleted();
     }
 
-    private void processConfirmedToRunning() {
-        var confirmedReservations = reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED);
+    private void processReservedToRunning() {
+        var reservedReservations = reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RESERVED);
 
-        for (var reservation : confirmedReservations) {
+        for (var reservation : reservedReservations) {
             try {
                 var machine = reservation.getMachine();
                 var isRunning = machineStateDetectionSupport.isRunning(machine.getDeviceId());
@@ -50,10 +50,12 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     reservationRepository.save(reservation);
                     machineRepository.save(machine);
 
-                    log.info("Reservation {} started (CONFIRMED → RUNNING)", reservation.getId());
+                    reservationNotificationSupport.sendStarted(reservation.getUser(), machine, expectedCompletionTime);
+
+                    log.info("Reservation {} started (RESERVED → RUNNING)", reservation.getId());
                 }
             } catch (Exception e) {
-                log.error("Failed to process CONFIRMED reservation: {}", reservation.getId(), e);
+                log.error("Failed to process RESERVED reservation: {}", reservation.getId(), e);
             }
         }
     }
