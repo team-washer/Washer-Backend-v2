@@ -103,34 +103,6 @@ class AdminCancelReservationServiceTest {
         }
 
         @Nested
-        @DisplayName("CONFIRMED 상태의 예약을 취소할 때")
-        class Context_with_confirmed_status {
-
-            @Test
-            @DisplayName("예약을 취소하고 기기를 AVAILABLE 상태로 변경해야 한다")
-            void it_cancels_reservation_and_makes_machine_available() {
-                // Given
-                Long reservationId = 1L;
-                Reservation reservation = createReservation(reservationId, ReservationStatus.CONFIRMED);
-
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
-                given(reservationRepository.save(any(Reservation.class)))
-                        .willAnswer(invocation -> invocation.getArgument(0));
-
-                // When
-                AdminCancellationResDto result = adminCancelReservationService.execute(reservationId);
-
-                // Then
-                assertThat(result.reservationId()).isEqualTo(reservationId);
-                assertThat(result.penaltyApplied()).isFalse();
-                assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-                assertThat(reservation.getMachine().getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
-                then(reservationRepository).should(times(1)).findById(reservationId);
-                then(reservationRepository).should(times(1)).save(any(Reservation.class));
-            }
-        }
-
-        @Nested
         @DisplayName("RUNNING 상태의 예약을 취소할 때")
         class Context_with_running_status {
 

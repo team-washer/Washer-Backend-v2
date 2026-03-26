@@ -31,7 +31,7 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
     @Autowired(required = false)
     private DiscordErrorNotificationService discordErrorNotificationService;
 
-    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.CONFIRMED,
+    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
             ReservationStatus.RUNNING);
 
     @Override

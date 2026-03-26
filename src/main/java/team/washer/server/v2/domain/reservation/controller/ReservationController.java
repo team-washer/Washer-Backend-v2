@@ -15,7 +15,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
-import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
@@ -24,7 +23,12 @@ import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryP
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.RoomActiveReservationsResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
-import team.washer.server.v2.domain.reservation.service.*;
+import team.washer.server.v2.domain.reservation.service.CancelReservationService;
+import team.washer.server.v2.domain.reservation.service.CreateReservationService;
+import team.washer.server.v2.domain.reservation.service.QueryActiveReservationService;
+import team.washer.server.v2.domain.reservation.service.QueryReservationAvailabilityService;
+import team.washer.server.v2.domain.reservation.service.QueryReservationHistoryService;
+import team.washer.server.v2.domain.reservation.service.QueryReservationService;
 import team.washer.server.v2.domain.reservation.service.QueryRoomActiveReservationsService;
 
 @RestController
@@ -36,7 +40,6 @@ public class ReservationController {
 
     private final CreateReservationService createReservationService;
     private final CancelReservationService cancelReservationService;
-    private final ConfirmReservationService confirmReservationService;
     private final QueryActiveReservationService queryActiveReservationService;
     private final QueryReservationHistoryService queryReservationHistoryService;
     private final QueryReservationService queryReservationService;
@@ -57,15 +60,8 @@ public class ReservationController {
         return createReservationService.execute(requestDto);
     }
 
-    @PutMapping("/{id}/confirm")
-    @Operation(summary = "예약 확인", description = "예약을 확인합니다 (RESERVED → CONFIRMED). 사용자가 세탁기/건조기 앞에서 시작 버튼을 누를 때 호출됩니다.")
-    public CommonApiResponse confirmReservation(@Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
-        confirmReservationService.execute(id);
-        return CommonApiResponse.success("예약이 확인되었습니다.");
-    }
-
     @DeleteMapping("/{id}")
-    @Operation(summary = "예약 취소", description = "예약을 취소합니다. RESERVED 상태에서 취소 시 10분간 예약이 제한됩니다.")
+    @Operation(summary = "예약 취소", description = "예약을 취소합니다. RESERVED 상태에서 취소 시 5분간 재예약이 제한됩니다.")
     public CancellationResDto cancelReservation(@Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
         return cancelReservationService.execute(id);
     }

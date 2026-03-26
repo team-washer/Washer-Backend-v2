@@ -53,7 +53,6 @@ public class QueryAllReservationsServiceImpl implements QueryAllReservationsServ
                 reservation.getExpectedCompletionTime(),
                 reservation.getActualCompletionTime(),
                 reservation.getStatus(),
-                reservation.getConfirmedAt(),
                 reservation.getCancelledAt());
     }
 }

@@ -34,7 +34,7 @@ public class QueryActiveReservationServiceImpl implements QueryActiveReservation
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final List<Reservation> activeReservations = reservationRepository.findByUserAndStatusIn(user,
-                List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
+                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING));
 
         final Reservation latest = activeReservations.stream().filter(r -> !r.isExpired())
                 .max(Comparator.comparing(Reservation::getCreatedAt)).orElse(null);
@@ -54,7 +54,6 @@ public class QueryActiveReservationServiceImpl implements QueryActiveReservation
                 latest.getExpectedCompletionTime(),
                 latest.getActualCompletionTime(),
                 latest.getStatus(),
-                latest.getConfirmedAt(),
                 latest.getCancelledAt(),
                 latest.getDayOfWeek(),
                 latest.getCreatedAt(),

@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -19,6 +20,7 @@ import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.constants.PenaltyConstants;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Slf4j
@@ -36,7 +38,8 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
     @Override
     @Transactional
     public void execute() {
-        LocalDateTime threshold = LocalDateTime.now().minusMinutes(5);
+        // reservedAt 기준 3분 초과 (타임아웃 상수 사용)
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(ReservationStatus.RESERVED.getTimeoutMinutes());
         LocalDateTime recentCutoff = LocalDateTime.now().minusHours(24);
 
         List<Reservation> expiredReservations = reservationRepository
@@ -57,21 +60,20 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
                 if (isRunning) {
                     var expectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(deviceStatusQuerySupport,
                             machine.getDeviceId());
-                    // RESERVED → CONFIRMED → RUNNING: start()은 CONFIRMED에서만 가능하므로 confirm() 선행
-                    reservation.confirm();
                     reservation.start(expectedCompletionTime);
                     machine.markAsInUse();
                     reservationRepository.save(reservation);
                     machineRepository.save(machine);
+                    reservationNotificationSupport.sendStarted(reservation.getUser(), machine, expectedCompletionTime);
                     autoStarted.add(reservation.getId());
                 } else {
                     reservation.cancel();
                     machine.markAsAvailable();
                     reservationRepository.save(reservation);
                     machineRepository.save(machine);
+
                     User user = reservation.getUser();
-                    penaltyRedisUtil.applyPenalty(user);
-                    reservationNotificationSupport.sendAutoCancellation(user, machine);
+                    applyTimeoutPenalty(user, machine);
                     cancelled.add(reservation.getId());
                 }
             } catch (Exception e) {
@@ -85,5 +87,35 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
                 autoStarted,
                 cancelled.size(),
                 cancelled);
+    }
+
+    /**
+     * 타임아웃 취소 시 패널티를 적용합니다.
+     * <p>
+     * 1. 항상 5분 쿨다운 적용<br>
+     * 2. 취소 횟수 기록 (48h 슬라이딩 윈도우)<br>
+     * 3. 첫 번째 경고 여부에 따라 알림 분기<br>
+     * 4. 48시간 내 {maxCount}회 초과 시 48h 블록 적용
+     * </p>
+     */
+    private void applyTimeoutPenalty(User user, Machine machine) {
+        final long userId = user.getId();
+
+        penaltyRedisUtil.applyCooldown(userId);
+        penaltyRedisUtil.recordCancellation(userId);
+
+        if (!penaltyRedisUtil.hasWarning(userId)) {
+            penaltyRedisUtil.applyWarning(userId);
+            reservationNotificationSupport.sendTimeoutWarning(user, machine);
+            log.info("타임아웃 첫 번째 경고 적용 - 사용자: {}", userId);
+        } else {
+            reservationNotificationSupport.sendAutoCancellation(user, machine);
+            log.info("타임아웃 패널티 적용 - 사용자: {}", userId);
+        }
+
+        if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
+            penaltyRedisUtil.applyBlock(userId);
+            log.warn("48시간 예약 차단 적용 - 사용자: {} (취소 {}회 초과)", userId, PenaltyConstants.MAX_CANCELLATIONS_IN_48H);
+        }
     }
 }

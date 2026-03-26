@@ -62,16 +62,18 @@ class ProcessReservationLifecycleServiceTest {
     private User user;
 
     @Nested
-    @DisplayName("CONFIRMED -> RUNNING 전환 처리")
-    class ProcessConfirmedToRunningTest {
+    @DisplayName("RESERVED -> RUNNING 전환 처리")
+    class ProcessReservedToRunningTest {
 
         @Test
-        @DisplayName("CONFIRMED 상태이고 기기가 작동 중이면 RUNNING으로 전환한다")
-        void execute_ShouldStartReservation_WhenConfirmedAndMachineRunning() {
+        @DisplayName("RESERVED 상태이고 기기가 작동 중이면 RUNNING으로 전환하고 시작 알림을 전송한다")
+        void execute_ShouldStartReservation_WhenReservedAndMachineRunning() {
             // Given
-            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED))
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RESERVED))
                     .thenReturn(List.of(reservation));
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING)).thenReturn(List.of());
             when(reservation.getMachine()).thenReturn(machine);
+            when(reservation.getUser()).thenReturn(user);
             when(machine.getDeviceId()).thenReturn("device-123");
             when(machineStateDetectionSupport.isRunning("device-123")).thenReturn(true);
 
@@ -90,14 +92,16 @@ class ProcessReservationLifecycleServiceTest {
             // Then
             verify(reservation, times(1)).start(any(LocalDateTime.class));
             verify(reservationRepository, times(1)).save(reservation);
+            verify(reservationNotificationSupport, times(1)).sendStarted(any(), any(), any(LocalDateTime.class));
         }
 
         @Test
-        @DisplayName("CONFIRMED 상태이지만 기기가 작동 중이지 않으면 전환하지 않는다")
-        void execute_ShouldNotStartReservation_WhenConfirmedButMachineNotRunning() {
+        @DisplayName("RESERVED 상태이지만 기기가 작동 중이지 않으면 전환하지 않는다")
+        void execute_ShouldNotStartReservation_WhenReservedButMachineNotRunning() {
             // Given
-            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED))
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RESERVED))
                     .thenReturn(List.of(reservation));
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING)).thenReturn(List.of());
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
             when(machineStateDetectionSupport.isRunning("device-123")).thenReturn(false);
@@ -119,7 +123,7 @@ class ProcessReservationLifecycleServiceTest {
         @DisplayName("RUNNING 상태이고 기기 작업이 완료되면 COMPLETED로 전환하고 알림을 전송한다")
         void execute_ShouldCompleteReservation_WhenRunningAndMachineCompleted() {
             // Given
-            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED))
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RESERVED))
                     .thenReturn(List.of());
             when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING))
                     .thenReturn(List.of(reservation));
@@ -141,7 +145,7 @@ class ProcessReservationLifecycleServiceTest {
         @DisplayName("RUNNING 상태이고 기기 작업이 완료되지 않으면 예상 완료 시각을 갱신한다")
         void execute_ShouldUpdateExpectedCompletionTime_WhenRunningAndMachineNotCompleted() {
             // Given
-            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED))
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RESERVED))
                     .thenReturn(List.of());
             when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING))
                     .thenReturn(List.of(reservation));
@@ -173,7 +177,7 @@ class ProcessReservationLifecycleServiceTest {
         @DisplayName("RUNNING 상태에서 기기가 비정상 종료되면 패널티 없이 CANCELLED로 전환하고 중단 알림을 전송한다")
         void execute_ShouldCancelWithoutPenaltyAndNotify_WhenMachineInterrupted() {
             // Given
-            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED))
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RESERVED))
                     .thenReturn(List.of());
             when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING))
                     .thenReturn(List.of(reservation));
@@ -201,7 +205,7 @@ class ProcessReservationLifecycleServiceTest {
         @DisplayName("RUNNING 상태에서 기기가 최초 일시정지되면 pausedAt을 기록한다")
         void execute_ShouldMarkPausedAt_WhenMachineFirstPaused() {
             // Given
-            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED))
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RESERVED))
                     .thenReturn(List.of());
             when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING))
                     .thenReturn(List.of(reservation));
@@ -226,7 +230,7 @@ class ProcessReservationLifecycleServiceTest {
         @DisplayName("RUNNING 상태에서 일시정지가 10분 이상 지속되면 패널티 없이 CANCELLED로 전환하고 알림을 전송한다")
         void execute_ShouldCancelWithoutPenaltyAndNotify_WhenPausedTooLong() {
             // Given
-            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED))
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RESERVED))
                     .thenReturn(List.of());
             when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING))
                     .thenReturn(List.of(reservation));
@@ -256,7 +260,7 @@ class ProcessReservationLifecycleServiceTest {
         @DisplayName("RUNNING 상태에서 일시정지 후 재개되면 pausedAt을 초기화하고 예상 완료 시각을 갱신한다")
         void execute_ShouldClearPausedAtAndUpdateExpectedTime_WhenMachineResumed() {
             // Given
-            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.CONFIRMED))
+            when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RESERVED))
                     .thenReturn(List.of());
             when(reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING))
                     .thenReturn(List.of(reservation));

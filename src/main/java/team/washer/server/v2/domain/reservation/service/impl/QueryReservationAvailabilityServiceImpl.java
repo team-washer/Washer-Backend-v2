@@ -22,6 +22,13 @@ public class QueryReservationAvailabilityServiceImpl implements QueryReservation
     @Transactional(readOnly = true)
     public ReservationAvailabilityResDto execute() {
         final var userId = currentUserProvider.getCurrentUserId();
+
+        // 쿨다운 또는 48시간 블록 중이면 예약 불가
+        if (penaltyRedisUtil.isInCooldown(userId) || penaltyRedisUtil.isBlocked(userId)) {
+            return new ReservationAvailabilityResDto(false, null);
+        }
+
+        // 하위 호환: 기존 패널티 확인
         final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
         final boolean canReserve = penaltyExpiresAt == null || LocalDateTime.now().isAfter(penaltyExpiresAt);
 

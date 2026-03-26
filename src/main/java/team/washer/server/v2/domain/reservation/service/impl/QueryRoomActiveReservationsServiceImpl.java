@@ -42,7 +42,6 @@ public class QueryRoomActiveReservationsServiceImpl implements QueryRoomActiveRe
                         r.getExpectedCompletionTime(),
                         r.getActualCompletionTime(),
                         r.getStatus(),
-                        r.getConfirmedAt(),
                         r.getCancelledAt(),
                         r.getDayOfWeek(),
                         r.getCreatedAt(),

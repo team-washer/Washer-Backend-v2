@@ -71,7 +71,7 @@ public interface ReservationRepositoryCustom {
      *
      * @param roomNumber
      *            호실 번호
-     * @return 해당 호실의 활성(RESERVED/CONFIRMED/RUNNING) 예약 목록 (createdAt 내림차순)
+     * @return 해당 호실의 활성(RESERVED/RUNNING) 예약 목록 (createdAt 내림차순)
      */
     List<Reservation> findActiveReservationsByRoomNumber(String roomNumber);
 

@@ -54,8 +54,7 @@ class DeleteUserServiceTest {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
-                List<ReservationStatus> activeStatuses = List
-                        .of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING);
+                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
 
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.existsByUserAndStatusIn(user, activeStatuses)).willReturn(false);
@@ -80,35 +79,7 @@ class DeleteUserServiceTest {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
-                List<ReservationStatus> activeStatuses = List
-                        .of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING);
-
-                given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.existsByUserAndStatusIn(user, activeStatuses)).willReturn(true);
-
-                // When & Then
-                assertThatThrownBy(() -> deleteUserService.execute(userId)).isInstanceOf(ExpectedException.class)
-                        .hasMessage("활성 예약이 있는 사용자는 삭제할 수 없습니다")
-                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.BAD_REQUEST);
-
-                then(userRepository).should(times(1)).findById(userId);
-                then(reservationRepository).should(times(1)).existsByUserAndStatusIn(user, activeStatuses);
-                then(userRepository).should(never()).delete(any(User.class));
-            }
-        }
-
-        @Nested
-        @DisplayName("CONFIRMED 상태의 예약이 있는 사용자를 삭제하려 할 때")
-        class Context_with_confirmed_reservation {
-
-            @Test
-            @DisplayName("ExpectedException을 던져야 한다")
-            void it_throws_expected_exception() {
-                // Given
-                Long userId = 1L;
-                User user = createUser();
-                List<ReservationStatus> activeStatuses = List
-                        .of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING);
+                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
 
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.existsByUserAndStatusIn(user, activeStatuses)).willReturn(true);
@@ -134,8 +105,7 @@ class DeleteUserServiceTest {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
-                List<ReservationStatus> activeStatuses = List
-                        .of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING);
+                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
 
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.existsByUserAndStatusIn(user, activeStatuses)).willReturn(true);
@@ -161,8 +131,7 @@ class DeleteUserServiceTest {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
-                List<ReservationStatus> activeStatuses = List
-                        .of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING);
+                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
 
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.existsByUserAndStatusIn(user, activeStatuses)).willReturn(false);
@@ -187,8 +156,7 @@ class DeleteUserServiceTest {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
-                List<ReservationStatus> activeStatuses = List
-                        .of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING);
+                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
 
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.existsByUserAndStatusIn(user, activeStatuses)).willReturn(false);

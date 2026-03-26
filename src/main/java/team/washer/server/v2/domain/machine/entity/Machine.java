@@ -121,13 +121,6 @@ public class Machine extends BaseEntity {
     }
 
     /**
-     * 기기 확인됨 상태로 변경합니다.
-     */
-    public void markAsConfirmed() {
-        this.availability = MachineAvailability.CONFIRMED;
-    }
-
-    /**
      * 기기 사용 불가 상태로 변경합니다.
      */
     public void markAsUnavailable() {

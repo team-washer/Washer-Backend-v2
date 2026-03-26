@@ -67,8 +67,7 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
         return jpaQueryFactory.selectFrom(reservation)
                 .where(reservation.machine.id.eq(machineId),
-                        reservation.status
-                                .in(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING),
+                        reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.RUNNING),
                         reservation.startTime.lt(endTime),
                         reservation.expectedCompletionTime.gt(startTime),
                         excludeReservationId != null ? reservation.id.ne(excludeReservationId) : null)
@@ -80,8 +79,7 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
         return jpaQueryFactory.selectFrom(reservation).join(reservation.machine, machine)
                 .where(reservation.user.roomNumber.eq(roomNumber),
                         reservation.machine.type.eq(machineType),
-                        reservation.status
-                                .in(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING))
+                        reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.RUNNING))
                 .fetchFirst() != null;
     }
 
@@ -90,8 +88,7 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
         return jpaQueryFactory.selectFrom(reservation).join(reservation.user, user).fetchJoin()
                 .join(reservation.machine, machine).fetchJoin()
                 .where(reservation.user.roomNumber.eq(roomNumber),
-                        reservation.status
-                                .in(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING))
+                        reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.RUNNING))
                 .orderBy(reservation.createdAt.desc()).fetch();
     }
 
@@ -103,8 +100,7 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
         return jpaQueryFactory.selectFrom(reservation)
                 .where(reservation.status.eq(status),
                         reservation.createdAt.goe(recentCutoff),
-                        status == ReservationStatus.RESERVED ? reservation.startTime.lt(threshold) : null,
-                        status == ReservationStatus.CONFIRMED ? reservation.confirmedAt.lt(threshold) : null)
+                        reservation.reservedAt.lt(threshold))
                 .fetch();
     }
 
