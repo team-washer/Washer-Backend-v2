@@ -4,5 +4,5 @@ import org.springframework.data.repository.CrudRepository;
 
 import team.washer.server.v2.domain.reservation.entity.redis.CancellationBlockEntity;
 
-public interface CancellationBlockRedisRepository extends CrudRepository<CancellationBlockEntity, Long> {
+public interface CancellationBlockRedisRepository extends CrudRepository<CancellationBlockEntity, String> {
 }

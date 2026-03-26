@@ -78,7 +78,7 @@ class CreateReservationServiceTest {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(false);
-            when(penaltyRedisUtil.isBlocked(USER_ID)).thenReturn(false);
+            when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(false);
             when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
@@ -113,7 +113,7 @@ class CreateReservationServiceTest {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(false);
-            when(penaltyRedisUtil.isBlocked(USER_ID)).thenReturn(false);
+            when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(false);
             when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
@@ -164,7 +164,8 @@ class CreateReservationServiceTest {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(false);
-            when(penaltyRedisUtil.isBlocked(USER_ID)).thenReturn(true);
+            when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(true);
 
             // When & Then
             assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
@@ -181,7 +182,8 @@ class CreateReservationServiceTest {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(false);
-            when(penaltyRedisUtil.isBlocked(USER_ID)).thenReturn(false);
+            when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(false);
             when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(machine.getAvailability()).thenReturn(MachineAvailability.IN_USE);
@@ -202,7 +204,8 @@ class CreateReservationServiceTest {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(false);
-            when(penaltyRedisUtil.isBlocked(USER_ID)).thenReturn(false);
+            when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(false);
             when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
@@ -223,7 +226,7 @@ class CreateReservationServiceTest {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(penaltyRedisUtil.isInCooldown(USER_ID)).thenReturn(false);
-            when(penaltyRedisUtil.isBlocked(USER_ID)).thenReturn(false);
+            when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(false);
             when(penaltyRedisUtil.getPenaltyExpiryTime(USER_ID)).thenReturn(null);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);

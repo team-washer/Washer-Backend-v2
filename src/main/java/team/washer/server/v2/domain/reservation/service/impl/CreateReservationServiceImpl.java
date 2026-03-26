@@ -54,8 +54,8 @@ public class CreateReservationServiceImpl implements CreateReservationService {
             throw new ExpectedException("예약 취소 후 5분간 예약이 제한됩니다", HttpStatus.BAD_REQUEST);
         }
 
-        // 48시간 차단 검증
-        if (penaltyRedisUtil.isBlocked(userId)) {
+        // 48시간 차단 검증 (호실 단위)
+        if (penaltyRedisUtil.isBlocked(user.getRoomNumber())) {
             throw new ExpectedException("48시간 내 취소 횟수를 초과하여 예약이 제한됩니다", HttpStatus.BAD_REQUEST);
         }
 

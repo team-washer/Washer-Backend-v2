@@ -195,6 +195,7 @@ class CancelOverdueReservationServiceTest {
             when(machineStateDetectionSupport.isRunning("device-123")).thenReturn(false);
             when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
+            when(user.getRoomNumber()).thenReturn("101");
             when(penaltyRedisUtil.hasWarning(1L)).thenReturn(true);
             when(penaltyRedisUtil.getCancellationCount(1L)).thenReturn(5L);
 
@@ -202,7 +203,7 @@ class CancelOverdueReservationServiceTest {
             cancelOverdueReservationService.execute();
 
             // Then
-            verify(penaltyRedisUtil, times(1)).applyBlock(1L);
+            verify(penaltyRedisUtil, times(1)).applyBlock("101");
         }
     }
 }

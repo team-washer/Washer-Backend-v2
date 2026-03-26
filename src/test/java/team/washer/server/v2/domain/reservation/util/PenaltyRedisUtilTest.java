@@ -223,10 +223,10 @@ class PenaltyRedisUtilTest {
         @DisplayName("48시간 블록을 적용하면 Redis에 저장한다")
         void it_saves_block_to_redis() {
             // Given
-            Long userId = 1L;
+            String roomNumber = "101";
 
             // When
-            penaltyRedisUtil.applyBlock(userId);
+            penaltyRedisUtil.applyBlock(roomNumber);
 
             // Then
             verify(cancellationBlockRedisRepository, times(1)).save(any(CancellationBlockEntity.class));
@@ -236,11 +236,11 @@ class PenaltyRedisUtilTest {
         @DisplayName("블록 중이면 true를 반환한다")
         void it_returns_true_when_blocked() {
             // Given
-            Long userId = 1L;
-            when(cancellationBlockRedisRepository.existsById(userId)).thenReturn(true);
+            String roomNumber = "101";
+            when(cancellationBlockRedisRepository.existsById(roomNumber)).thenReturn(true);
 
             // When
-            boolean result = penaltyRedisUtil.isBlocked(userId);
+            boolean result = penaltyRedisUtil.isBlocked(roomNumber);
 
             // Then
             assertThat(result).isTrue();
@@ -250,11 +250,11 @@ class PenaltyRedisUtilTest {
         @DisplayName("블록 중이 아니면 false를 반환한다")
         void it_returns_false_when_not_blocked() {
             // Given
-            Long userId = 1L;
-            when(cancellationBlockRedisRepository.existsById(userId)).thenReturn(false);
+            String roomNumber = "101";
+            when(cancellationBlockRedisRepository.existsById(roomNumber)).thenReturn(false);
 
             // When
-            boolean result = penaltyRedisUtil.isBlocked(userId);
+            boolean result = penaltyRedisUtil.isBlocked(roomNumber);
 
             // Then
             assertThat(result).isFalse();
