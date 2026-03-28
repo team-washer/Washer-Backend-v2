@@ -1,10 +1,8 @@
 package team.washer.server.v2.domain.user.controller;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -31,7 +29,6 @@ public class UserController {
     }
 
     @DeleteMapping("/me")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "회원탈퇴", description = "현재 로그인된 사용자의 계정을 삭제합니다. 활성 예약은 자동으로 취소되며, 탈퇴 후 30일간 재가입이 제한됩니다.")
     public CommonApiResponse withdrawUser() {
         withdrawUserService.execute();
