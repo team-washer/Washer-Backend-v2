@@ -64,6 +64,10 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
 - API docs (`@Operation`, `@Tag`)
 - Commit messages
 
+**Exception: Log messages must be in English** (`log.info/warn/error`)
+- Use `key=value` format for structured fields — no colons
+- e.g. `log.info("user withdrawn studentId={}", id)` (O) / `log.info("탈퇴: studentId={}", id)` (X)
+
 ## Git & Testing
 - Branches: `master`, `develop`, `feat/`, `fix/`, `docs/`
 - Commits (Korean): `add/update/fix/delete/docs/test/merge/init: {설명}`
