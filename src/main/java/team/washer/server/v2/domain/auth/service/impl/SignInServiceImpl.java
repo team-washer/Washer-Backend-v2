@@ -12,6 +12,7 @@ import team.washer.server.v2.domain.auth.dto.request.TokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
 import team.washer.server.v2.domain.auth.service.SignInService;
 import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
+import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.support.UserRegistrationSupport;
@@ -25,6 +26,7 @@ public class SignInServiceImpl implements SignInService {
     private final UserRepository userRepository;
     private final UserRegistrationSupport userRegistrationSupport;
     private final TokenGenerationSupport tokenGenerationSupport;
+    private final WithdrawnStudentRedisUtil withdrawnStudentRedisUtil;
 
     @Override
     public TokenResDto execute(TokenReqDto reqDto) {
@@ -33,6 +35,9 @@ public class SignInServiceImpl implements SignInService {
         Student oauthUser = oauthClient.getUserInfo(accessToken).getStudent();
         if (oauthUser == null) {
             throw new ExpectedException("학생정보가 없는 DataGSM 계정입니다.", HttpStatus.BAD_REQUEST);
+        }
+        if (withdrawnStudentRedisUtil.isWithdrawnRecently(oauthUser.getStudentNumber().toString())) {
+            throw new ExpectedException("탈퇴 후 30일이 지나지 않아 재가입할 수 없습니다.", HttpStatus.FORBIDDEN);
         }
         User user;
         try {
