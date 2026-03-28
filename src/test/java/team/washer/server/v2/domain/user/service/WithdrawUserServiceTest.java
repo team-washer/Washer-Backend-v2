@@ -131,7 +131,7 @@ class WithdrawUserServiceTest {
                 // Then
                 assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
                 assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
-                then(machineRepository).should(times(1)).save(machine);
+                then(machineRepository).should(times(1)).saveAll(anyList());
                 then(refreshTokenRedisRepository).should(times(1)).deleteById(userId);
                 then(withdrawnStudentRedisUtil).should(times(1)).markWithdrawn(user.getStudentId());
                 then(userRepository).should(times(1)).delete(user);
@@ -163,7 +163,7 @@ class WithdrawUserServiceTest {
                 // Then
                 assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
                 assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
-                then(machineRepository).should(times(1)).save(machine);
+                then(machineRepository).should(times(1)).saveAll(anyList());
                 then(refreshTokenRedisRepository).should(times(1)).deleteById(userId);
                 then(withdrawnStudentRedisUtil).should(times(1)).markWithdrawn(user.getStudentId());
                 then(userRepository).should(times(1)).delete(user);
@@ -201,7 +201,9 @@ class WithdrawUserServiceTest {
                 assertThat(machine1.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
                 assertThat(running.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
                 assertThat(machine2.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
-                then(machineRepository).should(times(2)).save(any(Machine.class));
+                then(machineRepository).should(times(1)).saveAll(anyList());
+                then(refreshTokenRedisRepository).should(times(1)).deleteById(userId);
+                then(withdrawnStudentRedisUtil).should(times(1)).markWithdrawn(user.getStudentId());
                 then(userRepository).should(times(1)).delete(user);
             }
         }

@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.user.service.impl;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
+import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -37,12 +39,14 @@ public class WithdrawUserServiceImpl implements WithdrawUserService {
 
         final var activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
         final var activeReservations = reservationRepository.findByUserAndStatusIn(user, activeStatuses);
+        final var machinesToUpdate = new ArrayList<Machine>();
         for (final var reservation : activeReservations) {
             final var machine = reservation.getMachine();
             reservation.cancel();
             machine.markAsAvailable();
-            machineRepository.save(machine);
+            machinesToUpdate.add(machine);
         }
+        machineRepository.saveAll(machinesToUpdate);
 
         refreshTokenRedisRepository.deleteById(userId);
 
