@@ -49,6 +49,10 @@ config/, util/       # Configuration and utilities
 - API documentation (`@Operation`, `@Tag`)
 - Commit messages
 
+**Exception: Log messages must be in English** (`log.info/warn/error`)
+- Use `key=value` format for structured fields — no colons
+- e.g. `log.info("user withdrawn studentId={}", id)` (O) / `log.info("탈퇴: studentId={}", id)` (X)
+
 ## Git Commits (Korean)
 - `add/update/fix/delete/docs/test/merge/init: {설명}`
 - Branches: `master`, `develop`, `feat/`, `fix/`, `docs/`
