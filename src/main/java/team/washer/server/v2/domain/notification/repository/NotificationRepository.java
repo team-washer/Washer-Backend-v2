@@ -37,4 +37,16 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Modifying
     @Query("DELETE FROM Notification n WHERE n.user = :user AND n.isRead = true")
     int deleteReadNotificationsByUser(@Param("user") User user);
+
+    long countByUser(User user);
+
+    @Modifying
+    @Query("DELETE FROM Notification n WHERE n.user = :user")
+    int deleteAllByUser(@Param("user") User user);
+
+    @Modifying
+    @Query(value = "DELETE FROM notifications WHERE user_id = :userId AND id NOT IN "
+            + "(SELECT id FROM (SELECT id FROM notifications WHERE user_id = :userId "
+            + "ORDER BY created_at DESC LIMIT :limit) AS keep_ids)", nativeQuery = true)
+    int deleteOldestByUserExceedingLimit(@Param("userId") Long userId, @Param("limit") int limit);
 }
