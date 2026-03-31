@@ -59,7 +59,8 @@ class ReservationNotificationSupportTest {
                 reservationNotificationSupport.sendCompletion(user, machine);
 
                 // Then
-                then(notificationRepository).should(never()).deleteOldestByUserExceedingLimit(anyLong(), anyInt());
+                then(notificationRepository).should(never()).deleteOldestByUserExceedingLimit(any(User.class),
+                        anyInt());
             }
         }
 
@@ -81,7 +82,8 @@ class ReservationNotificationSupportTest {
                 reservationNotificationSupport.sendCompletion(user, machine);
 
                 // Then
-                then(notificationRepository).should(never()).deleteOldestByUserExceedingLimit(anyLong(), anyInt());
+                then(notificationRepository).should(never()).deleteOldestByUserExceedingLimit(any(User.class),
+                        anyInt());
             }
         }
 
@@ -98,13 +100,13 @@ class ReservationNotificationSupportTest {
                 given(notificationRepository.save(any(Notification.class)))
                         .willAnswer(invocation -> invocation.getArgument(0));
                 given(notificationRepository.countByUser(user)).willReturn(31L);
-                given(notificationRepository.deleteOldestByUserExceedingLimit(user.getId(), 30)).willReturn(1);
+                given(notificationRepository.deleteOldestByUserExceedingLimit(user, 30)).willReturn(1);
 
                 // When
                 reservationNotificationSupport.sendCompletion(user, machine);
 
                 // Then
-                then(notificationRepository).should(times(1)).deleteOldestByUserExceedingLimit(user.getId(), 30);
+                then(notificationRepository).should(times(1)).deleteOldestByUserExceedingLimit(user, 30);
             }
         }
     }
