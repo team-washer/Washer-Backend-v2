@@ -89,7 +89,7 @@ public class ReservationNotificationSupport {
     private void enforceNotificationLimit(final User user) {
         final long count = notificationRepository.countByUser(user);
         if (count > MAX_NOTIFICATIONS_PER_USER) {
-            final int deleted = notificationRepository.deleteOldestByUserExceedingLimit(user.getId(),
+            final int deleted = notificationRepository.deleteOldestByUserExceedingLimit(user,
                     MAX_NOTIFICATIONS_PER_USER);
             log.info("Excess notifications removed userId={} deletedCount={}", user.getId(), deleted);
         }

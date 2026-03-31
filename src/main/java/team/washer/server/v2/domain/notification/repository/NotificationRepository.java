@@ -10,10 +10,11 @@ import org.springframework.stereotype.Repository;
 
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.notification.enums.NotificationType;
+import team.washer.server.v2.domain.notification.repository.custom.NotificationRepositoryCustom;
 import team.washer.server.v2.domain.user.entity.User;
 
 @Repository
-public interface NotificationRepository extends JpaRepository<Notification, Long> {
+public interface NotificationRepository extends JpaRepository<Notification, Long>, NotificationRepositoryCustom {
 
     List<Notification> findByUser(User user);
 
@@ -43,10 +44,4 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Modifying
     @Query("DELETE FROM Notification n WHERE n.user = :user")
     int deleteAllByUser(@Param("user") User user);
-
-    @Modifying
-    @Query(value = "DELETE FROM notifications WHERE user_id = :userId AND id NOT IN "
-            + "(SELECT id FROM (SELECT id FROM notifications WHERE user_id = :userId "
-            + "ORDER BY created_at DESC LIMIT :limit) AS keep_ids)", nativeQuery = true)
-    int deleteOldestByUserExceedingLimit(@Param("userId") Long userId, @Param("limit") int limit);
 }
