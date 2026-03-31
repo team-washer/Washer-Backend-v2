@@ -9,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.notification.entity.Notification;
-import team.washer.server.v2.domain.notification.enums.NotificationType;
 import team.washer.server.v2.domain.notification.repository.NotificationRepository;
 import team.washer.server.v2.domain.user.entity.User;
 
@@ -21,6 +20,8 @@ import team.washer.server.v2.domain.user.entity.User;
 @RequiredArgsConstructor
 public class ReservationNotificationSupport {
 
+    private static final int MAX_NOTIFICATIONS_PER_USER = 30;
+
     private final NotificationRepository notificationRepository;
     private final FcmNotificationSupport fcmNotificationSupport;
 
@@ -30,12 +31,7 @@ public class ReservationNotificationSupport {
     @Transactional
     public void sendCompletion(User user, Machine machine) {
         var notification = Notification.createCompletionNotification(user, machine);
-        notificationRepository.save(notification);
-        log.info("Completion notification sent to user {} for machine {}", user.getId(), machine.getName());
-
-        final var fcmTitle = machine.getType().getDescription() + " 완료 알림";
-        final var fcmBody = NotificationType.COMPLETION.formatMessage(machine.getName(), machine.getType());
-        fcmNotificationSupport.send(user, fcmTitle, fcmBody);
+        persistAndSend(user, notification, machine.getType().getDescription() + " 완료 알림");
     }
 
     /**
@@ -44,12 +40,7 @@ public class ReservationNotificationSupport {
     @Transactional
     public void sendInterruption(User user, Machine machine) {
         var notification = Notification.createInterruptionNotification(user, machine);
-        notificationRepository.save(notification);
-        log.info("Interruption notification sent to user {} for machine {}", user.getId(), machine.getName());
-
-        final var fcmTitle = machine.getType().getDescription() + " 중단 알림";
-        final var fcmBody = NotificationType.INTERRUPTION.formatMessage(machine.getName(), machine.getType());
-        fcmNotificationSupport.send(user, fcmTitle, fcmBody);
+        persistAndSend(user, notification, machine.getType().getDescription() + " 중단 알림");
     }
 
     /**
@@ -58,12 +49,7 @@ public class ReservationNotificationSupport {
     @Transactional
     public void sendPauseTimeout(User user, Machine machine) {
         var notification = Notification.createPauseTimeoutNotification(user, machine);
-        notificationRepository.save(notification);
-        log.info("Pause timeout notification sent to user {} for machine {}", user.getId(), machine.getName());
-
-        final var fcmTitle = machine.getType().getDescription() + " 일시정지 초과 알림";
-        final var fcmBody = NotificationType.PAUSE_TIMEOUT.formatMessage(machine.getName(), machine.getType());
-        fcmNotificationSupport.send(user, fcmTitle, fcmBody);
+        persistAndSend(user, notification, machine.getType().getDescription() + " 일시정지 초과 알림");
     }
 
     /**
@@ -72,12 +58,7 @@ public class ReservationNotificationSupport {
     @Transactional
     public void sendAutoCancellation(User user, Machine machine) {
         var notification = Notification.createAutoCancellationNotification(user, machine);
-        notificationRepository.save(notification);
-        log.info("Auto cancellation notification sent to user {} for machine {}", user.getId(), machine.getName());
-
-        final var fcmTitle = "예약 자동 취소 알림";
-        final var fcmBody = NotificationType.AUTO_CANCELLED.formatMessage(machine.getName());
-        fcmNotificationSupport.send(user, fcmTitle, fcmBody);
+        persistAndSend(user, notification, "예약 자동 취소 알림");
     }
 
     /**
@@ -86,11 +67,7 @@ public class ReservationNotificationSupport {
     @Transactional
     public void sendStarted(User user, Machine machine, LocalDateTime expectedCompletionTime) {
         var notification = Notification.createStartedNotification(user, machine, expectedCompletionTime);
-        notificationRepository.save(notification);
-        log.info("Start notification sent to user {} for machine {}", user.getId(), machine.getName());
-
-        final var fcmTitle = machine.getType().getDescription() + " 시작 알림";
-        fcmNotificationSupport.send(user, fcmTitle, notification.getMessage());
+        persistAndSend(user, notification, machine.getType().getDescription() + " 시작 알림");
     }
 
     /**
@@ -99,10 +76,22 @@ public class ReservationNotificationSupport {
     @Transactional
     public void sendTimeoutWarning(User user, Machine machine) {
         var notification = Notification.createTimeoutWarningNotification(user, machine);
-        notificationRepository.save(notification);
-        log.info("Timeout warning notification sent to user {} for machine {}", user.getId(), machine.getName());
+        persistAndSend(user, notification, "예약 취소 경고");
+    }
 
-        final var fcmTitle = "예약 취소 경고";
+    private void persistAndSend(final User user, final Notification notification, final String fcmTitle) {
+        notificationRepository.save(notification);
+        enforceNotificationLimit(user);
+        log.info("Notification sent userId={} type={}", user.getId(), notification.getType());
         fcmNotificationSupport.send(user, fcmTitle, notification.getMessage());
+    }
+
+    private void enforceNotificationLimit(final User user) {
+        final long count = notificationRepository.countByUser(user);
+        if (count > MAX_NOTIFICATIONS_PER_USER) {
+            final int deleted = notificationRepository.deleteOldestByUserExceedingLimit(user.getId(),
+                    MAX_NOTIFICATIONS_PER_USER);
+            log.info("Excess notifications removed userId={} deletedCount={}", user.getId(), deleted);
+        }
     }
 }
