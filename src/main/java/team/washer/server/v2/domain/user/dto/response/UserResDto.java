@@ -12,6 +12,8 @@ public record UserResDto(@Schema(description = "사용자 ID", example = "1") Lo
         @Schema(description = "학년", example = "3") Integer grade,
         @Schema(description = "층", example = "3") Integer floor,
         @Schema(description = "패널티 횟수", example = "0") Integer penaltyCount,
+        @Schema(description = "패널티 남은 시간 (분), 패널티 없으면 null", example = "8") Long penaltyRemainMinutes,
+        @Schema(description = "패널티 사유, 패널티 없으면 null", example = "48시간 내 취소 3회 누적") String penaltyReason,
         @Schema(description = "생성 시간", example = "2025-01-15T14:30:00") LocalDateTime createdAt,
         @Schema(description = "수정 시간", example = "2025-01-15T14:30:00") LocalDateTime updatedAt) {
 }
