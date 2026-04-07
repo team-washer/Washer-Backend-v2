@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.dto.response.UserResDto;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
@@ -25,6 +26,8 @@ class QueryUserByIdServiceTest {
     private QueryUserByIdServiceImpl queryUserByIdService;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private PenaltyRedisUtil penaltyRedisUtil;
     @Nested
     @DisplayName("getUserById 메서드는")
     class Describe_getUserById {

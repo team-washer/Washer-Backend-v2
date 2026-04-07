@@ -18,6 +18,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 
+import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.dto.response.UserListResDto;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
@@ -32,6 +33,9 @@ class SearchUserServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private PenaltyRedisUtil penaltyRedisUtil;
 
     private final Pageable defaultPageable = PageRequest.of(0, 20);
 
