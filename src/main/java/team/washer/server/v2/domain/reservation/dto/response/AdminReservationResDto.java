@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.reservation.dto.response;
 import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 
 @Schema(description = "관리자용 예약 응답 DTO")
@@ -13,6 +14,7 @@ public record AdminReservationResDto(@Schema(description = "예약 ID", example 
         @Schema(description = "사용자 학번", example = "2404") String userStudentId,
         @Schema(description = "기기 ID", example = "1") Long machineId,
         @Schema(description = "기기명", example = "W-2F-L1") String machineName,
+        @Schema(description = "기기 가용 상태", example = "IN_USE") MachineAvailability machineAvailability,
         @Schema(description = "예약 시간", example = "2026-01-27T21:30:00") LocalDateTime reservedAt,
         @Schema(description = "시작 시간", example = "2026-01-27T21:30:00") LocalDateTime startTime,
         @Schema(description = "예상 완료 시간", example = "2026-01-27T23:00:00") LocalDateTime expectedCompletionTime,

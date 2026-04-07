@@ -49,6 +49,7 @@ public class QueryAllReservationsServiceImpl implements QueryAllReservationsServ
                 reservation.getUser().getStudentId(),
                 reservation.getMachine().getId(),
                 reservation.getMachine().getName(),
+                reservation.getMachine().getAvailability(),
                 reservation.getReservedAt(),
                 reservation.getStartTime(),
                 reservation.getExpectedCompletionTime(),
