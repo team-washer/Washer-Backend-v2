@@ -65,7 +65,7 @@ class PenaltyRedisUtilTest {
             when(user.getId()).thenReturn(1L);
 
             // When
-            penaltyRedisUtil.applyPenalty(user);
+            penaltyRedisUtil.applyPenalty(user, "48시간 내 취소 1회 누적");
 
             // Then
             verify(penaltyRedisRepository, times(1)).save(any(PenaltyEntity.class));

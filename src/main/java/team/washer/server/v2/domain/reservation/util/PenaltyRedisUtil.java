@@ -35,12 +35,12 @@ public class PenaltyRedisUtil {
 
     // ===== 기존 패널티 (하위 호환) =====
 
-    public void applyPenalty(final User user) {
+    public void applyPenalty(final User user, final String reason) {
         final long penaltyDurationSeconds = PenaltyConstants.PENALTY_DURATION_MINUTES * 60L;
         final LocalDateTime expiryTime = LocalDateTime.now().plusMinutes(PenaltyConstants.PENALTY_DURATION_MINUTES);
 
         try {
-            var penalty = PenaltyEntity.builder().userId(user.getId()).expiryTime(expiryTime)
+            var penalty = PenaltyEntity.builder().userId(user.getId()).expiryTime(expiryTime).reason(reason)
                     .ttl(penaltyDurationSeconds).build();
             penaltyRedisRepository.save(penalty);
         } catch (Exception e) {
@@ -67,6 +67,15 @@ public class PenaltyRedisUtil {
         final LocalDateTime expiryTime = user.getLastCancellationAt()
                 .plusMinutes(PenaltyConstants.PENALTY_DURATION_MINUTES);
         return LocalDateTime.now().isBefore(expiryTime) ? expiryTime : null;
+    }
+
+    public String getPenaltyReason(final Long userId) {
+        try {
+            return penaltyRedisRepository.findById(userId).map(PenaltyEntity::getReason).orElse(null);
+        } catch (Exception e) {
+            log.warn("Failed to get penalty reason from Redis userId={}", userId, e);
+            return null;
+        }
     }
 
     public void clearPenalty(final Long userId) {

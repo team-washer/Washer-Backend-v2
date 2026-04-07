@@ -10,7 +10,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-
 @Getter
 @Builder
 @NoArgsConstructor
@@ -22,6 +21,9 @@ public class PenaltyEntity {
     private Long userId;
 
     private LocalDateTime expiryTime;
+
+    /** 패널티 부여 사유 문장 */
+    private String reason;
 
     @TimeToLive
     private Long ttl;
