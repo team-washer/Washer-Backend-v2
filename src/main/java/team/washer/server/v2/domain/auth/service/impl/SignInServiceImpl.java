@@ -16,13 +16,11 @@ import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.support.UserRegistrationSupport;
-import team.washer.server.v2.global.thirdparty.datagsm.config.DataGsmEnvironment;
 
 @Service
 @AllArgsConstructor
 public class SignInServiceImpl implements SignInService {
     private final DataGsmOAuthClient oauthClient;
-    private final DataGsmEnvironment dataGsmEnvironment;
     private final UserRepository userRepository;
     private final UserRegistrationSupport userRegistrationSupport;
     private final TokenGenerationSupport tokenGenerationSupport;
@@ -30,7 +28,7 @@ public class SignInServiceImpl implements SignInService {
 
     @Override
     public TokenResDto execute(TokenReqDto reqDto) {
-        String accessToken = oauthClient.exchangeCodeForToken(reqDto.authCode(), dataGsmEnvironment.redirectUri())
+        String accessToken = oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri())
                 .getAccessToken();
         Student oauthUser = oauthClient.getUserInfo(accessToken).getStudent();
         if (oauthUser == null) {
