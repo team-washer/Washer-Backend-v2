@@ -21,7 +21,6 @@ import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.CreateReservationService;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
-import team.washer.server.v2.domain.reservation.util.SundayReservationRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
@@ -35,7 +34,6 @@ public class CreateReservationServiceImpl implements CreateReservationService {
     private final UserRepository userRepository;
     private final MachineRepository machineRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
-    private final SundayReservationRedisUtil sundayReservationRedisUtil;
     private final ReservationEnvironment reservationEnvironment;
     private final CurrentUserProvider currentUserProvider;
 
@@ -63,10 +61,9 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
         user.validateNotPenalized(penaltyExpiresAt);
 
-        // 시간 제한 검증 (일요일 활성화 여부 포함, 개발환경에서는 비활성화 가능)
+        // 시간 제한 검증 (학년별 예약 시작 시각, 개발환경에서는 비활성화 가능)
         if (!reservationEnvironment.disableTimeRestriction()) {
-            final boolean isSundayActive = sundayReservationRedisUtil.isSundayActive();
-            user.validateTimeRestriction(LocalDateTime.now(), isSundayActive);
+            user.validateTimeRestriction(LocalDateTime.now());
         }
 
         // 기기 가용성 검증

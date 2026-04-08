@@ -28,7 +28,6 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.CreateReservationServiceImpl;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
-import team.washer.server.v2.domain.reservation.util.SundayReservationRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
@@ -47,8 +46,6 @@ class CreateReservationServiceTest {
     private MachineRepository machineRepository;
     @Mock
     private PenaltyRedisUtil penaltyRedisUtil;
-    @Mock
-    private SundayReservationRedisUtil sundayReservationRedisUtil;
     @Mock
     private ReservationEnvironment reservationEnvironment;
     @Mock
