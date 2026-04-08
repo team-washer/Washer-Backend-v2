@@ -13,6 +13,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.dto.request.UpdateMachineReqDto;
@@ -108,6 +109,8 @@ class UpdateMachineServiceTest {
                 var otherMachine = Machine.builder().name("D-3F-R1").type(MachineType.DRYER).deviceId("existing-device")
                         .floor(3).position(Position.RIGHT).number(1).status(MachineStatus.NORMAL)
                         .availability(MachineAvailability.AVAILABLE).build();
+                ReflectionTestUtils.setField(machine, "id", 1L);
+                ReflectionTestUtils.setField(otherMachine, "id", 2L);
                 var reqDto = new UpdateMachineReqDto(null, null, null, null, "existing-device");
 
                 given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
@@ -134,6 +137,8 @@ class UpdateMachineServiceTest {
                 var otherMachine = Machine.builder().name("W-3F-R1").type(MachineType.WASHER).deviceId("other-device")
                         .floor(3).position(Position.RIGHT).number(1).status(MachineStatus.NORMAL)
                         .availability(MachineAvailability.AVAILABLE).build();
+                ReflectionTestUtils.setField(machine, "id", 1L);
+                ReflectionTestUtils.setField(otherMachine, "id", 2L);
                 var reqDto = new UpdateMachineReqDto(MachineType.WASHER, 3, Position.RIGHT, 1, null);
 
                 given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
