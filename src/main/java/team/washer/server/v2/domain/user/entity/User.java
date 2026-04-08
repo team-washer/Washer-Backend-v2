@@ -168,13 +168,14 @@ public class User extends BaseEntity {
 
     /**
      * 예약 시간에 대한 시간 제한 규칙을 검증합니다. 규칙을 위반하면 예외를 발생시킵니다.
+     * <p>
+     * 월~목, 일요일은 학년별 예약 가능 시작 시각이 적용됩니다. 금요일과 토요일은 제한 없이 예약 가능합니다. 기숙사자치위원회 및 관리자는
+     * 시간 제한을 우회합니다.
      *
      * @param startTime
      *            예약 시작 시간
-     * @param isSundayActive
-     *            일요일 예약 활성화 여부
      */
-    public void validateTimeRestriction(final LocalDateTime startTime, final boolean isSundayActive) {
+    public void validateTimeRestriction(final LocalDateTime startTime) {
         if (this.canBypassTimeRestrictions()) {
             return;
         }
@@ -183,19 +184,30 @@ public class User extends BaseEntity {
         final LocalTime time = startTime.toLocalTime();
 
         switch (dayOfWeek) {
-            case MONDAY, TUESDAY, WEDNESDAY, THURSDAY :
-                if (time.isBefore(TimeRestrictionConstants.WEEKDAY_START_TIME)) {
-                    throw new ExpectedException("월요일부터 목요일까지는 21:10 이후에만 예약할 수 있습니다", HttpStatus.BAD_REQUEST);
+            case MONDAY, TUESDAY, WEDNESDAY, THURSDAY, SUNDAY -> {
+                final LocalTime gradeStartTime = resolveGradeStartTime();
+                if (time.isBefore(gradeStartTime)) {
+                    throw new ExpectedException(
+                            String.format("%d학년은 %s 이후에만 예약할 수 있습니다", this.grade, gradeStartTime.toString()),
+                            HttpStatus.BAD_REQUEST);
                 }
-                break;
-            case SUNDAY :
-                if (!isSundayActive) {
-                    throw new ExpectedException("일요일 예약은 현재 비활성화되어 있습니다", HttpStatus.BAD_REQUEST);
-                }
-                break;
-            default :
-                break;
+            }
+            default -> {
+            }
         }
+    }
+
+    /**
+     * 학년에 따른 예약 가능 시작 시각을 반환합니다.
+     *
+     * @return 학년별 예약 시작 시각
+     */
+    private LocalTime resolveGradeStartTime() {
+        return switch (this.grade) {
+            case 1 -> TimeRestrictionConstants.GRADE_1_START_TIME;
+            case 2 -> TimeRestrictionConstants.GRADE_2_START_TIME;
+            default -> TimeRestrictionConstants.GRADE_3_START_TIME;
+        };
     }
 
     /**
