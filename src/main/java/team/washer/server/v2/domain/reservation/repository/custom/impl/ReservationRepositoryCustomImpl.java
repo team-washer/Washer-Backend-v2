@@ -175,7 +175,8 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
     }
 
     private BooleanExpression statusEquals(ReservationStatus status) {
-        return status != null ? reservation.status.eq(status) : null;
+        return status != null ? reservation.status.eq(status)
+                : reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
     }
 
     private BooleanExpression startTimeAfter(LocalDateTime startDate) {

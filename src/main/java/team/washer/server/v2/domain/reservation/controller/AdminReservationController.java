@@ -77,11 +77,11 @@ public class AdminReservationController {
     }
 
     @GetMapping
-    @Operation(summary = "전체 예약 조회", description = "필터링 옵션으로 예약 목록을 조회합니다. 기기 유형(세탁기/건조기)으로 필터링하거나 함께 조회할 수 있습니다 (페이지네이션 지원)")
+    @Operation(summary = "전체 예약 조회", description = "필터링 옵션으로 예약 목록을 조회합니다. 상태 미지정 시 활성 예약(RESERVED, RUNNING)만 반환됩니다. 기기 유형(세탁기/건조기)으로 필터링하거나 함께 조회할 수 있습니다 (페이지네이션 지원)")
     public AdminReservationListResDto getReservations(
             @Parameter(description = "사용자 이름 (부분 검색)") @RequestParam(required = false) String userName,
             @Parameter(description = "기기명 (부분 검색)") @RequestParam(required = false) String machineName,
-            @Parameter(description = "예약 상태") @RequestParam(required = false) ReservationStatus status,
+            @Parameter(description = "예약 상태 (미지정 시 RESERVED, RUNNING만 조회)") @RequestParam(required = false) ReservationStatus status,
             @Parameter(description = "시작일") @RequestParam(required = false) LocalDateTime startDate,
             @Parameter(description = "종료일") @RequestParam(required = false) LocalDateTime endDate,
             @Parameter(description = "기기 유형 (WASHER: 세탁기, DRYER: 건조기)") @RequestParam(required = false) MachineType machineType,
