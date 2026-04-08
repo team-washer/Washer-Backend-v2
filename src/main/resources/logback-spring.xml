@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <springProperty scope="context" name="CW_LOG_GROUP"      source="aws.cloudwatch.log-group-name"/>
+    <springProperty scope="context" name="CW_STREAM_PREFIX"  source="aws.cloudwatch.log-stream-prefix"/>
+    <springProperty scope="context" name="CW_REGION"         source="aws.cloudwatch.region"     defaultValue="ap-northeast-2"/>
+    <springProperty scope="context" name="CW_ACCESS_KEY"     source="aws.cloudwatch.access-key"/>
+    <springProperty scope="context" name="CW_SECRET_KEY"     source="aws.cloudwatch.secret-key"/>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+    <springProfile name="stage">
+        <appender name="CLOUD_WATCH"
+                  class="team.washer.server.v2.global.thirdparty.aws.cloudwatch.appender.CloudWatchAppender">
+            <logGroupName>${CW_LOG_GROUP}</logGroupName>
+            <logStreamNamePrefix>${CW_STREAM_PREFIX}</logStreamNamePrefix>
+            <region>${CW_REGION}</region>
+            <accessKey>${CW_ACCESS_KEY}</accessKey>
+            <secretKey>${CW_SECRET_KEY}</secretKey>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="CLOUD_WATCH"/>
+        </root>
+    </springProfile>
+    <springProfile name="!stage">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+</configuration>
