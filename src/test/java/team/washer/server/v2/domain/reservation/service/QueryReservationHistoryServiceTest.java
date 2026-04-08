@@ -82,7 +82,7 @@ class QueryReservationHistoryServiceTest {
                 assertThat(result).isNotNull();
                 assertThat(result.content()).hasSize(1);
                 assertThat(result.totalElements()).isEqualTo(1L);
-                assertThat(result.page()).isEqualTo(0);
+                assertThat(result.pageNumber()).isEqualTo(0);
                 assertThat(result.last()).isTrue();
             }
         }

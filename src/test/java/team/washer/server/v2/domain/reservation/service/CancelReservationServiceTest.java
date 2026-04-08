@@ -61,7 +61,6 @@ class CancelReservationServiceTest {
     private Reservation createReservation(final ReservationStatus status, final Long userId) {
         var machine = createMachine();
         given(user.getId()).willReturn(userId);
-        given(user.getRoomNumber()).willReturn("301");
         return Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now()).status(status).build();
     }
 
@@ -83,7 +82,7 @@ class CancelReservationServiceTest {
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
-                given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(0);
+                given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(0L);
 
                 // When
                 var result = cancelReservationService.execute(reservationId);

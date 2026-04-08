@@ -78,7 +78,7 @@ class QueryReservationServiceTest {
                 assertThat(result).isNotNull();
                 assertThat(result.userId()).isEqualTo(user.getId());
                 assertThat(result.userName()).isEqualTo("김철수");
-                assertThat(result.roomNumber()).isEqualTo("301");
+                assertThat(result.userRoomNumber()).isEqualTo("301");
                 assertThat(result.machineId()).isEqualTo(machine.getId());
                 assertThat(result.machineName()).isEqualTo("W-2F-L1");
                 assertThat(result.status()).isEqualTo(ReservationStatus.RESERVED);

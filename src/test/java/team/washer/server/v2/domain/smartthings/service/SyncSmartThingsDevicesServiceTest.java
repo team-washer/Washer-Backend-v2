@@ -74,7 +74,7 @@ class SyncSmartThingsDevicesServiceTest {
 
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.of(token));
                 given(feignClient.getDeviceList("Bearer valid-access-token")).willReturn(deviceList);
-                given(machineRepository.findByName("W-2F-L1")).willReturn(Optional.empty());
+                given(machineRepository.findByName("Washer-2F-L1")).willReturn(Optional.empty());
                 given(machineRepository.findAll()).willReturn(List.of());
 
                 // When
@@ -102,7 +102,7 @@ class SyncSmartThingsDevicesServiceTest {
 
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.of(token));
                 given(feignClient.getDeviceList("Bearer valid-access-token")).willReturn(deviceList);
-                given(machineRepository.findByName("W-2F-L1")).willReturn(Optional.of(existingMachine));
+                given(machineRepository.findByName("Washer-2F-L1")).willReturn(Optional.of(existingMachine));
                 given(machineRepository.findAll()).willReturn(List.of(existingMachine));
 
                 // When
@@ -131,7 +131,7 @@ class SyncSmartThingsDevicesServiceTest {
 
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.of(token));
                 given(feignClient.getDeviceList("Bearer valid-access-token")).willReturn(deviceList);
-                given(machineRepository.findByName("W-2F-L1")).willReturn(Optional.empty());
+                given(machineRepository.findByName("Washer-2F-L1")).willReturn(Optional.empty());
                 given(machineRepository.findAll()).willReturn(List.of(missingMachine));
 
                 // When

@@ -17,6 +17,8 @@ import org.springframework.http.HttpStatus;
 
 import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient;
 import team.themoment.datagsm.sdk.oauth.model.Student;
+import team.themoment.datagsm.sdk.oauth.model.TokenResponse;
+import team.themoment.datagsm.sdk.oauth.model.UserInfo;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.TokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
@@ -50,10 +52,10 @@ class SignInServiceImplTest {
     private WithdrawnStudentRedisUtil withdrawnStudentRedisUtil;
 
     @Mock
-    private DataGsmOAuthClient.TokenResponse tokenResponse;
+    private TokenResponse tokenResponse;
 
     @Mock
-    private DataGsmOAuthClient.UserInfoResponse userInfoResponse;
+    private UserInfo userInfoResponse;
 
     @Mock
     private Student student;
