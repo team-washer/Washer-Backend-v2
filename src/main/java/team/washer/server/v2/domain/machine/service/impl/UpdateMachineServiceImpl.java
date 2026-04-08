@@ -1,5 +1,7 @@
 package team.washer.server.v2.domain.machine.service.impl;
 
+import java.util.Objects;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,7 +54,7 @@ public class UpdateMachineServiceImpl implements UpdateMachineService {
 
     private void validateDeviceIdUnique(Machine machine, String newDeviceId) {
         machineRepository.findByDeviceId(newDeviceId).ifPresent(existing -> {
-            if (!existing.getId().equals(machine.getId())) {
+            if (!Objects.equals(existing.getId(), machine.getId())) {
                 throw new ExpectedException("이미 다른 기기에서 사용 중인 Device ID입니다", HttpStatus.CONFLICT);
             }
         });
@@ -64,7 +66,7 @@ public class UpdateMachineServiceImpl implements UpdateMachineService {
             Position position,
             Integer number) {
         machineRepository.findByLocation(type, floor, position, number).ifPresent(existing -> {
-            if (!existing.getId().equals(machine.getId())) {
+            if (!Objects.equals(existing.getId(), machine.getId())) {
                 throw new ExpectedException("해당 위치에 이미 다른 기기가 등록되어 있습니다", HttpStatus.CONFLICT);
             }
         });
