@@ -166,6 +166,14 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
         return new PageImpl<>(results, pageable, count);
     }
 
+    @Override
+    public List<Reservation> findAllByMachineNameFilter(String machineName) {
+        return jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
+                .leftJoin(reservation.machine, machine).fetchJoin()
+                .where(StringUtils.hasText(machineName) ? reservation.machine.name.contains(machineName) : null)
+                .orderBy(reservation.machine.name.asc(), reservation.createdAt.desc()).fetch();
+    }
+
     private BooleanExpression userNameContains(String userName) {
         return StringUtils.hasText(userName) ? reservation.user.name.contains(userName) : null;
     }
