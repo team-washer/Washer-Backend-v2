@@ -50,3 +50,6 @@ PR_BODY.md
 
 ### Stage Profile ###
 src/main/resources/application-stage.yml
+
+### Prod Profile ###
+src/main/resources/application-prod.yml
