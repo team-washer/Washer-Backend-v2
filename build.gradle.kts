@@ -8,11 +8,13 @@ plugins {
 
 ext {
     set("springCloudVersion", "2025.1.0")
+    set("awsSdkVersion", "2.28.0")
 }
 
 dependencyManagement {
     imports {
         mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.1.0")
+        mavenBom("software.amazon.awssdk:bom:2.28.0")
     }
 }
 
@@ -123,6 +125,9 @@ dependencies {
 
     // Firebase Admin SDK
     implementation("com.google.firebase:firebase-admin:9.4.3")
+
+    // AWS SDK - CloudWatch Logs
+    implementation("software.amazon.awssdk:cloudwatchlogs")
 }
 
 tasks.withType<Test> {
