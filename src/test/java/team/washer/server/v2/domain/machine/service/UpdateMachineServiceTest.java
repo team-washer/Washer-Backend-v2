@@ -115,8 +115,7 @@ class UpdateMachineServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> updateMachineService.execute(machineId, reqDto))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("이미 다른 기기에서 사용 중인 Device ID입니다")
+                        .isInstanceOf(ExpectedException.class).hasMessage("이미 다른 기기에서 사용 중인 Device ID입니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.CONFLICT));
             }
@@ -143,8 +142,7 @@ class UpdateMachineServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> updateMachineService.execute(machineId, reqDto))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("해당 위치에 이미 다른 기기가 등록되어 있습니다")
+                        .isInstanceOf(ExpectedException.class).hasMessage("해당 위치에 이미 다른 기기가 등록되어 있습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.CONFLICT));
             }
@@ -164,8 +162,7 @@ class UpdateMachineServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> updateMachineService.execute(machineId, reqDto))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("기기를 찾을 수 없습니다")
+                        .isInstanceOf(ExpectedException.class).hasMessage("기기를 찾을 수 없습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.NOT_FOUND));
             }

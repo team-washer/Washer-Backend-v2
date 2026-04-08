@@ -37,14 +37,12 @@ class SendDeviceCommandServiceTest {
     private SmartThingsTokenRepository tokenRepository;
 
     private SmartThingsToken createValidToken() {
-        return SmartThingsToken.builder()
-                .accessToken("valid-access-token").refreshToken("refresh-token")
+        return SmartThingsToken.builder().accessToken("valid-access-token").refreshToken("refresh-token")
                 .expiresAt(LocalDateTime.now().plusHours(1)).build();
     }
 
     private SmartThingsToken createExpiredToken() {
-        return SmartThingsToken.builder()
-                .accessToken("expired-access-token").refreshToken("refresh-token")
+        return SmartThingsToken.builder().accessToken("expired-access-token").refreshToken("refresh-token")
                 .expiresAt(LocalDateTime.now().minusMinutes(10)).build();
     }
 
@@ -70,8 +68,7 @@ class SendDeviceCommandServiceTest {
                 sendDeviceCommandService.execute(deviceId, command);
 
                 // Then
-                then(feignClient).should(times(1))
-                        .sendDeviceCommand("Bearer valid-access-token", deviceId, command);
+                then(feignClient).should(times(1)).sendDeviceCommand("Bearer valid-access-token", deviceId, command);
             }
         }
 
@@ -86,10 +83,9 @@ class SendDeviceCommandServiceTest {
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.empty());
 
                 // When & Then
-                assertThatThrownBy(() -> sendDeviceCommandService.execute("device-abc",
-                        SmartThingsCommandReqDto.powerOff()))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("SmartThings 토큰이 존재하지 않습니다")
+                assertThatThrownBy(
+                        () -> sendDeviceCommandService.execute("device-abc", SmartThingsCommandReqDto.powerOff()))
+                        .isInstanceOf(ExpectedException.class).hasMessage("SmartThings 토큰이 존재하지 않습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.NOT_FOUND));
 
@@ -109,10 +105,9 @@ class SendDeviceCommandServiceTest {
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.of(expiredToken));
 
                 // When & Then
-                assertThatThrownBy(() -> sendDeviceCommandService.execute("device-abc",
-                        SmartThingsCommandReqDto.powerOff()))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("SmartThings 토큰이 만료되었거나 유효하지 않습니다")
+                assertThatThrownBy(
+                        () -> sendDeviceCommandService.execute("device-abc", SmartThingsCommandReqDto.powerOff()))
+                        .isInstanceOf(ExpectedException.class).hasMessage("SmartThings 토큰이 만료되었거나 유효하지 않습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.NOT_FOUND));
 
@@ -133,13 +128,12 @@ class SendDeviceCommandServiceTest {
                 var token = createValidToken();
 
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.of(token));
-                willThrow(new SmartThingsPermissionException("x:devices:* 스코프 없음"))
-                        .given(feignClient).sendDeviceCommand(anyString(), eq(deviceId), eq(command));
+                willThrow(new SmartThingsPermissionException("x:devices:* 스코프 없음")).given(feignClient)
+                        .sendDeviceCommand(anyString(), eq(deviceId), eq(command));
 
                 // When & Then
                 assertThatThrownBy(() -> sendDeviceCommandService.execute(deviceId, command))
-                        .isInstanceOf(SmartThingsPermissionException.class)
-                        .hasMessage("x:devices:* 스코프 없음");
+                        .isInstanceOf(SmartThingsPermissionException.class).hasMessage("x:devices:* 스코프 없음");
             }
         }
 
@@ -156,13 +150,12 @@ class SendDeviceCommandServiceTest {
                 var token = createValidToken();
 
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.of(token));
-                willThrow(new RuntimeException("네트워크 오류"))
-                        .given(feignClient).sendDeviceCommand(anyString(), eq(deviceId), eq(command));
+                willThrow(new RuntimeException("네트워크 오류")).given(feignClient)
+                        .sendDeviceCommand(anyString(), eq(deviceId), eq(command));
 
                 // When & Then
                 assertThatThrownBy(() -> sendDeviceCommandService.execute(deviceId, command))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessageContaining("기기 명령 전송에 실패했습니다")
+                        .isInstanceOf(ExpectedException.class).hasMessageContaining("기기 명령 전송에 실패했습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_GATEWAY));
             }

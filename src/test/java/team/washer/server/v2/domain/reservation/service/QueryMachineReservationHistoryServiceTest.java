@@ -100,10 +100,9 @@ class QueryMachineReservationHistoryServiceTest {
                 given(machineRepository.existsById(machineId)).willReturn(false);
 
                 // When & Then
-                assertThatThrownBy(() -> queryMachineReservationHistoryService.execute(
-                        machineId, null, null, null, pageable))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("존재하지 않는 기기입니다")
+                assertThatThrownBy(
+                        () -> queryMachineReservationHistoryService.execute(machineId, null, null, null, pageable))
+                        .isInstanceOf(ExpectedException.class).hasMessage("존재하지 않는 기기입니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.NOT_FOUND));
 

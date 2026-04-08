@@ -43,13 +43,12 @@ class ShutdownIdleMachinesServiceTest {
     @Mock
     private SendDeviceCommandService sendDeviceCommandService;
 
-    private static final List<ReservationStatus> ACTIVE_STATUSES =
-            List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
+    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
+            ReservationStatus.RUNNING);
 
     private Machine createMachine(final String name, final String deviceId) {
-        return Machine.builder().name(name).type(MachineType.WASHER).deviceId(deviceId).floor(2)
-                .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
-                .availability(MachineAvailability.AVAILABLE).build();
+        return Machine.builder().name(name).type(MachineType.WASHER).deviceId(deviceId).floor(2).position(Position.LEFT)
+                .number(1).status(MachineStatus.NORMAL).availability(MachineAvailability.AVAILABLE).build();
     }
 
     @Nested
@@ -91,8 +90,8 @@ class ShutdownIdleMachinesServiceTest {
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(sendDeviceCommandService).should(times(1))
-                        .execute(eq("device-1"), any(SmartThingsCommandReqDto.class));
+                then(sendDeviceCommandService).should(times(1)).execute(eq("device-1"),
+                        any(SmartThingsCommandReqDto.class));
             }
         }
 
@@ -128,17 +127,17 @@ class ShutdownIdleMachinesServiceTest {
                 var machine2 = createMachine("W-2F-R1", "device-2");
                 given(machineRepository.findAll()).willReturn(List.of(machine1, machine2));
                 given(reservationRepository.existsByMachineAndStatusIn(machine1, ACTIVE_STATUSES)).willReturn(false);
-                willThrow(new SmartThingsPermissionException("권한 없음"))
-                        .given(sendDeviceCommandService).execute(eq("device-1"), any(SmartThingsCommandReqDto.class));
+                willThrow(new SmartThingsPermissionException("권한 없음")).given(sendDeviceCommandService)
+                        .execute(eq("device-1"), any(SmartThingsCommandReqDto.class));
 
                 // When
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(sendDeviceCommandService).should(times(1))
-                        .execute(eq("device-1"), any(SmartThingsCommandReqDto.class));
-                then(sendDeviceCommandService).should(never())
-                        .execute(eq("device-2"), any(SmartThingsCommandReqDto.class));
+                then(sendDeviceCommandService).should(times(1)).execute(eq("device-1"),
+                        any(SmartThingsCommandReqDto.class));
+                then(sendDeviceCommandService).should(never()).execute(eq("device-2"),
+                        any(SmartThingsCommandReqDto.class));
             }
         }
 
@@ -155,15 +154,15 @@ class ShutdownIdleMachinesServiceTest {
                 given(machineRepository.findAll()).willReturn(List.of(machine1, machine2));
                 given(reservationRepository.existsByMachineAndStatusIn(machine1, ACTIVE_STATUSES)).willReturn(false);
                 given(reservationRepository.existsByMachineAndStatusIn(machine2, ACTIVE_STATUSES)).willReturn(false);
-                willThrow(new RuntimeException("일시적 오류"))
-                        .given(sendDeviceCommandService).execute(eq("device-1"), any(SmartThingsCommandReqDto.class));
+                willThrow(new RuntimeException("일시적 오류")).given(sendDeviceCommandService).execute(eq("device-1"),
+                        any(SmartThingsCommandReqDto.class));
 
                 // When
                 assertThatCode(() -> shutdownIdleMachinesService.execute()).doesNotThrowAnyException();
 
                 // Then
-                then(sendDeviceCommandService).should(times(1))
-                        .execute(eq("device-2"), any(SmartThingsCommandReqDto.class));
+                then(sendDeviceCommandService).should(times(1)).execute(eq("device-2"),
+                        any(SmartThingsCommandReqDto.class));
             }
         }
     }

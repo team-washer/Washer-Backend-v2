@@ -39,8 +39,8 @@ class ActivateSundayReservationServiceTest {
     private CurrentUserProvider currentUserProvider;
 
     private User createAdmin() {
-        return User.builder().name("관리자").studentId("20210001").roomNumber("301").grade(3).floor(3)
-                .role(UserRole.ADMIN).build();
+        return User.builder().name("관리자").studentId("20210001").roomNumber("301").grade(3).floor(3).role(UserRole.ADMIN)
+                .build();
     }
 
     private User createDormCouncil() {
@@ -114,8 +114,7 @@ class ActivateSundayReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> activateSundayReservationService.execute("메모"))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("일요일 예약 관리 권한이 없습니다")
+                        .isInstanceOf(ExpectedException.class).hasMessage("일요일 예약 관리 권한이 없습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.FORBIDDEN));
 
@@ -137,8 +136,7 @@ class ActivateSundayReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> activateSundayReservationService.execute("메모"))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("사용자를 찾을 수 없습니다")
+                        .isInstanceOf(ExpectedException.class).hasMessage("사용자를 찾을 수 없습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.NOT_FOUND));
 

@@ -89,8 +89,7 @@ class DeleteMachineServiceTest {
                         .willReturn(Optional.of(activeReservation));
 
                 // When & Then
-                assertThatThrownBy(() -> deleteMachineService.execute(machineId))
-                        .isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> deleteMachineService.execute(machineId)).isInstanceOf(ExpectedException.class)
                         .hasMessage("활성 예약이 존재하는 기기는 삭제할 수 없습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));
@@ -111,10 +110,8 @@ class DeleteMachineServiceTest {
                 given(machineRepository.findById(machineId)).willReturn(Optional.empty());
 
                 // When & Then
-                assertThatThrownBy(() -> deleteMachineService.execute(machineId))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("기기를 찾을 수 없습니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                assertThatThrownBy(() -> deleteMachineService.execute(machineId)).isInstanceOf(ExpectedException.class)
+                        .hasMessage("기기를 찾을 수 없습니다").satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.NOT_FOUND));
             }
         }

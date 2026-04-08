@@ -24,7 +24,6 @@ import team.washer.server.v2.domain.auth.service.impl.SignInServiceImpl;
 import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
-import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.support.UserRegistrationSupport;
 
@@ -153,8 +152,7 @@ class SignInServiceImplTest {
                 given(userInfoResponse.getStudent()).willReturn(null);
 
                 // When & Then
-                assertThatThrownBy(() -> signInService.execute(reqDto))
-                        .isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class)
                         .hasMessage("학생정보가 없는 DataGSM 계정입니다.")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));
@@ -182,8 +180,7 @@ class SignInServiceImplTest {
                 given(withdrawnStudentRedisUtil.isWithdrawnRecently("20210001")).willReturn(true);
 
                 // When & Then
-                assertThatThrownBy(() -> signInService.execute(reqDto))
-                        .isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class)
                         .hasMessage("탈퇴 후 30일이 지나지 않아 재가입할 수 없습니다.")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.FORBIDDEN));
@@ -211,8 +208,7 @@ class SignInServiceImplTest {
                 given(userInfoResponse.getStudent()).willReturn(student);
                 given(student.getStudentNumber()).willReturn(20210001);
                 given(withdrawnStudentRedisUtil.isWithdrawnRecently("20210001")).willReturn(false);
-                given(userRepository.findByStudentId("20210001"))
-                        .willReturn(Optional.empty())
+                given(userRepository.findByStudentId("20210001")).willReturn(Optional.empty())
                         .willReturn(Optional.of(user));
                 given(userRegistrationSupport.register(student)).willThrow(new DataIntegrityViolationException("중복"));
                 given(tokenGenerationSupport.generate(user.getId(), user.getRole())).willReturn(expectedTokens);

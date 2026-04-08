@@ -39,8 +39,8 @@ class QueryMyInfoServiceTest {
     private CurrentUserProvider currentUserProvider;
 
     private User createUser() {
-        return User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(3).floor(3)
-                .penaltyCount(0).build();
+        return User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(3).floor(3).penaltyCount(0)
+                .build();
     }
 
     @Nested
@@ -112,10 +112,8 @@ class QueryMyInfoServiceTest {
                 given(userRepository.findById(userId)).willReturn(Optional.empty());
 
                 // When & Then
-                assertThatThrownBy(() -> queryMyInfoService.execute())
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("사용자를 찾을 수 없습니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                assertThatThrownBy(() -> queryMyInfoService.execute()).isInstanceOf(ExpectedException.class)
+                        .hasMessage("사용자를 찾을 수 없습니다").satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.NOT_FOUND));
             }
         }

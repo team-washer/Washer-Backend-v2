@@ -42,7 +42,11 @@ class ExchangeSmartThingsTokenServiceTest {
     private SmartThingsEnvironment smartThingsEnvironment;
 
     private SmartThingsTokenExchangeResDto createTokenResponse() {
-        return new SmartThingsTokenExchangeResDto("new-access-token", "new-refresh-token", "Bearer", 3600, "r:devices:*");
+        return new SmartThingsTokenExchangeResDto("new-access-token",
+                "new-refresh-token",
+                "Bearer",
+                3600,
+                "r:devices:*");
     }
 
     @Nested
@@ -78,8 +82,7 @@ class ExchangeSmartThingsTokenServiceTest {
             @DisplayName("기존 토큰을 업데이트해야 한다")
             void it_updates_existing_token() {
                 // Given
-                var existingToken = SmartThingsToken.builder()
-                        .accessToken("old-access").refreshToken("old-refresh")
+                var existingToken = SmartThingsToken.builder().accessToken("old-access").refreshToken("old-refresh")
                         .expiresAt(LocalDateTime.now().plusHours(1)).build();
 
                 given(smartThingsEnvironment.clientId()).willReturn("client-id");
@@ -112,8 +115,7 @@ class ExchangeSmartThingsTokenServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri"))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessageContaining("SmartThings 토큰 교환에 실패했습니다")
+                        .isInstanceOf(ExpectedException.class).hasMessageContaining("SmartThings 토큰 교환에 실패했습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_GATEWAY));
             }

@@ -28,8 +28,7 @@ public class SignInServiceImpl implements SignInService {
 
     @Override
     public TokenResDto execute(TokenReqDto reqDto) {
-        String accessToken = oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri())
-                .getAccessToken();
+        String accessToken = oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri()).getAccessToken();
         Student oauthUser = oauthClient.getUserInfo(accessToken).getStudent();
         if (oauthUser == null) {
             throw new ExpectedException("학생정보가 없는 DataGSM 계정입니다.", HttpStatus.BAD_REQUEST);

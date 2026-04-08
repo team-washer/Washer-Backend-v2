@@ -85,8 +85,7 @@ class CreateMachineServiceTest {
                 given(machineRepository.existsByDeviceId("device-abc")).willReturn(true);
 
                 // When & Then
-                assertThatThrownBy(() -> createMachineService.execute(reqDto))
-                        .isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> createMachineService.execute(reqDto)).isInstanceOf(ExpectedException.class)
                         .hasMessage("이미 등록된 Device ID입니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.CONFLICT));
@@ -111,8 +110,7 @@ class CreateMachineServiceTest {
                         .willReturn(Optional.of(existingMachine));
 
                 // When & Then
-                assertThatThrownBy(() -> createMachineService.execute(reqDto))
-                        .isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> createMachineService.execute(reqDto)).isInstanceOf(ExpectedException.class)
                         .hasMessage("해당 위치에 이미 기기가 등록되어 있습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.CONFLICT));

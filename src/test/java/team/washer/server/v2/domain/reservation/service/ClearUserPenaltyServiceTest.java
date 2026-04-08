@@ -39,8 +39,8 @@ class ClearUserPenaltyServiceTest {
     private CurrentUserProvider currentUserProvider;
 
     private User createAdmin() {
-        return User.builder().name("관리자").studentId("20210001").roomNumber("301").grade(3).floor(3)
-                .role(UserRole.ADMIN).build();
+        return User.builder().name("관리자").studentId("20210001").roomNumber("301").grade(3).floor(3).role(UserRole.ADMIN)
+                .build();
     }
 
     private User createUser() {
@@ -88,10 +88,8 @@ class ClearUserPenaltyServiceTest {
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
                 // When & Then
-                assertThatThrownBy(() -> clearUserPenaltyService.execute(3L))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("관리자 권한이 필요합니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                assertThatThrownBy(() -> clearUserPenaltyService.execute(3L)).isInstanceOf(ExpectedException.class)
+                        .hasMessage("관리자 권한이 필요합니다").satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.FORBIDDEN));
 
                 then(penaltyRedisUtil).shouldHaveNoInteractions();
@@ -111,10 +109,8 @@ class ClearUserPenaltyServiceTest {
                 given(userRepository.findById(adminId)).willReturn(Optional.empty());
 
                 // When & Then
-                assertThatThrownBy(() -> clearUserPenaltyService.execute(1L))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("사용자를 찾을 수 없습니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                assertThatThrownBy(() -> clearUserPenaltyService.execute(1L)).isInstanceOf(ExpectedException.class)
+                        .hasMessage("사용자를 찾을 수 없습니다").satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.NOT_FOUND));
 
                 then(penaltyRedisUtil).shouldHaveNoInteractions();

@@ -47,14 +47,12 @@ class SyncSmartThingsDevicesServiceTest {
     private MachineRepository machineRepository;
 
     private SmartThingsToken createValidToken() {
-        return SmartThingsToken.builder()
-                .accessToken("valid-access-token").refreshToken("refresh-token")
+        return SmartThingsToken.builder().accessToken("valid-access-token").refreshToken("refresh-token")
                 .expiresAt(LocalDateTime.now().plusHours(1)).build();
     }
 
     private SmartThingsToken createExpiredToken() {
-        return SmartThingsToken.builder()
-                .accessToken("expired-access-token").refreshToken("refresh-token")
+        return SmartThingsToken.builder().accessToken("expired-access-token").refreshToken("refresh-token")
                 .expiresAt(LocalDateTime.now().minusMinutes(10)).build();
     }
 
@@ -155,8 +153,7 @@ class SyncSmartThingsDevicesServiceTest {
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.empty());
 
                 // When & Then
-                assertThatThrownBy(() -> syncSmartThingsDevicesService.execute())
-                        .isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> syncSmartThingsDevicesService.execute()).isInstanceOf(ExpectedException.class)
                         .hasMessage("SmartThings 토큰이 존재하지 않습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.NOT_FOUND));
@@ -177,8 +174,7 @@ class SyncSmartThingsDevicesServiceTest {
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.of(expiredToken));
 
                 // When & Then
-                assertThatThrownBy(() -> syncSmartThingsDevicesService.execute())
-                        .isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> syncSmartThingsDevicesService.execute()).isInstanceOf(ExpectedException.class)
                         .hasMessage("SmartThings 토큰이 만료되었거나 유효하지 않습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.UNAUTHORIZED));

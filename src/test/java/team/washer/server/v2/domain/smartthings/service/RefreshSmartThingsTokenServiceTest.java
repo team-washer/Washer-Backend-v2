@@ -42,14 +42,12 @@ class RefreshSmartThingsTokenServiceTest {
     private SmartThingsEnvironment smartThingsEnvironment;
 
     private SmartThingsToken createExpiredToken() {
-        return SmartThingsToken.builder()
-                .accessToken("old-access").refreshToken("old-refresh")
+        return SmartThingsToken.builder().accessToken("old-access").refreshToken("old-refresh")
                 .expiresAt(LocalDateTime.now().minusMinutes(1)).build();
     }
 
     private SmartThingsToken createValidToken() {
-        return SmartThingsToken.builder()
-                .accessToken("valid-access").refreshToken("valid-refresh")
+        return SmartThingsToken.builder().accessToken("valid-access").refreshToken("valid-refresh")
                 .expiresAt(LocalDateTime.now().plusHours(2)).build();
     }
 
@@ -66,8 +64,11 @@ class RefreshSmartThingsTokenServiceTest {
             void it_refreshes_token() {
                 // Given
                 var expiredToken = createExpiredToken();
-                var refreshResponse = new SmartThingsTokenExchangeResDto(
-                        "new-access", "new-refresh", "Bearer", 3600, "r:devices:*");
+                var refreshResponse = new SmartThingsTokenExchangeResDto("new-access",
+                        "new-refresh",
+                        "Bearer",
+                        3600,
+                        "r:devices:*");
 
                 given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(expiredToken));
                 given(smartThingsEnvironment.clientId()).willReturn("client-id");
@@ -115,8 +116,7 @@ class RefreshSmartThingsTokenServiceTest {
                 given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.empty());
 
                 // When & Then
-                assertThatThrownBy(() -> refreshSmartThingsTokenService.execute())
-                        .isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> refreshSmartThingsTokenService.execute()).isInstanceOf(ExpectedException.class)
                         .hasMessage("SmartThings 토큰이 존재하지 않습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.NOT_FOUND));
@@ -141,8 +141,7 @@ class RefreshSmartThingsTokenServiceTest {
                         .willThrow(new RuntimeException("API 오류"));
 
                 // When & Then
-                assertThatThrownBy(() -> refreshSmartThingsTokenService.execute())
-                        .isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> refreshSmartThingsTokenService.execute()).isInstanceOf(ExpectedException.class)
                         .hasMessageContaining("SmartThings 토큰 갱신에 실패했습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR));

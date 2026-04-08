@@ -62,8 +62,7 @@ class CancelReservationServiceTest {
         var machine = createMachine();
         given(user.getId()).willReturn(userId);
         given(user.getRoomNumber()).willReturn("301");
-        return Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now())
-                .status(status).build();
+        return Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now()).status(status).build();
     }
 
     @Nested
@@ -147,8 +146,7 @@ class CancelReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("예약을 취소할 권한이 없습니다")
+                        .isInstanceOf(ExpectedException.class).hasMessage("예약을 취소할 권한이 없습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.FORBIDDEN));
             }
@@ -171,8 +169,7 @@ class CancelReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("활성 예약만 취소할 수 있습니다")
+                        .isInstanceOf(ExpectedException.class).hasMessage("활성 예약만 취소할 수 있습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));
             }
@@ -193,8 +190,7 @@ class CancelReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class)
-                        .hasMessage("예약을 찾을 수 없습니다")
+                        .isInstanceOf(ExpectedException.class).hasMessage("예약을 찾을 수 없습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.NOT_FOUND));
             }
