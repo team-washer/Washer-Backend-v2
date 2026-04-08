@@ -16,6 +16,7 @@ import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.request.SundayActivationReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminCancellationResDto;
+import team.washer.server.v2.domain.reservation.dto.response.AdminMachineHistoryResDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminReservationListResDto;
 import team.washer.server.v2.domain.reservation.dto.response.PenaltyStatusResDto;
 import team.washer.server.v2.domain.reservation.dto.response.SundayStatusResDto;
@@ -36,6 +37,7 @@ public class AdminReservationController {
     private final ClearUserPenaltyService clearUserPenaltyService;
     private final QueryAllReservationsService queryAllReservationsService;
     private final AdminCancelReservationService adminCancelReservationService;
+    private final QueryAdminMachineHistoryService queryAdminMachineHistoryService;
 
     @PostMapping("/sunday/activate")
     @Operation(summary = "일요일 예약 활성화", description = "일요일 예약을 활성화합니다. DORMITORY_COUNCIL 권한이 필요합니다.")
@@ -89,6 +91,14 @@ public class AdminReservationController {
 
         return queryAllReservationsService
                 .execute(userName, machineName, status, startDate, endDate, machineType, pageable);
+    }
+
+    @GetMapping("/machines/history")
+    @Operation(summary = "기기별 예약 히스토리 조회", description = "기기명으로 필터링된 예약 히스토리를 기기별로 그룹핑하여 반환합니다. 기기명 미지정 시 전체 기기 히스토리를 조회합니다.")
+    public AdminMachineHistoryResDto getMachineHistory(
+            @Parameter(description = "기기명 (부분 검색, 미지정 시 전체 조회)") @RequestParam(required = false) String machineName) {
+
+        return queryAdminMachineHistoryService.execute(machineName);
     }
 
     @DeleteMapping("/{id}")
