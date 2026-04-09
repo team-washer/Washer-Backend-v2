@@ -20,7 +20,7 @@ public final class DateTimeUtil {
             return utcTime.withZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDateTime();
         } catch (Exception e) {
             log.warn("Failed to parse time: {}", timeStr, e);
-            return LocalDateTime.now();
+            return null;
         }
     }
 
@@ -36,6 +36,6 @@ public final class DateTimeUtil {
         } catch (Exception e) {
             log.warn("Failed to get expected completion time for device: {}", deviceId, e);
         }
-        return LocalDateTime.now().plusHours(2);
+        return null;
     }
 }
