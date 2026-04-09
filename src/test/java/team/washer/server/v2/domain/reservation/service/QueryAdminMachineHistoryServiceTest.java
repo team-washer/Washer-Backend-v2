@@ -53,15 +53,13 @@ class QueryAdminMachineHistoryServiceTest {
 
     private Reservation createCompletedReservation(User user, Machine machine) {
         return Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now().minusHours(2))
-                .startTime(LocalDateTime.now().minusHours(1))
-                .actualCompletionTime(LocalDateTime.now())
+                .startTime(LocalDateTime.now().minusHours(1)).actualCompletionTime(LocalDateTime.now())
                 .status(ReservationStatus.COMPLETED).build();
     }
 
     private Reservation createCancelledReservation(User user, Machine machine) {
         return Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now().minusMinutes(10))
-                .cancelledAt(LocalDateTime.now().minusMinutes(7))
-                .status(ReservationStatus.CANCELLED).build();
+                .cancelledAt(LocalDateTime.now().minusMinutes(7)).status(ReservationStatus.CANCELLED).build();
     }
 
     @Nested
@@ -136,8 +134,7 @@ class QueryAdminMachineHistoryServiceTest {
                 Reservation completed = createCompletedReservation(user, machine);
                 Reservation cancelled = createCancelledReservation(user, machine);
 
-                given(reservationRepository.findAllByMachineNameFilter(null))
-                        .willReturn(List.of(completed, cancelled));
+                given(reservationRepository.findAllByMachineNameFilter(null)).willReturn(List.of(completed, cancelled));
 
                 // When
                 AdminMachineHistoryResDto result = queryAdminMachineHistoryService.execute(null);
@@ -147,13 +144,13 @@ class QueryAdminMachineHistoryServiceTest {
                 var reservations = result.machines().get(0).reservations();
                 assertThat(reservations).hasSize(2);
 
-                var completedDto = reservations.stream()
-                        .filter(r -> r.status() == ReservationStatus.COMPLETED).findFirst().orElseThrow();
+                var completedDto = reservations.stream().filter(r -> r.status() == ReservationStatus.COMPLETED)
+                        .findFirst().orElseThrow();
                 assertThat(completedDto.actualCompletionTime()).isNotNull();
                 assertThat(completedDto.cancelledAt()).isNull();
 
-                var cancelledDto = reservations.stream()
-                        .filter(r -> r.status() == ReservationStatus.CANCELLED).findFirst().orElseThrow();
+                var cancelledDto = reservations.stream().filter(r -> r.status() == ReservationStatus.CANCELLED)
+                        .findFirst().orElseThrow();
                 assertThat(cancelledDto.cancelledAt()).isNotNull();
                 assertThat(cancelledDto.actualCompletionTime()).isNull();
             }

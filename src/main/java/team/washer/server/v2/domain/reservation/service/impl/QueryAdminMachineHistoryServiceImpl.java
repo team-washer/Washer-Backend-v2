@@ -27,10 +27,8 @@ public class QueryAdminMachineHistoryServiceImpl implements QueryAdminMachineHis
         final var machines = reservations.stream()
                 .collect(Collectors.groupingBy(r -> r.getMachine().getName(),
                         Collectors.mapping(this::toItemDto, Collectors.toList())))
-                .entrySet().stream()
-                .sorted(java.util.Map.Entry.comparingByKey())
-                .map(entry -> new AdminMachineHistoryGroupResDto(entry.getKey(), entry.getValue()))
-                .toList();
+                .entrySet().stream().sorted(java.util.Map.Entry.comparingByKey())
+                .map(entry -> new AdminMachineHistoryGroupResDto(entry.getKey(), entry.getValue())).toList();
 
         return new AdminMachineHistoryResDto(machines);
     }
