@@ -9,17 +9,14 @@ import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.machine.enums.MachineType;
-import team.washer.server.v2.domain.reservation.dto.request.SundayActivationReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminCancellationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminMachineHistoryResDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminReservationListResDto;
 import team.washer.server.v2.domain.reservation.dto.response.PenaltyStatusResDto;
-import team.washer.server.v2.domain.reservation.dto.response.SundayStatusResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.*;
 
@@ -30,38 +27,11 @@ import team.washer.server.v2.domain.reservation.service.*;
 @Tag(name = "Admin Reservation", description = "예약 관리 API (관리자용)")
 public class AdminReservationController {
 
-    private final ActivateSundayReservationService activateSundayReservationService;
-    private final DeactivateSundayReservationService deactivateSundayReservationService;
-    private final QuerySundayReservationStatusService querySundayReservationStatusService;
     private final QueryPenaltyStatusService queryPenaltyStatusService;
     private final ClearUserPenaltyService clearUserPenaltyService;
     private final QueryAllReservationsService queryAllReservationsService;
     private final AdminCancelReservationService adminCancelReservationService;
     private final QueryAdminMachineHistoryService queryAdminMachineHistoryService;
-
-    @PostMapping("/sunday/activate")
-    @Operation(summary = "일요일 예약 활성화", description = "일요일 예약을 활성화합니다. DORMITORY_COUNCIL 권한이 필요합니다.")
-    public CommonApiResponse activateSundayReservation(
-            @Parameter(description = "활성화 요청 DTO") @RequestBody @Valid SundayActivationReqDto requestDto) {
-
-        activateSundayReservationService.execute(requestDto.notes());
-        return CommonApiResponse.success("일요일 예약이 활성화되었습니다.");
-    }
-
-    @PostMapping("/sunday/deactivate")
-    @Operation(summary = "일요일 예약 비활성화", description = "일요일 예약을 비활성화합니다. DORMITORY_COUNCIL 권한이 필요합니다.")
-    public CommonApiResponse deactivateSundayReservation(
-            @Parameter(description = "비활성화 요청 DTO") @RequestBody @Valid SundayActivationReqDto requestDto) {
-
-        deactivateSundayReservationService.execute(requestDto.notes());
-        return CommonApiResponse.success("일요일 예약이 비활성화되었습니다.");
-    }
-
-    @GetMapping("/sunday/status")
-    @Operation(summary = "일요일 예약 상태 조회", description = "일요일 예약 활성화 상태와 히스토리를 조회합니다.")
-    public SundayStatusResDto getSundayReservationStatus() {
-        return querySundayReservationStatusService.execute();
-    }
 
     @GetMapping("/users/{userId}/penalty-status")
     @Operation(summary = "사용자 패널티 상태 조회", description = "특정 사용자의 패널티 상태를 조회합니다.")
