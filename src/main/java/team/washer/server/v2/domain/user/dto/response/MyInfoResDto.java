@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.user.dto.response;
 import java.time.LocalDateTime;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import team.washer.server.v2.domain.user.enums.UserRole;
 
 @Schema(description = "내 정보 응답 DTO")
 public record MyInfoResDto(@Schema(description = "사용자 ID", example = "1") Long id,
@@ -25,5 +26,7 @@ public record MyInfoResDto(@Schema(description = "사용자 ID", example = "1") 
 
         @Schema(description = "예약 가능 여부", example = "true") boolean canReserve,
 
-        @Schema(description = "패널티 만료 시간 (패널티 없을 경우 null)", example = "2026-03-12T21:30:00") LocalDateTime penaltyExpiresAt) {
+        @Schema(description = "패널티 만료 시간 (패널티 없을 경우 null)", example = "2026-03-12T21:30:00") LocalDateTime penaltyExpiresAt,
+
+        @Schema(description = "계정 권한", example = "USER") UserRole role) {
 }

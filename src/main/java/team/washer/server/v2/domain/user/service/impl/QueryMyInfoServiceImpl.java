@@ -42,6 +42,7 @@ public class QueryMyInfoServiceImpl implements QueryMyInfoService {
                 user.getCreatedAt(),
                 user.getUpdatedAt(),
                 canReserve,
-                canReserve ? null : penaltyExpiresAt);
+                canReserve ? null : penaltyExpiresAt,
+                user.getRole());
     }
 }
