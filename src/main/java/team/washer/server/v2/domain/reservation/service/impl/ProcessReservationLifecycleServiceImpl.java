@@ -116,7 +116,8 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                         reservation.clearPausedAt();
                         log.info("Reservation {} resumed from pause, clearing pause tracking", reservation.getId());
                     }
-                    var updatedExpectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(status.getCompletionTime());
+                    var updatedExpectedCompletionTime = DateTimeUtil
+                            .parseAndConvertToKoreaTime(status.getCompletionTime());
                     var current = reservation.getExpectedCompletionTime();
                     if (updatedExpectedCompletionTime != null && (current == null
                             || Math.abs(Duration.between(current, updatedExpectedCompletionTime).toSeconds()) >= 60)) {

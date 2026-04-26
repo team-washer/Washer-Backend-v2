@@ -160,7 +160,8 @@ class ProcessReservationLifecycleServiceTest {
             when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
             when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class)))
                     .thenReturn(Optional.empty());
-            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
+            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class)))
+                    .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
             when(reservation.getExpectedCompletionTime()).thenReturn(null);
 
@@ -220,7 +221,8 @@ class ProcessReservationLifecycleServiceTest {
             when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
             when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class)))
                     .thenReturn(Optional.empty());
-            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
+            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class)))
+                    .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class))).thenReturn(true);
             when(reservation.getPausedAt()).thenReturn(null);
 
@@ -249,7 +251,8 @@ class ProcessReservationLifecycleServiceTest {
             when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
             when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class)))
                     .thenReturn(Optional.empty());
-            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
+            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class)))
+                    .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class))).thenReturn(true);
             when(reservation.getPausedAt()).thenReturn(LocalDateTime.now().minusMinutes(11));
 
@@ -281,7 +284,8 @@ class ProcessReservationLifecycleServiceTest {
             when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
             when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class)))
                     .thenReturn(Optional.empty());
-            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
+            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class)))
+                    .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
             when(reservation.getPausedAt()).thenReturn(LocalDateTime.now().minusMinutes(3));
             when(reservation.getExpectedCompletionTime()).thenReturn(null);
