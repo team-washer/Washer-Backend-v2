@@ -101,7 +101,6 @@ class CancelOverdueReservationServiceTest {
             when(reservation.getMachine()).thenReturn(machine);
             when(reservation.getUser()).thenReturn(user);
             when(machine.getDeviceId()).thenReturn("device-123");
-            when(machineStateDetectionSupport.isRunning("device-123")).thenReturn(true);
 
             var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
                     "2026-01-26T14:30:00Z",
@@ -110,6 +109,7 @@ class CancelOverdueReservationServiceTest {
             var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(java.util.Map.of("main", componentStatus));
             when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
+            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class))).thenReturn(true);
 
             // When
             cancelOverdueReservationService.execute();
@@ -132,12 +132,14 @@ class CancelOverdueReservationServiceTest {
         @DisplayName("예약을 취소하고 타임아웃 패널티를 부여한다 (첫 경고)")
         void execute_ShouldCancelAndApplyTimeoutPenalty_WhenFirstWarning() {
             // Given
+            var deviceStatus = new SmartThingsDeviceStatusResDto(java.util.Map.of());
             when(reservationRepository.findExpiredReservations(eq(ReservationStatus.RESERVED),
                     any(LocalDateTime.class),
                     any(LocalDateTime.class))).thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
-            when(machineStateDetectionSupport.isRunning("device-123")).thenReturn(false);
+            when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
+            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
             when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(penaltyRedisUtil.hasWarning(1L)).thenReturn(false);
@@ -161,12 +163,14 @@ class CancelOverdueReservationServiceTest {
         @DisplayName("이미 경고가 있으면 자동 취소 알림을 전송한다")
         void execute_ShouldSendAutoCancellation_WhenWarningAlreadyExists() {
             // Given
+            var deviceStatus = new SmartThingsDeviceStatusResDto(java.util.Map.of());
             when(reservationRepository.findExpiredReservations(eq(ReservationStatus.RESERVED),
                     any(LocalDateTime.class),
                     any(LocalDateTime.class))).thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
-            when(machineStateDetectionSupport.isRunning("device-123")).thenReturn(false);
+            when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
+            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
             when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(penaltyRedisUtil.hasWarning(1L)).thenReturn(true);
@@ -187,12 +191,14 @@ class CancelOverdueReservationServiceTest {
         @DisplayName("48시간 내 취소 횟수가 4회를 초과하면 48시간 예약 차단을 적용한다")
         void execute_ShouldApplyBlock_WhenCancellationCountExceedsLimit() {
             // Given
+            var deviceStatus = new SmartThingsDeviceStatusResDto(java.util.Map.of());
             when(reservationRepository.findExpiredReservations(eq(ReservationStatus.RESERVED),
                     any(LocalDateTime.class),
                     any(LocalDateTime.class))).thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
-            when(machineStateDetectionSupport.isRunning("device-123")).thenReturn(false);
+            when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
+            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
             when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(user.getRoomNumber()).thenReturn("101");
