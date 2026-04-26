@@ -9,5 +9,11 @@ public record AdminDashboardResDto(@Schema(description = "활성 예약 수", ex
 
         @Schema(description = "처리 중인 고장 신고 수", example = "2") Long processingMalfunctionReports,
 
-        @Schema(description = "처리 완료된 고장 신고 수", example = "10") Long completedMalfunctionReports) {
+        @Schema(description = "처리 완료된 고장 신고 수", example = "10") Long completedMalfunctionReports,
+
+        @Schema(description = "전체 기기 수", example = "8") Long totalMachines,
+
+        @Schema(description = "고장 상태 기기 수", example = "2") Long malfunctionMachines,
+
+        @Schema(description = "세탁 정지된 학생 수", example = "1") Long suspendedStudents) {
 }

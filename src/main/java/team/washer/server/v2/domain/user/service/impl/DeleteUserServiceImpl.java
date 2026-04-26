@@ -30,15 +30,14 @@ public class DeleteUserServiceImpl implements DeleteUserService {
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         // 활성 예약이 있는지 확인
-        final var activeStatuses = List
-                .of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING);
+        final var activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
         final boolean hasActiveReservations = reservationRepository.existsByUserAndStatusIn(user, activeStatuses);
 
         if (hasActiveReservations) {
             throw new ExpectedException("활성 예약이 있는 사용자는 삭제할 수 없습니다", HttpStatus.BAD_REQUEST);
         }
 
-        // Hard delete
+        // 물리적 삭제
         userRepository.delete(user);
     }
 }

@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.user.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,4 +32,7 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
 
     @Query("SELECT u FROM User u WHERE u.penaltyCount > :threshold ORDER BY u.penaltyCount DESC")
     List<User> findUsersWithPenaltyAbove(@Param("threshold") Integer threshold);
+
+    @Query("SELECT COUNT(u) FROM User u WHERE u.lastCancellationAt IS NOT NULL AND u.lastCancellationAt >= :threshold")
+    long countSuspendedStudents(@Param("threshold") LocalDateTime threshold);
 }

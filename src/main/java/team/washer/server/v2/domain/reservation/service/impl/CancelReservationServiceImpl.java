@@ -1,7 +1,5 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import java.time.LocalDateTime;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +14,7 @@ import team.washer.server.v2.domain.reservation.repository.ReservationRepository
 import team.washer.server.v2.domain.reservation.service.CancelReservationService;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.constants.PenaltyConstants;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @Slf4j
@@ -44,14 +43,19 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         }
 
         boolean applyPenalty = false;
-        LocalDateTime penaltyExpiresAt = null;
 
-        if (reservation.isReserved() && !reservation.isExpired()) {
+        // RESERVED 상태에서 수동 취소 시 패널티 적용
+        if (reservation.isReserved()) {
             final User user = reservation.getUser();
-            penaltyRedisUtil.applyPenalty(user);
-            penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
+            penaltyRedisUtil.applyCooldown(userId);
+            penaltyRedisUtil.recordCancellation(userId);
+            user.updateLastCancellationTime();
+            if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
+                penaltyRedisUtil.applyBlock(user.getRoomNumber());
+                log.warn("48h block applied roomNumber {}", user.getRoomNumber());
+            }
             applyPenalty = true;
-            log.info("Applied penalty to user {} for cancelling reservation {}", userId, reservationId);
+            log.info("manual cancel penalty applied userId {} reservationId {}", userId, reservationId);
         }
 
         final var machine = reservation.getMachine();
@@ -61,12 +65,11 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         machineRepository.save(machine);
         log.info("Cancelled reservation {} by user {}", reservationId, userId);
 
-        return mapToCancellationResDto(applyPenalty, penaltyExpiresAt);
+        return mapToCancellationResDto(applyPenalty);
     }
 
-    private CancellationResDto mapToCancellationResDto(final boolean penaltyApplied,
-            final LocalDateTime penaltyExpiresAt) {
-        final String message = penaltyApplied ? "예약이 취소되었습니다. 10분간 예약이 제한됩니다." : "예약이 취소되었습니다.";
-        return new CancellationResDto(true, message, penaltyApplied, penaltyExpiresAt);
+    private CancellationResDto mapToCancellationResDto(final boolean penaltyApplied) {
+        final String message = penaltyApplied ? "예약이 취소되었습니다. 5분간 재예약이 제한됩니다." : "예약이 취소되었습니다.";
+        return new CancellationResDto(true, message, penaltyApplied, null);
     }
 }

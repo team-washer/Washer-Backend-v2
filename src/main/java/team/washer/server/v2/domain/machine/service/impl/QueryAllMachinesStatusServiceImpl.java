@@ -19,7 +19,7 @@ import team.washer.server.v2.domain.machine.service.QueryAllMachinesStatusServic
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.service.QueryAllDevicesStatusService;
+import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Service
@@ -32,7 +32,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
 
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
-    private final QueryAllDevicesStatusService queryAllDevicesStatusService;
+    private final DeviceStatusQuerySupport deviceStatusQuerySupport;
 
     @Override
     @Transactional(readOnly = true)
@@ -42,7 +42,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
         var machines = sorted ? machineRepository.findAll(DEFAULT_SORT) : machineRepository.findAll();
         var deviceIds = machines.stream().map(Machine::getDeviceId).toList();
 
-        var deviceStatusMap = queryAllDevicesStatusService.execute(deviceIds);
+        var deviceStatusMap = deviceStatusQuerySupport.queryAllDevicesStatus(deviceIds);
 
         var results = machines.stream().map(machine -> {
             var reservation = reservationRepository.findActiveReservationByMachineId(machine.getId()).orElse(null);
@@ -68,11 +68,13 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
             jobState = getJobState(machine, deviceStatus);
             switchStatus = deviceStatus.getSwitchStatus();
 
-            var completionTimeStr = deviceStatus.getCompletionTime();
-            if (completionTimeStr != null && !completionTimeStr.isBlank()) {
-                expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr);
-                if (expectedCompletionTime != null) {
-                    remainingMinutes = calculateRemainingMinutes(expectedCompletionTime);
+            if (reservation != null) {
+                var completionTimeStr = deviceStatus.getCompletionTime();
+                if (completionTimeStr != null && !completionTimeStr.isBlank()) {
+                    expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr);
+                    if (expectedCompletionTime != null) {
+                        remainingMinutes = calculateRemainingMinutes(expectedCompletionTime);
+                    }
                 }
             }
         }
@@ -106,7 +108,6 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
         return switch (reservation.getStatus()) {
             case RUNNING -> MachineAvailability.IN_USE;
             case RESERVED -> MachineAvailability.RESERVED;
-            case CONFIRMED -> MachineAvailability.CONFIRMED;
             default -> throw new IllegalStateException("활성 예약의 상태가 유효하지 않습니다: " + reservation.getStatus());
         };
     }

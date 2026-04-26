@@ -6,8 +6,9 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public enum MachineType {
-    WASHER("Washer", "세탁기"), DRYER("Dryer", "건조기");
+    WASHER("Washer", "세탁기", "세탁이"), DRYER("Dryer", "건조기", "건조가");
 
     private final String code;
     private final String description;
+    private final String actionNoun;
 }

@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.admin.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.DisplayName;
@@ -12,9 +13,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import team.washer.server.v2.domain.admin.service.impl.QueryAdminDashboardServiceImpl;
+import team.washer.server.v2.domain.machine.enums.MachineStatus;
+import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.malfunction.enums.MalfunctionReportStatus;
 import team.washer.server.v2.domain.malfunction.repository.MalfunctionReportRepository;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
 class QueryAdminDashboardServiceTest {
@@ -28,18 +32,27 @@ class QueryAdminDashboardServiceTest {
     @Mock
     private MalfunctionReportRepository malfunctionReportRepository;
 
+    @Mock
+    private MachineRepository machineRepository;
+
+    @Mock
+    private UserRepository userRepository;
+
     @Nested
     @DisplayName("관리자 대시보드 통계 조회")
     class ExecuteTest {
 
         @Test
-        @DisplayName("활성 예약, 고장 신고 통계를 성공적으로 조회한다")
+        @DisplayName("활성 예약, 고장 신고, 기기, 세탁정지 학생 통계를 성공적으로 조회한다")
         void execute_ShouldReturnDashboardStatistics_WhenDataExists() {
             // Given
             when(reservationRepository.countActiveReservations()).thenReturn(5L);
             when(malfunctionReportRepository.countByStatus(MalfunctionReportStatus.PENDING)).thenReturn(3L);
             when(malfunctionReportRepository.countByStatus(MalfunctionReportStatus.IN_PROGRESS)).thenReturn(2L);
             when(malfunctionReportRepository.countByStatus(MalfunctionReportStatus.RESOLVED)).thenReturn(10L);
+            when(machineRepository.count()).thenReturn(8L);
+            when(machineRepository.countByStatus(MachineStatus.MALFUNCTION)).thenReturn(2L);
+            when(userRepository.countSuspendedStudents(any())).thenReturn(1L);
 
             // When
             var result = queryAdminDashboardService.execute();
@@ -50,6 +63,9 @@ class QueryAdminDashboardServiceTest {
             assertThat(result.pendingMalfunctionReports()).isEqualTo(3L);
             assertThat(result.processingMalfunctionReports()).isEqualTo(2L);
             assertThat(result.completedMalfunctionReports()).isEqualTo(10L);
+            assertThat(result.totalMachines()).isEqualTo(8L);
+            assertThat(result.malfunctionMachines()).isEqualTo(2L);
+            assertThat(result.suspendedStudents()).isEqualTo(1L);
         }
 
         @Test
@@ -60,6 +76,9 @@ class QueryAdminDashboardServiceTest {
             when(malfunctionReportRepository.countByStatus(MalfunctionReportStatus.PENDING)).thenReturn(0L);
             when(malfunctionReportRepository.countByStatus(MalfunctionReportStatus.IN_PROGRESS)).thenReturn(0L);
             when(malfunctionReportRepository.countByStatus(MalfunctionReportStatus.RESOLVED)).thenReturn(0L);
+            when(machineRepository.count()).thenReturn(0L);
+            when(machineRepository.countByStatus(MachineStatus.MALFUNCTION)).thenReturn(0L);
+            when(userRepository.countSuspendedStudents(any())).thenReturn(0L);
 
             // When
             var result = queryAdminDashboardService.execute();
@@ -70,6 +89,9 @@ class QueryAdminDashboardServiceTest {
             assertThat(result.pendingMalfunctionReports()).isZero();
             assertThat(result.processingMalfunctionReports()).isZero();
             assertThat(result.completedMalfunctionReports()).isZero();
+            assertThat(result.totalMachines()).isZero();
+            assertThat(result.malfunctionMachines()).isZero();
+            assertThat(result.suspendedStudents()).isZero();
         }
     }
 }

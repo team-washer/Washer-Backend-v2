@@ -20,7 +20,7 @@ import team.washer.server.v2.global.common.entity.BaseEntity;
         @Index(name = "idx_reported_at", columnList = "reported_at")})
 @Getter
 @Builder
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class MalfunctionReport extends BaseEntity {
 
@@ -55,6 +55,9 @@ public class MalfunctionReport extends BaseEntity {
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
 
+    /**
+     * 신고를 처리 중 상태(IN_PROGRESS)로 전환합니다. PENDING 상태가 아니면 예외를 발생시킵니다.
+     */
     public void startProcessing() {
         if (this.status != MalfunctionReportStatus.PENDING) {
             throw new ExpectedException("대기 중인 신고만 처리를 시작할 수 있습니다", HttpStatus.BAD_REQUEST);
@@ -74,6 +77,9 @@ public class MalfunctionReport extends BaseEntity {
         this.resolvedAt = LocalDateTime.now();
     }
 
+    /**
+     * 신고를 재개 상태(IN_PROGRESS)로 전환합니다. RESOLVED 상태가 아니면 예외를 발생시킵니다.
+     */
     public void reopen() {
         if (this.status != MalfunctionReportStatus.RESOLVED) {
             throw new ExpectedException("처리 완료된 신고만 재개할 수 있습니다", HttpStatus.BAD_REQUEST);

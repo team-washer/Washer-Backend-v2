@@ -28,7 +28,7 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.service.QueryAllDevicesStatusService;
+import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.user.entity.User;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,7 +44,7 @@ class QueryAllMachinesStatusServiceTest {
     private ReservationRepository reservationRepository;
 
     @Mock
-    private QueryAllDevicesStatusService queryAllDevicesStatusService;
+    private DeviceStatusQuerySupport deviceStatusQuerySupport;
 
     @Mock
     private Reservation reservation;
@@ -80,7 +80,7 @@ class QueryAllMachinesStatusServiceTest {
             var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
 
-            when(queryAllDevicesStatusService.execute(List.of("device-1", "device-2")))
+            when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1", "device-2")))
                     .thenReturn(Map.of("device-1", deviceStatus, "device-2", deviceStatus));
 
             when(reservationRepository.findActiveReservationByMachineId(any())).thenReturn(Optional.empty());
@@ -104,7 +104,7 @@ class QueryAllMachinesStatusServiceTest {
                     .availability(MachineAvailability.AVAILABLE).build();
 
             when(machineRepository.findAll()).thenReturn(List.of(machine1));
-            when(queryAllDevicesStatusService.execute(any())).thenReturn(Map.of());
+            when(deviceStatusQuerySupport.queryAllDevicesStatus(any())).thenReturn(Map.of());
             when(reservationRepository.findActiveReservationByMachineId(any())).thenReturn(Optional.empty());
 
             // When
@@ -139,7 +139,7 @@ class QueryAllMachinesStatusServiceTest {
 
         private void givenMachineWithReservation(Machine machine, Reservation reservationOrNull) {
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
-            when(queryAllDevicesStatusService.execute(any())).thenReturn(Map.of());
+            when(deviceStatusQuerySupport.queryAllDevicesStatus(any())).thenReturn(Map.of());
             when(reservationRepository.findActiveReservationByMachineId(any()))
                     .thenReturn(Optional.ofNullable(reservationOrNull));
         }
@@ -170,21 +170,6 @@ class QueryAllMachinesStatusServiceTest {
 
             // Then
             assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.RESERVED);
-        }
-
-        @Test
-        @DisplayName("예약 상태가 CONFIRMED이면 CONFIRMED를 반환한다")
-        void computeAvailability_ShouldReturnConfirmed_WhenReservationStatusIsConfirmed() {
-            // Given
-            when(reservation.getStatus()).thenReturn(ReservationStatus.CONFIRMED);
-            when(reservation.getUser()).thenReturn(user);
-            givenMachineWithReservation(buildMachine(MachineAvailability.AVAILABLE), reservation);
-
-            // When
-            var result = queryAllMachinesStatusService.execute(true);
-
-            // Then
-            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.CONFIRMED);
         }
 
         @Test

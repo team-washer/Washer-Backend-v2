@@ -1,5 +1,7 @@
 package team.washer.server.v2.domain.notification.entity;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -17,7 +19,7 @@ import team.washer.server.v2.global.common.entity.BaseEntity;
         @Index(name = "idx_created_at", columnList = "created_at")})
 @Getter
 @Builder
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class Notification extends BaseEntity {
 
@@ -44,17 +46,31 @@ public class Notification extends BaseEntity {
     @Builder.Default
     private boolean isRead = false;
 
-    // Note: createdAt from BaseEntity serves as the notification creation time
-
-    // Business Methods
-
+    /**
+     * 세탁/건조 완료 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            완료된 기기
+     * @return 생성된 완료 알림
+     */
     public static Notification createCompletionNotification(User user, Machine machine) {
-        String message = NotificationType.COMPLETION.getMessageTemplate().replace("{machineName}", machine.getName());
+        String message = NotificationType.COMPLETION.formatMessage(machine.getName(), machine.getType());
 
         return Notification.builder().user(user).machine(machine).type(NotificationType.COMPLETION).message(message)
                 .isRead(false).build();
     }
 
+    /**
+     * 기기 고장 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            고장 기기
+     * @return 생성된 고장 알림
+     */
     public static Notification createMalfunctionNotification(User user, Machine machine) {
         String message = NotificationType.MALFUNCTION.getMessageTemplate().replace("{machineName}", machine.getName());
 
@@ -62,6 +78,66 @@ public class Notification extends BaseEntity {
                 .isRead(false).build();
     }
 
+    /**
+     * 예약 자동 취소 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            대상 기기
+     * @return 생성된 자동 취소 알림
+     */
+    public static Notification createAutoCancellationNotification(User user, Machine machine) {
+        String message = NotificationType.AUTO_CANCELLED.getMessageTemplate().replace("{machineName}",
+                machine.getName());
+
+        return Notification.builder().user(user).machine(machine).type(NotificationType.AUTO_CANCELLED).message(message)
+                .isRead(false).build();
+    }
+
+    /**
+     * 세탁 중단 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            중단된 기기
+     * @return 생성된 세탁 중단 알림
+     */
+    public static Notification createInterruptionNotification(User user, Machine machine) {
+        String message = NotificationType.INTERRUPTION.formatMessage(machine.getName(), machine.getType());
+
+        return Notification.builder().user(user).machine(machine).type(NotificationType.INTERRUPTION).message(message)
+                .isRead(false).build();
+    }
+
+    /**
+     * 일시정지 초과 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            대상 기기
+     * @return 생성된 일시정지 초과 알림
+     */
+    public static Notification createPauseTimeoutNotification(User user, Machine machine) {
+        String message = NotificationType.PAUSE_TIMEOUT.formatMessage(machine.getName(), machine.getType());
+
+        return Notification.builder().user(user).machine(machine).type(NotificationType.PAUSE_TIMEOUT).message(message)
+                .isRead(false).build();
+    }
+
+    /**
+     * 경고 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            대상 기기
+     * @param reason
+     *            경고 사유
+     * @return 생성된 경고 알림
+     */
     public static Notification createWarningNotification(User user, Machine machine, String reason) {
         String message = NotificationType.WARNING.getMessageTemplate().replace("{machineName}", machine.getName())
                 .replace("{reason}", reason);
@@ -70,10 +146,53 @@ public class Notification extends BaseEntity {
                 .isRead(false).build();
     }
 
+    /**
+     * 세탁/건조 시작 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            시작된 기기
+     * @param expectedCompletionTime
+     *            예상 완료 시각
+     * @return 생성된 시작 알림
+     */
+    public static Notification createStartedNotification(User user,
+            Machine machine,
+            LocalDateTime expectedCompletionTime) {
+        String message = NotificationType.STARTED
+                .formatMessage(machine.getName(), machine.getType(), expectedCompletionTime);
+
+        return Notification.builder().user(user).machine(machine).type(NotificationType.STARTED).message(message)
+                .isRead(false).build();
+    }
+
+    /**
+     * 예약 취소 경고 알림(첫 번째 타임아웃)을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            대상 기기
+     * @return 생성된 경고 알림
+     */
+    public static Notification createTimeoutWarningNotification(User user, Machine machine) {
+        String message = NotificationType.TIMEOUT_WARNING.formatMessage(machine.getName());
+
+        return Notification.builder().user(user).machine(machine).type(NotificationType.TIMEOUT_WARNING)
+                .message(message).isRead(false).build();
+    }
+
+    /**
+     * 알림을 읽음 상태로 변경합니다.
+     */
     public void markAsRead() {
         this.isRead = true;
     }
 
+    /**
+     * 알림을 읽지 않음 상태로 변경합니다.
+     */
     public void markAsUnread() {
         this.isRead = false;
     }

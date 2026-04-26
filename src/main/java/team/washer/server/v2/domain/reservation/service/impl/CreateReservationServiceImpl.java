@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
+import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.config.ReservationEnvironment;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
@@ -20,10 +21,8 @@ import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.CreateReservationService;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
-import team.washer.server.v2.domain.reservation.util.SundayReservationRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
-import team.washer.server.v2.global.common.constants.ReservationConstants;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @Slf4j
@@ -35,7 +34,6 @@ public class CreateReservationServiceImpl implements CreateReservationService {
     private final UserRepository userRepository;
     private final MachineRepository machineRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
-    private final SundayReservationRedisUtil sundayReservationRedisUtil;
     private final ReservationEnvironment reservationEnvironment;
     private final CurrentUserProvider currentUserProvider;
 
@@ -49,22 +47,34 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final Machine machine = machineRepository.findById(reqDto.machineId())
                 .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
-        // 패널티 상태 검증
+        // 쿨다운 검증 (취소 후 5분)
+        if (penaltyRedisUtil.isInCooldown(userId)) {
+            throw new ExpectedException("예약 취소 후 5분간 예약이 제한됩니다", HttpStatus.BAD_REQUEST);
+        }
+
+        // 48시간 차단 검증 (호실 단위)
+        if (penaltyRedisUtil.isBlocked(user.getRoomNumber())) {
+            throw new ExpectedException("48시간 내 취소 횟수를 초과하여 예약이 제한됩니다", HttpStatus.BAD_REQUEST);
+        }
+
+        // 기존 패널티 검증 (하위 호환)
         final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
         user.validateNotPenalized(penaltyExpiresAt);
 
-        // 시간 제한 검증 (일요일 활성화 여부 포함, 개발환경에서는 비활성화 가능)
+        // 시간 제한 검증 (학년별 예약 시작 시각, 개발환경에서는 비활성화 가능)
         if (!reservationEnvironment.disableTimeRestriction()) {
-            final boolean isSundayActive = sundayReservationRedisUtil.isSundayActive();
-            user.validateTimeRestriction(reqDto.startTime(), isSundayActive);
+            user.validateTimeRestriction(LocalDateTime.now());
         }
 
-        final LocalDateTime expectedCompletionTime = reqDto.startTime()
-                .plusMinutes(ReservationConstants.DEFAULT_RESERVATION_DURATION_MINUTES);
+        // 기기 가용성 검증
+        if (machine.getAvailability() != MachineAvailability.AVAILABLE) {
+            throw new ExpectedException(String.format("해당 기기를 사용할 수 없습니다. 기기: %s", machine.getName()),
+                    HttpStatus.BAD_REQUEST);
+        }
 
         // 개인 중복 예약 검증 (1인 1예약)
         final boolean hasUserActiveReservation = reservationRepository.existsByUserAndStatusIn(user,
-                List.of(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING));
+                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING));
         if (hasUserActiveReservation) {
             throw new ExpectedException("이미 활성 예약이 존재합니다. 1인 1예약만 가능합니다.", HttpStatus.BAD_REQUEST);
         }
@@ -77,22 +87,9 @@ public class CreateReservationServiceImpl implements CreateReservationService {
                     machine.getType().getDescription()), HttpStatus.BAD_REQUEST);
         }
 
-        // 기계 가용성 검증 (인라인)
-        final boolean hasConflict = reservationRepository
-                .existsConflictingReservation(machine.getId(), reqDto.startTime(), expectedCompletionTime, null);
-        if (hasConflict) {
-            throw new ExpectedException(String.format("해당 시간에 기기를 사용할 수 없습니다. 기기: %s, 시간: %s ~ %s",
-                    machine.getName(),
-                    reqDto.startTime(),
-                    expectedCompletionTime), HttpStatus.BAD_REQUEST);
-        }
-
-        final Reservation reservation = Reservation.builder().user(user).machine(machine)
-                .reservedAt(LocalDateTime.now()).startTime(reqDto.startTime())
-                .dayOfWeek(reqDto.startTime().getDayOfWeek()).status(ReservationStatus.RESERVED).build();
-
-        // 미래 시간 검증
-        reservation.validateFutureTime();
+        final var now = LocalDateTime.now();
+        final Reservation reservation = Reservation.builder().user(user).machine(machine).reservedAt(now)
+                .dayOfWeek(now.getDayOfWeek()).status(ReservationStatus.RESERVED).build();
 
         machine.markAsReserved();
         machineRepository.save(machine);
@@ -103,6 +100,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
                 saved.getUser().getId(),
                 saved.getUser().getName(),
                 saved.getUser().getRoomNumber(),
+                saved.getUser().getStudentId(),
                 saved.getMachine().getId(),
                 saved.getMachine().getName(),
                 saved.getReservedAt(),
@@ -110,7 +108,6 @@ public class CreateReservationServiceImpl implements CreateReservationService {
                 saved.getExpectedCompletionTime(),
                 saved.getActualCompletionTime(),
                 saved.getStatus(),
-                saved.getConfirmedAt(),
                 saved.getCancelledAt(),
                 saved.getDayOfWeek(),
                 saved.getCreatedAt(),

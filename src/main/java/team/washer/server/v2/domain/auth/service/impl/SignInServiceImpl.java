@@ -10,39 +10,41 @@ import team.themoment.datagsm.sdk.oauth.model.Student;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.TokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
-import team.washer.server.v2.domain.auth.service.GenerateTokenService;
 import team.washer.server.v2.domain.auth.service.SignInService;
+import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
+import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
-import team.washer.server.v2.domain.user.service.SignUpService;
-import team.washer.server.v2.global.thirdparty.datagsm.config.DataGsmEnvironment;
+import team.washer.server.v2.domain.user.support.UserRegistrationSupport;
 
 @Service
 @AllArgsConstructor
 public class SignInServiceImpl implements SignInService {
     private final DataGsmOAuthClient oauthClient;
-    private final DataGsmEnvironment dataGsmEnvironment;
     private final UserRepository userRepository;
-    private final SignUpService signUpService;
-    private final GenerateTokenService generateTokenService;
+    private final UserRegistrationSupport userRegistrationSupport;
+    private final TokenGenerationSupport tokenGenerationSupport;
+    private final WithdrawnStudentRedisUtil withdrawnStudentRedisUtil;
 
     @Override
     public TokenResDto execute(TokenReqDto reqDto) {
-        String accessToken = oauthClient.exchangeCodeForToken(reqDto.authCode(), dataGsmEnvironment.redirectUri())
-                .getAccessToken();
+        String accessToken = oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri()).getAccessToken();
         Student oauthUser = oauthClient.getUserInfo(accessToken).getStudent();
         if (oauthUser == null) {
             throw new ExpectedException("학생정보가 없는 DataGSM 계정입니다.", HttpStatus.BAD_REQUEST);
         }
+        if (withdrawnStudentRedisUtil.isWithdrawnRecently(oauthUser.getStudentNumber().toString())) {
+            throw new ExpectedException("탈퇴 후 30일이 지나지 않아 재가입할 수 없습니다.", HttpStatus.FORBIDDEN);
+        }
         User user;
         try {
             user = userRepository.findByStudentId(oauthUser.getStudentNumber().toString())
-                    .orElseGet(() -> signUpService.execute(oauthUser));
+                    .orElseGet(() -> userRegistrationSupport.register(oauthUser));
         } catch (DataIntegrityViolationException e) {
             user = userRepository.findByStudentId(oauthUser.getStudentNumber().toString()).orElseThrow(
                     () -> new ExpectedException("회원가입 과정에서 오류가 발생했습니다. 다시 시도해주세요.", HttpStatus.INTERNAL_SERVER_ERROR));
         }
 
-        return generateTokenService.execute(user.getId(), user.getRole());
+        return tokenGenerationSupport.generate(user.getId(), user.getRole());
     }
 }

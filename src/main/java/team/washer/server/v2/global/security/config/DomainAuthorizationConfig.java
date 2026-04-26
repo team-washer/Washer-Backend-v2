@@ -9,15 +9,15 @@ public class DomainAuthorizationConfig {
     public void configure(
             AuthorizeHttpRequestsConfigurer<HttpSecurity>.AuthorizationManagerRequestMatcherRegistry authorizeRequests) {
         authorizeRequests
-                // Swagger
+                // Swagger UI
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                // Health Check
+                // 헬스 체크
                 .requestMatchers("/api/v2/health", "/api/v2/admin/smartthings/**").permitAll()
-                // Auth endpoints
+                // 인증 엔드포인트
                 .requestMatchers("/api/v2/auth/login", "/api/v2/auth/refresh").permitAll()
-                // Admin endpoints
+                // 관리자 엔드포인트
                 .requestMatchers("/api/v2/admin/**").hasAnyAuthority("DORMITORY_COUNCIL", "ADMIN")
-                // Other endpoints - 인증 필요
+                // 그 외 엔드포인트 - 인증 필요
                 .anyRequest().authenticated();
     }
 }

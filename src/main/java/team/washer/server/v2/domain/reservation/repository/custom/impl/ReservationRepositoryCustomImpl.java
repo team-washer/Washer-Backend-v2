@@ -67,8 +67,7 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
         return jpaQueryFactory.selectFrom(reservation)
                 .where(reservation.machine.id.eq(machineId),
-                        reservation.status
-                                .in(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING),
+                        reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.RUNNING),
                         reservation.startTime.lt(endTime),
                         reservation.expectedCompletionTime.gt(startTime),
                         excludeReservationId != null ? reservation.id.ne(excludeReservationId) : null)
@@ -80,9 +79,17 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
         return jpaQueryFactory.selectFrom(reservation).join(reservation.machine, machine)
                 .where(reservation.user.roomNumber.eq(roomNumber),
                         reservation.machine.type.eq(machineType),
-                        reservation.status
-                                .in(ReservationStatus.RESERVED, ReservationStatus.CONFIRMED, ReservationStatus.RUNNING))
+                        reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.RUNNING))
                 .fetchFirst() != null;
+    }
+
+    @Override
+    public List<Reservation> findActiveReservationsByRoomNumber(String roomNumber) {
+        return jpaQueryFactory.selectFrom(reservation).join(reservation.user, user).fetchJoin()
+                .join(reservation.machine, machine).fetchJoin()
+                .where(reservation.user.roomNumber.eq(roomNumber),
+                        reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.RUNNING))
+                .orderBy(reservation.createdAt.desc()).fetch();
     }
 
     @Override
@@ -93,8 +100,7 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
         return jpaQueryFactory.selectFrom(reservation)
                 .where(reservation.status.eq(status),
                         reservation.createdAt.goe(recentCutoff),
-                        status == ReservationStatus.RESERVED ? reservation.startTime.lt(threshold) : null,
-                        status == ReservationStatus.CONFIRMED ? reservation.confirmedAt.lt(threshold) : null)
+                        reservation.reservedAt.lt(threshold))
                 .fetch();
     }
 
@@ -104,6 +110,7 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
             ReservationStatus status,
             LocalDateTime startDate,
             LocalDateTime endDate,
+            MachineType machineType,
             Pageable pageable) {
 
         final var content = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
@@ -112,7 +119,8 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                         machineNameContains(machineName),
                         statusEquals(status),
                         startTimeAfter(startDate),
-                        startTimeBefore(endDate))
+                        startTimeBefore(endDate),
+                        machineTypeEquals(machineType))
                 .orderBy(reservation.createdAt.desc()).offset(pageable.getOffset()).limit(pageable.getPageSize())
                 .fetch();
 
@@ -121,7 +129,8 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                         machineNameContains(machineName),
                         statusEquals(status),
                         startTimeAfter(startDate),
-                        startTimeBefore(endDate))
+                        startTimeBefore(endDate),
+                        machineTypeEquals(machineType))
                 .fetchOne();
 
         final var count = total != null ? total : 0L;
@@ -157,6 +166,14 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
         return new PageImpl<>(results, pageable, count);
     }
 
+    @Override
+    public List<Reservation> findAllByMachineNameFilter(String machineName) {
+        return jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
+                .leftJoin(reservation.machine, machine).fetchJoin()
+                .where(StringUtils.hasText(machineName) ? reservation.machine.name.contains(machineName) : null)
+                .orderBy(reservation.machine.name.asc(), reservation.createdAt.desc()).fetch();
+    }
+
     private BooleanExpression userNameContains(String userName) {
         return StringUtils.hasText(userName) ? reservation.user.name.contains(userName) : null;
     }
@@ -175,5 +192,9 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     private BooleanExpression startTimeBefore(LocalDateTime endDate) {
         return endDate != null ? reservation.startTime.loe(endDate) : null;
+    }
+
+    private BooleanExpression machineTypeEquals(MachineType machineType) {
+        return machineType != null ? reservation.machine.type.eq(machineType) : null;
     }
 }

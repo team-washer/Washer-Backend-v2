@@ -10,10 +10,11 @@ import org.springframework.stereotype.Repository;
 
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.notification.enums.NotificationType;
+import team.washer.server.v2.domain.notification.repository.custom.NotificationRepositoryCustom;
 import team.washer.server.v2.domain.user.entity.User;
 
 @Repository
-public interface NotificationRepository extends JpaRepository<Notification, Long> {
+public interface NotificationRepository extends JpaRepository<Notification, Long>, NotificationRepositoryCustom {
 
     List<Notification> findByUser(User user);
 
@@ -37,4 +38,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Modifying
     @Query("DELETE FROM Notification n WHERE n.user = :user AND n.isRead = true")
     int deleteReadNotificationsByUser(@Param("user") User user);
+
+    long countByUser(User user);
+
+    @Modifying
+    @Query("DELETE FROM Notification n WHERE n.user = :user")
+    int deleteAllByUser(@Param("user") User user);
 }

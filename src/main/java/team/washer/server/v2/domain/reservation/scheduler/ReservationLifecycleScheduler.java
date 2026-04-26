@@ -18,7 +18,7 @@ public class ReservationLifecycleScheduler {
     private final ProcessReservationLifecycleService processReservationLifecycleService;
     private final SmartThingsOperationTimePolicy operationTimePolicy;
 
-    @Scheduled(fixedRate = LIFECYCLE_CHECK_INTERVAL)
+    @Scheduled(fixedDelay = LIFECYCLE_CHECK_INTERVAL)
     public void processLifecycle() {
         if (!operationTimePolicy.isOperationAllowed()) {
             log.debug("운영 시간 외 - 예약 라이프사이클 스케줄러 건너뜀");

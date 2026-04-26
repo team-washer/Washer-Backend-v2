@@ -6,6 +6,9 @@ import static team.washer.server.v2.domain.user.entity.QUser.user;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -22,9 +25,16 @@ public class MalfunctionReportRepositoryCustomImpl implements MalfunctionReportR
     private final JPAQueryFactory jpaQueryFactory;
 
     @Override
-    public List<MalfunctionReport> findWithDetails(final MalfunctionReportStatus status) {
-        return jpaQueryFactory.selectFrom(malfunctionReport).leftJoin(malfunctionReport.machine, machine).fetchJoin()
-                .leftJoin(malfunctionReport.reporter, user).fetchJoin()
-                .where(status != null ? malfunctionReport.status.eq(status) : null).fetch();
+    public Page<MalfunctionReport> findWithDetails(final MalfunctionReportStatus status, final Pageable pageable) {
+        final List<MalfunctionReport> content = jpaQueryFactory.selectFrom(malfunctionReport)
+                .leftJoin(malfunctionReport.machine, machine).fetchJoin().leftJoin(malfunctionReport.reporter, user)
+                .fetchJoin().where(status != null ? malfunctionReport.status.eq(status) : null)
+                .orderBy(malfunctionReport.reportedAt.desc()).offset(pageable.getOffset()).limit(pageable.getPageSize())
+                .fetch();
+
+        final Long total = jpaQueryFactory.select(malfunctionReport.count()).from(malfunctionReport)
+                .where(status != null ? malfunctionReport.status.eq(status) : null).fetchOne();
+
+        return new PageImpl<>(content, pageable, total != null ? total : 0L);
     }
 }

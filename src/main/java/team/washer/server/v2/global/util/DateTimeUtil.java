@@ -5,7 +5,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 import lombok.extern.slf4j.Slf4j;
-import team.washer.server.v2.domain.smartthings.service.QueryDeviceStatusService;
+import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 
 @Slf4j
 public final class DateTimeUtil {
@@ -20,14 +20,14 @@ public final class DateTimeUtil {
             return utcTime.withZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDateTime();
         } catch (Exception e) {
             log.warn("Failed to parse time: {}", timeStr, e);
-            return LocalDateTime.now();
+            return null;
         }
     }
 
-    public static LocalDateTime getExpectedCompletionTime(QueryDeviceStatusService queryDeviceStatusService,
+    public static LocalDateTime getExpectedCompletionTime(DeviceStatusQuerySupport deviceStatusQuerySupport,
             String deviceId) {
         try {
-            var status = queryDeviceStatusService.execute(deviceId);
+            var status = deviceStatusQuerySupport.queryDeviceStatus(deviceId);
             var completionTimeStr = status.getCompletionTime();
 
             if (completionTimeStr != null && !completionTimeStr.isBlank()) {
@@ -36,6 +36,6 @@ public final class DateTimeUtil {
         } catch (Exception e) {
             log.warn("Failed to get expected completion time for device: {}", deviceId, e);
         }
-        return LocalDateTime.now().plusHours(2);
+        return null;
     }
 }

@@ -15,10 +15,6 @@ public enum UserRole {
         return this == DORMITORY_COUNCIL || this == ADMIN;
     }
 
-    public boolean canManageSundayReservation() {
-        return this == DORMITORY_COUNCIL || this == ADMIN;
-    }
-
     public boolean isAdmin() {
         return this == ADMIN;
     }

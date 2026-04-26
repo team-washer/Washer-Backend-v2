@@ -8,11 +8,13 @@ plugins {
 
 ext {
     set("springCloudVersion", "2025.1.0")
+    set("awsSdkVersion", "2.28.0")
 }
 
 dependencyManagement {
     imports {
         mavenBom("org.springframework.cloud:spring-cloud-dependencies:2025.1.0")
+        mavenBom("software.amazon.awssdk:bom:2.28.0")
     }
 }
 
@@ -41,7 +43,7 @@ tasks.compileTestJava {
 }
 
 group = "team.washer"
-version = "v20260323.0"
+version = "v20260426.0"
 
 springBoot {
     buildInfo()
@@ -114,7 +116,7 @@ dependencies {
     implementation("com.github.themoment-team:the-sdk:1.4")
 
     //DataGSM Oauth SDK
-    implementation("com.github.themoment-team:datagsm-oauth-sdk-java:1.1.0")
+    implementation("com.github.themoment-team:datagsm-oauth-sdk-java:1.3.0")
 
     // JWT
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
@@ -123,6 +125,9 @@ dependencies {
 
     // Firebase Admin SDK
     implementation("com.google.firebase:firebase-admin:9.4.3")
+
+    // AWS SDK - CloudWatch Logs
+    implementation("software.amazon.awssdk:cloudwatchlogs")
 }
 
 tasks.withType<Test> {

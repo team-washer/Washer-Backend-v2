@@ -52,6 +52,8 @@ public interface ReservationRepositoryCustom {
      *            시작일 (null 가능)
      * @param endDate
      *            종료일 (null 가능)
+     * @param machineType
+     *            기기 유형 (세탁기/건조기, null 가능)
      * @param pageable
      *            페이지네이션 정보
      * @return 필터링된 예약 페이지 (생성일 기준 내림차순)
@@ -61,7 +63,17 @@ public interface ReservationRepositoryCustom {
             ReservationStatus status,
             LocalDateTime startDate,
             LocalDateTime endDate,
+            MachineType machineType,
             Pageable pageable);
+
+    /**
+     * 호실 번호 기준 활성 예약 목록 조회
+     *
+     * @param roomNumber
+     *            호실 번호
+     * @return 해당 호실의 활성(RESERVED/RUNNING) 예약 목록 (createdAt 내림차순)
+     */
+    List<Reservation> findActiveReservationsByRoomNumber(String roomNumber);
 
     /**
      * 기기별 예약 히스토리 조회
@@ -83,4 +95,13 @@ public interface ReservationRepositoryCustom {
             LocalDateTime startDate,
             LocalDateTime endDate,
             Pageable pageable);
+
+    /**
+     * 관리자용 전체 기기 예약 히스토리 조회 (기기명 부분 검색 지원)
+     *
+     * @param machineName
+     *            기기명 (부분 검색, null 또는 빈 문자열이면 전체 조회)
+     * @return 기기명 오름차순, 생성일 내림차순으로 정렬된 예약 목록
+     */
+    List<Reservation> findAllByMachineNameFilter(String machineName);
 }

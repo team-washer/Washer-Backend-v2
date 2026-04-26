@@ -8,8 +8,8 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.RefreshTokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
 import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
-import team.washer.server.v2.domain.auth.service.GenerateTokenService;
 import team.washer.server.v2.domain.auth.service.RefreshTokenService;
+import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.security.jwt.provider.JwtTokenProvider;
 
@@ -19,7 +19,7 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenRedisRepository refreshTokenRedisRepository;
     private final UserRepository userRepository;
-    private final GenerateTokenService generateTokenService;
+    private final TokenGenerationSupport tokenGenerationSupport;
 
     @Override
     public TokenResDto execute(final RefreshTokenReqDto reqDto) {
@@ -38,6 +38,6 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
 
         refreshTokenRedisRepository.delete(refreshTokenEntity);
 
-        return generateTokenService.execute(userId, user.getRole());
+        return tokenGenerationSupport.generate(userId, user.getRole());
     }
 }

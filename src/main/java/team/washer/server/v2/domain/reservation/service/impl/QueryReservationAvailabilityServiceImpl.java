@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationAvailabilityResDto;
 import team.washer.server.v2.domain.reservation.service.QueryReservationAvailabilityService;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @Service
@@ -16,12 +17,21 @@ import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 public class QueryReservationAvailabilityServiceImpl implements QueryReservationAvailabilityService {
 
     private final PenaltyRedisUtil penaltyRedisUtil;
+    private final UserRepository userRepository;
     private final CurrentUserProvider currentUserProvider;
 
     @Override
     @Transactional(readOnly = true)
     public ReservationAvailabilityResDto execute() {
         final var userId = currentUserProvider.getCurrentUserId();
+        final var roomNumber = userRepository.findById(userId).map(u -> u.getRoomNumber()).orElse(null);
+
+        // 쿨다운 또는 48시간 블록 중이면 예약 불가 (블록은 호실 단위)
+        if (penaltyRedisUtil.isInCooldown(userId) || (roomNumber != null && penaltyRedisUtil.isBlocked(roomNumber))) {
+            return new ReservationAvailabilityResDto(false, null);
+        }
+
+        // 하위 호환: 기존 패널티 확인
         final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
         final boolean canReserve = penaltyExpiresAt == null || LocalDateTime.now().isAfter(penaltyExpiresAt);
 

@@ -54,6 +54,7 @@ public class QueryReservationHistoryServiceImpl implements QueryReservationHisto
 
         return new ReservationHistoryResDto(reservation.getId(),
                 reservation.getUser().getRoomNumber(),
+                reservation.getUser().getStudentId(),
                 reservation.getMachine().getName(),
                 reservation.getMachine().getType(),
                 reservation.getStartTime(),
