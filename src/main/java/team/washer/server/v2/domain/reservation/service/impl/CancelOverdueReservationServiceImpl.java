@@ -55,11 +55,11 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
         for (Reservation reservation : expiredReservations) {
             try {
                 var machine = reservation.getMachine();
-                var isRunning = machineStateDetectionSupport.isRunning(machine.getDeviceId());
+                var status = deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
+                var isRunning = machineStateDetectionSupport.isRunning(status);
 
                 if (isRunning) {
-                    var expectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(deviceStatusQuerySupport,
-                            machine.getDeviceId());
+                    var expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(status.getCompletionTime());
                     reservation.start(expectedCompletionTime);
                     machine.markAsInUse();
                     reservationRepository.save(reservation);
@@ -103,6 +103,7 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
 
         penaltyRedisUtil.applyCooldown(userId);
         penaltyRedisUtil.recordCancellation(userId);
+        user.updateLastCancellationTime();
 
         if (!penaltyRedisUtil.hasWarning(userId)) {
             penaltyRedisUtil.applyWarning(userId);

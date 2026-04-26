@@ -49,6 +49,7 @@ public class CancelReservationServiceImpl implements CancelReservationService {
             final User user = reservation.getUser();
             penaltyRedisUtil.applyCooldown(userId);
             penaltyRedisUtil.recordCancellation(userId);
+            user.updateLastCancellationTime();
             if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
                 penaltyRedisUtil.applyBlock(user.getRoomNumber());
                 log.warn("48h block applied roomNumber {}", user.getRoomNumber());
