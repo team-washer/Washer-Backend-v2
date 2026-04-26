@@ -4,6 +4,7 @@ cd /home/ec2-user/builds
 docker build -f prod.dockerfile -t washer-backend-v2:latest .
 docker run -d \
   --name washer-backend-v2 \
+  --network washer-net \
   -p 8080:8080 \
   --restart unless-stopped \
   washer-backend-v2:latest
