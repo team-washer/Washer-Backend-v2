@@ -2,11 +2,11 @@ version: 1.0
 
 hooks:
   ApplicationStop:
-    - location: scripts/stop.sh
+    - location: scripts/stage/stop.sh
       timeout: 300
 
   ApplicationStart:
-    - location: scripts/start.sh
+    - location: scripts/stage/start.sh
       timeout: 120
 
 permissions:

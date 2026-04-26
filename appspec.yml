@@ -15,8 +15,8 @@ permissions:
 
 hooks:
   ApplicationStop:
-    - location: scripts/stop.sh
+    - location: scripts/prod/stop.sh
       timeout: 300
   ApplicationStart:
-    - location: scripts/prod-start.sh
+    - location: scripts/prod/start.sh
       timeout: 300
