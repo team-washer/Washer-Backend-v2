@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
 
     @Override
+    @Transactional
     public void execute() {
         processReservedToRunning();
         processRunningToCompleted();
@@ -40,11 +42,11 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         for (var reservation : reservedReservations) {
             try {
                 var machine = reservation.getMachine();
-                var isRunning = machineStateDetectionSupport.isRunning(machine.getDeviceId());
+                var status = deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
+                var isRunning = machineStateDetectionSupport.isRunning(status);
 
                 if (isRunning) {
-                    var expectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(deviceStatusQuerySupport,
-                            machine.getDeviceId());
+                    var expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(status.getCompletionTime());
                     reservation.start(expectedCompletionTime);
                     machine.markAsInUse();
                     reservationRepository.save(reservation);
@@ -66,7 +68,8 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         for (var reservation : runningReservations) {
             try {
                 var machine = reservation.getMachine();
-                var completionTime = machineStateDetectionSupport.isCompleted(machine.getDeviceId());
+                var status = deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
+                var completionTime = machineStateDetectionSupport.isCompleted(status);
 
                 if (completionTime.isPresent()) {
                     reservation.complete();
@@ -77,7 +80,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     reservationNotificationSupport.sendCompletion(reservation.getUser(), machine);
 
                     log.info("Reservation {} completed (RUNNING → COMPLETED)", reservation.getId());
-                } else if (machineStateDetectionSupport.isInterrupted(machine.getDeviceId())) {
+                } else if (machineStateDetectionSupport.isInterrupted(status)) {
                     reservation.cancel();
                     machine.markAsAvailable();
                     reservationRepository.save(reservation);
@@ -88,7 +91,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     log.warn(
                             "Reservation {} cancelled due to machine interruption, no penalty applied (RUNNING → CANCELLED)",
                             reservation.getId());
-                } else if (machineStateDetectionSupport.isPaused(machine.getDeviceId())) {
+                } else if (machineStateDetectionSupport.isPaused(status)) {
                     if (reservation.getPausedAt() == null) {
                         reservation.markAsPaused();
                         reservationRepository.save(reservation);
@@ -113,10 +116,13 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                         reservation.clearPausedAt();
                         log.info("Reservation {} resumed from pause, clearing pause tracking", reservation.getId());
                     }
-                    var updatedExpectedCompletionTime = DateTimeUtil.getExpectedCompletionTime(deviceStatusQuerySupport,
-                            machine.getDeviceId());
-                    reservation.updateExpectedCompletionTime(updatedExpectedCompletionTime);
-                    reservationRepository.save(reservation);
+                    var updatedExpectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(status.getCompletionTime());
+                    var current = reservation.getExpectedCompletionTime();
+                    if (updatedExpectedCompletionTime != null && (current == null
+                            || Math.abs(Duration.between(current, updatedExpectedCompletionTime).toSeconds()) >= 60)) {
+                        reservation.updateExpectedCompletionTime(updatedExpectedCompletionTime);
+                        reservationRepository.save(reservation);
+                    }
                 }
             } catch (Exception e) {
                 log.error("Failed to process RUNNING reservation: {}", reservation.getId(), e);
