@@ -1,5 +1,6 @@
 package team.washer.server.v2.global.thirdparty.smartthings;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
@@ -17,8 +18,7 @@ import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsOpe
  *
  * <ul>
  * <li>일요일: 00:00:00 ~ 19:00:00 (경계 포함)</li>
- * <li>평일(월~금): 08:45:00 ~ 20:00:00 (경계 포함)</li>
- * <li>토요일: 하루 종일</li>
+ * <li>평일(월~토): 08:45:00 ~ 20:00:00 (경계 포함)</li>
  * </ul>
  */
 @Component
@@ -38,10 +38,9 @@ public class SmartThingsOperationTimePolicy {
         }
 
         var now = LocalTime.now();
-        return switch (LocalDate.now().getDayOfWeek()) {
-            case SATURDAY -> true;
-            case SUNDAY -> !now.isAfter(LocalTime.of(19, 0));
-            default -> !now.isBefore(LocalTime.of(8, 45)) && !now.isAfter(LocalTime.of(20, 0));
-        };
+        if (LocalDate.now().getDayOfWeek() == DayOfWeek.SUNDAY) {
+            return !now.isAfter(LocalTime.of(19, 0));
+        }
+        return !now.isBefore(LocalTime.of(8, 45)) && !now.isAfter(LocalTime.of(20, 0));
     }
 }
