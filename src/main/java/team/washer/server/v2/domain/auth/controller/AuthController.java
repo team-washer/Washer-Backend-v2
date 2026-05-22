@@ -41,7 +41,7 @@ public class AuthController {
     }
 
     @PostMapping("/token/status")
-    @Operation(summary = "토큰 상태 확인", description = "Refresh Token의 유효성을 확인합니다.")
+    @Operation(summary = "토큰 상태 확인", description = "Refresh Token의 유효성을 확인합니다. 앱 시작 시 토큰 상태를 점검하는 용도로 사용합니다. 유효하지 않으면 valid=false를 반환하며 예외를 발생시키지 않습니다.")
     public TokenStatusResDto tokenStatus(@Valid @RequestBody final RefreshTokenReqDto reqDto) {
         return checkTokenStatusService.execute(reqDto);
     }
