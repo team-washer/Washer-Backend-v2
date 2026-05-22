@@ -1,8 +1,8 @@
 package team.washer.server.v2.domain.machine.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 import java.util.List;
 import java.util.Map;
@@ -16,7 +16,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineStatus;
@@ -30,6 +32,7 @@ import team.washer.server.v2.domain.reservation.repository.ReservationRepository
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
 class QueryAllMachinesStatusServiceTest {
@@ -47,10 +50,20 @@ class QueryAllMachinesStatusServiceTest {
     private DeviceStatusQuerySupport deviceStatusQuerySupport;
 
     @Mock
+    private UserRepository userRepository;
+
+    @Mock
     private Reservation reservation;
 
     @Mock
     private User user;
+
+    private static final Long USER_ID = 1L;
+
+    private void givenUserOnFloor(int floor) {
+        when(user.getFloor()).thenReturn(floor);
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+    }
 
     @Nested
     @DisplayName("전체 기기 상태 조회")
@@ -60,6 +73,8 @@ class QueryAllMachinesStatusServiceTest {
         @DisplayName("sorted=true이면 정렬된 기기 목록과 SmartThings 상태를 성공적으로 조회한다")
         void execute_ShouldReturnSortedMachinesStatus_WhenSortedIsTrue() {
             // Given
+            givenUserOnFloor(3);
+
             var machine1 = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
                     .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
                     .availability(MachineAvailability.AVAILABLE).build();
@@ -86,7 +101,7 @@ class QueryAllMachinesStatusServiceTest {
             when(reservationRepository.findActiveReservationByMachineId(any())).thenReturn(Optional.empty());
 
             // When
-            var result = queryAllMachinesStatusService.execute(true);
+            var result = queryAllMachinesStatusService.execute(USER_ID, true);
 
             // Then
             assertThat(result).hasSize(2);
@@ -99,6 +114,8 @@ class QueryAllMachinesStatusServiceTest {
         @DisplayName("sorted=false이면 정렬 없이 기기 목록과 SmartThings 상태를 조회한다")
         void execute_ShouldReturnUnsortedMachinesStatus_WhenSortedIsFalse() {
             // Given
+            givenUserOnFloor(2);
+
             var machine1 = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
                     .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
                     .availability(MachineAvailability.AVAILABLE).build();
@@ -108,7 +125,7 @@ class QueryAllMachinesStatusServiceTest {
             when(reservationRepository.findActiveReservationByMachineId(any())).thenReturn(Optional.empty());
 
             // When
-            var result = queryAllMachinesStatusService.execute(false);
+            var result = queryAllMachinesStatusService.execute(USER_ID, false);
 
             // Then
             assertThat(result).hasSize(1);
@@ -118,13 +135,43 @@ class QueryAllMachinesStatusServiceTest {
         @DisplayName("기기가 없으면 빈 리스트를 반환한다")
         void execute_ShouldReturnEmptyList_WhenNoMachinesExist() {
             // Given
+            givenUserOnFloor(1);
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of());
 
             // When
-            var result = queryAllMachinesStatusService.execute(true);
+            var result = queryAllMachinesStatusService.execute(USER_ID, true);
 
             // Then
             assertThat(result).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("층 제한 검증")
+    class FloorRestrictionTest {
+
+        @Test
+        @DisplayName("5층 사용자가 조회하면 예외가 발생한다")
+        void execute_ShouldThrowException_WhenUserIsOnFloor5() {
+            // Given
+            givenUserOnFloor(5);
+
+            // When & Then
+            assertThatThrownBy(() -> queryAllMachinesStatusService.execute(USER_ID, true))
+                    .isInstanceOf(ExpectedException.class).hasMessage("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.")
+                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                            .isEqualTo(HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS));
+        }
+
+        @Test
+        @DisplayName("1~4층 사용자는 정상적으로 조회할 수 있다")
+        void execute_ShouldSucceed_WhenUserIsOnFloor1To4() {
+            for (int floor = 1; floor <= 4; floor++) {
+                givenUserOnFloor(floor);
+                when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of());
+
+                assertThatNoException().isThrownBy(() -> queryAllMachinesStatusService.execute(USER_ID, true));
+            }
         }
     }
 
@@ -138,6 +185,7 @@ class QueryAllMachinesStatusServiceTest {
         }
 
         private void givenMachineWithReservation(Machine machine, Reservation reservationOrNull) {
+            givenUserOnFloor(3);
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
             when(deviceStatusQuerySupport.queryAllDevicesStatus(any())).thenReturn(Map.of());
             when(reservationRepository.findActiveReservationByMachineId(any()))
@@ -151,7 +199,7 @@ class QueryAllMachinesStatusServiceTest {
             givenMachineWithReservation(buildMachine(MachineAvailability.AVAILABLE), null);
 
             // When
-            var result = queryAllMachinesStatusService.execute(true);
+            var result = queryAllMachinesStatusService.execute(USER_ID, true);
 
             // Then
             assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.AVAILABLE);
@@ -166,7 +214,7 @@ class QueryAllMachinesStatusServiceTest {
             givenMachineWithReservation(buildMachine(MachineAvailability.AVAILABLE), reservation);
 
             // When
-            var result = queryAllMachinesStatusService.execute(true);
+            var result = queryAllMachinesStatusService.execute(USER_ID, true);
 
             // Then
             assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.RESERVED);
@@ -181,7 +229,7 @@ class QueryAllMachinesStatusServiceTest {
             givenMachineWithReservation(buildMachine(MachineAvailability.AVAILABLE), reservation);
 
             // When
-            var result = queryAllMachinesStatusService.execute(true);
+            var result = queryAllMachinesStatusService.execute(USER_ID, true);
 
             // Then
             assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.IN_USE);
@@ -195,7 +243,7 @@ class QueryAllMachinesStatusServiceTest {
             givenMachineWithReservation(buildMachine(MachineAvailability.UNAVAILABLE), reservation);
 
             // When
-            var result = queryAllMachinesStatusService.execute(true);
+            var result = queryAllMachinesStatusService.execute(USER_ID, true);
 
             // Then
             assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.UNAVAILABLE);
