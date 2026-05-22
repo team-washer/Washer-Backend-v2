@@ -17,6 +17,7 @@ import team.washer.server.v2.domain.machine.service.QueryAllMachinesStatusServic
 import team.washer.server.v2.domain.reservation.dto.response.MachineReservationHistoryPageResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.QueryMachineReservationHistoryService;
+import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @RestController
 @RequestMapping("/api/v2/machines")
@@ -26,12 +27,13 @@ public class MachineController {
 
     private final QueryAllMachinesStatusService queryAllMachinesStatusService;
     private final QueryMachineReservationHistoryService queryMachineReservationHistoryService;
+    private final CurrentUserProvider currentUserProvider;
 
     @GetMapping("/status")
-    @Operation(summary = "전체 기기 현황 조회", description = "모든 세탁기/건조기의 실시간 상태를 조회합니다. SmartThings API와 예약 정보를 결합하여 반환합니다.")
+    @Operation(summary = "전체 기기 현황 조회", description = "모든 세탁기/건조기의 실시간 상태를 조회합니다. SmartThings API와 예약 정보를 결합하여 반환합니다. 5층(여학생) 기숙사생은 이용할 수 없습니다.")
     public MachineStatusListResDto getAllMachinesStatus(
             @Parameter(description = "정렬 여부 (층 → 기기종류(세탁기 우선) → 위치(왼쪽 우선) → 번호)") @RequestParam(defaultValue = "true") boolean sorted) {
-        var result = queryAllMachinesStatusService.execute(sorted);
+        var result = queryAllMachinesStatusService.execute(currentUserProvider.getCurrentUserId(), sorted);
         return new MachineStatusListResDto(result, result.size());
     }
 

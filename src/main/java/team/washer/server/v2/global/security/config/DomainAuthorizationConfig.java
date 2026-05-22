@@ -14,7 +14,7 @@ public class DomainAuthorizationConfig {
                 // 헬스 체크
                 .requestMatchers("/api/v2/health", "/api/v2/admin/smartthings/**").permitAll()
                 // 인증 엔드포인트
-                .requestMatchers("/api/v2/auth/login", "/api/v2/auth/refresh").permitAll()
+                .requestMatchers("/api/v2/auth/login", "/api/v2/auth/refresh", "/api/v2/auth/token/status").permitAll()
                 // 관리자 엔드포인트
                 .requestMatchers("/api/v2/admin/**").hasAnyAuthority("DORMITORY_COUNCIL", "ADMIN")
                 // 그 외 엔드포인트 - 인증 필요

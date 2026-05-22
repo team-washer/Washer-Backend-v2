@@ -6,11 +6,13 @@ import java.util.List;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Order;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.dto.response.MachineStatusResDto;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -20,6 +22,7 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Service
@@ -30,13 +33,23 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
     private static final Sort DEFAULT_SORT = Sort
             .by(Order.asc("floor"), Order.desc("type"), Order.asc("position"), Order.asc("number"));
 
+    private static final int FEMALE_FLOOR = 5;
+
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional(readOnly = true)
-    public List<MachineStatusResDto> execute(boolean sorted) {
+    public List<MachineStatusResDto> execute(Long userId, boolean sorted) {
+        final var user = userRepository.findById(userId)
+                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+
+        if (user.getFloor() == FEMALE_FLOOR) {
+            throw new ExpectedException("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.", HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS);
+        }
+
         log.info("Querying all machines status");
 
         var machines = sorted ? machineRepository.findAll(DEFAULT_SORT) : machineRepository.findAll();
