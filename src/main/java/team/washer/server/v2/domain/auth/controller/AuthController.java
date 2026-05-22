@@ -13,6 +13,8 @@ import lombok.AllArgsConstructor;
 import team.washer.server.v2.domain.auth.dto.request.RefreshTokenReqDto;
 import team.washer.server.v2.domain.auth.dto.request.TokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
+import team.washer.server.v2.domain.auth.dto.response.TokenStatusResDto;
+import team.washer.server.v2.domain.auth.service.CheckTokenStatusService;
 import team.washer.server.v2.domain.auth.service.RefreshTokenService;
 import team.washer.server.v2.domain.auth.service.SignInService;
 
@@ -24,6 +26,7 @@ import team.washer.server.v2.domain.auth.service.SignInService;
 public class AuthController {
     private final SignInService signInService;
     private final RefreshTokenService refreshTokenService;
+    private final CheckTokenStatusService checkTokenStatusService;
 
     @PostMapping("/login")
     @Operation(summary = "로그인", description = "DataGSM OAuth 인증 코드로 로그인합니다.")
@@ -35,5 +38,11 @@ public class AuthController {
     @Operation(summary = "토큰 갱신", description = "Refresh Token으로 새로운 Access Token을 발급받습니다.")
     public TokenResDto refresh(@Valid @RequestBody final RefreshTokenReqDto reqDto) {
         return refreshTokenService.execute(reqDto);
+    }
+
+    @PostMapping("/token/status")
+    @Operation(summary = "토큰 상태 확인", description = "Refresh Token의 유효성을 확인합니다.")
+    public TokenStatusResDto tokenStatus(@Valid @RequestBody final RefreshTokenReqDto reqDto) {
+        return checkTokenStatusService.execute(reqDto);
     }
 }
