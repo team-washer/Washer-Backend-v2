@@ -60,8 +60,7 @@ class QueryAllMachinesStatusServiceTest {
 
     private static final Long USER_ID = 1L;
 
-    private void givenUserOnFloor(int floor) {
-        when(user.getFloor()).thenReturn(floor);
+    private void givenUserMocked() {
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
     }
 
@@ -73,7 +72,7 @@ class QueryAllMachinesStatusServiceTest {
         @DisplayName("sorted=true이면 정렬된 기기 목록과 SmartThings 상태를 성공적으로 조회한다")
         void execute_ShouldReturnSortedMachinesStatus_WhenSortedIsTrue() {
             // Given
-            givenUserOnFloor(3);
+            givenUserMocked();
 
             var machine1 = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
                     .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
@@ -114,7 +113,7 @@ class QueryAllMachinesStatusServiceTest {
         @DisplayName("sorted=false이면 정렬 없이 기기 목록과 SmartThings 상태를 조회한다")
         void execute_ShouldReturnUnsortedMachinesStatus_WhenSortedIsFalse() {
             // Given
-            givenUserOnFloor(2);
+            givenUserMocked();
 
             var machine1 = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
                     .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
@@ -135,7 +134,7 @@ class QueryAllMachinesStatusServiceTest {
         @DisplayName("기기가 없으면 빈 리스트를 반환한다")
         void execute_ShouldReturnEmptyList_WhenNoMachinesExist() {
             // Given
-            givenUserOnFloor(1);
+            givenUserMocked();
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of());
 
             // When
@@ -154,7 +153,9 @@ class QueryAllMachinesStatusServiceTest {
         @DisplayName("5층 사용자가 조회하면 예외가 발생한다")
         void execute_ShouldThrowException_WhenUserIsOnFloor5() {
             // Given
-            givenUserOnFloor(5);
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            doThrow(new ExpectedException("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.", HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS))
+                    .when(user).validateFloorRestriction();
 
             // When & Then
             assertThatThrownBy(() -> queryAllMachinesStatusService.execute(USER_ID, true))
@@ -166,12 +167,10 @@ class QueryAllMachinesStatusServiceTest {
         @Test
         @DisplayName("1~4층 사용자는 정상적으로 조회할 수 있다")
         void execute_ShouldSucceed_WhenUserIsOnFloor1To4() {
-            for (int floor = 1; floor <= 4; floor++) {
-                givenUserOnFloor(floor);
-                when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of());
+            givenUserMocked();
+            when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of());
 
-                assertThatNoException().isThrownBy(() -> queryAllMachinesStatusService.execute(USER_ID, true));
-            }
+            assertThatNoException().isThrownBy(() -> queryAllMachinesStatusService.execute(USER_ID, true));
         }
     }
 
@@ -185,7 +184,7 @@ class QueryAllMachinesStatusServiceTest {
         }
 
         private void givenMachineWithReservation(Machine machine, Reservation reservationOrNull) {
-            givenUserOnFloor(3);
+            givenUserMocked();
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
             when(deviceStatusQuerySupport.queryAllDevicesStatus(any())).thenReturn(Map.of());
             when(reservationRepository.findActiveReservationByMachineId(any()))

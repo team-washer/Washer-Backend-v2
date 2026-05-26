@@ -44,6 +44,8 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
+        user.validateFloorRestriction();
+
         final Machine machine = machineRepository.findById(reqDto.machineId())
                 .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

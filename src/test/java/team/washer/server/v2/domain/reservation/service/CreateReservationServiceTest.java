@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
@@ -211,6 +212,26 @@ class CreateReservationServiceTest {
             // When & Then
             assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
                     .hasMessageContaining("1인 1예약");
+        }
+
+        @Test
+        @DisplayName("5층(여학생) 사용자가 예약을 시도하면 예외를 발생시킨다")
+        void execute_ShouldThrowException_WhenUserIsOnFemaleFloor() {
+            // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
+            final var reqDto = new CreateReservationReqDto(1L);
+
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            doThrow(new ExpectedException("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.", HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS))
+                    .when(user).validateFloorRestriction();
+
+            // When & Then
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+                    .hasMessage("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.")
+                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                            .isEqualTo(HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS));
+
+            verify(machineRepository, never()).findById(any());
         }
 
         @Test

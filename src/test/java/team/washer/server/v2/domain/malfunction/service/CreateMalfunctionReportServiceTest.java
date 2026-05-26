@@ -127,6 +127,39 @@ class CreateMalfunctionReportServiceTest {
         }
 
         @Nested
+        @DisplayName("5층(여학생) 사용자가 신고할 때")
+        class Context_with_female_floor_user {
+
+            @Test
+            @DisplayName("ExpectedException이 발생해야 한다")
+            void it_throws_expected_exception() {
+                // Given
+                Long userId = 1L;
+                Long machineId = 1L;
+                CreateMalfunctionReportReqDto reqDto = new CreateMalfunctionReportReqDto(machineId, "고장 신고");
+
+                User user = User.builder().name("박지수").studentId("20210002").roomNumber("501").grade(2).floor(5)
+                        .penaltyCount(0).build();
+
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+
+                // When & Then
+                assertThatThrownBy(() -> createMalfunctionReportService.execute(reqDto))
+                        .isInstanceOf(ExpectedException.class).hasMessage("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.")
+                        .satisfies(exception -> {
+                            ExpectedException expectedException = (ExpectedException) exception;
+                            assertThat(expectedException.getStatusCode())
+                                    .isEqualTo(HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS);
+                        });
+
+                then(userRepository).should(times(1)).findById(userId);
+                then(machineRepository).shouldHaveNoInteractions();
+                then(malfunctionReportRepository).shouldHaveNoInteractions();
+            }
+        }
+
+        @Nested
         @DisplayName("존재하지 않는 기기 ID로 신고할 때")
         class Context_with_invalid_machine_id {
 

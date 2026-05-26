@@ -37,6 +37,8 @@ public class CreateMalfunctionReportServiceImpl implements CreateMalfunctionRepo
         final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
+        user.validateFloorRestriction();
+
         final Machine machine = machineRepository.findById(reqDto.machineId())
                 .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
@@ -44,7 +46,10 @@ public class CreateMalfunctionReportServiceImpl implements CreateMalfunctionRepo
                 .description(reqDto.description()).reportedAt(LocalDateTime.now()).build();
 
         final MalfunctionReport saved = malfunctionReportRepository.save(report);
-        log.info("고장 신고 생성 완료: reportId={}, machineId={}, userId={}", saved.getId(), machine.getId(), userId);
+        log.info("Malfunction report created reportId={} machineId={} userId={}",
+                saved.getId(),
+                machine.getId(),
+                userId);
 
         return toResDto(saved);
     }
