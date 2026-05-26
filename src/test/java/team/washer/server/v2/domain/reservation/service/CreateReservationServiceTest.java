@@ -222,7 +222,8 @@ class CreateReservationServiceTest {
             final var reqDto = new CreateReservationReqDto(1L);
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-            when(user.getFloor()).thenReturn(5);
+            doThrow(new ExpectedException("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.", HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS))
+                    .when(user).validateFloorRestriction();
 
             // When & Then
             assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
