@@ -30,8 +30,6 @@ import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 @RequiredArgsConstructor
 public class CreateReservationServiceImpl implements CreateReservationService {
 
-    private static final int FEMALE_FLOOR = 5;
-
     private final ReservationRepository reservationRepository;
     private final UserRepository userRepository;
     private final MachineRepository machineRepository;
@@ -46,9 +44,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
-        if (user.getFloor() == FEMALE_FLOOR) {
-            throw new ExpectedException("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.", HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS);
-        }
+        user.validateFloorRestriction();
 
         final Machine machine = machineRepository.findById(reqDto.machineId())
                 .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));

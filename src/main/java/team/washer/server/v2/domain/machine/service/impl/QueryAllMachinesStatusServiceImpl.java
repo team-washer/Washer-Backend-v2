@@ -33,8 +33,6 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
     private static final Sort DEFAULT_SORT = Sort
             .by(Order.asc("floor"), Order.desc("type"), Order.asc("position"), Order.asc("number"));
 
-    private static final int FEMALE_FLOOR = 5;
-
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
@@ -46,9 +44,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
         final var user = userRepository.findById(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
 
-        if (user.getFloor() == FEMALE_FLOOR) {
-            throw new ExpectedException("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.", HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS);
-        }
+        user.validateFloorRestriction();
 
         log.info("Querying all machines status");
 

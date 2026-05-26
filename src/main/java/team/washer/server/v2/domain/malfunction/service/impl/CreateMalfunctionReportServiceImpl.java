@@ -25,8 +25,6 @@ import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 @RequiredArgsConstructor
 public class CreateMalfunctionReportServiceImpl implements CreateMalfunctionReportService {
 
-    private static final int FEMALE_FLOOR = 5;
-
     private final MalfunctionReportRepository malfunctionReportRepository;
     private final UserRepository userRepository;
     private final MachineRepository machineRepository;
@@ -39,9 +37,7 @@ public class CreateMalfunctionReportServiceImpl implements CreateMalfunctionRepo
         final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
-        if (user.getFloor() == FEMALE_FLOOR) {
-            throw new ExpectedException("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.", HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS);
-        }
+        user.validateFloorRestriction();
 
         final Machine machine = machineRepository.findById(reqDto.machineId())
                 .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
