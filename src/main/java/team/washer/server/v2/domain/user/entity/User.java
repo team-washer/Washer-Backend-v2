@@ -211,6 +211,15 @@ public class User extends BaseEntity {
     }
 
     /**
+     * 5층(여학생) 사용자의 서비스 접근을 제한합니다. 5층 사용자이면 예외를 발생시킵니다.
+     */
+    public void validateFloorRestriction() {
+        if (this.floor == 5) {
+            throw new ExpectedException("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.", HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS);
+        }
+    }
+
+    /**
      * 패널티 상태를 검증합니다. 패널티 기간이 유효하면 예외를 발생시킵니다.
      *
      * @param penaltyExpiresAt
