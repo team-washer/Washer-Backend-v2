@@ -22,9 +22,15 @@ public class DomainAuthorizationConfig {
         final var apiDocsPath = environment.getProperty("springdoc.api-docs.path", DEFAULT_API_DOCS_PATH);
         final var swaggerUiPath = environment.getProperty("springdoc.swagger-ui.path", DEFAULT_SWAGGER_UI_PATH);
 
+        // springdoc은 swagger-ui 정적 리소스를 swagger-ui.path의 부모 경로
+        // 하위(/{prefix}/swagger-ui/**)에서 서빙한다.
+        // 난독화 시 접두사가 붙으므로 해석된 경로 기준으로 리소스 경로를 허용해야 index.html 등에 접근할 수 있다.
+        final var lastSlash = swaggerUiPath.lastIndexOf('/');
+        final var swaggerUiResources = (lastSlash > 0 ? swaggerUiPath.substring(0, lastSlash) : "") + "/swagger-ui/**";
+
         authorizeRequests
                 // Swagger UI
-                .requestMatchers("/swagger-ui/**", swaggerUiPath, apiDocsPath, apiDocsPath + "/**").permitAll()
+                .requestMatchers(swaggerUiResources, swaggerUiPath, apiDocsPath, apiDocsPath + "/**").permitAll()
                 // 헬스 체크
                 .requestMatchers("/api/v2/health", "/api/v2/admin/smartthings/**").permitAll()
                 // 인증 엔드포인트
