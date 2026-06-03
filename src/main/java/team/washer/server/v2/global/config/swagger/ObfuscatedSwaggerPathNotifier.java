@@ -31,6 +31,14 @@ public class ObfuscatedSwaggerPathNotifier {
 
     @EventListener(ApplicationReadyEvent.class)
     public void notifyObfuscatedSwaggerPath() {
+        // Swagger UI가 비활성화된 경우 실제로 열리지 않는 경로를 통지하지 않도록 건너뛴다.
+        final var swaggerUiEnabled = environment
+                .getProperty("springdoc.swagger-ui.enabled", Boolean.class, Boolean.TRUE);
+        if (!swaggerUiEnabled) {
+            log.info("swagger-ui disabled; skip obfuscated swagger path notify");
+            return;
+        }
+
         final var swaggerUiPath = environment.getProperty("springdoc.swagger-ui.path", "/swagger-ui.html");
         final var apiDocsPath = environment.getProperty("springdoc.api-docs.path", "/v3/api-docs");
 
