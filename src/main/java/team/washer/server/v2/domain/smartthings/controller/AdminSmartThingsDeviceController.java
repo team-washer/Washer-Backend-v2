@@ -35,8 +35,9 @@ public class AdminSmartThingsDeviceController {
      * @return 동기화 실행 결과
      */
     @PostMapping("/sync")
-    @Operation(summary = "기기 목록 수동 동기화", description = "SmartThings 전체 기기 목록을 즉시 재동기화합니다. "
-            + "오발 방지를 위해 본문의 확인 키 값으로 반드시 true를 전달해야 하며, 접수 후 3초 뒤에 실행됩니다.")
+    @Operation(summary = "기기 목록 수동 동기화", description = "SmartThings 전체 기기 목록을 재동기화합니다. "
+            + "오발 방지를 위해 본문의 확인 키 값으로 반드시 true를 전달해야 합니다. "
+            + "요청 스레드를 블로킹하지 않고 즉시 접수하며, 접수 후 5초 창 안에 들어온 요청은 하나로 통합되어 백그라운드에서 한 번만 실행됩니다.")
     public DeviceSyncTriggerResDto syncDevices(@Valid @RequestBody TriggerDeviceSyncReqDto request) {
         return triggerManualDeviceSyncService.execute(request);
     }
