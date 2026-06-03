@@ -1,0 +1,2 @@
+org.springframework.boot.EnvironmentPostProcessor=\
+team.washer.server.v2.global.config.swagger.SwaggerPathObfuscator
