@@ -115,7 +115,11 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
         }
 
         if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
+            final boolean wasBlocked = penaltyRedisUtil.isBlocked(user.getRoomNumber());
             penaltyRedisUtil.applyBlock(user.getRoomNumber());
+            if (!wasBlocked) {
+                reservationNotificationSupport.sendCancellationBlock(user, machine);
+            }
             log.warn("48h block applied roomNumber={} exceeded max cancellations {}",
                     user.getRoomNumber(),
                     PenaltyConstants.MAX_CANCELLATIONS_IN_48H);

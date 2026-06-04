@@ -70,7 +70,7 @@ class ClearUserPenaltyServiceTest {
                 clearUserPenaltyService.execute(targetUserId);
 
                 // Then
-                then(penaltyRedisUtil).should(times(1)).clearPenalty(targetUserId);
+                then(penaltyRedisUtil).should(times(1)).clearAllRestrictions(targetUserId);
             }
         }
 

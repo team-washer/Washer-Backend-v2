@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
+import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -25,6 +26,7 @@ public class CancelReservationServiceImpl implements CancelReservationService {
     private final ReservationRepository reservationRepository;
     private final MachineRepository machineRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
+    private final ReservationNotificationSupport reservationNotificationSupport;
     private final CurrentUserProvider currentUserProvider;
 
     @Override
@@ -51,7 +53,11 @@ public class CancelReservationServiceImpl implements CancelReservationService {
             penaltyRedisUtil.recordCancellation(userId);
             user.updateLastCancellationTime();
             if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
+                final boolean wasBlocked = penaltyRedisUtil.isBlocked(user.getRoomNumber());
                 penaltyRedisUtil.applyBlock(user.getRoomNumber());
+                if (!wasBlocked) {
+                    reservationNotificationSupport.sendCancellationBlock(user, reservation.getMachine());
+                }
                 log.warn("48h block applied roomNumber {}", user.getRoomNumber());
             }
             applyPenalty = true;

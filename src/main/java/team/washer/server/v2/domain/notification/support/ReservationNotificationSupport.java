@@ -79,6 +79,15 @@ public class ReservationNotificationSupport {
         persistAndSend(user, notification, "예약 취소 경고");
     }
 
+    /**
+     * 48시간 예약 차단 알림을 전송한다.
+     */
+    @Transactional
+    public void sendCancellationBlock(User user, Machine machine) {
+        var notification = Notification.createCancellationBlockNotification(user, machine);
+        persistAndSend(user, notification, "예약 차단 알림");
+    }
+
     private void persistAndSend(final User user, final Notification notification, final String fcmTitle) {
         notificationRepository.save(notification);
         enforceNotificationLimit(user);

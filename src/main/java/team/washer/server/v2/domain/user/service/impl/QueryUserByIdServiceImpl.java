@@ -50,10 +50,6 @@ public class QueryUserByIdServiceImpl implements QueryUserByIdService {
     }
 
     private String buildPenaltyReason(Long userId) {
-        final String storedReason = penaltyRedisUtil.getPenaltyReason(userId);
-        if (storedReason != null) {
-            return storedReason;
-        }
         final long cancelCount = penaltyRedisUtil.getCancellationCount(userId);
         return "48시간 내 취소 " + cancelCount + "회 누적";
     }

@@ -18,11 +18,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import team.washer.server.v2.domain.reservation.entity.redis.CancellationBlockEntity;
 import team.washer.server.v2.domain.reservation.entity.redis.CooldownEntity;
-import team.washer.server.v2.domain.reservation.entity.redis.PenaltyEntity;
 import team.washer.server.v2.domain.reservation.entity.redis.TimeoutWarningEntity;
 import team.washer.server.v2.domain.reservation.repository.redis.CancellationBlockRedisRepository;
 import team.washer.server.v2.domain.reservation.repository.redis.CooldownRedisRepository;
-import team.washer.server.v2.domain.reservation.repository.redis.PenaltyRedisRepository;
 import team.washer.server.v2.domain.reservation.repository.redis.TimeoutWarningRedisRepository;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
@@ -34,9 +32,6 @@ class PenaltyRedisUtilTest {
 
     @InjectMocks
     private PenaltyRedisUtil penaltyRedisUtil;
-
-    @Mock
-    private PenaltyRedisRepository penaltyRedisRepository;
 
     @Mock
     private CooldownRedisRepository cooldownRedisRepository;
@@ -54,84 +49,88 @@ class PenaltyRedisUtilTest {
     private UserRepository userRepository;
 
     @Nested
-    @DisplayName("applyPenalty 메서드는")
-    class Describe_applyPenalty {
-
-        @Test
-        @DisplayName("사용자에게 패널티를 부여하고 Redis와 DB에 저장한다")
-        void it_applies_penalty_and_saves_to_redis_and_db() {
-            // Given
-            User user = mock(User.class);
-            when(user.getId()).thenReturn(1L);
-
-            // When
-            penaltyRedisUtil.applyPenalty(user, "48시간 내 취소 1회 누적");
-
-            // Then
-            verify(penaltyRedisRepository, times(1)).save(any(PenaltyEntity.class));
-            verify(user, times(1)).updateLastCancellationTime();
-            verify(userRepository, times(1)).save(user);
-        }
-    }
-
-    @Nested
     @DisplayName("getPenaltyExpiryTime 메서드는")
     class Describe_getPenaltyExpiryTime {
 
         @Test
-        @DisplayName("Redis에 패널티 정보가 있으면 만료 시간을 반환한다")
-        void it_returns_expiry_time_from_redis_if_exists() {
-            // Given
-            Long userId = 1L;
-            LocalDateTime expiryTime = LocalDateTime.now().plusMinutes(10);
-            PenaltyEntity penalty = PenaltyEntity.builder().userId(userId).expiryTime(expiryTime).build();
-
-            when(penaltyRedisRepository.findById(userId)).thenReturn(Optional.of(penalty));
-
-            // When
-            LocalDateTime result = penaltyRedisUtil.getPenaltyExpiryTime(userId);
-
-            // Then
-            assertThat(result).isEqualTo(expiryTime);
-        }
-
-        @Test
-        @DisplayName("Redis에 정보가 없고 DB에 최근 취소 이력이 있으면 만료 시간을 계산해서 반환한다")
-        void it_returns_expiry_time_from_db_if_not_in_redis() {
+        @DisplayName("쿨다운만 적용 중이면 쿨다운 잔여 TTL 기준 만료 시간을 반환한다")
+        void it_returns_expiry_time_from_cooldown_ttl() {
             // Given
             Long userId = 1L;
             User user = mock(User.class);
-            LocalDateTime lastCancellationAt = LocalDateTime.now().minusMinutes(5);
-
-            when(penaltyRedisRepository.findById(userId)).thenReturn(Optional.empty());
+            when(user.getRoomNumber()).thenReturn("101");
+            when(cooldownRedisRepository.findById(userId))
+                    .thenReturn(Optional.of(CooldownEntity.builder().userId(userId).ttl(300L).build()));
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-            when(user.getLastCancellationAt()).thenReturn(lastCancellationAt);
+            when(cancellationBlockRedisRepository.findById("101")).thenReturn(Optional.empty());
 
             // When
             LocalDateTime result = penaltyRedisUtil.getPenaltyExpiryTime(userId);
 
             // Then
-            assertThat(result).isEqualTo(lastCancellationAt.plusMinutes(PenaltyConstants.PENALTY_DURATION_MINUTES));
+            assertThat(result).isBetween(LocalDateTime.now().plusSeconds(290), LocalDateTime.now().plusSeconds(310));
+        }
+
+        @Test
+        @DisplayName("쿨다운과 블록이 함께 있으면 더 늦게 풀리는 블록 만료 시간을 반환한다")
+        void it_returns_latest_expiry_between_cooldown_and_block() {
+            // Given
+            Long userId = 1L;
+            User user = mock(User.class);
+            when(user.getRoomNumber()).thenReturn("101");
+            when(cooldownRedisRepository.findById(userId))
+                    .thenReturn(Optional.of(CooldownEntity.builder().userId(userId).ttl(300L).build()));
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(cancellationBlockRedisRepository.findById("101"))
+                    .thenReturn(Optional.of(CancellationBlockEntity.builder().roomNumber("101").ttl(3600L).build()));
+
+            // When
+            LocalDateTime result = penaltyRedisUtil.getPenaltyExpiryTime(userId);
+
+            // Then
+            assertThat(result).isBetween(LocalDateTime.now().plusSeconds(3590), LocalDateTime.now().plusSeconds(3610));
+        }
+
+        @Test
+        @DisplayName("쿨다운과 블록이 모두 없으면 null을 반환한다")
+        void it_returns_null_when_no_restriction() {
+            // Given
+            Long userId = 1L;
+            User user = mock(User.class);
+            when(user.getRoomNumber()).thenReturn("101");
+            when(cooldownRedisRepository.findById(userId)).thenReturn(Optional.empty());
+            when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+            when(cancellationBlockRedisRepository.findById("101")).thenReturn(Optional.empty());
+
+            // When
+            LocalDateTime result = penaltyRedisUtil.getPenaltyExpiryTime(userId);
+
+            // Then
+            assertThat(result).isNull();
         }
     }
 
     @Nested
-    @DisplayName("clearPenalty 메서드는")
-    class Describe_clearPenalty {
+    @DisplayName("clearAllRestrictions 메서드는")
+    class Describe_clearAllRestrictions {
 
         @Test
-        @DisplayName("Redis와 DB에서 패널티 정보를 삭제한다")
-        void it_clears_penalty_from_redis_and_db() {
+        @DisplayName("쿨다운, 경고, 취소 이력, 호실 블록, 마지막 취소 시각을 모두 정리한다")
+        void it_clears_all_restrictions() {
             // Given
             Long userId = 1L;
             User user = mock(User.class);
+            when(user.getRoomNumber()).thenReturn("101");
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
             // When
-            penaltyRedisUtil.clearPenalty(userId);
+            penaltyRedisUtil.clearAllRestrictions(userId);
 
             // Then
-            verify(penaltyRedisRepository, times(1)).deleteById(userId);
+            verify(cooldownRedisRepository, times(1)).deleteById(userId);
+            verify(timeoutWarningRedisRepository, times(1)).deleteById(userId);
+            verify(stringRedisTemplate, times(1)).delete(PenaltyConstants.CANCEL_HISTORY_KEY_PREFIX + userId);
+            verify(cancellationBlockRedisRepository, times(1)).deleteById("101");
             verify(user, times(1)).clearLastCancellationTime();
             verify(userRepository, times(1)).save(user);
         }

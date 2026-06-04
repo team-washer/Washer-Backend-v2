@@ -42,10 +42,6 @@ public class SearchUserServiceImpl implements SearchUserService {
 
     private String buildPenaltyReason(Long userId) {
         final long cancelCount = penaltyRedisUtil.getCancellationCount(userId);
-        final String storedReason = penaltyRedisUtil.getPenaltyReason(userId);
-        if (storedReason != null) {
-            return storedReason;
-        }
         return "48시간 내 취소 " + cancelCount + "회 누적";
     }
 

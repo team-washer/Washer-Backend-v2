@@ -20,7 +20,9 @@ public enum NotificationType {
                                                     "세탁 시작 알림",
                                                     "{machineName}의 {action}이 시작되었습니다.\n예상 완료 시간: {completionTime}"), TIMEOUT_WARNING(
                                                             "예약 취소 경고",
-                                                            "{machineName}의 예약이 시간 초과로 자동 취소되었습니다.\n첫 번째라 패널티는 없습니다. 다음부터는 패널티가 부과됩니다.");
+                                                            "{machineName}의 예약이 시간 초과로 자동 취소되었습니다.\n첫 번째라 패널티는 없습니다. 다음부터는 패널티가 부과됩니다."), CANCELLATION_BLOCKED(
+                                                                    "예약 차단 알림",
+                                                                    "48시간 내 예약 취소가 누적되어 해당 호실의 예약이 48시간 동안 제한됩니다.");
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 

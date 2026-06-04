@@ -22,6 +22,7 @@ import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.enums.Position;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
+import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -45,6 +46,9 @@ class CancelReservationServiceTest {
 
     @Mock
     private PenaltyRedisUtil penaltyRedisUtil;
+
+    @Mock
+    private ReservationNotificationSupport reservationNotificationSupport;
 
     @Mock
     private CurrentUserProvider currentUserProvider;
@@ -97,6 +101,56 @@ class CancelReservationServiceTest {
                 then(penaltyRedisUtil).should(times(1)).recordCancellation(userId);
                 then(reservationRepository).should(times(1)).save(reservation);
                 then(machineRepository).should(times(1)).save(reservation.getMachine());
+            }
+        }
+
+        @Nested
+        @DisplayName("48시간 취소 횟수를 초과한 RESERVED 예약을 취소할 때")
+        class Context_with_block_threshold_exceeded {
+
+            @Test
+            @DisplayName("호실 블록이 새로 적용되고 차단 알림이 전송되어야 한다")
+            void it_applies_block_and_sends_notification() {
+                // Given
+                var userId = 1L;
+                var reservationId = 10L;
+                var reservation = createReservation(ReservationStatus.RESERVED, userId);
+
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(5L);
+                given(user.getRoomNumber()).willReturn("101");
+                given(penaltyRedisUtil.isBlocked("101")).willReturn(false);
+
+                // When
+                cancelReservationService.execute(reservationId);
+
+                // Then
+                then(penaltyRedisUtil).should(times(1)).applyBlock("101");
+                then(reservationNotificationSupport).should(times(1)).sendCancellationBlock(user,
+                        reservation.getMachine());
+            }
+
+            @Test
+            @DisplayName("이미 블록 중이면 차단 알림을 중복 전송하지 않아야 한다")
+            void it_does_not_resend_notification_when_already_blocked() {
+                // Given
+                var userId = 1L;
+                var reservationId = 10L;
+                var reservation = createReservation(ReservationStatus.RESERVED, userId);
+
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(6L);
+                given(user.getRoomNumber()).willReturn("101");
+                given(penaltyRedisUtil.isBlocked("101")).willReturn(true);
+
+                // When
+                cancelReservationService.execute(reservationId);
+
+                // Then
+                then(penaltyRedisUtil).should(times(1)).applyBlock("101");
+                then(reservationNotificationSupport).should(never()).sendCancellationBlock(any(), any());
             }
         }
 

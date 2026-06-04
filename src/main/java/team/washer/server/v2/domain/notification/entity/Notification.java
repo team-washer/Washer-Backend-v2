@@ -184,6 +184,22 @@ public class Notification extends BaseEntity {
     }
 
     /**
+     * 48시간 예약 차단 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            취소된 기기
+     * @return 생성된 예약 차단 알림
+     */
+    public static Notification createCancellationBlockNotification(User user, Machine machine) {
+        String message = NotificationType.CANCELLATION_BLOCKED.getMessageTemplate();
+
+        return Notification.builder().user(user).machine(machine).type(NotificationType.CANCELLATION_BLOCKED)
+                .message(message).isRead(false).build();
+    }
+
+    /**
      * 알림을 읽음 상태로 변경합니다.
      */
     public void markAsRead() {

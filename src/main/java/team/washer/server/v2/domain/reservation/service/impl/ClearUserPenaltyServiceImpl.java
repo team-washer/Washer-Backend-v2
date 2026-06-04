@@ -34,7 +34,7 @@ public class ClearUserPenaltyServiceImpl implements ClearUserPenaltyService {
             throw new ExpectedException("관리자 권한이 필요합니다", HttpStatus.FORBIDDEN);
         }
 
-        penaltyRedisUtil.clearPenalty(userId);
+        penaltyRedisUtil.clearAllRestrictions(userId);
         log.info("Penalty cleared for user {} by admin {}", userId, adminId);
     }
 }
