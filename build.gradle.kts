@@ -43,7 +43,7 @@ tasks.compileTestJava {
 }
 
 group = "team.washer"
-version = "v20260526.0"
+version = "v20260604.0"
 
 springBoot {
     buildInfo()
