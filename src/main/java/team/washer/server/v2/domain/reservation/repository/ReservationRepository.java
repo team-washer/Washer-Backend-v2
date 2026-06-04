@@ -72,6 +72,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
         return findByStatus(ReservationStatus.RUNNING);
     }
 
+    @Query("SELECT DISTINCT r.machine.id FROM Reservation r WHERE r.status IN :statuses")
+    List<Long> findMachineIdsByStatusIn(@Param("statuses") List<ReservationStatus> statuses);
+
     boolean existsByMachineAndStatusIn(Machine machine, List<ReservationStatus> statuses);
 
     boolean existsByUserAndStatusIn(User user, List<ReservationStatus> statuses);

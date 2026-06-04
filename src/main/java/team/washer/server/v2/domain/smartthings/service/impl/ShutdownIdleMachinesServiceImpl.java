@@ -3,10 +3,10 @@ package team.washer.server.v2.domain.smartthings.service.impl;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,12 +35,13 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
             ReservationStatus.RUNNING);
 
     @Override
-    @Transactional(readOnly = true)
     public void execute() {
         var machines = machineRepository.findAll();
         if (machines.isEmpty()) {
             return;
         }
+
+        var activeMachineIds = Set.copyOf(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES));
 
         var offMachines = new ArrayList<String>();
         var failedMachines = new ArrayList<String>();
@@ -48,9 +49,7 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
 
         for (var machine : machines) {
             try {
-                var hasActiveReservation = reservationRepository.existsByMachineAndStatusIn(machine, ACTIVE_STATUSES);
-
-                if (hasActiveReservation) {
+                if (activeMachineIds.contains(machine.getId())) {
                     skippedCount++;
                 } else {
                     sendDeviceCommandService.execute(machine.getDeviceId(), SmartThingsCommandReqDto.powerOff());

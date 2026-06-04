@@ -22,6 +22,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsTokenExc
 import team.washer.server.v2.domain.smartthings.entity.SmartThingsToken;
 import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepository;
 import team.washer.server.v2.domain.smartthings.service.impl.ExchangeSmartThingsTokenServiceImpl;
+import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnvironment;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsOAuthClient;
 
@@ -40,6 +41,9 @@ class ExchangeSmartThingsTokenServiceTest {
 
     @Mock
     private SmartThingsEnvironment smartThingsEnvironment;
+
+    @Mock
+    private SmartThingsTokenProvider smartThingsTokenProvider;
 
     private SmartThingsTokenExchangeResDto createTokenResponse() {
         return new SmartThingsTokenExchangeResDto("new-access-token",

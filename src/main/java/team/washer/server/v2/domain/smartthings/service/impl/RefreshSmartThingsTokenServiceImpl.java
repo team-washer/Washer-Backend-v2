@@ -15,6 +15,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsTokenExc
 import team.washer.server.v2.domain.smartthings.entity.SmartThingsToken;
 import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepository;
 import team.washer.server.v2.domain.smartthings.service.RefreshSmartThingsTokenService;
+import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnvironment;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsOAuthClient;
 
@@ -28,6 +29,7 @@ public class RefreshSmartThingsTokenServiceImpl implements RefreshSmartThingsTok
     private final SmartThingsOAuthClient smartThingsOAuthClient;
     private final SmartThingsTokenRepository smartThingsTokenRepository;
     private final SmartThingsEnvironment smartThingsEnvironment;
+    private final SmartThingsTokenProvider smartThingsTokenProvider;
 
     @Override
     @Transactional
@@ -67,5 +69,6 @@ public class RefreshSmartThingsTokenServiceImpl implements RefreshSmartThingsTok
         var expiresAt = LocalDateTime.now().plusSeconds(response.expiresIn());
         token.updateTokens(response.accessToken(), response.refreshToken(), expiresAt);
         smartThingsTokenRepository.save(token);
+        smartThingsTokenProvider.refresh(token);
     }
 }

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -46,9 +47,12 @@ class ShutdownIdleMachinesServiceTest {
     private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
             ReservationStatus.RUNNING);
 
-    private Machine createMachine(final String name, final String deviceId) {
-        return Machine.builder().name(name).type(MachineType.WASHER).deviceId(deviceId).floor(2).position(Position.LEFT)
-                .number(1).status(MachineStatus.NORMAL).availability(MachineAvailability.AVAILABLE).build();
+    private Machine createMachine(final Long id, final String name, final String deviceId) {
+        var machine = Machine.builder().name(name).type(MachineType.WASHER).deviceId(deviceId).floor(2)
+                .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                .availability(MachineAvailability.AVAILABLE).build();
+        ReflectionTestUtils.setField(machine, "id", id);
+        return machine;
     }
 
     @Nested
@@ -82,9 +86,9 @@ class ShutdownIdleMachinesServiceTest {
             @DisplayName("해당 기기에 전원 종료 명령을 전송해야 한다")
             void it_sends_power_off_command() {
                 // Given
-                var machine = createMachine("W-2F-L1", "device-1");
+                var machine = createMachine(1L, "W-2F-L1", "device-1");
                 given(machineRepository.findAll()).willReturn(List.of(machine));
-                given(reservationRepository.existsByMachineAndStatusIn(machine, ACTIVE_STATUSES)).willReturn(false);
+                given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
 
                 // When
                 shutdownIdleMachinesService.execute();
@@ -103,9 +107,9 @@ class ShutdownIdleMachinesServiceTest {
             @DisplayName("해당 기기는 건너뛰어야 한다")
             void it_skips_reserved_machine() {
                 // Given
-                var machine = createMachine("W-2F-L1", "device-1");
+                var machine = createMachine(1L, "W-2F-L1", "device-1");
                 given(machineRepository.findAll()).willReturn(List.of(machine));
-                given(reservationRepository.existsByMachineAndStatusIn(machine, ACTIVE_STATUSES)).willReturn(true);
+                given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of(1L));
 
                 // When
                 shutdownIdleMachinesService.execute();
@@ -123,10 +127,10 @@ class ShutdownIdleMachinesServiceTest {
             @DisplayName("배치를 중단해야 한다")
             void it_stops_batch_on_permission_error() {
                 // Given
-                var machine1 = createMachine("W-2F-L1", "device-1");
-                var machine2 = createMachine("W-2F-R1", "device-2");
+                var machine1 = createMachine(1L, "W-2F-L1", "device-1");
+                var machine2 = createMachine(2L, "W-2F-R1", "device-2");
                 given(machineRepository.findAll()).willReturn(List.of(machine1, machine2));
-                given(reservationRepository.existsByMachineAndStatusIn(machine1, ACTIVE_STATUSES)).willReturn(false);
+                given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
                 willThrow(new SmartThingsPermissionException("권한 없음")).given(sendDeviceCommandService)
                         .execute(eq("device-1"), any(SmartThingsCommandReqDto.class));
 
@@ -149,11 +153,10 @@ class ShutdownIdleMachinesServiceTest {
             @DisplayName("해당 기기를 실패 목록에 추가하고 나머지 기기는 계속 처리해야 한다")
             void it_continues_processing_after_failure() {
                 // Given
-                var machine1 = createMachine("W-2F-L1", "device-1");
-                var machine2 = createMachine("W-2F-R1", "device-2");
+                var machine1 = createMachine(1L, "W-2F-L1", "device-1");
+                var machine2 = createMachine(2L, "W-2F-R1", "device-2");
                 given(machineRepository.findAll()).willReturn(List.of(machine1, machine2));
-                given(reservationRepository.existsByMachineAndStatusIn(machine1, ACTIVE_STATUSES)).willReturn(false);
-                given(reservationRepository.existsByMachineAndStatusIn(machine2, ACTIVE_STATUSES)).willReturn(false);
+                given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
                 willThrow(new RuntimeException("일시적 오류")).given(sendDeviceCommandService).execute(eq("device-1"),
                         any(SmartThingsCommandReqDto.class));
 

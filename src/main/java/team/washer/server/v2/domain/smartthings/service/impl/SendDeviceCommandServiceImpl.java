@@ -2,16 +2,14 @@ package team.washer.server.v2.domain.smartthings.service.impl;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
-import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepository;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
+import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeignClient;
 
 @Service
@@ -20,23 +18,15 @@ import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeig
 public class SendDeviceCommandServiceImpl implements SendDeviceCommandService {
 
     private final SmartThingsFeignClient feignClient;
-    private final SmartThingsTokenRepository tokenRepository;
+    private final SmartThingsTokenProvider tokenProvider;
 
+    /**
+     * 기기에 명령을 전송한다. 외부 HTTP 호출이 DB 커넥션을 점유하지 않도록 트랜잭션 없이 수행한다.
+     */
     @Override
-    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
     public void execute(String deviceId, SmartThingsCommandReqDto command) {
         try {
-            var token = tokenRepository.findSingletonToken().orElseThrow(() -> {
-                log.warn("smartthings no token found in db, OAuth authorization required");
-                return new ExpectedException("SmartThings 토큰이 존재하지 않습니다", HttpStatus.NOT_FOUND);
-            });
-
-            if (!token.isValid()) {
-                log.warn("smartthings token expired or invalid expiresAt={}", token.getExpiresAt());
-                throw new ExpectedException("SmartThings 토큰이 만료되었거나 유효하지 않습니다", HttpStatus.NOT_FOUND);
-            }
-
-            var authorization = "Bearer " + token.getAccessToken();
+            var authorization = "Bearer " + tokenProvider.getValidAccessToken();
             feignClient.sendDeviceCommand(authorization, deviceId, command);
 
             log.debug("smartthings command sent successfully deviceId={} command={}", deviceId, command);

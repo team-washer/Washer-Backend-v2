@@ -22,6 +22,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsTokenExc
 import team.washer.server.v2.domain.smartthings.entity.SmartThingsToken;
 import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepository;
 import team.washer.server.v2.domain.smartthings.service.impl.RefreshSmartThingsTokenServiceImpl;
+import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnvironment;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsOAuthClient;
 
@@ -40,6 +41,9 @@ class RefreshSmartThingsTokenServiceTest {
 
     @Mock
     private SmartThingsEnvironment smartThingsEnvironment;
+
+    @Mock
+    private SmartThingsTokenProvider smartThingsTokenProvider;
 
     private SmartThingsToken createExpiredToken() {
         return SmartThingsToken.builder().accessToken("old-access").refreshToken("old-refresh")
@@ -80,6 +84,7 @@ class RefreshSmartThingsTokenServiceTest {
 
                 // Then
                 then(smartThingsTokenRepository).should(times(1)).save(expiredToken);
+                then(smartThingsTokenProvider).should(times(1)).refresh(expiredToken);
                 assertThat(expiredToken.getAccessToken()).isEqualTo("new-access");
                 assertThat(expiredToken.getRefreshToken()).isEqualTo("new-refresh");
             }

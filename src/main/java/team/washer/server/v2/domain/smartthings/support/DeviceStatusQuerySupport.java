@@ -7,13 +7,11 @@ import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepository;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeignClient;
 
 /**
@@ -25,22 +23,14 @@ import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeig
 public class DeviceStatusQuerySupport {
 
     private final SmartThingsFeignClient feignClient;
-    private final SmartThingsTokenRepository tokenRepository;
+    private final SmartThingsTokenProvider tokenProvider;
 
     /**
-     * 단일 기기의 SmartThings 상태를 조회한다.
+     * 단일 기기의 SmartThings 상태를 조회한다. 외부 HTTP 호출이 DB 커넥션을 점유하지 않도록 트랜잭션 없이 수행한다.
      */
-    @Transactional(readOnly = true)
     public SmartThingsDeviceStatusResDto queryDeviceStatus(String deviceId) {
         try {
-            var token = tokenRepository.findSingletonToken()
-                    .orElseThrow(() -> new ExpectedException("SmartThings 토큰이 존재하지 않습니다", HttpStatus.NOT_FOUND));
-
-            if (!token.isValid()) {
-                throw new ExpectedException("SmartThings 토큰이 만료되었거나 유효하지 않습니다", HttpStatus.NOT_FOUND);
-            }
-
-            var authorization = "Bearer " + token.getAccessToken();
+            var authorization = "Bearer " + tokenProvider.getValidAccessToken();
             return feignClient.getDeviceStatus(authorization, deviceId);
         } catch (ExpectedException e) {
             log.error("smartthings token not found or invalid", e);
@@ -54,7 +44,6 @@ public class DeviceStatusQuerySupport {
     /**
      * 여러 기기의 SmartThings 상태를 병렬로 조회한다.
      */
-    @Transactional(readOnly = true)
     public Map<String, SmartThingsDeviceStatusResDto> queryAllDevicesStatus(List<String> deviceIds) {
         if (deviceIds == null || deviceIds.isEmpty()) {
             return Map.of();

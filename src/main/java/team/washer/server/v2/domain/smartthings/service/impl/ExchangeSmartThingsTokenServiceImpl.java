@@ -16,6 +16,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsTokenExc
 import team.washer.server.v2.domain.smartthings.entity.SmartThingsToken;
 import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepository;
 import team.washer.server.v2.domain.smartthings.service.ExchangeSmartThingsTokenService;
+import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnvironment;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsOAuthClient;
 
@@ -29,6 +30,7 @@ public class ExchangeSmartThingsTokenServiceImpl implements ExchangeSmartThingsT
     private final SmartThingsOAuthClient smartThingsOAuthClient;
     private final SmartThingsTokenRepository smartThingsTokenRepository;
     private final SmartThingsEnvironment smartThingsEnvironment;
+    private final SmartThingsTokenProvider smartThingsTokenProvider;
 
     @Override
     @Transactional
@@ -69,10 +71,12 @@ public class ExchangeSmartThingsTokenServiceImpl implements ExchangeSmartThingsT
             var token = existingToken.get();
             token.updateTokens(response.accessToken(), response.refreshToken(), expiresAt);
             smartThingsTokenRepository.save(token);
+            smartThingsTokenProvider.refresh(token);
         } else {
             var newToken = SmartThingsToken.builder().accessToken(response.accessToken())
                     .refreshToken(response.refreshToken()).expiresAt(expiresAt).build();
             smartThingsTokenRepository.save(newToken);
+            smartThingsTokenProvider.refresh(newToken);
         }
     }
 }

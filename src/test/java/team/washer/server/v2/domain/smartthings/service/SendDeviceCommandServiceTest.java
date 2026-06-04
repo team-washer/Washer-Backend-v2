@@ -3,9 +3,6 @@ package team.washer.server.v2.domain.smartthings.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
-import java.time.LocalDateTime;
-import java.util.Optional;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -17,10 +14,9 @@ import org.springframework.http.HttpStatus;
 
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
-import team.washer.server.v2.domain.smartthings.entity.SmartThingsToken;
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
-import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepository;
 import team.washer.server.v2.domain.smartthings.service.impl.SendDeviceCommandServiceImpl;
+import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeignClient;
 
 @ExtendWith(MockitoExtension.class)
@@ -34,17 +30,7 @@ class SendDeviceCommandServiceTest {
     private SmartThingsFeignClient feignClient;
 
     @Mock
-    private SmartThingsTokenRepository tokenRepository;
-
-    private SmartThingsToken createValidToken() {
-        return SmartThingsToken.builder().accessToken("valid-access-token").refreshToken("refresh-token")
-                .expiresAt(LocalDateTime.now().plusHours(1)).build();
-    }
-
-    private SmartThingsToken createExpiredToken() {
-        return SmartThingsToken.builder().accessToken("expired-access-token").refreshToken("refresh-token")
-                .expiresAt(LocalDateTime.now().minusMinutes(10)).build();
-    }
+    private SmartThingsTokenProvider tokenProvider;
 
     @Nested
     @DisplayName("execute 메서드는")
@@ -60,9 +46,8 @@ class SendDeviceCommandServiceTest {
                 // Given
                 var deviceId = "device-abc";
                 var command = SmartThingsCommandReqDto.powerOff();
-                var token = createValidToken();
 
-                given(tokenRepository.findSingletonToken()).willReturn(Optional.of(token));
+                given(tokenProvider.getValidAccessToken()).willReturn("valid-access-token");
 
                 // When
                 sendDeviceCommandService.execute(deviceId, command);
@@ -80,7 +65,8 @@ class SendDeviceCommandServiceTest {
             @DisplayName("ExpectedException이 발생하고 NOT_FOUND 상태를 반환해야 한다")
             void it_throws_not_found_exception() {
                 // Given
-                given(tokenRepository.findSingletonToken()).willReturn(Optional.empty());
+                given(tokenProvider.getValidAccessToken())
+                        .willThrow(new ExpectedException("SmartThings 토큰이 존재하지 않습니다", HttpStatus.NOT_FOUND));
 
                 // When & Then
                 assertThatThrownBy(
@@ -101,8 +87,8 @@ class SendDeviceCommandServiceTest {
             @DisplayName("ExpectedException이 발생하고 NOT_FOUND 상태를 반환해야 한다")
             void it_throws_not_found_for_expired_token() {
                 // Given
-                var expiredToken = createExpiredToken();
-                given(tokenRepository.findSingletonToken()).willReturn(Optional.of(expiredToken));
+                given(tokenProvider.getValidAccessToken())
+                        .willThrow(new ExpectedException("SmartThings 토큰이 만료되었거나 유효하지 않습니다", HttpStatus.NOT_FOUND));
 
                 // When & Then
                 assertThatThrownBy(
@@ -125,9 +111,8 @@ class SendDeviceCommandServiceTest {
                 // Given
                 var deviceId = "device-abc";
                 var command = SmartThingsCommandReqDto.powerOff();
-                var token = createValidToken();
 
-                given(tokenRepository.findSingletonToken()).willReturn(Optional.of(token));
+                given(tokenProvider.getValidAccessToken()).willReturn("valid-access-token");
                 willThrow(new SmartThingsPermissionException("x:devices:* 스코프 없음")).given(feignClient)
                         .sendDeviceCommand(anyString(), eq(deviceId), eq(command));
 
@@ -147,9 +132,8 @@ class SendDeviceCommandServiceTest {
                 // Given
                 var deviceId = "device-abc";
                 var command = SmartThingsCommandReqDto.powerOff();
-                var token = createValidToken();
 
-                given(tokenRepository.findSingletonToken()).willReturn(Optional.of(token));
+                given(tokenProvider.getValidAccessToken()).willReturn("valid-access-token");
                 willThrow(new RuntimeException("네트워크 오류")).given(feignClient)
                         .sendDeviceCommand(anyString(), eq(deviceId), eq(command));
 
