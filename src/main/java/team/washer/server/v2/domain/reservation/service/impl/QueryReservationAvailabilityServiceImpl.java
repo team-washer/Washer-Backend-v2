@@ -1,11 +1,10 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import java.time.LocalDateTime;
-
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationAvailabilityResDto;
 import team.washer.server.v2.domain.reservation.service.QueryReservationAvailabilityService;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
@@ -26,15 +25,22 @@ public class QueryReservationAvailabilityServiceImpl implements QueryReservation
         final var userId = currentUserProvider.getCurrentUserId();
         final var roomNumber = userRepository.findById(userId).map(u -> u.getRoomNumber()).orElse(null);
 
-        // 쿨다운 또는 48시간 블록 중이면 예약 불가 (블록은 호실 단위)
-        if (penaltyRedisUtil.isInCooldown(userId) || (roomNumber != null && penaltyRedisUtil.isBlocked(roomNumber))) {
-            return new ReservationAvailabilityResDto(false, null);
+        // 48시간 블록(호실 단위)이면 모든 예약 불가
+        final boolean blocked = roomNumber != null && penaltyRedisUtil.isBlocked(roomNumber);
+
+        // 쿨다운은 유형별이므로 모든 기기 유형이 쿨다운 중일 때만 전체 예약 불가로 간주
+        boolean allTypesInCooldown = true;
+        for (final MachineType machineType : MachineType.values()) {
+            if (!penaltyRedisUtil.isInCooldown(userId, machineType)) {
+                allTypesInCooldown = false;
+                break;
+            }
         }
 
-        // 하위 호환: 기존 패널티 확인
-        final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
-        final boolean canReserve = penaltyExpiresAt == null || LocalDateTime.now().isAfter(penaltyExpiresAt);
+        if (blocked || allTypesInCooldown) {
+            return new ReservationAvailabilityResDto(false, penaltyRedisUtil.getPenaltyExpiryTime(userId));
+        }
 
-        return new ReservationAvailabilityResDto(canReserve, canReserve ? null : penaltyExpiresAt);
+        return new ReservationAvailabilityResDto(true, null);
     }
 }

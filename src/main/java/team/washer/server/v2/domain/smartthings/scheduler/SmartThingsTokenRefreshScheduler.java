@@ -8,14 +8,14 @@ import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.smartthings.service.RefreshSmartThingsTokenService;
 
 /**
- * SmartThings 토큰 자동 갱신 스케줄러 약 33분마다 토큰을 갱신하여 만료 방지
+ * SmartThings 토큰 자동 갱신 스케줄러 약 19분마다 토큰 갱신을 시도하여 토큰 만료로 인한 서비스 중단 방지
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class SmartThingsTokenRefreshScheduler {
 
-    private static final long REFRESH_INTERVAL = 2000000; // 33분 20초
+    private static final long REFRESH_INTERVAL = 19 * 60 * 1000; // 19분마다 갱신
 
     private final RefreshSmartThingsTokenService refreshTokenService;
 

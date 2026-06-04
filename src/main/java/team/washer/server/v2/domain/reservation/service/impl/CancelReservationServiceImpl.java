@@ -49,7 +49,7 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         // RESERVED 상태에서 수동 취소 시 패널티 적용
         if (reservation.isReserved()) {
             final User user = reservation.getUser();
-            penaltyRedisUtil.applyCooldown(userId);
+            penaltyRedisUtil.applyCooldown(userId, reservation.getMachine().getType());
             penaltyRedisUtil.recordCancellation(userId);
             user.updateLastCancellationTime();
             if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
@@ -75,7 +75,7 @@ public class CancelReservationServiceImpl implements CancelReservationService {
     }
 
     private CancellationResDto mapToCancellationResDto(final boolean penaltyApplied) {
-        final String message = penaltyApplied ? "예약이 취소되었습니다. 5분간 재예약이 제한됩니다." : "예약이 취소되었습니다.";
+        final String message = penaltyApplied ? "예약이 취소되었습니다. 5분간 동일 종류 기기 재예약이 제한됩니다." : "예약이 취소되었습니다.";
         return new CancellationResDto(true, message, penaltyApplied, null);
     }
 }

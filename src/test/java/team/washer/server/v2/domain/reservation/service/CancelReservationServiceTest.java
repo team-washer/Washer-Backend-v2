@@ -97,7 +97,7 @@ class CancelReservationServiceTest {
                 assertThat(result.penaltyApplied()).isTrue();
                 assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
                 assertThat(reservation.getMachine().getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
-                then(penaltyRedisUtil).should(times(1)).applyCooldown(userId);
+                then(penaltyRedisUtil).should(times(1)).applyCooldown(userId, MachineType.WASHER);
                 then(penaltyRedisUtil).should(times(1)).recordCancellation(userId);
                 then(reservationRepository).should(times(1)).save(reservation);
                 then(machineRepository).should(times(1)).save(reservation.getMachine());
@@ -177,7 +177,7 @@ class CancelReservationServiceTest {
                 assertThat(result.success()).isTrue();
                 assertThat(result.penaltyApplied()).isFalse();
                 assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-                then(penaltyRedisUtil).should(never()).applyCooldown(anyLong());
+                then(penaltyRedisUtil).should(never()).applyCooldown(anyLong(), any());
             }
         }
 

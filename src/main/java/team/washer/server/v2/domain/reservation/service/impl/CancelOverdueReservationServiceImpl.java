@@ -101,7 +101,7 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
     private void applyTimeoutPenalty(User user, Machine machine) {
         final long userId = user.getId();
 
-        penaltyRedisUtil.applyCooldown(userId);
+        penaltyRedisUtil.applyCooldown(userId, machine.getType());
         penaltyRedisUtil.recordCancellation(userId);
         user.updateLastCancellationTime();
 

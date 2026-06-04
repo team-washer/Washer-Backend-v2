@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.entity.redis.CancellationBlockEntity;
 import team.washer.server.v2.domain.reservation.entity.redis.CooldownEntity;
 import team.washer.server.v2.domain.reservation.entity.redis.TimeoutWarningEntity;
@@ -53,14 +54,15 @@ class PenaltyRedisUtilTest {
     class Describe_getPenaltyExpiryTime {
 
         @Test
-        @DisplayName("쿨다운만 적용 중이면 쿨다운 잔여 TTL 기준 만료 시간을 반환한다")
+        @DisplayName("세탁기 쿨다운만 적용 중이면 쿨다운 잔여 TTL 기준 만료 시간을 반환한다")
         void it_returns_expiry_time_from_cooldown_ttl() {
             // Given
             Long userId = 1L;
             User user = mock(User.class);
             when(user.getRoomNumber()).thenReturn("101");
-            when(cooldownRedisRepository.findById(userId))
-                    .thenReturn(Optional.of(CooldownEntity.builder().userId(userId).ttl(300L).build()));
+            when(cooldownRedisRepository.findById("1:WASHER"))
+                    .thenReturn(Optional.of(CooldownEntity.builder().id("1:WASHER").ttl(300L).build()));
+            when(cooldownRedisRepository.findById("1:DRYER")).thenReturn(Optional.empty());
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(cancellationBlockRedisRepository.findById("101")).thenReturn(Optional.empty());
 
@@ -78,8 +80,9 @@ class PenaltyRedisUtilTest {
             Long userId = 1L;
             User user = mock(User.class);
             when(user.getRoomNumber()).thenReturn("101");
-            when(cooldownRedisRepository.findById(userId))
-                    .thenReturn(Optional.of(CooldownEntity.builder().userId(userId).ttl(300L).build()));
+            when(cooldownRedisRepository.findById("1:WASHER"))
+                    .thenReturn(Optional.of(CooldownEntity.builder().id("1:WASHER").ttl(300L).build()));
+            when(cooldownRedisRepository.findById("1:DRYER")).thenReturn(Optional.empty());
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(cancellationBlockRedisRepository.findById("101"))
                     .thenReturn(Optional.of(CancellationBlockEntity.builder().roomNumber("101").ttl(3600L).build()));
@@ -98,7 +101,8 @@ class PenaltyRedisUtilTest {
             Long userId = 1L;
             User user = mock(User.class);
             when(user.getRoomNumber()).thenReturn("101");
-            when(cooldownRedisRepository.findById(userId)).thenReturn(Optional.empty());
+            when(cooldownRedisRepository.findById("1:WASHER")).thenReturn(Optional.empty());
+            when(cooldownRedisRepository.findById("1:DRYER")).thenReturn(Optional.empty());
             when(userRepository.findById(userId)).thenReturn(Optional.of(user));
             when(cancellationBlockRedisRepository.findById("101")).thenReturn(Optional.empty());
 
@@ -127,7 +131,8 @@ class PenaltyRedisUtilTest {
             penaltyRedisUtil.clearAllRestrictions(userId);
 
             // Then
-            verify(cooldownRedisRepository, times(1)).deleteById(userId);
+            verify(cooldownRedisRepository, times(1)).deleteById("1:WASHER");
+            verify(cooldownRedisRepository, times(1)).deleteById("1:DRYER");
             verify(timeoutWarningRedisRepository, times(1)).deleteById(userId);
             verify(stringRedisTemplate, times(1)).delete(PenaltyConstants.CANCEL_HISTORY_KEY_PREFIX + userId);
             verify(cancellationBlockRedisRepository, times(1)).deleteById("101");
@@ -141,41 +146,41 @@ class PenaltyRedisUtilTest {
     class Describe_cooldown {
 
         @Test
-        @DisplayName("쿨다운을 적용하면 Redis에 저장한다")
+        @DisplayName("쿨다운을 적용하면 유형별 키로 Redis에 저장한다")
         void it_saves_cooldown_to_redis() {
             // Given
             Long userId = 1L;
 
             // When
-            penaltyRedisUtil.applyCooldown(userId);
+            penaltyRedisUtil.applyCooldown(userId, MachineType.WASHER);
 
             // Then
             verify(cooldownRedisRepository, times(1)).save(any(CooldownEntity.class));
         }
 
         @Test
-        @DisplayName("쿨다운 중이면 true를 반환한다")
+        @DisplayName("해당 유형 쿨다운 중이면 true를 반환한다")
         void it_returns_true_when_in_cooldown() {
             // Given
             Long userId = 1L;
-            when(cooldownRedisRepository.existsById(userId)).thenReturn(true);
+            when(cooldownRedisRepository.existsById("1:WASHER")).thenReturn(true);
 
             // When
-            boolean result = penaltyRedisUtil.isInCooldown(userId);
+            boolean result = penaltyRedisUtil.isInCooldown(userId, MachineType.WASHER);
 
             // Then
             assertThat(result).isTrue();
         }
 
         @Test
-        @DisplayName("쿨다운 중이 아니면 false를 반환한다")
+        @DisplayName("해당 유형 쿨다운 중이 아니면 false를 반환한다")
         void it_returns_false_when_not_in_cooldown() {
             // Given
             Long userId = 1L;
-            when(cooldownRedisRepository.existsById(userId)).thenReturn(false);
+            when(cooldownRedisRepository.existsById("1:DRYER")).thenReturn(false);
 
             // When
-            boolean result = penaltyRedisUtil.isInCooldown(userId);
+            boolean result = penaltyRedisUtil.isInCooldown(userId, MachineType.DRYER);
 
             // Then
             assertThat(result).isFalse();

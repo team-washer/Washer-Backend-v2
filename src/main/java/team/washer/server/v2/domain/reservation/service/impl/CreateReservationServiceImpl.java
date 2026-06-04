@@ -46,19 +46,10 @@ public class CreateReservationServiceImpl implements CreateReservationService {
 
         user.validateFloorRestriction();
 
-        // 쿨다운 검증 (취소 후 5분)
-        if (penaltyRedisUtil.isInCooldown(userId)) {
-            throw new ExpectedException("예약 취소 후 5분간 예약이 제한됩니다", HttpStatus.BAD_REQUEST);
-        }
-
         // 48시간 차단 검증 (호실 단위)
         if (penaltyRedisUtil.isBlocked(user.getRoomNumber())) {
             throw new ExpectedException("48시간 내 취소 횟수를 초과하여 예약이 제한됩니다", HttpStatus.BAD_REQUEST);
         }
-
-        // 기존 패널티 검증 (하위 호환)
-        final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
-        user.validateNotPenalized(penaltyExpiresAt);
 
         // 시간 제한 검증 (학년별 예약 시작 시각, 개발환경에서는 비활성화 가능)
         if (!reservationEnvironment.disableTimeRestriction()) {
@@ -68,6 +59,12 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         // 동일 기기 동시 예약 직렬화를 위해 비관적 쓰기 락으로 조회
         final Machine machine = machineRepository.findByIdForUpdate(reqDto.machineId())
                 .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+
+        // 쿨다운 검증 (취소 후 5분, 동일 기기 유형 한정)
+        if (penaltyRedisUtil.isInCooldown(userId, machine.getType())) {
+            throw new ExpectedException(String.format("예약 취소 후 5분간 %s 예약이 제한됩니다", machine.getType().getDescription()),
+                    HttpStatus.BAD_REQUEST);
+        }
 
         // 기기 가용성 검증
         if (machine.getAvailability() != MachineAvailability.AVAILABLE) {

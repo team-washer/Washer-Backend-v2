@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.entity.redis.CancellationBlockEntity;
 import team.washer.server.v2.domain.reservation.entity.redis.CooldownEntity;
 import team.washer.server.v2.domain.reservation.entity.redis.TimeoutWarningEntity;
@@ -32,13 +33,20 @@ public class PenaltyRedisUtil {
     // ===== 예약 제한 만료 시각 (쿨다운 + 호실 블록) =====
 
     /**
-     * 현재 적용 중인 예약 제한의 만료 시각을 반환합니다.
+     * 현재 적용 중인 예약 제한의 만료 시각을 반환합니다(상태 표시용).
      * <p>
-     * 개인 단위 5분 쿨다운과 호실 단위 48시간 블록 중 더 늦게 풀리는 시각을 반환하며, 제한이 없으면 {@code null}을 반환합니다.
+     * 기기 유형별 5분 쿨다운(세탁기/건조기)과 호실 단위 48시간 블록 중 가장 늦게 풀리는 시각을 반환하며, 제한이 없으면
+     * {@code null}을 반환합니다. 실제 예약 가부는 유형별로 판정되므로 이 값은 요약 표시 용도입니다.
      * </p>
      */
     public LocalDateTime getPenaltyExpiryTime(final Long userId) {
-        LocalDateTime latestExpiry = expiryFromTtl(cooldownRemainingTtlSeconds(userId));
+        LocalDateTime latestExpiry = null;
+        for (final MachineType machineType : MachineType.values()) {
+            final LocalDateTime cooldownExpiry = expiryFromTtl(cooldownRemainingTtlSeconds(userId, machineType));
+            if (cooldownExpiry != null && (latestExpiry == null || cooldownExpiry.isAfter(latestExpiry))) {
+                latestExpiry = cooldownExpiry;
+            }
+        }
 
         final User user = userRepository.findById(userId).orElse(null);
         if (user != null && user.getRoomNumber() != null) {
@@ -57,13 +65,18 @@ public class PenaltyRedisUtil {
         return LocalDateTime.now().plusSeconds(remainingSeconds);
     }
 
-    private Long cooldownRemainingTtlSeconds(final Long userId) {
+    private Long cooldownRemainingTtlSeconds(final Long userId, final MachineType machineType) {
         try {
-            return cooldownRedisRepository.findById(userId).map(CooldownEntity::getTtl).orElse(null);
+            return cooldownRedisRepository.findById(cooldownKey(userId, machineType)).map(CooldownEntity::getTtl)
+                    .orElse(null);
         } catch (Exception e) {
-            log.warn("failed to read cooldown ttl userId={}", userId, e);
+            log.warn("failed to read cooldown ttl userId={} machineType={}", userId, machineType, e);
             return null;
         }
+    }
+
+    private static String cooldownKey(final Long userId, final MachineType machineType) {
+        return userId + ":" + machineType.name();
     }
 
     private Long blockRemainingTtlSeconds(final String roomNumber) {
@@ -79,28 +92,31 @@ public class PenaltyRedisUtil {
     // ===== 5분 쿨다운 =====
 
     /**
-     * 취소 직후 5분 재예약 쿨다운을 적용합니다.
+     * 취소 직후 해당 기기 유형에 5분 재예약 쿨다운을 적용합니다. 세탁기 취소는 세탁기 쿨다운만 적용되며 건조기 예약에는 영향을 주지
+     * 않습니다.
      */
-    public void applyCooldown(final Long userId) {
+    public void applyCooldown(final Long userId, final MachineType machineType) {
         try {
             final long ttlSeconds = PenaltyConstants.COOLDOWN_DURATION_MINUTES * 60L;
-            cooldownRedisRepository.save(CooldownEntity.builder().userId(userId).ttl(ttlSeconds).build());
-            log.info("cooldown applied userId={} expiresInMinutes={}",
+            cooldownRedisRepository
+                    .save(CooldownEntity.builder().id(cooldownKey(userId, machineType)).ttl(ttlSeconds).build());
+            log.info("cooldown applied userId={} machineType={} expiresInMinutes={}",
                     userId,
+                    machineType,
                     PenaltyConstants.COOLDOWN_DURATION_MINUTES);
         } catch (Exception e) {
-            log.error("failed to apply cooldown userId={}", userId, e);
+            log.error("failed to apply cooldown userId={} machineType={}", userId, machineType, e);
         }
     }
 
     /**
-     * 현재 쿨다운 중인지 여부를 반환합니다.
+     * 해당 기기 유형이 현재 쿨다운 중인지 여부를 반환합니다.
      */
-    public boolean isInCooldown(final Long userId) {
+    public boolean isInCooldown(final Long userId, final MachineType machineType) {
         try {
-            return cooldownRedisRepository.existsById(userId);
+            return cooldownRedisRepository.existsById(cooldownKey(userId, machineType));
         } catch (Exception e) {
-            log.warn("failed to check cooldown userId={}", userId, e);
+            log.warn("failed to check cooldown userId={} machineType={}", userId, machineType, e);
             return false;
         }
     }
@@ -199,7 +215,9 @@ public class PenaltyRedisUtil {
 
     public void clearAllRestrictions(final Long userId) {
         try {
-            cooldownRedisRepository.deleteById(userId);
+            for (final MachineType machineType : MachineType.values()) {
+                cooldownRedisRepository.deleteById(cooldownKey(userId, machineType));
+            }
             timeoutWarningRedisRepository.deleteById(userId);
             stringRedisTemplate.delete(PenaltyConstants.CANCEL_HISTORY_KEY_PREFIX + userId);
         } catch (Exception e) {

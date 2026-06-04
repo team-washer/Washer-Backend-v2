@@ -83,7 +83,7 @@ class CancelOverdueReservationServiceTest {
             // Then
             verify(reservation, never()).cancel();
             verify(reservationRepository, never()).save(any());
-            verify(penaltyRedisUtil, never()).applyCooldown(any());
+            verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
         }
     }
 
@@ -120,7 +120,7 @@ class CancelOverdueReservationServiceTest {
             verify(reservationNotificationSupport, times(1))
                     .sendStarted(eq(user), eq(machine), any(LocalDateTime.class));
             verify(reservation, never()).cancel();
-            verify(penaltyRedisUtil, never()).applyCooldown(any());
+            verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
         }
     }
 
@@ -151,7 +151,7 @@ class CancelOverdueReservationServiceTest {
             // Then
             verify(reservation, times(1)).cancel();
             verify(reservationRepository, times(1)).save(reservation);
-            verify(penaltyRedisUtil, times(1)).applyCooldown(1L);
+            verify(penaltyRedisUtil, times(1)).applyCooldown(eq(1L), any());
             verify(penaltyRedisUtil, times(1)).recordCancellation(1L);
             verify(penaltyRedisUtil, times(1)).applyWarning(1L);
             verify(reservationNotificationSupport, times(1)).sendTimeoutWarning(user, machine);
@@ -180,7 +180,7 @@ class CancelOverdueReservationServiceTest {
             cancelOverdueReservationService.execute();
 
             // Then
-            verify(penaltyRedisUtil, times(1)).applyCooldown(1L);
+            verify(penaltyRedisUtil, times(1)).applyCooldown(eq(1L), any());
             verify(penaltyRedisUtil, times(1)).recordCancellation(1L);
             verify(penaltyRedisUtil, never()).applyWarning(any());
             verify(reservationNotificationSupport, times(1)).sendAutoCancellation(user, machine);

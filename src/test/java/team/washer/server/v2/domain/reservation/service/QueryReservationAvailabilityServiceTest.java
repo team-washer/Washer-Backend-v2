@@ -14,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.service.impl.QueryReservationAvailabilityServiceImpl;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
@@ -45,7 +46,7 @@ class QueryReservationAvailabilityServiceTest {
     class Describe_execute {
 
         @Nested
-        @DisplayName("패널티가 없고 쿨다운/블록도 없는 사용자가 조회할 때")
+        @DisplayName("쿨다운/블록이 없는 사용자가 조회할 때")
         class Context_with_available_user {
 
             @Test
@@ -56,9 +57,8 @@ class QueryReservationAvailabilityServiceTest {
                 var user = createUser("301");
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(penaltyRedisUtil.isInCooldown(userId)).willReturn(false);
                 given(penaltyRedisUtil.isBlocked("301")).willReturn(false);
-                given(penaltyRedisUtil.getPenaltyExpiryTime(userId)).willReturn(null);
+                given(penaltyRedisUtil.isInCooldown(userId, MachineType.WASHER)).willReturn(false);
 
                 // When
                 var result = queryReservationAvailabilityService.execute();
@@ -71,26 +71,54 @@ class QueryReservationAvailabilityServiceTest {
         }
 
         @Nested
-        @DisplayName("쿨다운 중인 사용자가 조회할 때")
-        class Context_with_cooldown_user {
+        @DisplayName("일부 유형(세탁기)만 쿨다운 중인 사용자가 조회할 때")
+        class Context_with_single_type_cooldown {
 
             @Test
-            @DisplayName("예약 불가 상태를 반환해야 한다")
-            void it_returns_unavailable_due_to_cooldown() {
+            @DisplayName("다른 유형은 예약 가능하므로 예약 가능 상태를 반환해야 한다")
+            void it_returns_available_when_other_type_is_free() {
                 // Given
                 var userId = 1L;
                 var user = createUser("301");
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(penaltyRedisUtil.isInCooldown(userId)).willReturn(true);
+                given(penaltyRedisUtil.isBlocked("301")).willReturn(false);
+                given(penaltyRedisUtil.isInCooldown(userId, MachineType.WASHER)).willReturn(true);
+                given(penaltyRedisUtil.isInCooldown(userId, MachineType.DRYER)).willReturn(false);
 
                 // When
                 var result = queryReservationAvailabilityService.execute();
 
                 // Then
-                assertThat(result).isNotNull();
-                assertThat(result.canReserve()).isFalse();
+                assertThat(result.canReserve()).isTrue();
                 assertThat(result.penaltyExpiresAt()).isNull();
+            }
+        }
+
+        @Nested
+        @DisplayName("모든 유형이 쿨다운 중인 사용자가 조회할 때")
+        class Context_with_all_types_cooldown {
+
+            @Test
+            @DisplayName("예약 불가 상태를 반환해야 한다")
+            void it_returns_unavailable_when_all_types_cooled() {
+                // Given
+                var userId = 1L;
+                var user = createUser("301");
+                var penaltyExpiresAt = LocalDateTime.now().plusMinutes(5);
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(penaltyRedisUtil.isBlocked("301")).willReturn(false);
+                given(penaltyRedisUtil.isInCooldown(userId, MachineType.WASHER)).willReturn(true);
+                given(penaltyRedisUtil.isInCooldown(userId, MachineType.DRYER)).willReturn(true);
+                given(penaltyRedisUtil.getPenaltyExpiryTime(userId)).willReturn(penaltyExpiresAt);
+
+                // When
+                var result = queryReservationAvailabilityService.execute();
+
+                // Then
+                assertThat(result.canReserve()).isFalse();
+                assertThat(result.penaltyExpiresAt()).isEqualTo(penaltyExpiresAt);
             }
         }
 
@@ -106,7 +134,6 @@ class QueryReservationAvailabilityServiceTest {
                 var user = createUser("301");
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(penaltyRedisUtil.isInCooldown(userId)).willReturn(false);
                 given(penaltyRedisUtil.isBlocked("301")).willReturn(true);
 
                 // When
@@ -114,32 +141,6 @@ class QueryReservationAvailabilityServiceTest {
 
                 // Then
                 assertThat(result.canReserve()).isFalse();
-            }
-        }
-
-        @Nested
-        @DisplayName("기존 패널티가 아직 유효한 사용자가 조회할 때")
-        class Context_with_active_legacy_penalty {
-
-            @Test
-            @DisplayName("예약 불가 상태와 만료 시간을 반환해야 한다")
-            void it_returns_unavailable_with_expiry_time() {
-                // Given
-                var userId = 1L;
-                var user = createUser("301");
-                var penaltyExpiresAt = LocalDateTime.now().plusMinutes(10);
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(penaltyRedisUtil.isInCooldown(userId)).willReturn(false);
-                given(penaltyRedisUtil.isBlocked("301")).willReturn(false);
-                given(penaltyRedisUtil.getPenaltyExpiryTime(userId)).willReturn(penaltyExpiresAt);
-
-                // When
-                var result = queryReservationAvailabilityService.execute();
-
-                // Then
-                assertThat(result.canReserve()).isFalse();
-                assertThat(result.penaltyExpiresAt()).isEqualTo(penaltyExpiresAt);
             }
         }
     }
