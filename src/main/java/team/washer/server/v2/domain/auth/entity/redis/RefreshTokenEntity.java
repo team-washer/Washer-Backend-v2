@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.auth.entity.redis;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.redis.core.RedisHash;
 import org.springframework.data.redis.core.TimeToLive;
+import org.springframework.data.redis.core.index.Indexed;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,6 +20,7 @@ public class RefreshTokenEntity {
     @Id
     private Long userId;
 
+    @Indexed
     private String token;
 
     @TimeToLive
