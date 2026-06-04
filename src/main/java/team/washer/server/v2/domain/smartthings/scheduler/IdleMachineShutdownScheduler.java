@@ -13,12 +13,12 @@ import team.washer.server.v2.global.thirdparty.smartthings.SmartThingsOperationT
 @Slf4j
 public class IdleMachineShutdownScheduler {
 
-    private static final long SHUTDOWN_CHECK_INTERVAL = 10000;
+    private static final long SHUTDOWN_CHECK_INTERVAL = 60000;
 
     private final ShutdownIdleMachinesService shutdownIdleMachinesService;
     private final SmartThingsOperationTimePolicy operationTimePolicy;
 
-    @Scheduled(fixedRate = SHUTDOWN_CHECK_INTERVAL)
+    @Scheduled(fixedDelay = SHUTDOWN_CHECK_INTERVAL)
     public void shutdownIdleMachines() {
         if (!operationTimePolicy.isOperationAllowed()) {
             log.debug("idle shutdown skipped outside operation hours");

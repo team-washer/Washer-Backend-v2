@@ -12,9 +12,11 @@ import team.washer.server.v2.domain.reservation.service.CancelOverdueReservation
 @RequiredArgsConstructor
 public class ReservationTimeoutScheduler {
 
+    private static final long TIMEOUT_CHECK_INTERVAL = 60000;
+
     private final CancelOverdueReservationService cancelOverdueReservationService;
 
-    @Scheduled(fixedDelay = 10000)
+    @Scheduled(fixedDelay = TIMEOUT_CHECK_INTERVAL)
     public void checkReservationTimeouts() {
         try {
             cancelOverdueReservationService.execute();

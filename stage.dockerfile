@@ -5,4 +5,4 @@ COPY build/libs/app.jar app.jar
 RUN chown appuser:appgroup app.jar
 USER appuser
 EXPOSE 8080
-CMD ["java", "-jar", "-Dspring.profiles.active=stage", "app.jar"]
+CMD ["java", "-XX:MaxRAMPercentage=60.0", "-XX:+UseStringDeduplication", "-XX:+ExitOnOutOfMemoryError", "-jar", "-Dspring.profiles.active=stage", "app.jar"]

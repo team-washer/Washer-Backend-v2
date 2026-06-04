@@ -7,6 +7,8 @@ docker run -d \
   --network washer-net \
   -p 8080:8080 \
   --restart unless-stopped \
+  --memory=768m \
+  --memory-swap=1280m \
   washer-backend-v2:latest
 docker image prune -f
 docker ps | grep washer-backend-v2
