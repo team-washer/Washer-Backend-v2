@@ -108,18 +108,19 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     @Override
     public Page<Reservation> findAllWithFilters(String userName,
-            String machineName,
-            ReservationStatus status,
-            LocalDateTime startDate,
-            LocalDateTime endDate,
-            MachineType machineType,
-            Pageable pageable) {
+                                                String machineName,
+                                                ReservationStatus status,
+                                                LocalDateTime startDate,
+                                                LocalDateTime endDate,
+                                                MachineType machineType,
+                                                Pageable pageable) {
 
         QReservation latestReservation = new QReservation("latestReservation");
 
         final var latestReservationIds = JPAExpressions.select(latestReservation.id.max()).from(latestReservation)
                 .where(StringUtils.hasText(userName) ? latestReservation.user.name.contains(userName) : null,
                         StringUtils.hasText(machineName) ? latestReservation.machine.name.contains(machineName) : null,
+                        status != null ? latestReservation.status.eq(status) : null,
                         startDate != null ? latestReservation.startTime.goe(startDate) : null,
                         endDate != null ? latestReservation.startTime.loe(endDate) : null,
                         machineType != null ? latestReservation.machine.type.eq(machineType) : null)
@@ -127,12 +128,13 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
         final var content = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
                 .leftJoin(reservation.machine, machine).fetchJoin()
-                .where(reservation.id.in(latestReservationIds), statusEquals(status))
+                .where(reservation.id.in(latestReservationIds))
                 .orderBy(reservation.createdAt.desc()).offset(pageable.getOffset()).limit(pageable.getPageSize())
                 .fetch();
 
         final var total = jpaQueryFactory.select(reservation.count()).from(reservation)
-                .where(reservation.id.in(latestReservationIds), statusEquals(status)).fetchOne();
+                .where(reservation.id.in(latestReservationIds))
+                .fetchOne();
 
         final var count = total != null ? total : 0L;
 
