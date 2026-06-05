@@ -28,15 +28,17 @@ import team.washer.server.v2.domain.reservation.repository.custom.ReservationRep
 @RequiredArgsConstructor
 public class ReservationRepositoryCustomImpl implements ReservationRepositoryCustom {
 
+    private static final QReservation latestReservation = new QReservation("latestReservation");
+
     private final JPAQueryFactory jpaQueryFactory;
 
     @Override
     public Page<Reservation> findReservationHistory(Long userId,
-            ReservationStatus status,
-            LocalDateTime startDate,
-            LocalDateTime endDate,
-            MachineType machineType,
-            Pageable pageable) {
+                                                    ReservationStatus status,
+                                                    LocalDateTime startDate,
+                                                    LocalDateTime endDate,
+                                                    MachineType machineType,
+                                                    Pageable pageable) {
 
         List<Reservation> results = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
                 .leftJoin(reservation.machine, machine).fetchJoin()
@@ -63,9 +65,9 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     @Override
     public boolean existsConflictingReservation(Long machineId,
-            LocalDateTime startTime,
-            LocalDateTime endTime,
-            Long excludeReservationId) {
+                                                LocalDateTime startTime,
+                                                LocalDateTime endTime,
+                                                Long excludeReservationId) {
 
         return jpaQueryFactory.selectFrom(reservation)
                 .where(reservation.machine.id.eq(machineId),
@@ -96,8 +98,8 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     @Override
     public List<Reservation> findExpiredReservations(ReservationStatus status,
-            LocalDateTime threshold,
-            LocalDateTime recentCutoff) {
+                                                     LocalDateTime threshold,
+                                                     LocalDateTime recentCutoff) {
 
         return jpaQueryFactory.selectFrom(reservation)
                 .where(reservation.status.eq(status),
@@ -114,8 +116,6 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                                                 LocalDateTime endDate,
                                                 MachineType machineType,
                                                 Pageable pageable) {
-
-        QReservation latestReservation = new QReservation("latestReservation");
 
         final var latestReservationIds = JPAExpressions.select(latestReservation.id.max()).from(latestReservation)
                 .where(StringUtils.hasText(userName) ? latestReservation.user.name.contains(userName) : null,
@@ -143,10 +143,10 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     @Override
     public Page<Reservation> findMachineReservationHistory(Long machineId,
-            ReservationStatus status,
-            LocalDateTime startDate,
-            LocalDateTime endDate,
-            Pageable pageable) {
+                                                           ReservationStatus status,
+                                                           LocalDateTime startDate,
+                                                           LocalDateTime endDate,
+                                                           Pageable pageable) {
 
         List<Reservation> results = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
                 .leftJoin(reservation.machine, machine).fetchJoin()
