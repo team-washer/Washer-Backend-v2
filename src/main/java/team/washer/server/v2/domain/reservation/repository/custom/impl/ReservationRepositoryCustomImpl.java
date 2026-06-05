@@ -14,10 +14,12 @@ import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.machine.enums.MachineType;
+import team.washer.server.v2.domain.reservation.entity.QReservation;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.custom.ReservationRepositoryCustom;
@@ -113,25 +115,24 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
             MachineType machineType,
             Pageable pageable) {
 
+        QReservation latestReservation = new QReservation("latestReservation");
+
+        final var latestReservationIds = JPAExpressions.select(latestReservation.id.max()).from(latestReservation)
+                .where(StringUtils.hasText(userName) ? latestReservation.user.name.contains(userName) : null,
+                        StringUtils.hasText(machineName) ? latestReservation.machine.name.contains(machineName) : null,
+                        startDate != null ? latestReservation.startTime.goe(startDate) : null,
+                        endDate != null ? latestReservation.startTime.loe(endDate) : null,
+                        machineType != null ? latestReservation.machine.type.eq(machineType) : null)
+                .groupBy(latestReservation.machine.id);
+
         final var content = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
                 .leftJoin(reservation.machine, machine).fetchJoin()
-                .where(userNameContains(userName),
-                        machineNameContains(machineName),
-                        statusEquals(status),
-                        startTimeAfter(startDate),
-                        startTimeBefore(endDate),
-                        machineTypeEquals(machineType))
+                .where(reservation.id.in(latestReservationIds), statusEquals(status))
                 .orderBy(reservation.createdAt.desc()).offset(pageable.getOffset()).limit(pageable.getPageSize())
                 .fetch();
 
         final var total = jpaQueryFactory.select(reservation.count()).from(reservation)
-                .where(userNameContains(userName),
-                        machineNameContains(machineName),
-                        statusEquals(status),
-                        startTimeAfter(startDate),
-                        startTimeBefore(endDate),
-                        machineTypeEquals(machineType))
-                .fetchOne();
+                .where(reservation.id.in(latestReservationIds), statusEquals(status)).fetchOne();
 
         final var count = total != null ? total : 0L;
 
