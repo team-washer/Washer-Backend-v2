@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
+import java.util.Optional;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -44,7 +46,7 @@ class TokenGenerationSupportTest {
         class Context_with_first_login {
 
             @Test
-            @DisplayName("Redis에 새로운 RefreshToken이 저장되어야 한다")
+            @DisplayName("기존 RefreshToken이 없으면 삭제 없이 새로운 RefreshToken을 저장해야 한다")
             void it_creates_new_refresh_token_in_redis() {
                 // Given
                 Long userId = 1L;
@@ -58,6 +60,7 @@ class TokenGenerationSupportTest {
                 given(jwtTokenProvider.generateRefreshToken(userId)).willReturn(refreshToken);
                 given(jwtEnvironment.accessTokenExpiration()).willReturn(accessTokenExpiration);
                 given(jwtEnvironment.refreshTokenExpiration()).willReturn(refreshTokenExpiration);
+                given(refreshTokenRedisRepository.findById(userId)).willReturn(Optional.empty());
 
                 RefreshTokenEntity savedEntity = RefreshTokenEntity.builder().userId(userId).token(refreshToken)
                         .ttl(refreshTokenExpiration).build();
@@ -72,6 +75,8 @@ class TokenGenerationSupportTest {
                 assertThat(result.refreshToken()).isEqualTo(refreshToken);
                 assertThat(result.expiresIn()).isEqualTo(accessTokenExpiration);
 
+                then(refreshTokenRedisRepository).should(times(1)).findById(userId);
+                then(refreshTokenRedisRepository).should(never()).delete(any(RefreshTokenEntity.class));
                 then(refreshTokenRedisRepository).should(times(1)).save(
                         argThat(entity -> entity.getUserId().equals(userId) && entity.getToken().equals(refreshToken)
                                 && entity.getTtl().equals(refreshTokenExpiration)));
@@ -83,20 +88,25 @@ class TokenGenerationSupportTest {
         class Context_with_returning_user {
 
             @Test
-            @DisplayName("기존 RefreshToken이 덮어써져야 한다")
-            void it_overwrites_existing_refresh_token_in_redis() {
+            @DisplayName("기존 RefreshToken을 먼저 삭제한 뒤 새로운 RefreshToken을 저장해야 한다")
+            void it_deletes_existing_then_saves_new_refresh_token() {
                 // Given
                 Long userId = 1L;
                 UserRole role = UserRole.USER;
-                String accessToken = "new.access.token";
+                String oldRefreshToken = "old.refresh.token";
                 String newRefreshToken = "new.refresh.token";
+                String accessToken = "new.access.token";
                 Long accessTokenExpiration = 3600L;
                 Long refreshTokenExpiration = 2592000L;
+
+                RefreshTokenEntity existingEntity = RefreshTokenEntity.builder().userId(userId).token(oldRefreshToken)
+                        .ttl(refreshTokenExpiration).build();
 
                 given(jwtTokenProvider.generateAccessToken(userId, role)).willReturn(accessToken);
                 given(jwtTokenProvider.generateRefreshToken(userId)).willReturn(newRefreshToken);
                 given(jwtEnvironment.accessTokenExpiration()).willReturn(accessTokenExpiration);
                 given(jwtEnvironment.refreshTokenExpiration()).willReturn(refreshTokenExpiration);
+                given(refreshTokenRedisRepository.findById(userId)).willReturn(Optional.of(existingEntity));
 
                 RefreshTokenEntity savedEntity = RefreshTokenEntity.builder().userId(userId).token(newRefreshToken)
                         .ttl(refreshTokenExpiration).build();
@@ -111,6 +121,8 @@ class TokenGenerationSupportTest {
                 assertThat(result.refreshToken()).isEqualTo(newRefreshToken);
                 assertThat(result.expiresIn()).isEqualTo(accessTokenExpiration);
 
+                then(refreshTokenRedisRepository).should(times(1)).findById(userId);
+                then(refreshTokenRedisRepository).should(times(1)).delete(existingEntity);
                 then(refreshTokenRedisRepository).should(times(1)).save(any(RefreshTokenEntity.class));
             }
         }
