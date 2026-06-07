@@ -42,7 +42,7 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
 **Entities:**
 - Extend `BaseEntity`, which provides `id`, `createdAt`, `updatedAt`, and `@Version` (optimistic locking) — do NOT redeclare these per entity
 - Exception: an entity that cannot extend `BaseEntity` (e.g. `SmartThingsToken`) declares its own `@Version`
-- `@Builder`, `@NoArgsConstructor(access = PROTECTED)`
+- `@Builder`, `@NoArgsConstructor(access = PROTECTED)`, `@AllArgsConstructor` (required so `@Builder` has an all-args constructor to back)
 - `FetchType.LAZY` for all relationships
 - Business methods in Korean with Javadoc
 
