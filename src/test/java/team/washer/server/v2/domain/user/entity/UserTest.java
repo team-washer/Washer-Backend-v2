@@ -175,4 +175,42 @@ class UserTest {
             }
         }
     }
+
+    @Nested
+    @DisplayName("promoteToDormitoryCouncil 메서드는")
+    class Describe_promoteToDormitoryCouncil {
+
+        @Test
+        @DisplayName("일반 사용자를 기숙사자치위원회로 승격하고 true를 반환한다")
+        void it_promotes_user() {
+            final User user = createUser(3, UserRole.USER);
+
+            final boolean promoted = user.promoteToDormitoryCouncil();
+
+            assertThat(promoted).isTrue();
+            assertThat(user.getRole()).isEqualTo(UserRole.DORMITORY_COUNCIL);
+        }
+
+        @Test
+        @DisplayName("이미 기숙사자치위원회면 변경 없이 false를 반환한다")
+        void it_keeps_council() {
+            final User user = createUser(3, UserRole.DORMITORY_COUNCIL);
+
+            final boolean promoted = user.promoteToDormitoryCouncil();
+
+            assertThat(promoted).isFalse();
+            assertThat(user.getRole()).isEqualTo(UserRole.DORMITORY_COUNCIL);
+        }
+
+        @Test
+        @DisplayName("관리자는 강등 없이 false를 반환한다")
+        void it_keeps_admin() {
+            final User user = createUser(3, UserRole.ADMIN);
+
+            final boolean promoted = user.promoteToDormitoryCouncil();
+
+            assertThat(promoted).isFalse();
+            assertThat(user.getRole()).isEqualTo(UserRole.ADMIN);
+        }
+    }
 }

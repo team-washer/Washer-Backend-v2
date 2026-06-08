@@ -260,4 +260,17 @@ public class User extends BaseEntity {
             this.floor = floor;
         }
     }
+
+    /**
+     * 일반 사용자를 기숙사자치위원회로 승격합니다. 이미 기숙사자치위원회이거나 관리자인 경우 권한을 변경하지 않습니다.
+     *
+     * @return 실제로 승격이 이루어지면 true, 권한 변경이 없으면 false
+     */
+    public boolean promoteToDormitoryCouncil() {
+        if (this.role != UserRole.USER) {
+            return false;
+        }
+        this.role = UserRole.DORMITORY_COUNCIL;
+        return true;
+    }
 }
