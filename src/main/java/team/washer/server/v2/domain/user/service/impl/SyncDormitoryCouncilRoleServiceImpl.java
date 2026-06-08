@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,21 +28,34 @@ public class SyncDormitoryCouncilRoleServiceImpl implements SyncDormitoryCouncil
     private final DataGsmOpenApiClient dataGsmOpenApiClient;
     private final DataGsmEnvironment dataGsmEnvironment;
     private final UserRepository userRepository;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional
     public int execute() {
         if (!dataGsmEnvironment.hasApiKey()) {
             log.warn("dormitory council role sync skipped reason=missing_api_key");
             return 0;
         }
 
+        // 외부 API 호출은 DB 커넥션 점유를 피하기 위해 트랜잭션 밖에서 수행한다.
         final Set<String> managerStudentIds = fetchDormitoryManagerStudentIds();
         if (managerStudentIds.isEmpty()) {
             log.info("dormitory council role sync no_targets fetched=0");
             return 0;
         }
 
+        final Integer promoted = transactionTemplate.execute(status -> promoteCandidates(managerStudentIds));
+        return promoted != null ? promoted : 0;
+    }
+
+    /**
+     * 학번 집합에 해당하는 일반 사용자를 기숙사자치위원회로 승격합니다. DB 조회와 수정만 트랜잭션 내에서 수행됩니다.
+     *
+     * @param managerStudentIds
+     *            기숙사 관리 역할 학생의 학번 집합
+     * @return 실제로 승격된 사용자 수
+     */
+    private int promoteCandidates(final Set<String> managerStudentIds) {
         final List<User> candidates = userRepository.findByRoleAndStudentIdIn(UserRole.USER, managerStudentIds);
         int promoted = 0;
         for (final User user : candidates) {
@@ -70,7 +83,8 @@ public class SyncDormitoryCouncilRoleServiceImpl implements SyncDormitoryCouncil
         do {
             final DataGsmStudentSearchResDto response = dataGsmOpenApiClient
                     .searchStudents(dataGsmEnvironment.apiKey(), DORMITORY_MANAGER_ROLE, true, page, PAGE_SIZE);
-            if (response == null || response.data() == null || response.data().students() == null) {
+            if (response == null || response.data() == null || response.data().students() == null
+                    || response.data().students().isEmpty()) {
                 break;
             }
             for (final DataGsmStudentSearchResDto.Student student : response.data().students()) {

@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.enums.UserRole;
@@ -38,7 +40,11 @@ class SyncDormitoryCouncilRoleServiceTest {
                 "client-secret",
                 "redirect-uri",
                 apiKey);
-        return new SyncDormitoryCouncilRoleServiceImpl(dataGsmOpenApiClient, environment, userRepository);
+        final TransactionTemplate transactionTemplate = new TransactionTemplate(mock(PlatformTransactionManager.class));
+        return new SyncDormitoryCouncilRoleServiceImpl(dataGsmOpenApiClient,
+                environment,
+                userRepository,
+                transactionTemplate);
     }
 
     private User createUser(final String studentId, final UserRole role) {
