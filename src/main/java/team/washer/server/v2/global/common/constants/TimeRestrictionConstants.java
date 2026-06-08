@@ -6,12 +6,15 @@ public final class TimeRestrictionConstants {
     private TimeRestrictionConstants() {
     }
 
-    /** 1학년 예약 가능 시작 시각 */
-    public static final LocalTime GRADE_1_START_TIME = LocalTime.of(19, 50);
+    /** 월~목 예약 가능 시작 시각 (전 학년 공통) */
+    public static final LocalTime WEEKDAY_START_TIME = LocalTime.of(21, 20);
 
-    /** 2학년 예약 가능 시작 시각 */
-    public static final LocalTime GRADE_2_START_TIME = LocalTime.of(20, 10);
+    /** 일요일 1학년 예약 가능 시작 시각 */
+    public static final LocalTime SUNDAY_GRADE_1_START_TIME = LocalTime.of(20, 0);
 
-    /** 3학년 이상 예약 가능 시작 시각 */
-    public static final LocalTime GRADE_3_START_TIME = LocalTime.of(20, 30);
+    /** 일요일 2학년 예약 가능 시작 시각 */
+    public static final LocalTime SUNDAY_GRADE_2_START_TIME = LocalTime.of(20, 20);
+
+    /** 일요일 3학년 이상 예약 가능 시작 시각 */
+    public static final LocalTime SUNDAY_GRADE_3_START_TIME = LocalTime.of(20, 40);
 }
