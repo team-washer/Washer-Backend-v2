@@ -10,12 +10,12 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
 - Gradle 8.11.1 (Kotlin DSL)
 
 ## Architecture (Layered DDD)
-- **domain/**: Entities extending BaseEntity, include `@Version`
+- **domain/**: Entities extending BaseEntity (BaseEntity provides `@Version`)
 - **service/**: Interface + Impl, single method per service
 - **repository/**: JpaRepository + QueryDSL custom queries
-- **controller/**: REST endpoints returning `CommonApiResDto<T>`
+- **controller/**: REST endpoints returning DTOs directly (SDK auto-wraps)
 - **dto/**: Records only (NO `from()` methods)
-- **exception/**: ExpectedException subclasses
+- **exception/**: Code throws SDK `ExpectedException` directly (no subclassing)
 
 ## Code Style (Spotless)
 - 120 chars max, 4 spaces indent
@@ -30,7 +30,7 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
 - Suffix: `ReqDto`/`ResDto`
 - Jakarta validation annotations
 - Manual mapping in service (no MapStruct)
-- Note: `CommonApiResDto` is an exception (wrapper class, not a domain DTO)
+- Note: `CommonApiResponse` (`team.themoment.sdk.response`) is the SDK wrapper, not a domain DTO
 
 **Services (Single Responsibility):**
 - One method per interface: `{Action}{Entity}Service`
@@ -40,14 +40,16 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
 - Manual DTO mapping in private methods
 
 **Entities:**
-- Extend `BaseEntity` (createdAt, updatedAt)
-- `@Version` required (optimistic locking)
-- `@Builder`, `@NoArgsConstructor(access = PROTECTED)`
+- Extend `BaseEntity`, which provides `id`, `createdAt`, `updatedAt`, and `@Version` (optimistic locking) — do NOT redeclare these per entity
+- Exception: an entity that cannot extend `BaseEntity` (e.g. `SmartThingsToken`) declares its own `@Version`
+- `@Builder`, `@NoArgsConstructor(access = PROTECTED)`, `@AllArgsConstructor` (required so `@Builder` has an all-args constructor to back)
 - `FetchType.LAZY` for all relationships
 - Business methods in Korean with Javadoc
 
 **Controllers:**
-- Always return `CommonApiResDto<T>`
+- Response wrapping is handled by the SDK (`sdk.response.enabled: true`)
+- Return the response DTO directly — the SDK wraps it automatically
+- Return `CommonApiResponse` (`team.themoment.sdk.response`) directly only when there is no response body
 - `@Tag`, `@Operation` for OpenAPI (Korean)
 - `@Valid` for request validation
 - Inject single-method services
@@ -55,6 +57,10 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
 **Repositories:**
 - Extend `JpaRepository<Entity, ID>`
 - Custom: `{Entity}RepositoryCustom` + QueryDSL impl
+
+**Exceptions:**
+- Throw the SDK's `ExpectedException` directly: `new ExpectedException("메시지", HttpStatus.X)` — do NOT subclass it
+- `GlobalExceptionHandler` maps `ExpectedException` to the response
 
 ## Korean Language Requirement
 **ALL documentation, comments, and messages in Korean:**
