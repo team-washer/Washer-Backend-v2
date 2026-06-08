@@ -185,6 +185,9 @@ public class User extends BaseEntity {
 
         switch (dayOfWeek) {
             case MONDAY, TUESDAY, WEDNESDAY, THURSDAY -> {
+                if (time.isBefore(TimeRestrictionConstants.RESTRICTION_START_TIME)) {
+                    return;
+                }
                 if (time.isBefore(TimeRestrictionConstants.WEEKDAY_START_TIME)) {
                     throw new ExpectedException(
                             String.format("%s 이후에만 예약할 수 있습니다", TimeRestrictionConstants.WEEKDAY_START_TIME),
@@ -192,6 +195,9 @@ public class User extends BaseEntity {
                 }
             }
             case SUNDAY -> {
+                if (time.isBefore(TimeRestrictionConstants.RESTRICTION_START_TIME)) {
+                    return;
+                }
                 final LocalTime gradeStartTime = resolveSundayGradeStartTime();
                 if (time.isBefore(gradeStartTime)) {
                     throw new ExpectedException(String.format("%d학년은 %s 이후에만 예약할 수 있습니다", this.grade, gradeStartTime),

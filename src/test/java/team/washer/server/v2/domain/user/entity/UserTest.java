@@ -153,6 +153,48 @@ class UserTest {
         }
 
         @Nested
+        @DisplayName("자정부터 08:00 이전 새벽 시간대에는")
+        class Context_before_restriction_start {
+
+            @Test
+            @DisplayName("월요일 00:00이면 제한 없이 통과한다")
+            void it_passes_weekday_midnight() {
+                final User user = createUser(1, UserRole.USER);
+                final LocalDateTime time = LocalDateTime.of(2026, 6, 8, 0, 0);
+
+                assertThatCode(() -> user.validateTimeRestriction(time)).doesNotThrowAnyException();
+            }
+
+            @Test
+            @DisplayName("월요일 07:59이면 제한 없이 통과한다")
+            void it_passes_weekday_before_0800() {
+                final User user = createUser(1, UserRole.USER);
+                final LocalDateTime time = LocalDateTime.of(2026, 6, 8, 7, 59);
+
+                assertThatCode(() -> user.validateTimeRestriction(time)).doesNotThrowAnyException();
+            }
+
+            @Test
+            @DisplayName("일요일 07:59이면 제한 없이 통과한다")
+            void it_passes_sunday_before_0800() {
+                final User user = createUser(1, UserRole.USER);
+                final LocalDateTime time = LocalDateTime.of(2026, 6, 7, 7, 59);
+
+                assertThatCode(() -> user.validateTimeRestriction(time)).doesNotThrowAnyException();
+            }
+
+            @Test
+            @DisplayName("월요일 08:00 정각부터는 제한이 적용되어 예외를 던진다")
+            void it_throws_weekday_at_0800() {
+                final User user = createUser(1, UserRole.USER);
+                final LocalDateTime time = LocalDateTime.of(2026, 6, 8, 8, 0);
+
+                assertThatThrownBy(() -> user.validateTimeRestriction(time)).isInstanceOf(ExpectedException.class)
+                        .hasMessageContaining("21:20");
+            }
+        }
+
+        @Nested
         @DisplayName("기숙사자치위원회와 관리자는")
         class Context_bypass {
 
