@@ -185,6 +185,9 @@ public class User extends BaseEntity {
 
         switch (dayOfWeek) {
             case MONDAY, TUESDAY, WEDNESDAY, THURSDAY, SUNDAY -> {
+                if (time.isBefore(TimeRestrictionConstants.RESTRICTION_START_TIME)) {
+                    return;
+                }
                 final LocalTime gradeStartTime = resolveGradeStartTime();
                 if (time.isBefore(gradeStartTime)) {
                     throw new ExpectedException(
