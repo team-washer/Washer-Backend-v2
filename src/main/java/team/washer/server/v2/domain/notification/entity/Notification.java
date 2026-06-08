@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.notification.entity;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
@@ -197,6 +198,23 @@ public class Notification extends BaseEntity {
 
         return Notification.builder().user(user).machine(machine).type(NotificationType.CANCELLATION_BLOCKED)
                 .message(message).isRead(false).build();
+    }
+
+    /**
+     * 예약 차단 연장 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param newExpiryAt
+     *            새 차단 만료 시각
+     * @return 생성된 차단 연장 알림
+     */
+    public static Notification createBlockExtensionNotification(User user, LocalDateTime newExpiryAt) {
+        String formatted = newExpiryAt.format(DateTimeFormatter.ofPattern("MM월 dd일 HH시 mm분"));
+        String message = "관리자에 의해 예약 차단 기간이 연장되었습니다. " + formatted + "까지 해당 호실의 예약이 제한됩니다.";
+
+        return Notification.builder().user(user).type(NotificationType.CANCELLATION_BLOCKED).message(message)
+                .isRead(false).build();
     }
 
     /**
