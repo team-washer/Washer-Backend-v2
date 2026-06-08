@@ -22,9 +22,12 @@ public enum NotificationType {
                                                             "예약 취소 경고",
                                                             "{machineName}의 예약이 시간 초과로 자동 취소되었습니다.\n첫 번째라 패널티는 없습니다. 다음부터는 패널티가 부과됩니다."), CANCELLATION_BLOCKED(
                                                                     "예약 차단 알림",
-                                                                    "48시간 내 예약 취소가 누적되어 해당 호실의 예약이 48시간 동안 제한됩니다.");
+                                                                    "48시간 내 예약 취소가 누적되어 해당 호실의 예약이 48시간 동안 제한됩니다."), CANCELLATION_BLOCK_EXTENDED(
+                                                                            "예약 차단 연장 알림",
+                                                                            "관리자에 의해 예약 차단 기간이 연장되었습니다. {expiryAt}까지 해당 호실의 예약이 제한됩니다.");
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter EXPIRY_FORMATTER = DateTimeFormatter.ofPattern("MM월 dd일 HH시 mm분");
 
     private final String description;
     private final String messageTemplate;
@@ -45,5 +48,9 @@ public enum NotificationType {
         var formatted = completionTime != null ? completionTime.format(TIME_FORMATTER) : "미정";
         return messageTemplate.replace("{machineName}", machineName).replace("{action}", machineType.getActionNoun())
                 .replace("{completionTime}", formatted);
+    }
+
+    public String formatMessage(LocalDateTime expiryAt) {
+        return messageTemplate.replace("{expiryAt}", expiryAt.format(EXPIRY_FORMATTER));
     }
 }

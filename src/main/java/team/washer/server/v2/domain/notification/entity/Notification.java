@@ -200,6 +200,22 @@ public class Notification extends BaseEntity {
     }
 
     /**
+     * 예약 차단 연장 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param newExpiryAt
+     *            새 차단 만료 시각
+     * @return 생성된 차단 연장 알림
+     */
+    public static Notification createBlockExtensionNotification(User user, LocalDateTime newExpiryAt) {
+        String message = NotificationType.CANCELLATION_BLOCK_EXTENDED.formatMessage(newExpiryAt);
+
+        return Notification.builder().user(user).type(NotificationType.CANCELLATION_BLOCK_EXTENDED).message(message)
+                .isRead(false).build();
+    }
+
+    /**
      * 알림을 읽음 상태로 변경합니다.
      */
     public void markAsRead() {

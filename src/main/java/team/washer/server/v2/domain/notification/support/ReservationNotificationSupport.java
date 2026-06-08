@@ -88,6 +88,15 @@ public class ReservationNotificationSupport {
         persistAndSend(user, notification, "예약 차단 알림");
     }
 
+    /**
+     * 예약 차단 연장 알림을 전송한다.
+     */
+    @Transactional
+    public void sendBlockExtension(User user, LocalDateTime newExpiryAt) {
+        var notification = Notification.createBlockExtensionNotification(user, newExpiryAt);
+        persistAndSend(user, notification, "예약 차단 알림");
+    }
+
     private void persistAndSend(final User user, final Notification notification, final String fcmTitle) {
         notificationRepository.save(notification);
         enforceNotificationLimit(user);
