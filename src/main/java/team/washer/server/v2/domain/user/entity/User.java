@@ -169,8 +169,8 @@ public class User extends BaseEntity {
     /**
      * 예약 시간에 대한 시간 제한 규칙을 검증합니다. 규칙을 위반하면 예외를 발생시킵니다.
      * <p>
-     * 월~목, 일요일은 학년별 예약 가능 시작 시각이 적용됩니다. 금요일과 토요일은 제한 없이 예약 가능합니다. 기숙사자치위원회 및 관리자는
-     * 시간 제한을 우회합니다.
+     * 월~목은 전 학년 공통 시작 시각이, 일요일은 학년별 시작 시각이 적용됩니다. 금요일과 토요일은 제한 없이 예약 가능합니다.
+     * 기숙사자치위원회 및 관리자는 시간 제한을 우회합니다.
      *
      * @param startTime
      *            예약 시작 시간
@@ -184,14 +184,23 @@ public class User extends BaseEntity {
         final LocalTime time = startTime.toLocalTime();
 
         switch (dayOfWeek) {
-            case MONDAY, TUESDAY, WEDNESDAY, THURSDAY, SUNDAY -> {
+            case MONDAY, TUESDAY, WEDNESDAY, THURSDAY -> {
                 if (time.isBefore(TimeRestrictionConstants.RESTRICTION_START_TIME)) {
                     return;
                 }
-                final LocalTime gradeStartTime = resolveGradeStartTime();
-                if (time.isBefore(gradeStartTime)) {
+                if (time.isBefore(TimeRestrictionConstants.WEEKDAY_START_TIME)) {
                     throw new ExpectedException(
-                            String.format("%d학년은 %s 이후에만 예약할 수 있습니다", this.grade, gradeStartTime.toString()),
+                            String.format("%s 이후에만 예약할 수 있습니다", TimeRestrictionConstants.WEEKDAY_START_TIME),
+                            HttpStatus.BAD_REQUEST);
+                }
+            }
+            case SUNDAY -> {
+                if (time.isBefore(TimeRestrictionConstants.RESTRICTION_START_TIME)) {
+                    return;
+                }
+                final LocalTime gradeStartTime = resolveSundayGradeStartTime();
+                if (time.isBefore(gradeStartTime)) {
+                    throw new ExpectedException(String.format("%d학년은 %s 이후에만 예약할 수 있습니다", this.grade, gradeStartTime),
                             HttpStatus.BAD_REQUEST);
                 }
             }
@@ -201,15 +210,15 @@ public class User extends BaseEntity {
     }
 
     /**
-     * 학년에 따른 예약 가능 시작 시각을 반환합니다.
+     * 일요일 학년에 따른 예약 가능 시작 시각을 반환합니다.
      *
-     * @return 학년별 예약 시작 시각
+     * @return 일요일 학년별 예약 시작 시각
      */
-    private LocalTime resolveGradeStartTime() {
+    private LocalTime resolveSundayGradeStartTime() {
         return switch (this.grade) {
-            case 1 -> TimeRestrictionConstants.GRADE_1_START_TIME;
-            case 2 -> TimeRestrictionConstants.GRADE_2_START_TIME;
-            default -> TimeRestrictionConstants.GRADE_3_START_TIME;
+            case 1 -> TimeRestrictionConstants.SUNDAY_GRADE_1_START_TIME;
+            case 2 -> TimeRestrictionConstants.SUNDAY_GRADE_2_START_TIME;
+            default -> TimeRestrictionConstants.SUNDAY_GRADE_3_START_TIME;
         };
     }
 
@@ -256,5 +265,18 @@ public class User extends BaseEntity {
         if (floor != null) {
             this.floor = floor;
         }
+    }
+
+    /**
+     * 일반 사용자를 기숙사자치위원회로 승격합니다. 이미 기숙사자치위원회이거나 관리자인 경우 권한을 변경하지 않습니다.
+     *
+     * @return 실제로 승격이 이루어지면 true, 권한 변경이 없으면 false
+     */
+    public boolean promoteToDormitoryCouncil() {
+        if (this.role != UserRole.USER) {
+            return false;
+        }
+        this.role = UserRole.DORMITORY_COUNCIL;
+        return true;
     }
 }

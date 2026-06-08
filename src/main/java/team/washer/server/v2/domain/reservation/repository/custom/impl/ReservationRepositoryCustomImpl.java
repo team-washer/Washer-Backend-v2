@@ -34,11 +34,11 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     @Override
     public Page<Reservation> findReservationHistory(Long userId,
-                                                    ReservationStatus status,
-                                                    LocalDateTime startDate,
-                                                    LocalDateTime endDate,
-                                                    MachineType machineType,
-                                                    Pageable pageable) {
+            ReservationStatus status,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            MachineType machineType,
+            Pageable pageable) {
 
         List<Reservation> results = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
                 .leftJoin(reservation.machine, machine).fetchJoin()
@@ -65,9 +65,9 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     @Override
     public boolean existsConflictingReservation(Long machineId,
-                                                LocalDateTime startTime,
-                                                LocalDateTime endTime,
-                                                Long excludeReservationId) {
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            Long excludeReservationId) {
 
         return jpaQueryFactory.selectFrom(reservation)
                 .where(reservation.machine.id.eq(machineId),
@@ -98,8 +98,8 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     @Override
     public List<Reservation> findExpiredReservations(ReservationStatus status,
-                                                     LocalDateTime threshold,
-                                                     LocalDateTime recentCutoff) {
+            LocalDateTime threshold,
+            LocalDateTime recentCutoff) {
 
         return jpaQueryFactory.selectFrom(reservation)
                 .where(reservation.status.eq(status),
@@ -110,12 +110,12 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     @Override
     public Page<Reservation> findAllWithFilters(String userName,
-                                                String machineName,
-                                                ReservationStatus status,
-                                                LocalDateTime startDate,
-                                                LocalDateTime endDate,
-                                                MachineType machineType,
-                                                Pageable pageable) {
+            String machineName,
+            ReservationStatus status,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            MachineType machineType,
+            Pageable pageable) {
 
         final var latestReservationIds = JPAExpressions.select(latestReservation.id.max()).from(latestReservation)
                 .where(StringUtils.hasText(userName) ? latestReservation.user.name.contains(userName) : null,
@@ -127,14 +127,12 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                 .groupBy(latestReservation.machine.id);
 
         final var content = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
-                .leftJoin(reservation.machine, machine).fetchJoin()
-                .where(reservation.id.in(latestReservationIds))
+                .leftJoin(reservation.machine, machine).fetchJoin().where(reservation.id.in(latestReservationIds))
                 .orderBy(reservation.createdAt.desc()).offset(pageable.getOffset()).limit(pageable.getPageSize())
                 .fetch();
 
         final var total = jpaQueryFactory.select(reservation.count()).from(reservation)
-                .where(reservation.id.in(latestReservationIds))
-                .fetchOne();
+                .where(reservation.id.in(latestReservationIds)).fetchOne();
 
         final var count = total != null ? total : 0L;
 
@@ -143,10 +141,10 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     @Override
     public Page<Reservation> findMachineReservationHistory(Long machineId,
-                                                           ReservationStatus status,
-                                                           LocalDateTime startDate,
-                                                           LocalDateTime endDate,
-                                                           Pageable pageable) {
+            ReservationStatus status,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Pageable pageable) {
 
         List<Reservation> results = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
                 .leftJoin(reservation.machine, machine).fetchJoin()
