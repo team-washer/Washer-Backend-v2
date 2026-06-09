@@ -143,7 +143,6 @@ public class TestDeviceCycleRunner implements ApplicationRunner {
         return switch (result) {
             case STOPPED -> "작동 중 → 안전 정지 명령 전송됨 (STOPPED)";
             case POWERED_OFF -> "유휴 상태 → 전원 차단됨 (POWERED_OFF)";
-            case SKIPPED_REMOTE_DISABLED -> "작동 중이나 원격 제어 비활성 → 종료 못함 (SKIPPED_REMOTE_DISABLED)";
             case SKIPPED_UNKNOWN -> "상태 불명 → 종료하지 않음 (SKIPPED_UNKNOWN)";
         };
     }
