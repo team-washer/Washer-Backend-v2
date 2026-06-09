@@ -98,14 +98,19 @@ class DeviceShutdownSupportTest {
         }
 
         @Test
-        @DisplayName("작동 중이지만 원격 제어가 꺼져 있으면 어떤 명령도 보내지 않고 SKIPPED_REMOTE_DISABLED를 반환한다")
-        void shouldSkip_WhenRunningButRemoteDisabled() {
+        @DisplayName("작동 중이고 원격 제어가 꺼져 있어도 stop은 원격 제어 없이 동작하므로 정지를 시도하고 STOPPED를 반환한다")
+        void shouldStop_WhenRunningEvenIfRemoteDisabled() {
             var machine = machine(MachineType.WASHER);
 
             var result = deviceShutdownSupport.shutdown(machine, washerStatus("run", false));
 
-            assertThat(result).isEqualTo(ShutdownResult.SKIPPED_REMOTE_DISABLED);
-            then(sendDeviceCommandService).should(never()).execute(any(), any());
+            assertThat(result).isEqualTo(ShutdownResult.STOPPED);
+            var captor = ArgumentCaptor.forClass(SmartThingsCommandReqDto.class);
+            then(sendDeviceCommandService).should(times(1)).execute(eq("device-1"), captor.capture());
+            var command = captor.getValue().commands().get(0);
+            assertThat(command.capability()).isEqualTo("washerOperatingState");
+            assertThat(command.command()).isEqualTo("setMachineState");
+            assertThat(command.arguments()).containsExactly("stop");
         }
     }
 

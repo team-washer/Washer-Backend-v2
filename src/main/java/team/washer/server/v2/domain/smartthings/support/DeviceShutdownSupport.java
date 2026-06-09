@@ -32,8 +32,6 @@ public class DeviceShutdownSupport {
         POWERED_OFF,
         /** 작동 중인 기기를 안전하게 정지시킴 */
         STOPPED,
-        /** 작동 중이나 원격 제어가 꺼져 있어 종료하지 못함 */
-        SKIPPED_REMOTE_DISABLED,
         /** 기기 상태를 알 수 없어 종료하지 않음 */
         SKIPPED_UNKNOWN
     }
@@ -42,8 +40,8 @@ public class DeviceShutdownSupport {
      * 기기 상태에 따라 안전하게 종료한다.
      *
      * <ul>
-     * <li>작동 중(run/pause): setMachineState(stop)으로 사이클 정상 종료. 원격 제어가 꺼져 있으면 종료하지
-     * 않는다.</li>
+     * <li>작동 중(run/pause): setMachineState(stop)으로 사이클 정상 종료. 정지(stop)는 원격 제어(Smart
+     * Control) 활성화 없이도 동작하므로(원격 제어는 start/run에만 필요), 원격 제어 여부와 무관하게 정지를 시도한다.</li>
      * <li>유휴(stop/off): switch off로 전원 정리.</li>
      * <li>상태 불명: 안전을 위해 종료하지 않는다.</li>
      * </ul>
@@ -59,12 +57,6 @@ public class DeviceShutdownSupport {
         }
 
         if (isOperating(machine, status)) {
-            if (!status.isRemoteControlEnabled()) {
-                log.warn("device operating but remote control disabled, cannot stop safely machine={} deviceId={}",
-                        machine.getName(),
-                        machine.getDeviceId());
-                return ShutdownResult.SKIPPED_REMOTE_DISABLED;
-            }
             SmartThingsCommandReqDto stopCommand;
             if (machine.isWasher()) {
                 stopCommand = SmartThingsCommandReqDto.stopWasher();
@@ -75,6 +67,11 @@ public class DeviceShutdownSupport {
                         machine.getName(),
                         machine.getDeviceId());
                 return ShutdownResult.SKIPPED_UNKNOWN;
+            }
+            if (!status.isRemoteControlEnabled()) {
+                log.info("remote control disabled but attempting stop anyway machine={} deviceId={}",
+                        machine.getName(),
+                        machine.getDeviceId());
             }
             sendDeviceCommandService.execute(machine.getDeviceId(), stopCommand);
             log.info("device safely stopped machine={} deviceId={}", machine.getName(), machine.getDeviceId());
