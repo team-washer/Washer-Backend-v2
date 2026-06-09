@@ -1,7 +1,9 @@
 package team.washer.server.v2.domain.smartthings.support;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ThreadLocalRandom;
 
+import org.jspecify.annotations.NonNull;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -34,6 +36,8 @@ public class TestDeviceCycleRunner implements ApplicationRunner {
     private static final int TARGET_DEVICE_COUNT = 3;
     private static final long AFTER_POWER_ON_WAIT_MS = 15_000L;
     private static final long AFTER_SHUTDOWN_WAIT_MS = 10_000L;
+    private static final long MIN_START_DELAY_MS = 0L;
+    private static final long MAX_START_DELAY_MS = 10_000L;
 
     private final MachineRepository machineRepository;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
@@ -41,7 +45,7 @@ public class TestDeviceCycleRunner implements ApplicationRunner {
     private final DeviceShutdownSupport deviceShutdownSupport;
 
     @Override
-    public void run(ApplicationArguments args) {
+    public void run(@NonNull ApplicationArguments args) {
         log.info("🚀 [기기 사이클 테스트] 부팅 완료 감지 - 백그라운드에서 테스트를 시작합니다.");
         CompletableFuture.runAsync(this::runCycleTest);
     }
@@ -60,9 +64,11 @@ public class TestDeviceCycleRunner implements ApplicationRunner {
             return;
         }
 
-        for (var machine : machines) {
-            runSingleDevice(machine);
-        }
+        // 각 기기를 병렬로 실행하되, 시작 전 랜덤 지연을 두어 SmartThings 명령 호출을 시간상 분산시키고
+        // 여러 기기가 동시에 작동 중인 상황을 자연스럽게 재현한다.
+        var futures = machines.stream().map(machine -> CompletableFuture.runAsync(() -> runSingleDevice(machine)))
+                .toArray(CompletableFuture[]::new);
+        CompletableFuture.allOf(futures).join();
 
         log.info("════════════════════════════════════════════════════════");
         log.info("✅ [기기 사이클 테스트] 모든 대상 기기 처리를 완료했습니다.");
@@ -72,8 +78,17 @@ public class TestDeviceCycleRunner implements ApplicationRunner {
     private void runSingleDevice(Machine machine) {
         var name = machine.getName();
         var deviceId = machine.getDeviceId();
+
+        var startDelay = ThreadLocalRandom.current().nextLong(MIN_START_DELAY_MS, MAX_START_DELAY_MS + 1);
         log.info("────────────────────────────────────────────────────────");
-        log.info("▶️  [{}] 테스트 시작 (deviceId={}, type={})", name, deviceId, machine.getType());
+        log.info("⏳ [{}] 시작 전 랜덤 대기 {}초 (deviceId={}, type={})",
+                name,
+                startDelay / 1000.0,
+                deviceId,
+                machine.getType());
+        sleep(startDelay);
+
+        log.info("▶️  [{}] 테스트 시작", name);
 
         try {
             logCurrentState(machine, "1️⃣ 시작 전 상태");
