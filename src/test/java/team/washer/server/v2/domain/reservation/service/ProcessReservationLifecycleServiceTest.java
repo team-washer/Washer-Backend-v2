@@ -64,7 +64,7 @@ class ProcessReservationLifecycleServiceTest {
     private SmartThingsDeviceStatusResDto buildDeviceStatus(String completionTime) {
         var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
         var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
-        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
+        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
         return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
     }
 

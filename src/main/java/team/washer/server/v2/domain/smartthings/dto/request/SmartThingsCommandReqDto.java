@@ -23,4 +23,22 @@ public record SmartThingsCommandReqDto(@Schema(description = "명령 목록") Li
     public static SmartThingsCommandReqDto powerOn() {
         return new SmartThingsCommandReqDto(List.of(new Command("main", "switch", "on", List.of())));
     }
+
+    /**
+     * 세탁기를 안전하게 정지시킨다. 전원 차단(switch off)과 달리 사이클을 정상 종료하므로 작동 중 기기에 사용한다. 기기에서 원격
+     * 제어(Smart Control)가 활성화되어 있어야 명령이 적용된다.
+     */
+    public static SmartThingsCommandReqDto stopWasher() {
+        return new SmartThingsCommandReqDto(
+                List.of(new Command("main", "washerOperatingState", "setMachineState", List.of("stop"))));
+    }
+
+    /**
+     * 건조기를 안전하게 정지시킨다. 전원 차단(switch off)과 달리 사이클을 정상 종료하므로 작동 중 기기에 사용한다. 기기에서 원격
+     * 제어(Smart Control)가 활성화되어 있어야 명령이 적용된다.
+     */
+    public static SmartThingsCommandReqDto stopDryer() {
+        return new SmartThingsCommandReqDto(
+                List.of(new Command("main", "dryerOperatingState", "setMachineState", List.of("stop"))));
+    }
 }

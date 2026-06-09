@@ -106,7 +106,7 @@ class CancelOverdueReservationServiceTest {
                     "2026-01-26T14:30:00Z",
                     null);
             var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
-            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(java.util.Map.of("main", componentStatus));
             when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
             when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class))).thenReturn(true);
