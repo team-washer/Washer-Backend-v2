@@ -65,12 +65,27 @@ public class DeviceShutdownSupport {
                         machine.getDeviceId());
                 return ShutdownResult.SKIPPED_REMOTE_DISABLED;
             }
-            var stopCommand = machine.isWasher()
-                    ? SmartThingsCommandReqDto.stopWasher()
-                    : SmartThingsCommandReqDto.stopDryer();
+            SmartThingsCommandReqDto stopCommand;
+            if (machine.isWasher()) {
+                stopCommand = SmartThingsCommandReqDto.stopWasher();
+            } else if (machine.isDryer()) {
+                stopCommand = SmartThingsCommandReqDto.stopDryer();
+            } else {
+                log.warn("unknown machine type, skip shutdown machine={} deviceId={}",
+                        machine.getName(),
+                        machine.getDeviceId());
+                return ShutdownResult.SKIPPED_UNKNOWN;
+            }
             sendDeviceCommandService.execute(machine.getDeviceId(), stopCommand);
             log.info("device safely stopped machine={} deviceId={}", machine.getName(), machine.getDeviceId());
             return ShutdownResult.STOPPED;
+        }
+
+        if ("off".equalsIgnoreCase(status.getSwitchStatus())) {
+            log.info("device already powered off, skip command machine={} deviceId={}",
+                    machine.getName(),
+                    machine.getDeviceId());
+            return ShutdownResult.POWERED_OFF;
         }
 
         sendDeviceCommandService.execute(machine.getDeviceId(), SmartThingsCommandReqDto.powerOff());
@@ -82,7 +97,12 @@ public class DeviceShutdownSupport {
      * 기기가 물리적으로 작동 중(run 또는 pause)인지 판정한다. 세탁기/건조기는 타입에 맞는 machineState를 본다.
      */
     private boolean isOperating(Machine machine, SmartThingsDeviceStatusResDto status) {
-        var machineState = machine.isWasher() ? status.getWasherOperatingState() : status.getDryerOperatingState();
+        String machineState = null;
+        if (machine.isWasher()) {
+            machineState = status.getWasherOperatingState();
+        } else if (machine.isDryer()) {
+            machineState = status.getDryerOperatingState();
+        }
         return "run".equalsIgnoreCase(machineState) || "pause".equalsIgnoreCase(machineState);
     }
 }

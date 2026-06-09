@@ -44,6 +44,9 @@ public class MachineStateDetectionSupport {
      * 확인한다. 세탁기/건조기는 기기 타입별로 독립 판정한다.
      */
     public Optional<LocalDateTime> isCompleted(SmartThingsDeviceStatusResDto status) {
+        if (status == null) {
+            return Optional.empty();
+        }
         var now = LocalDateTime.now();
 
         var washerCompletion = evaluateCompletion(status.getWasherJobState(),
@@ -75,7 +78,9 @@ public class MachineStateDetectionSupport {
             log.debug("job finished but machine not stopped yet machineState={} jobState={}", machineState, jobState);
             return Optional.empty();
         }
-        var completionTime = DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr);
+        var completionTime = (completionTimeStr != null && !completionTimeStr.isBlank())
+                ? DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr)
+                : null;
         if (completionTime != null && completionTime.isAfter(now)) {
             log.debug("job finished but completion time still in future completionTime={} jobState={}",
                     completionTime,

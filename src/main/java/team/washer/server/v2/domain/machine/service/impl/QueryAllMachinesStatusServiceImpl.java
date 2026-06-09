@@ -130,9 +130,12 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
         if (deviceStatus == null) {
             return false;
         }
-        var machineState = machine.isWasher()
-                ? deviceStatus.getWasherOperatingState()
-                : deviceStatus.getDryerOperatingState();
+        String machineState = null;
+        if (machine.isWasher()) {
+            machineState = deviceStatus.getWasherOperatingState();
+        } else if (machine.isDryer()) {
+            machineState = deviceStatus.getDryerOperatingState();
+        }
         return "run".equalsIgnoreCase(machineState) || "pause".equalsIgnoreCase(machineState);
     }
 
