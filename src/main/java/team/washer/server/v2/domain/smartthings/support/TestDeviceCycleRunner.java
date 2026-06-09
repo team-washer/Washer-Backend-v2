@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.smartthings.support;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.jspecify.annotations.NonNull;
@@ -65,10 +66,17 @@ public class TestDeviceCycleRunner implements ApplicationRunner {
         }
 
         // 각 기기를 병렬로 실행하되, 시작 전 랜덤 지연을 두어 SmartThings 명령 호출을 시간상 분산시키고
-        // 여러 기기가 동시에 작동 중인 상황을 자연스럽게 재현한다.
-        var futures = machines.stream().map(machine -> CompletableFuture.runAsync(() -> runSingleDevice(machine)))
-                .toArray(CompletableFuture[]::new);
-        CompletableFuture.allOf(futures).join();
+        // 여러 기기가 동시에 작동 중인 상황을 자연스럽게 재현한다. ForkJoinPool.commonPool은 CPU가 적은
+        // 컨테이너에서 병렬도가 1로 떨어져 직렬화되므로, 기기 수만큼 스레드를 가진 전용 풀을 사용한다.
+        var executor = Executors.newFixedThreadPool(machines.size());
+        try {
+            var futures = machines.stream()
+                    .map(machine -> CompletableFuture.runAsync(() -> runSingleDevice(machine), executor))
+                    .toArray(CompletableFuture[]::new);
+            CompletableFuture.allOf(futures).join();
+        } finally {
+            executor.shutdown();
+        }
 
         log.info("════════════════════════════════════════════════════════");
         log.info("✅ [기기 사이클 테스트] 모든 대상 기기 처리를 완료했습니다.");
