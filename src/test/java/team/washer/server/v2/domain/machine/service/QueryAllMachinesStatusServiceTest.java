@@ -91,7 +91,7 @@ class QueryAllMachinesStatusServiceTest {
             var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null,
                     washerJobAttr,
                     completionTimeAttr);
-            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
 
             when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1", "device-2")))
