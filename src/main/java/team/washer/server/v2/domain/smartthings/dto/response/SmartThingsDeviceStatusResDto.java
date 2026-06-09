@@ -89,6 +89,25 @@ public record SmartThingsDeviceStatusResDto(
         return js != null ? js.value() : null;
     }
 
+    /** 세탁기 완료 예정 시간 반환 */
+    public String getWasherCompletionTime() {
+        var main = getMainComponent();
+        if (main == null || main.washerOperatingState() == null
+                || main.washerOperatingState().completionTime() == null) {
+            return null;
+        }
+        return main.washerOperatingState().completionTime().value();
+    }
+
+    /** 건조기 완료 예정 시간 반환 */
+    public String getDryerCompletionTime() {
+        var main = getMainComponent();
+        if (main == null || main.dryerOperatingState() == null || main.dryerOperatingState().completionTime() == null) {
+            return null;
+        }
+        return main.dryerOperatingState().completionTime().value();
+    }
+
     /** 완료 예정 시간 반환 (세탁기 우선, 없으면 건조기) */
     public String getCompletionTime() {
         var main = getMainComponent();
