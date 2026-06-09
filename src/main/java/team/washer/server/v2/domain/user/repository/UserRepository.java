@@ -1,7 +1,6 @@
 package team.washer.server.v2.domain.user.repository;
 
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -11,15 +10,12 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import team.washer.server.v2.domain.user.entity.User;
-import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.custom.UserRepositoryCustom;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long>, UserRepositoryCustom {
 
     Optional<User> findByStudentId(String studentId);
-
-    List<User> findByRoleAndStudentIdIn(UserRole role, Collection<String> studentIds);
 
     boolean existsByStudentId(String studentId);
 

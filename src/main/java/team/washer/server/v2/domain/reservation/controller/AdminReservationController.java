@@ -9,10 +9,12 @@ import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.machine.enums.MachineType;
+import team.washer.server.v2.domain.reservation.dto.request.ExtendBlockReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminCancellationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminMachineHistoryResDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminReservationListResDto;
@@ -29,6 +31,7 @@ public class AdminReservationController {
 
     private final QueryPenaltyStatusService queryPenaltyStatusService;
     private final ClearUserPenaltyService clearUserPenaltyService;
+    private final ExtendCancellationBlockService extendCancellationBlockService;
     private final QueryAllReservationsService queryAllReservationsService;
     private final AdminCancelReservationService adminCancelReservationService;
     private final QueryAdminMachineHistoryService queryAdminMachineHistoryService;
@@ -46,6 +49,15 @@ public class AdminReservationController {
 
         clearUserPenaltyService.execute(userId);
         return CommonApiResponse.success("사용자 패널티가 해제되었습니다.");
+    }
+
+    @PatchMapping("/users/{userId}/penalty/block")
+    @Operation(summary = "예약 차단 기간 연장", description = "특정 사용자의 예약 차단 기간을 일 단위로 연장합니다. ADMIN 권한이 필요합니다.")
+    public CommonApiResponse extendBlock(@Parameter(description = "사용자 ID") @PathVariable @NotNull Long userId,
+            @Valid @RequestBody ExtendBlockReqDto reqDto) {
+
+        extendCancellationBlockService.execute(userId, reqDto.days());
+        return CommonApiResponse.success("예약 차단 기간이 연장되었습니다.");
     }
 
     @GetMapping

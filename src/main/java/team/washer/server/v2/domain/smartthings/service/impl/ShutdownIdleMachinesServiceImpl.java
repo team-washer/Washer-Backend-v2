@@ -10,13 +10,14 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
-import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
-import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 import team.washer.server.v2.domain.smartthings.service.ShutdownIdleMachinesService;
+import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
+import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 
 @Service
@@ -26,7 +27,8 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
 
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
-    private final SendDeviceCommandService sendDeviceCommandService;
+    private final DeviceStatusQuerySupport deviceStatusQuerySupport;
+    private final DeviceShutdownSupport deviceShutdownSupport;
 
     @Autowired(required = false)
     private DiscordErrorNotificationService discordErrorNotificationService;
@@ -43,17 +45,36 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
 
         var activeMachineIds = Set.copyOf(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES));
 
-        var offMachines = new ArrayList<String>();
-        var failedMachines = new ArrayList<String>();
-        var skippedCount = 0;
+        var idleCandidates = machines.stream().filter(machine -> !activeMachineIds.contains(machine.getId())).toList();
+        var skippedActiveCount = machines.size() - idleCandidates.size();
+        if (idleCandidates.isEmpty()) {
+            return;
+        }
 
-        for (var machine : machines) {
+        var statusMap = deviceStatusQuerySupport
+                .queryAllDevicesStatus(idleCandidates.stream().map(Machine::getDeviceId).toList());
+
+        var poweredOff = new ArrayList<String>();
+        var unauthorizedStopped = new ArrayList<String>();
+        var unauthorizedSkipped = new ArrayList<String>();
+        var failed = new ArrayList<String>();
+
+        for (var machine : idleCandidates) {
             try {
-                if (activeMachineIds.contains(machine.getId())) {
-                    skippedCount++;
-                } else {
-                    sendDeviceCommandService.execute(machine.getDeviceId(), SmartThingsCommandReqDto.powerOff());
-                    offMachines.add(machine.getName());
+                var status = statusMap.get(machine.getDeviceId());
+                var result = deviceShutdownSupport.shutdown(machine, status);
+                switch (result) {
+                    case POWERED_OFF -> poweredOff.add(machine.getName());
+                    case STOPPED -> {
+                        unauthorizedStopped.add(machine.getName());
+                        log.warn("unauthorized usage detected, machine safely stopped machine={} deviceId={}",
+                                machine.getName(),
+                                machine.getDeviceId());
+                    }
+                    case SKIPPED_REMOTE_DISABLED -> unauthorizedSkipped.add(machine.getName());
+                    case SKIPPED_UNKNOWN -> {
+                        // 상태 불명, 안전을 위해 종료하지 않음
+                    }
                 }
             } catch (SmartThingsPermissionException e) {
                 log.warn("idle shutdown SmartThings permission error detected, stopping batch. machine={} reason={}",
@@ -69,18 +90,24 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                 }
                 break;
             } catch (Exception e) {
-                failedMachines.add(machine.getName());
+                failed.add(machine.getName());
                 log.error("idle shutdown failed to turn off machine={} reason={}", machine.getName(), e.getMessage());
             }
         }
 
-        if (!offMachines.isEmpty() || !failedMachines.isEmpty()) {
-            log.info("idle shutdown batch done. turned_off={} {} skipped_active_reservation={} failed={}{}",
-                    offMachines.size(),
-                    offMachines,
-                    skippedCount,
-                    failedMachines.size(),
-                    failedMachines.isEmpty() ? "" : " " + failedMachines);
+        if (!poweredOff.isEmpty() || !unauthorizedStopped.isEmpty() || !unauthorizedSkipped.isEmpty()
+                || !failed.isEmpty()) {
+            log.info(
+                    "idle shutdown batch done. powered_off={} {} unauthorized_stopped={} {} remote_disabled={} {} skipped_active_reservation={} failed={}{}",
+                    poweredOff.size(),
+                    poweredOff,
+                    unauthorizedStopped.size(),
+                    unauthorizedStopped,
+                    unauthorizedSkipped.size(),
+                    unauthorizedSkipped,
+                    skippedActiveCount,
+                    failed.size(),
+                    failed.isEmpty() ? "" : " " + failed);
         }
     }
 }

@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.*;
 
 import java.util.List;
+import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -24,9 +25,12 @@ import team.washer.server.v2.domain.machine.enums.Position;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
-import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
+import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.service.impl.ShutdownIdleMachinesServiceImpl;
+import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
+import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport.ShutdownResult;
+import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ShutdownIdleMachinesServiceImpl 클래스의")
@@ -42,10 +46,15 @@ class ShutdownIdleMachinesServiceTest {
     private ReservationRepository reservationRepository;
 
     @Mock
-    private SendDeviceCommandService sendDeviceCommandService;
+    private DeviceStatusQuerySupport deviceStatusQuerySupport;
+
+    @Mock
+    private DeviceShutdownSupport deviceShutdownSupport;
 
     private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
             ReservationStatus.RUNNING);
+
+    private static final SmartThingsDeviceStatusResDto EMPTY_STATUS = new SmartThingsDeviceStatusResDto(Map.of());
 
     private Machine createMachine(final Long id, final String name, final String deviceId) {
         var machine = Machine.builder().name(name).type(MachineType.WASHER).deviceId(deviceId).floor(2)
@@ -74,7 +83,7 @@ class ShutdownIdleMachinesServiceTest {
 
                 // Then
                 then(reservationRepository).shouldHaveNoInteractions();
-                then(sendDeviceCommandService).shouldHaveNoInteractions();
+                then(deviceShutdownSupport).shouldHaveNoInteractions();
             }
         }
 
@@ -83,19 +92,21 @@ class ShutdownIdleMachinesServiceTest {
         class Context_with_idle_machines {
 
             @Test
-            @DisplayName("해당 기기에 전원 종료 명령을 전송해야 한다")
-            void it_sends_power_off_command() {
+            @DisplayName("기기 상태를 조회하여 안전 종료를 위임해야 한다")
+            void it_delegates_safe_shutdown() {
                 // Given
                 var machine = createMachine(1L, "W-2F-L1", "device-1");
                 given(machineRepository.findAll()).willReturn(List.of(machine));
                 given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
+                given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
+                        .willReturn(Map.of("device-1", EMPTY_STATUS));
+                given(deviceShutdownSupport.shutdown(eq(machine), any())).willReturn(ShutdownResult.POWERED_OFF);
 
                 // When
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(sendDeviceCommandService).should(times(1)).execute(eq("device-1"),
-                        any(SmartThingsCommandReqDto.class));
+                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine), any());
             }
         }
 
@@ -104,7 +115,7 @@ class ShutdownIdleMachinesServiceTest {
         class Context_with_reserved_machines {
 
             @Test
-            @DisplayName("해당 기기는 건너뛰어야 한다")
+            @DisplayName("해당 기기는 건너뛰고 상태 조회와 종료를 하지 않아야 한다")
             void it_skips_reserved_machine() {
                 // Given
                 var machine = createMachine(1L, "W-2F-L1", "device-1");
@@ -115,7 +126,31 @@ class ShutdownIdleMachinesServiceTest {
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(sendDeviceCommandService).shouldHaveNoInteractions();
+                then(deviceStatusQuerySupport).shouldHaveNoInteractions();
+                then(deviceShutdownSupport).shouldHaveNoInteractions();
+            }
+        }
+
+        @Nested
+        @DisplayName("예약 없이 작동 중(무단 사용)인 기기일 때")
+        class Context_with_unauthorized_usage {
+
+            @Test
+            @DisplayName("안전 정지 결과를 받아 전원을 강제 차단하지 않아야 한다")
+            void it_safely_stops_without_power_off() {
+                // Given
+                var machine = createMachine(1L, "W-2F-L1", "device-1");
+                given(machineRepository.findAll()).willReturn(List.of(machine));
+                given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
+                given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
+                        .willReturn(Map.of("device-1", EMPTY_STATUS));
+                given(deviceShutdownSupport.shutdown(eq(machine), any())).willReturn(ShutdownResult.STOPPED);
+
+                // When
+                assertThatCode(() -> shutdownIdleMachinesService.execute()).doesNotThrowAnyException();
+
+                // Then
+                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine), any());
             }
         }
 
@@ -131,17 +166,17 @@ class ShutdownIdleMachinesServiceTest {
                 var machine2 = createMachine(2L, "W-2F-R1", "device-2");
                 given(machineRepository.findAll()).willReturn(List.of(machine1, machine2));
                 given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
-                willThrow(new SmartThingsPermissionException("권한 없음")).given(sendDeviceCommandService)
-                        .execute(eq("device-1"), any(SmartThingsCommandReqDto.class));
+                given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1", "device-2")))
+                        .willReturn(Map.of("device-1", EMPTY_STATUS, "device-2", EMPTY_STATUS));
+                willThrow(new SmartThingsPermissionException("권한 없음")).given(deviceShutdownSupport)
+                        .shutdown(eq(machine1), any());
 
                 // When
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(sendDeviceCommandService).should(times(1)).execute(eq("device-1"),
-                        any(SmartThingsCommandReqDto.class));
-                then(sendDeviceCommandService).should(never()).execute(eq("device-2"),
-                        any(SmartThingsCommandReqDto.class));
+                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine1), any());
+                then(deviceShutdownSupport).should(never()).shutdown(eq(machine2), any());
             }
         }
 
@@ -157,15 +192,16 @@ class ShutdownIdleMachinesServiceTest {
                 var machine2 = createMachine(2L, "W-2F-R1", "device-2");
                 given(machineRepository.findAll()).willReturn(List.of(machine1, machine2));
                 given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
-                willThrow(new RuntimeException("일시적 오류")).given(sendDeviceCommandService).execute(eq("device-1"),
-                        any(SmartThingsCommandReqDto.class));
+                given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1", "device-2")))
+                        .willReturn(Map.of("device-1", EMPTY_STATUS, "device-2", EMPTY_STATUS));
+                willThrow(new RuntimeException("일시적 오류")).given(deviceShutdownSupport).shutdown(eq(machine1), any());
+                given(deviceShutdownSupport.shutdown(eq(machine2), any())).willReturn(ShutdownResult.POWERED_OFF);
 
                 // When
                 assertThatCode(() -> shutdownIdleMachinesService.execute()).doesNotThrowAnyException();
 
                 // Then
-                then(sendDeviceCommandService).should(times(1)).execute(eq("device-2"),
-                        any(SmartThingsCommandReqDto.class));
+                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine2), any());
             }
         }
     }

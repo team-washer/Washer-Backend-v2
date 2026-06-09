@@ -92,7 +92,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
                 machine.getName(),
                 machine.getType(),
                 machine.getStatus(),
-                computeAvailability(machine, reservation),
+                computeAvailability(machine, reservation, deviceStatus),
                 operatingState,
                 jobState,
                 switchStatus,
@@ -104,21 +104,39 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
     }
 
     /**
-     * 예약 정보를 기반으로 기기의 가용성을 동적으로 계산한다. machine.availability 필드 대신 예약 상태를 source of
-     * truth로 사용한다.
+     * 예약 정보와 실제 기기 작동 상태를 기반으로 가용성을 동적으로 계산한다. 예약 상태를 우선 source of truth로 사용하되, 예약이
+     * 없어도 SmartThings에서 실제 작동 중(무단 사용)이면 IN_USE로 표시해 중복 예약을 차단한다.
      */
-    private MachineAvailability computeAvailability(Machine machine, Reservation reservation) {
+    private MachineAvailability computeAvailability(Machine machine,
+            Reservation reservation,
+            SmartThingsDeviceStatusResDto deviceStatus) {
         if (machine.getAvailability() == MachineAvailability.UNAVAILABLE) {
             return MachineAvailability.UNAVAILABLE;
         }
         if (reservation == null) {
-            return MachineAvailability.AVAILABLE;
+            return isOperating(machine, deviceStatus) ? MachineAvailability.IN_USE : MachineAvailability.AVAILABLE;
         }
         return switch (reservation.getStatus()) {
             case RUNNING -> MachineAvailability.IN_USE;
             case RESERVED -> MachineAvailability.RESERVED;
             default -> throw new IllegalStateException("활성 예약의 상태가 유효하지 않습니다: " + reservation.getStatus());
         };
+    }
+
+    /**
+     * 기기가 물리적으로 작동 중(run 또는 pause)인지 판정한다. 세탁기/건조기는 타입에 맞는 machineState를 본다.
+     */
+    private boolean isOperating(Machine machine, SmartThingsDeviceStatusResDto deviceStatus) {
+        if (deviceStatus == null) {
+            return false;
+        }
+        String machineState = null;
+        if (machine.isWasher()) {
+            machineState = deviceStatus.getWasherOperatingState();
+        } else if (machine.isDryer()) {
+            machineState = deviceStatus.getDryerOperatingState();
+        }
+        return "run".equalsIgnoreCase(machineState) || "pause".equalsIgnoreCase(machineState);
     }
 
     private String getOperatingState(Machine machine, SmartThingsDeviceStatusResDto deviceStatus) {

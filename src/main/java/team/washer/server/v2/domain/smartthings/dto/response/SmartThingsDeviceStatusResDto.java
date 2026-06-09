@@ -15,7 +15,8 @@ public record SmartThingsDeviceStatusResDto(
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ComponentStatus(@JsonProperty("washerOperatingState") WasherOperatingState washerOperatingState,
             @JsonProperty("dryerOperatingState") DryerOperatingState dryerOperatingState,
-            @JsonProperty("switch") SwitchCapability switchCapability) {
+            @JsonProperty("switch") SwitchCapability switchCapability,
+            @JsonProperty("remoteControlStatus") RemoteControlStatus remoteControlStatus) {
     }
 
     /**
@@ -42,6 +43,14 @@ public record SmartThingsDeviceStatusResDto(
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record SwitchCapability(@JsonProperty("switch") AttributeState switchState) {
+    }
+
+    /**
+     * remoteControlStatus capability 내부 속성. remoteControlEnabled: "true" | "false"
+     * 원격 제어가 비활성화된 기기에는 setMachineState 등 제어 명령이 적용되지 않는다.
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record RemoteControlStatus(@JsonProperty("remoteControlEnabled") AttributeState remoteControlEnabled) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -89,6 +98,25 @@ public record SmartThingsDeviceStatusResDto(
         return js != null ? js.value() : null;
     }
 
+    /** 세탁기 완료 예정 시간 반환 */
+    public String getWasherCompletionTime() {
+        var main = getMainComponent();
+        if (main == null || main.washerOperatingState() == null
+                || main.washerOperatingState().completionTime() == null) {
+            return null;
+        }
+        return main.washerOperatingState().completionTime().value();
+    }
+
+    /** 건조기 완료 예정 시간 반환 */
+    public String getDryerCompletionTime() {
+        var main = getMainComponent();
+        if (main == null || main.dryerOperatingState() == null || main.dryerOperatingState().completionTime() == null) {
+            return null;
+        }
+        return main.dryerOperatingState().completionTime().value();
+    }
+
     /** 완료 예정 시간 반환 (세탁기 우선, 없으면 건조기) */
     public String getCompletionTime() {
         var main = getMainComponent();
@@ -112,6 +140,16 @@ public record SmartThingsDeviceStatusResDto(
         }
         var sw = main.switchCapability().switchState();
         return sw != null ? sw.value() : null;
+    }
+
+    /** 원격 제어(Smart Control) 활성화 여부 반환. 명령 전송 가능 여부 판단에 사용한다. */
+    public boolean isRemoteControlEnabled() {
+        var main = getMainComponent();
+        if (main == null || main.remoteControlStatus() == null
+                || main.remoteControlStatus().remoteControlEnabled() == null) {
+            return false;
+        }
+        return "true".equalsIgnoreCase(main.remoteControlStatus().remoteControlEnabled().value());
     }
 
     private ComponentStatus getMainComponent() {

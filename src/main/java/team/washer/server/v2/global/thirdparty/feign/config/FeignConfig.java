@@ -11,7 +11,7 @@ import feign.jackson.JacksonEncoder;
 import team.washer.server.v2.global.thirdparty.feign.error.FeignErrorDecoder;
 
 @EnableFeignClients(basePackages = {"team.washer.server.v2.global.thirdparty.feign",
-        "team.washer.server.v2.global.thirdparty.smartthings", "team.washer.server.v2.global.thirdparty.datagsm"})
+        "team.washer.server.v2.global.thirdparty.smartthings"})
 @Configuration
 public class FeignConfig {
 

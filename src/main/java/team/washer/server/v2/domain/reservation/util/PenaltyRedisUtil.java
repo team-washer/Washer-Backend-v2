@@ -188,6 +188,33 @@ public class PenaltyRedisUtil {
     // ===== 48시간 예약 차단 (호실 단위) =====
 
     /**
+     * 호실 단위 예약 차단 기간을 지정한 일수만큼 연장합니다.
+     *
+     * @param roomNumber
+     *            연장 대상 호실 번호
+     * @param additionalDays
+     *            추가 연장 일수 (1 이상)
+     * @return 연장 후 만료 시각
+     * @throws team.themoment.sdk.exception.ExpectedException
+     *             활성 차단이 없는 경우
+     */
+    public LocalDateTime extendBlock(final String roomNumber, final long additionalDays) {
+        final CancellationBlockEntity existing = cancellationBlockRedisRepository.findById(roomNumber)
+                .orElseThrow(() -> new team.themoment.sdk.exception.ExpectedException("활성화된 예약 차단이 없습니다.",
+                        org.springframework.http.HttpStatus.BAD_REQUEST));
+
+        final long currentTtl = existing.getTtl() != null ? existing.getTtl() : 0L;
+        final long additionalSeconds = additionalDays * 24L * 3600L;
+        final long newTtl = currentTtl + additionalSeconds;
+
+        cancellationBlockRedisRepository
+                .save(CancellationBlockEntity.builder().roomNumber(roomNumber).ttl(newTtl).build());
+        log.info("block extended roomNumber={} additionalDays={} newTtlSeconds={}", roomNumber, additionalDays, newTtl);
+
+        return LocalDateTime.now().plusSeconds(newTtl);
+    }
+
+    /**
      * 48시간 예약 차단을 호실 단위로 적용합니다.
      */
     public void applyBlock(final String roomNumber) {
