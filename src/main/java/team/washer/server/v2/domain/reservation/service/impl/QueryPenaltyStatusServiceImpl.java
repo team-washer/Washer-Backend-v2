@@ -30,6 +30,14 @@ public class QueryPenaltyStatusServiceImpl implements QueryPenaltyStatusService 
             remainingMinutes = Duration.between(LocalDateTime.now(), penaltyExpiresAt).toMinutes();
         }
 
-        return new PenaltyStatusResDto(userId, isPenalized, penaltyExpiresAt, remainingMinutes);
+        final LocalDateTime blockExpiresAt = penaltyRedisUtil.getBlockExpiryTime(userId);
+        final boolean isRoomBlocked = blockExpiresAt != null && LocalDateTime.now().isBefore(blockExpiresAt);
+
+        return new PenaltyStatusResDto(userId,
+                isPenalized,
+                penaltyExpiresAt,
+                remainingMinutes,
+                isRoomBlocked,
+                blockExpiresAt);
     }
 }
