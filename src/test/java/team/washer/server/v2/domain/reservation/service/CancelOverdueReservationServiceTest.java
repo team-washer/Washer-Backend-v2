@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.reservation.service;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -109,7 +110,8 @@ class CancelOverdueReservationServiceTest {
             var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
             var deviceStatus = new SmartThingsDeviceStatusResDto(java.util.Map.of("main", componentStatus));
             when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class))).thenReturn(true);
+            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(true);
 
             // When
             cancelOverdueReservationService.execute();
@@ -139,7 +141,8 @@ class CancelOverdueReservationServiceTest {
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
             when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
+            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(false);
             when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(penaltyRedisUtil.hasWarning(1L)).thenReturn(false);
@@ -170,7 +173,8 @@ class CancelOverdueReservationServiceTest {
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
             when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
+            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(false);
             when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(penaltyRedisUtil.hasWarning(1L)).thenReturn(true);
@@ -198,7 +202,8 @@ class CancelOverdueReservationServiceTest {
             when(reservation.getMachine()).thenReturn(machine);
             when(machine.getDeviceId()).thenReturn("device-123");
             when(deviceStatusQuerySupport.queryDeviceStatus("device-123")).thenReturn(deviceStatus);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
+            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(false);
             when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(user.getRoomNumber()).thenReturn("101");
