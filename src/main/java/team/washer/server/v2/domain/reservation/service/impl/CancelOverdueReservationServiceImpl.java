@@ -56,7 +56,7 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
             try {
                 var machine = reservation.getMachine();
                 var status = deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
-                var isRunning = machineStateDetectionSupport.isRunning(status);
+                var isRunning = machineStateDetectionSupport.isRunning(status, machine.isWasher());
 
                 if (isRunning) {
                     var expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(status.getCompletionTime());

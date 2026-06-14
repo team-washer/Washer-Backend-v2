@@ -43,7 +43,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
             try {
                 var machine = reservation.getMachine();
                 var status = deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
-                var isRunning = machineStateDetectionSupport.isRunning(status);
+                var isRunning = machineStateDetectionSupport.isRunning(status, machine.isWasher());
 
                 if (isRunning) {
                     var expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(status.getCompletionTime());
@@ -68,8 +68,9 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         for (var reservation : runningReservations) {
             try {
                 var machine = reservation.getMachine();
+                var isWasher = machine.isWasher();
                 var status = deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
-                var completionTime = machineStateDetectionSupport.isCompleted(status);
+                var completionTime = machineStateDetectionSupport.isCompleted(status, isWasher);
 
                 if (completionTime.isPresent()) {
                     reservation.complete();
@@ -80,18 +81,34 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     reservationNotificationSupport.sendCompletion(reservation.getUser(), machine);
 
                     log.info("Reservation {} completed (RUNNING → COMPLETED)", reservation.getId());
-                } else if (machineStateDetectionSupport.isInterrupted(status)) {
-                    reservation.cancel();
-                    machine.markAsAvailable();
-                    reservationRepository.save(reservation);
-                    machineRepository.save(machine);
+                } else if (machineStateDetectionSupport.isInterrupted(status, isWasher)) {
+                    // 사이클 단계 전환 중 순간적으로 보고되는 정지를 진짜 중단으로 오판하지 않도록, 연속으로 중단이
+                    // 감지될 때만 취소를 확정한다.
+                    reservation.incrementInterruptionCount();
+                    if (reservation.getInterruptionCount() >= ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD) {
+                        reservation.cancel();
+                        reservation.clearInterruptionCount();
+                        machine.markAsAvailable();
+                        reservationRepository.save(reservation);
+                        machineRepository.save(machine);
 
-                    reservationNotificationSupport.sendInterruption(reservation.getUser(), machine);
+                        reservationNotificationSupport.sendInterruption(reservation.getUser(), machine);
 
-                    log.warn(
-                            "Reservation {} cancelled due to machine interruption, no penalty applied (RUNNING → CANCELLED)",
-                            reservation.getId());
-                } else if (machineStateDetectionSupport.isPaused(status)) {
+                        log.warn(
+                                "Reservation {} cancelled due to confirmed machine interruption, no penalty applied (RUNNING → CANCELLED)",
+                                reservation.getId());
+                    } else {
+                        reservationRepository.save(reservation);
+                        log.warn("Reservation {} interruption suspected count={} threshold={} deferring cancellation",
+                                reservation.getId(),
+                                reservation.getInterruptionCount(),
+                                ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD);
+                    }
+                } else if (machineStateDetectionSupport.isPaused(status, isWasher)) {
+                    if (reservation.getInterruptionCount() > 0) {
+                        reservation.clearInterruptionCount();
+                        reservationRepository.save(reservation);
+                    }
                     if (reservation.getPausedAt() == null) {
                         reservation.markAsPaused();
                         reservationRepository.save(reservation);
@@ -112,6 +129,10 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                                 ReservationConstants.PAUSE_TIMEOUT_MINUTES);
                     }
                 } else {
+                    if (reservation.getInterruptionCount() > 0) {
+                        reservation.clearInterruptionCount();
+                        reservationRepository.save(reservation);
+                    }
                     if (reservation.getPausedAt() != null) {
                         reservation.clearPausedAt();
                         log.info("Reservation {} resumed from pause, clearing pause tracking", reservation.getId());
