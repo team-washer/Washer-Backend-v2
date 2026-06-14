@@ -188,6 +188,20 @@ public class PenaltyRedisUtil {
     // ===== 48시간 예약 차단 (호실 단위) =====
 
     /**
+     * 사용자 ID 기준으로 48시간 호실 차단의 만료 시각을 반환합니다.
+     * <p>
+     * 차단이 없거나 호실 정보가 없으면 {@code null}을 반환합니다.
+     * </p>
+     */
+    public LocalDateTime getBlockExpiryTime(final Long userId) {
+        final User user = userRepository.findById(userId).orElse(null);
+        if (user == null || user.getRoomNumber() == null) {
+            return null;
+        }
+        return expiryFromTtl(blockRemainingTtlSeconds(user.getRoomNumber()));
+    }
+
+    /**
      * 호실 단위 예약 차단 기간을 지정한 일수만큼 연장합니다.
      *
      * @param roomNumber

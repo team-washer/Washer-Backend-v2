@@ -5,18 +5,19 @@ import java.time.ZoneId;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 /**
  * SmartThings 기기 상태 감지를 담당하는 지원 컴포넌트.
+ *
+ * <p>
+ * 모든 판정은 기기 타입(세탁기/건조기)에 해당하는 capability만 검사한다. 하나의 deviceId가 세탁기·건조기
+ * capability를 동시에 노출하는 경우, 사용하지 않는 쪽의 유휴 상태를 비정상 중단으로 오판하지 않기 위함이다.
  */
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class MachineStateDetectionSupport {
 
@@ -26,17 +27,18 @@ public class MachineStateDetectionSupport {
      */
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
-    private final DeviceStatusQuerySupport deviceStatusQuerySupport;
-
     /**
-     * 기기가 작동 중인지 감지한다.
+     * 기기가 작동 중인지 감지한다. 세탁기는 washerOperatingState, 건조기는 dryerOperatingState의
+     * machineState가 run인지 확인한다.
      */
-    public boolean isRunning(SmartThingsDeviceStatusResDto status) {
-        var washerOperatingState = status.getWasherOperatingState();
-        var dryerOperatingState = status.getDryerOperatingState();
-        var isRunning = "run".equalsIgnoreCase(washerOperatingState) || "run".equalsIgnoreCase(dryerOperatingState);
+    public boolean isRunning(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        if (status == null) {
+            return false;
+        }
+        var machineState = isWasher ? status.getWasherOperatingState() : status.getDryerOperatingState();
+        var isRunning = "run".equalsIgnoreCase(machineState);
         if (isRunning) {
-            log.debug("device is running");
+            log.debug("device is running isWasher={}", isWasher);
         }
         return isRunning;
     }
@@ -48,23 +50,20 @@ public class MachineStateDetectionSupport {
      * SmartThings 기기는 메인 사이클이 끝나면 냉각(cooling)·구김방지(wrinklePrevent) 등 잔여 단계가 남아 있어도
      * jobState를 finish/finished로 먼저 보고하는 경우가 있다. jobState만으로 판정하면 실제 종료 2~4분 전에 완료로
      * 오인하므로, machineState=stop(물리적 정지)와 completionTime이 현재 시각을 지났는지(잔여시간 0)를 함께
-     * 확인한다. 세탁기/건조기는 기기 타입별로 독립 판정한다.
+     * 확인한다.
      */
-    public Optional<LocalDateTime> isCompleted(SmartThingsDeviceStatusResDto status) {
+    public Optional<LocalDateTime> isCompleted(SmartThingsDeviceStatusResDto status, boolean isWasher) {
         if (status == null) {
             return Optional.empty();
         }
         var now = LocalDateTime.now(KOREA_ZONE);
-
-        var washerCompletion = evaluateCompletion(status.getWasherJobState(),
-                "finish",
-                status.getWasherOperatingState(),
-                status.getWasherCompletionTime(),
-                now);
-        if (washerCompletion.isPresent()) {
-            return washerCompletion;
+        if (isWasher) {
+            return evaluateCompletion(status.getWasherJobState(),
+                    "finish",
+                    status.getWasherOperatingState(),
+                    status.getWasherCompletionTime(),
+                    now);
         }
-
         return evaluateCompletion(status
                 .getDryerJobState(), "finished", status.getDryerOperatingState(), status.getDryerCompletionTime(), now);
     }
@@ -100,99 +99,53 @@ public class MachineStateDetectionSupport {
 
     /**
      * 기기가 비정상 중단되었는지 감지한다.
+     *
+     * <p>
+     * 전원이 꺼진 경우(switch=off)는 명백한 중단으로 본다. 그 외에는 사이클 진행 단계(wash/rinse/spin/drying 등)
+     * 도중 machineState가 stop으로 보고된 경우에만 중단으로 판정한다. machineState=stop이면서 jobState가
+     * finish/finished(정상 완료)이거나 none/공백(사이클 종료 직후 리셋·유휴)인 경우는, 정상 완료를 비정상 중단으로 오판하지
+     * 않도록 중단으로 보지 않는다.
      */
-    public boolean isInterrupted(SmartThingsDeviceStatusResDto status) {
-        var switchStatus = status.getSwitchStatus();
-        if ("off".equalsIgnoreCase(switchStatus)) {
-            log.debug("기기 전원이 꺼져 있음 (switch=off)");
+    public boolean isInterrupted(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        if (status == null) {
+            return false;
+        }
+        if ("off".equalsIgnoreCase(status.getSwitchStatus())) {
+            log.debug("device power off detected switch=off");
             return true;
         }
 
-        var washerMachineState = status.getWasherOperatingState();
-        var washerJobState = status.getWasherJobState();
-        if ("stop".equalsIgnoreCase(washerMachineState) && !"finish".equalsIgnoreCase(washerJobState)) {
-            log.debug("기기 세탁기가 비정상 정지됨 (machineState=stop, jobState={})", washerJobState);
-            return true;
+        var machineState = isWasher ? status.getWasherOperatingState() : status.getDryerOperatingState();
+        if (!"stop".equalsIgnoreCase(machineState)) {
+            return false;
         }
 
-        var dryerMachineState = status.getDryerOperatingState();
-        var dryerJobState = status.getDryerJobState();
-        if ("stop".equalsIgnoreCase(dryerMachineState) && !"finished".equalsIgnoreCase(dryerJobState)) {
-            log.debug("기기 건조기가 비정상 정지됨 (machineState=stop, jobState={})", dryerJobState);
-            return true;
+        var jobState = isWasher ? status.getWasherJobState() : status.getDryerJobState();
+        var finishedJobState = isWasher ? "finish" : "finished";
+        if (finishedJobState.equalsIgnoreCase(jobState)) {
+            return false;
+        }
+        if (jobState == null || jobState.isBlank() || "none".equalsIgnoreCase(jobState)) {
+            log.debug("machine stopped with idle jobState, not treated as interruption jobState={}", jobState);
+            return false;
         }
 
-        return false;
+        log.debug("machine interrupted mid-cycle machineState=stop jobState={}", jobState);
+        return true;
     }
 
     /**
      * 기기가 일시정지 상태인지 감지한다.
      */
-    public boolean isPaused(SmartThingsDeviceStatusResDto status) {
-        var washerMachineState = status.getWasherOperatingState();
-        if ("pause".equalsIgnoreCase(washerMachineState)) {
-            log.debug("기기 세탁기가 일시정지 상태 (machineState=pause)");
-            return true;
-        }
-
-        var dryerMachineState = status.getDryerOperatingState();
-        if ("pause".equalsIgnoreCase(dryerMachineState)) {
-            log.debug("기기 건조기가 일시정지 상태 (machineState=pause)");
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * 기기가 작동 중인지 감지한다.
-     */
-    @Transactional(readOnly = true)
-    public boolean isRunning(String deviceId) {
-        try {
-            return isRunning(deviceStatusQuerySupport.queryDeviceStatus(deviceId));
-        } catch (Exception e) {
-            log.warn("failed to detect running state for device {}", deviceId, e);
+    public boolean isPaused(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        if (status == null) {
             return false;
         }
-    }
-
-    /**
-     * 기기 작업이 완료되었는지 감지한다.
-     */
-    @Transactional(readOnly = true)
-    public Optional<LocalDateTime> isCompleted(String deviceId) {
-        try {
-            return isCompleted(deviceStatusQuerySupport.queryDeviceStatus(deviceId));
-        } catch (Exception e) {
-            log.warn("Failed to detect completion state for device: {}", deviceId, e);
-            return Optional.empty();
+        var machineState = isWasher ? status.getWasherOperatingState() : status.getDryerOperatingState();
+        var isPaused = "pause".equalsIgnoreCase(machineState);
+        if (isPaused) {
+            log.debug("device is paused isWasher={}", isWasher);
         }
-    }
-
-    /**
-     * 기기가 비정상 중단되었는지 감지한다.
-     */
-    @Transactional(readOnly = true)
-    public boolean isInterrupted(String deviceId) {
-        try {
-            return isInterrupted(deviceStatusQuerySupport.queryDeviceStatus(deviceId));
-        } catch (Exception e) {
-            log.warn("기기 {} 중단 상태 감지 실패", deviceId, e);
-            return false;
-        }
-    }
-
-    /**
-     * 기기가 일시정지 상태인지 감지한다.
-     */
-    @Transactional(readOnly = true)
-    public boolean isPaused(String deviceId) {
-        try {
-            return isPaused(deviceStatusQuerySupport.queryDeviceStatus(deviceId));
-        } catch (Exception e) {
-            log.warn("기기 {} 일시정지 상태 감지 실패", deviceId, e);
-            return false;
-        }
+        return isPaused;
     }
 }

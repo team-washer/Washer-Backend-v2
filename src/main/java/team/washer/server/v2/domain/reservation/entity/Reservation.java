@@ -68,6 +68,10 @@ public class Reservation extends BaseEntity {
     @Column(name = "paused_at")
     private LocalDateTime pausedAt;
 
+    @Column(name = "interruption_count", nullable = false)
+    @Builder.Default
+    private int interruptionCount = 0;
+
     /**
      * 기기 일시정지 시각을 기록합니다.
      */
@@ -80,6 +84,21 @@ public class Reservation extends BaseEntity {
      */
     public void clearPausedAt() {
         this.pausedAt = null;
+    }
+
+    /**
+     * 비정상 중단 감지 횟수를 1 증가시킵니다. 사이클 단계 전환 중 순간적으로 보고되는 정지를 진짜 중단과 구분하기 위한 디바운스
+     * 카운터입니다.
+     */
+    public void incrementInterruptionCount() {
+        this.interruptionCount++;
+    }
+
+    /**
+     * 비정상 중단 감지 추적을 초기화합니다. 기기가 정상 동작(진행 중·일시정지)으로 확인되면 호출합니다.
+     */
+    public void clearInterruptionCount() {
+        this.interruptionCount = 0;
     }
 
     /**
