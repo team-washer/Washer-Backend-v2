@@ -107,6 +107,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                 } else if (machineStateDetectionSupport.isPaused(status, isWasher)) {
                     if (reservation.getInterruptionCount() > 0) {
                         reservation.clearInterruptionCount();
+                        reservationRepository.save(reservation);
                     }
                     if (reservation.getPausedAt() == null) {
                         reservation.markAsPaused();
@@ -130,6 +131,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                 } else {
                     if (reservation.getInterruptionCount() > 0) {
                         reservation.clearInterruptionCount();
+                        reservationRepository.save(reservation);
                     }
                     if (reservation.getPausedAt() != null) {
                         reservation.clearPausedAt();
