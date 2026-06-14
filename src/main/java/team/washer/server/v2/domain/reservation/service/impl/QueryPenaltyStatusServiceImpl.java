@@ -22,14 +22,23 @@ public class QueryPenaltyStatusServiceImpl implements QueryPenaltyStatusService 
     @Override
     @Transactional(readOnly = true)
     public PenaltyStatusResDto execute(final Long userId) {
+        final LocalDateTime now = LocalDateTime.now();
         final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
-        final boolean isPenalized = penaltyExpiresAt != null && LocalDateTime.now().isBefore(penaltyExpiresAt);
+        final boolean isPenalized = penaltyExpiresAt != null && now.isBefore(penaltyExpiresAt);
 
         Long remainingMinutes = null;
         if (isPenalized) {
-            remainingMinutes = Duration.between(LocalDateTime.now(), penaltyExpiresAt).toMinutes();
+            remainingMinutes = Duration.between(now, penaltyExpiresAt).toMinutes();
         }
 
-        return new PenaltyStatusResDto(userId, isPenalized, penaltyExpiresAt, remainingMinutes);
+        final LocalDateTime blockExpiresAt = penaltyRedisUtil.getBlockExpiryTime(userId);
+        final boolean isRoomBlocked = blockExpiresAt != null && now.isBefore(blockExpiresAt);
+
+        return new PenaltyStatusResDto(userId,
+                isPenalized,
+                penaltyExpiresAt,
+                remainingMinutes,
+                isRoomBlocked,
+                blockExpiresAt);
     }
 }
