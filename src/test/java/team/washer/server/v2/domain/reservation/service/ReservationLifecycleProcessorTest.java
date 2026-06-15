@@ -158,6 +158,28 @@ class ReservationLifecycleProcessorTest {
         }
 
         @Test
+        @DisplayName("완료 시각이 현재 예약 시작 시각보다 이전이면 이전 상태로 보고 완료 처리하지 않는다")
+        void shouldNotCompleteReservation_WhenCompletionTimeBeforeReservationStartTime() {
+            // Given
+            var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
+            var staleCompletionTime = LocalDateTime.now().minusMinutes(5);
+            givenRunningReservation();
+            when(reservation.getStartTime()).thenReturn(LocalDateTime.now());
+            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(Optional.of(staleCompletionTime));
+
+            // When
+            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, never()).complete();
+            verify(machine, never()).markAsAvailable();
+            verify(reservationRepository, never()).save(reservation);
+            verify(machineRepository, never()).save(machine);
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+        }
+
+        @Test
         @DisplayName("RUNNING 상태이고 기기 작업이 완료되지 않으면 예상 완료 시각을 갱신한다")
         void shouldUpdateExpectedCompletionTime_WhenRunningAndMachineNotCompleted() {
             // Given

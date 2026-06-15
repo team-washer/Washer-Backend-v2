@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
+import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
@@ -95,6 +96,13 @@ public class ReservationLifecycleProcessor {
         var completionTime = machineStateDetectionSupport.isCompleted(status, isWasher);
 
         if (completionTime.isPresent()) {
+            if (isStaleCompletion(reservation, completionTime.get())) {
+                log.debug("Stale completion ignored reservationId={} startTime={} completionTime={}",
+                        reservation.getId(),
+                        reservation.getStartTime(),
+                        completionTime.get());
+                return;
+            }
             reservation.complete();
             machine.markAsAvailable();
             reservationRepository.save(reservation);
@@ -167,5 +175,10 @@ public class ReservationLifecycleProcessor {
                 reservationRepository.save(reservation);
             }
         }
+    }
+
+    private boolean isStaleCompletion(Reservation reservation, LocalDateTime completionTime) {
+        var startTime = reservation.getStartTime();
+        return startTime != null && completionTime.isBefore(startTime);
     }
 }
