@@ -5,6 +5,7 @@ import static org.mockito.BDDMockito.*;
 import static org.mockito.Mockito.lenient;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -141,8 +142,9 @@ class ForceStopMachineServiceTest {
                 given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
                 given(machineRepository.findByIdForUpdate(machineId)).willReturn(Optional.of(machine));
                 given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
-                given(reservationRepository.findActiveReservationByMachineId(machineId))
-                        .willReturn(Optional.of(reservation));
+                given(reservationRepository.findFirstActiveReservationByMachineId(machineId,
+                        List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)))
+                        .willReturn(List.of(reservation));
                 given(reservationRepository.save(any(Reservation.class)))
                         .willAnswer(invocation -> invocation.getArgument(0));
                 given(machineRepository.save(any(Machine.class))).willAnswer(invocation -> invocation.getArgument(0));
@@ -171,6 +173,48 @@ class ForceStopMachineServiceTest {
         }
 
         @Nested
+        @DisplayName("RUNNING 예약과 RESERVED 예약이 동시에 조회되면")
+        class Context_with_running_and_reserved_reservations {
+
+            @Test
+            @DisplayName("조회 순서와 무관하게 RUNNING 예약을 우선 취소한다")
+            void it_prioritizes_running_reservation() {
+                // Given
+                var machineId = 1L;
+                var runningReservationId = 10L;
+                var reservedReservationId = 11L;
+                var machine = createMachine(MachineType.WASHER, MachineStatus.NORMAL, MachineAvailability.IN_USE);
+                var runningReservation = createReservation(machine, ReservationStatus.RUNNING);
+                var reservedReservation = createReservation(machine, ReservationStatus.RESERVED);
+                var status = washerStatus("run");
+                setId(machine, machineId);
+                setId(runningReservation, runningReservationId);
+                setId(reservedReservation, reservedReservationId);
+
+                given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
+                given(machineRepository.findByIdForUpdate(machineId)).willReturn(Optional.of(machine));
+                given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
+                given(reservationRepository.findFirstActiveReservationByMachineId(machineId,
+                        List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)))
+                        .willReturn(List.of(reservedReservation, runningReservation));
+                given(reservationRepository.save(any(Reservation.class)))
+                        .willAnswer(invocation -> invocation.getArgument(0));
+                given(machineRepository.save(any(Machine.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+                // When
+                var result = forceStopMachineService.execute(machineId);
+
+                // Then
+                assertThat(result.cancelledReservationId()).isEqualTo(runningReservationId);
+                assertThat(result.reservationCancelled()).isTrue();
+                assertThat(runningReservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+                assertThat(reservedReservation.getStatus()).isEqualTo(ReservationStatus.RESERVED);
+                then(reservationRepository).should(times(1)).save(runningReservation);
+                then(reservationRepository).should(never()).save(reservedReservation);
+            }
+        }
+
+        @Nested
         @DisplayName("일시정지 중인 건조기이면")
         class Context_with_paused_dryer {
 
@@ -186,7 +230,8 @@ class ForceStopMachineServiceTest {
                 given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
                 given(machineRepository.findByIdForUpdate(machineId)).willReturn(Optional.of(machine));
                 given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
-                given(reservationRepository.findActiveReservationByMachineId(machineId)).willReturn(Optional.empty());
+                given(reservationRepository.findFirstActiveReservationByMachineId(machineId,
+                        List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING))).willReturn(List.of());
                 given(machineRepository.save(any(Machine.class))).willAnswer(invocation -> invocation.getArgument(0));
 
                 // When
@@ -218,8 +263,9 @@ class ForceStopMachineServiceTest {
                 given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
                 given(machineRepository.findByIdForUpdate(machineId)).willReturn(Optional.of(machine));
                 given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
-                given(reservationRepository.findActiveReservationByMachineId(machineId))
-                        .willReturn(Optional.of(reservation));
+                given(reservationRepository.findFirstActiveReservationByMachineId(machineId,
+                        List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)))
+                        .willReturn(List.of(reservation));
                 given(machineRepository.save(any(Machine.class))).willAnswer(invocation -> invocation.getArgument(0));
 
                 // When
@@ -250,7 +296,8 @@ class ForceStopMachineServiceTest {
                 given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
                 given(machineRepository.findByIdForUpdate(machineId)).willReturn(Optional.of(machine));
                 given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(powerOffStatus());
-                given(reservationRepository.findActiveReservationByMachineId(machineId)).willReturn(Optional.empty());
+                given(reservationRepository.findFirstActiveReservationByMachineId(machineId,
+                        List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING))).willReturn(List.of());
                 given(machineRepository.save(any(Machine.class))).willAnswer(invocation -> invocation.getArgument(0));
 
                 // When
@@ -336,7 +383,8 @@ class ForceStopMachineServiceTest {
                 given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
                 given(machineRepository.findByIdForUpdate(machineId)).willReturn(Optional.of(machine));
                 given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
-                given(reservationRepository.findActiveReservationByMachineId(machineId)).willReturn(Optional.empty());
+                given(reservationRepository.findFirstActiveReservationByMachineId(machineId,
+                        List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING))).willReturn(List.of());
                 given(machineRepository.save(any(Machine.class))).willAnswer(invocation -> invocation.getArgument(0));
 
                 // When

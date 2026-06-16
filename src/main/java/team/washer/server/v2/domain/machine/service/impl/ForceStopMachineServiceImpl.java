@@ -1,5 +1,8 @@
 package team.washer.server.v2.domain.machine.service.impl;
 
+import java.util.List;
+import java.util.Optional;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -16,6 +19,7 @@ import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.machine.service.ForceStopMachineService;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
@@ -63,6 +67,9 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
         if (status == null) {
             throw new ExpectedException("기기 상태를 확인할 수 없습니다", HttpStatus.BAD_GATEWAY);
         }
+        if (!machine.isWasher() && !machine.isDryer()) {
+            throw new ExpectedException("지원하지 않는 기기 유형입니다", HttpStatus.BAD_REQUEST);
+        }
         if ("off".equalsIgnoreCase(status.getSwitchStatus()) || "stop".equalsIgnoreCase(machineState)) {
             return ForceStopResult.ALREADY_STOPPED;
         }
@@ -74,18 +81,15 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
             sendDeviceCommandService.execute(machine.getDeviceId(), SmartThingsCommandReqDto.stopWasher());
             return ForceStopResult.STOPPED;
         }
-        if (machine.isDryer()) {
-            sendDeviceCommandService.execute(machine.getDeviceId(), SmartThingsCommandReqDto.stopDryer());
-            return ForceStopResult.STOPPED;
-        }
-        throw new ExpectedException("지원하지 않는 기기 유형입니다", HttpStatus.BAD_REQUEST);
+        sendDeviceCommandService.execute(machine.getDeviceId(), SmartThingsCommandReqDto.stopDryer());
+        return ForceStopResult.STOPPED;
     }
 
     private UpdateResult updateMachineAndReservation(Long machineId, ForceStopResult forceStopResult) {
         return transactionTemplate.execute(status -> {
             final var machine = machineRepository.findByIdForUpdate(machineId)
                     .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
-            final var activeReservation = reservationRepository.findActiveReservationByMachineId(machineId);
+            final var activeReservation = findActiveReservationWithRunningPriority(machineId);
             final var cancelledReservationId = cancelActiveReservationIfNeeded(activeReservation.orElse(null),
                     forceStopResult);
 
@@ -99,6 +103,13 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
                     savedMachine.getAvailability(),
                     cancelledReservationId);
         });
+    }
+
+    private Optional<Reservation> findActiveReservationWithRunningPriority(Long machineId) {
+        final var activeReservations = reservationRepository.findFirstActiveReservationByMachineId(machineId,
+                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING));
+        return activeReservations.stream().filter(Reservation::isRunning).findFirst()
+                .or(() -> activeReservations.stream().filter(Reservation::isReserved).findFirst());
     }
 
     private Long cancelActiveReservationIfNeeded(Reservation reservation, ForceStopResult forceStopResult) {
