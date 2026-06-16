@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineType;
@@ -45,6 +46,8 @@ class CreateReservationServiceTest {
     private UserRepository userRepository;
     @Mock
     private MachineRepository machineRepository;
+    @Mock
+    private WashingBanRepository washingBanRepository;
     @Mock
     private PenaltyRedisUtil penaltyRedisUtil;
     @Mock

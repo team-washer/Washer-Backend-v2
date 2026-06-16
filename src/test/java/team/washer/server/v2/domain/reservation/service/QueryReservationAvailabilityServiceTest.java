@@ -14,6 +14,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.service.impl.QueryReservationAvailabilityServiceImpl;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
@@ -27,6 +28,9 @@ class QueryReservationAvailabilityServiceTest {
 
     @InjectMocks
     private QueryReservationAvailabilityServiceImpl queryReservationAvailabilityService;
+
+    @Mock
+    private WashingBanRepository washingBanRepository;
 
     @Mock
     private PenaltyRedisUtil penaltyRedisUtil;
