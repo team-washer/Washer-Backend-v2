@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationAvailabilityResDto;
 import team.washer.server.v2.domain.reservation.service.QueryReservationAvailabilityService;
@@ -15,6 +16,7 @@ import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 @RequiredArgsConstructor
 public class QueryReservationAvailabilityServiceImpl implements QueryReservationAvailabilityService {
 
+    private final WashingBanRepository washingBanRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
     private final UserRepository userRepository;
     private final CurrentUserProvider currentUserProvider;
@@ -24,6 +26,9 @@ public class QueryReservationAvailabilityServiceImpl implements QueryReservation
     public ReservationAvailabilityResDto execute() {
         final var userId = currentUserProvider.getCurrentUserId();
         final var roomNumber = userRepository.findById(userId).map(u -> u.getRoomNumber()).orElse(null);
+
+        // 호실 세탁 강제 금지 여부
+        final boolean isBanned = roomNumber != null && washingBanRepository.existsByRoomNumber(roomNumber);
 
         // 48시간 블록(호실 단위)이면 모든 예약 불가
         final boolean blocked = roomNumber != null && penaltyRedisUtil.isBlocked(roomNumber);
@@ -37,10 +42,10 @@ public class QueryReservationAvailabilityServiceImpl implements QueryReservation
             }
         }
 
-        if (blocked || allTypesInCooldown) {
-            return new ReservationAvailabilityResDto(false, penaltyRedisUtil.getPenaltyExpiryTime(userId));
+        if (isBanned || blocked || allTypesInCooldown) {
+            return new ReservationAvailabilityResDto(false, penaltyRedisUtil.getPenaltyExpiryTime(userId), isBanned);
         }
 
-        return new ReservationAvailabilityResDto(true, null);
+        return new ReservationAvailabilityResDto(true, null, false);
     }
 }

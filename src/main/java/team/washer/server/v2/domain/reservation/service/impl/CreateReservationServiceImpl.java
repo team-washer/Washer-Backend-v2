@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
@@ -33,6 +34,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
     private final ReservationRepository reservationRepository;
     private final UserRepository userRepository;
     private final MachineRepository machineRepository;
+    private final WashingBanRepository washingBanRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
     private final ReservationEnvironment reservationEnvironment;
     private final CurrentUserProvider currentUserProvider;
@@ -45,6 +47,11 @@ public class CreateReservationServiceImpl implements CreateReservationService {
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         user.validateFloorRestriction();
+
+        // 호실 세탁 강제 금지 검증
+        if (washingBanRepository.existsByRoomNumber(user.getRoomNumber())) {
+            throw new ExpectedException("해당 호실은 현재 세탁이 금지된 상태입니다.", HttpStatus.FORBIDDEN);
+        }
 
         // 48시간 차단 검증 (호실 단위)
         if (penaltyRedisUtil.isBlocked(user.getRoomNumber())) {
