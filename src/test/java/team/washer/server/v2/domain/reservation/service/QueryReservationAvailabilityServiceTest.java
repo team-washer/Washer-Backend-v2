@@ -127,6 +127,30 @@ class QueryReservationAvailabilityServiceTest {
         }
 
         @Nested
+        @DisplayName("세탁 강제 금지된 호실의 사용자가 조회할 때")
+        class Context_with_banned_room {
+
+            @Test
+            @DisplayName("isBanned가 true이고 예약 불가 상태를 반환해야 한다")
+            void it_returns_banned_and_unavailable() {
+                // Given
+                var userId = 1L;
+                var user = createUser("301");
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(washingBanRepository.existsByRoomNumber("301")).willReturn(true);
+                given(penaltyRedisUtil.isBlocked("301")).willReturn(false);
+
+                // When
+                var result = queryReservationAvailabilityService.execute();
+
+                // Then
+                assertThat(result.canReserve()).isFalse();
+                assertThat(result.isBanned()).isTrue();
+            }
+        }
+
+        @Nested
         @DisplayName("48시간 블록 중인 호실의 사용자가 조회할 때")
         class Context_with_blocked_room {
 

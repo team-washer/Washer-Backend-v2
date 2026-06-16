@@ -145,6 +145,7 @@ class CreateReservationServiceTest {
             final var reqDto = new CreateReservationReqDto(1L);
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(machineRepository.findByIdForUpdate(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(machine.getType()).thenReturn(MachineType.WASHER);
@@ -234,6 +235,23 @@ class CreateReservationServiceTest {
             // When & Then
             assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
                     .hasMessageContaining("1인 1예약");
+        }
+
+        @Test
+        @DisplayName("금지된 호실의 사용자가 예약을 시도하면 FORBIDDEN 예외를 발생시킨다")
+        void execute_ShouldThrowForbidden_WhenRoomIsBanned() {
+            // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
+            final var reqDto = new CreateReservationReqDto(1L);
+
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(washingBanRepository.existsByRoomNumber(ROOM_NUMBER)).thenReturn(true);
+
+            // When & Then
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+                    .hasMessageContaining("세탁이 금지된").satisfies(
+                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
         }
 
         @Test
