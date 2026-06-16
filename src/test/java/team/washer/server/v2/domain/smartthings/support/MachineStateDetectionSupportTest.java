@@ -112,6 +112,27 @@ class MachineStateDetectionSupportTest {
 
             assertThat(result).isPresent();
         }
+
+        @Test
+        @DisplayName("완료 직후 jobState가 none으로 리셋되어도 완료 시각이 지났으면 완료로 판정한다")
+        void shouldComplete_WhenJobStateResetAndCompletionTimePassed() {
+            var past = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(1);
+            var status = washerStatus("stop", "none", isoUtc(past));
+
+            var result = machineStateDetectionSupport.isCompleted(status, WASHER);
+
+            assertThat(result).isPresent();
+        }
+
+        @Test
+        @DisplayName("jobState가 none으로 리셋됐지만 완료 시각이 없으면 완료로 판정하지 않는다")
+        void shouldNotComplete_WhenJobStateResetAndCompletionTimeNull() {
+            var status = washerStatus("stop", "none", null);
+
+            var result = machineStateDetectionSupport.isCompleted(status, WASHER);
+
+            assertThat(result).isEmpty();
+        }
     }
 
     @Nested
@@ -138,6 +159,17 @@ class MachineStateDetectionSupportTest {
             var result = machineStateDetectionSupport.isCompleted(status, DRYER);
 
             assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("건조 완료 직후 jobState가 none으로 리셋되어도 완료 시각이 지났으면 완료로 판정한다")
+        void shouldComplete_WhenDryerJobStateResetAndCompletionTimePassed() {
+            var past = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(1);
+            var status = dryerStatus("stop", "none", isoUtc(past));
+
+            var result = machineStateDetectionSupport.isCompleted(status, DRYER);
+
+            assertThat(result).isPresent();
         }
     }
 

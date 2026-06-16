@@ -48,9 +48,9 @@ public class MachineStateDetectionSupport {
      *
      * <p>
      * SmartThings 기기는 메인 사이클이 끝나면 냉각(cooling)·구김방지(wrinklePrevent) 등 잔여 단계가 남아 있어도
-     * jobState를 finish/finished로 먼저 보고하는 경우가 있다. jobState만으로 판정하면 실제 종료 2~4분 전에 완료로
-     * 오인하므로, machineState=stop(물리적 정지)와 completionTime이 현재 시각을 지났는지(잔여시간 0)를 함께
-     * 확인한다.
+     * jobState를 finish/finished로 먼저 보고하는 경우가 있다. 반대로 완료 직후 jobState가 none/null로 빠르게
+     * 리셋될 수 있으므로, machineState=stop(물리적 정지)와 completionTime이 현재 시각을 지났는지(잔여시간 0)를
+     * 함께 확인한다.
      */
     public Optional<LocalDateTime> isCompleted(SmartThingsDeviceStatusResDto status, boolean isWasher) {
         if (status == null) {
@@ -69,19 +69,19 @@ public class MachineStateDetectionSupport {
     }
 
     /**
-     * jobState·machineState·completionTime을 종합하여 단일 기기 타입의 완료 여부를 판정한다. 세 조건을 모두
-     * 만족할 때만 완료로 보고, 완료 시각(없으면 현재 시각)을 반환한다.
+     * jobState·machineState·completionTime을 종합하여 단일 기기 타입의 완료 여부를 판정한다.
      */
     private Optional<LocalDateTime> evaluateCompletion(String jobState,
             String finishedJobState,
             String machineState,
             String completionTimeStr,
             LocalDateTime now) {
-        if (!finishedJobState.equalsIgnoreCase(jobState)) {
-            return Optional.empty();
-        }
         if (!"stop".equalsIgnoreCase(machineState)) {
-            log.debug("job finished but machine not stopped yet machineState={} jobState={}", machineState, jobState);
+            if (finishedJobState.equalsIgnoreCase(jobState)) {
+                log.debug("job finished but machine not stopped yet machineState={} jobState={}",
+                        machineState,
+                        jobState);
+            }
             return Optional.empty();
         }
         var completionTime = (completionTimeStr != null && !completionTimeStr.isBlank())
@@ -93,8 +93,23 @@ public class MachineStateDetectionSupport {
                     jobState);
             return Optional.empty();
         }
+
+        if (!finishedJobState.equalsIgnoreCase(jobState)) {
+            if (isResetJobState(jobState) && completionTime != null) {
+                log.debug("device job is completed after job reset jobState={} completionTime={}",
+                        jobState,
+                        completionTime);
+                return Optional.of(completionTime);
+            }
+            return Optional.empty();
+        }
+
         log.debug("device job is completed jobState={} completionTime={}", jobState, completionTime);
         return Optional.of(completionTime != null ? completionTime : now);
+    }
+
+    private boolean isResetJobState(String jobState) {
+        return jobState == null || jobState.isBlank() || "none".equalsIgnoreCase(jobState);
     }
 
     /**
