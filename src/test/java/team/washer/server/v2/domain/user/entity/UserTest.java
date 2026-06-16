@@ -8,8 +8,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import jakarta.persistence.Column;
+import jakarta.validation.constraints.Size;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.user.enums.UserRole;
+import team.washer.server.v2.global.common.constants.NotificationConstants;
 
 @DisplayName("User 엔티티의")
 class UserTest {
@@ -18,6 +21,22 @@ class UserTest {
     private User createUser(final Integer grade, final UserRole role) {
         return User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(grade).floor(3).penaltyCount(0)
                 .role(role).build();
+    }
+
+    @Nested
+    @DisplayName("FCM 토큰 필드는")
+    class Describe_fcmToken {
+
+        @Test
+        @DisplayName("긴 등록 토큰을 저장할 수 있도록 4096자까지 허용한다")
+        void it_allows_long_registration_token() throws NoSuchFieldException {
+            final var field = User.class.getDeclaredField("fcmToken");
+            final var column = field.getAnnotation(Column.class);
+            final var size = field.getAnnotation(Size.class);
+
+            assertThat(column.length()).isEqualTo(NotificationConstants.FCM_TOKEN_MAX_LENGTH);
+            assertThat(size.max()).isEqualTo(NotificationConstants.FCM_TOKEN_MAX_LENGTH);
+        }
     }
 
     @Nested

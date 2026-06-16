@@ -2,11 +2,18 @@ package team.washer.server.v2.domain.notification.support;
 
 import org.springframework.stereotype.Component;
 
+import com.google.firebase.messaging.AndroidConfig;
+import com.google.firebase.messaging.AndroidNotification;
+import com.google.firebase.messaging.ApnsConfig;
+import com.google.firebase.messaging.Aps;
+import com.google.firebase.messaging.ApsAlert;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingException;
 import com.google.firebase.messaging.Message;
 import com.google.firebase.messaging.MessagingErrorCode;
 import com.google.firebase.messaging.Notification;
+import com.google.firebase.messaging.WebpushConfig;
+import com.google.firebase.messaging.WebpushNotification;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +43,9 @@ public class FcmNotificationSupport {
 
         try {
             final var notification = Notification.builder().setTitle(title).setBody(body).build();
-            final var message = Message.builder().setToken(token).setNotification(notification).build();
+            final var message = Message.builder().setToken(token).setNotification(notification).putData("title", title)
+                    .putData("body", body).setAndroidConfig(androidConfig(title, body))
+                    .setApnsConfig(apnsConfig(title, body)).setWebpushConfig(webpushConfig(title, body)).build();
             final String messageId = firebaseMessaging.send(message);
             log.info("FCM notification sent successfully userId={} messageId={}", user.getId(), messageId);
         } catch (FirebaseMessagingException e) {
@@ -47,5 +56,20 @@ public class FcmNotificationSupport {
                 deleteFcmTokenService.execute(user.getId());
             }
         }
+    }
+
+    private AndroidConfig androidConfig(final String title, final String body) {
+        return AndroidConfig.builder().setPriority(AndroidConfig.Priority.HIGH)
+                .setNotification(AndroidNotification.builder().setTitle(title).setBody(body).build()).build();
+    }
+
+    private ApnsConfig apnsConfig(final String title, final String body) {
+        final var alert = ApsAlert.builder().setTitle(title).setBody(body).build();
+        return ApnsConfig.builder().setAps(Aps.builder().setAlert(alert).setSound("default").build()).build();
+    }
+
+    private WebpushConfig webpushConfig(final String title, final String body) {
+        return WebpushConfig.builder()
+                .setNotification(WebpushNotification.builder().setTitle(title).setBody(body).build()).build();
     }
 }

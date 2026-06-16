@@ -18,6 +18,7 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.notification.service.impl.RegisterFcmTokenServiceImpl;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.constants.NotificationConstants;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
@@ -86,6 +87,29 @@ class RegisterFcmTokenServiceTest {
 
                 // Then
                 assertThat(user.getFcmToken()).isEqualTo(newToken);
+                then(userRepository).should(times(1)).findById(USER_ID);
+            }
+        }
+
+        @Nested
+        @DisplayName("긴 FCM 토큰을 등록할 때")
+        class Context_with_long_token {
+
+            @Test
+            @DisplayName("토큰 전체가 잘리지 않고 저장되어야 한다")
+            void it_registers_full_token() {
+                // Given
+                when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
+                String token = "a".repeat(NotificationConstants.FCM_TOKEN_MAX_LENGTH);
+                User user = createUser();
+
+                given(userRepository.findById(USER_ID)).willReturn(Optional.of(user));
+
+                // When
+                registerFcmTokenService.execute(token);
+
+                // Then
+                assertThat(user.getFcmToken()).hasSize(NotificationConstants.FCM_TOKEN_MAX_LENGTH).isEqualTo(token);
                 then(userRepository).should(times(1)).findById(USER_ID);
             }
         }
