@@ -30,7 +30,7 @@ public class FcmNotificationSupport {
     public void send(final User user, final String title, final String body) {
         final String token = user.getFcmToken();
         if (token == null || token.isBlank()) {
-            log.debug("FCM token not found, skipping notification: userId={}", user.getId());
+            log.debug("FCM token not found skipping notification userId={}", user.getId());
             return;
         }
 
@@ -38,12 +38,12 @@ public class FcmNotificationSupport {
             final var notification = Notification.builder().setTitle(title).setBody(body).build();
             final var message = Message.builder().setToken(token).setNotification(notification).build();
             final String messageId = firebaseMessaging.send(message);
-            log.info("FCM notification sent successfully: userId={}, messageId={}", user.getId(), messageId);
+            log.info("FCM notification sent successfully userId={} messageId={}", user.getId(), messageId);
         } catch (FirebaseMessagingException e) {
             final MessagingErrorCode errorCode = e.getMessagingErrorCode();
-            log.error("Failed to send FCM notification: userId={}, errorCode={}", user.getId(), errorCode, e);
+            log.error("Failed to send FCM notification userId={} errorCode={}", user.getId(), errorCode, e);
             if (errorCode == MessagingErrorCode.UNREGISTERED || errorCode == MessagingErrorCode.INVALID_ARGUMENT) {
-                log.warn("Removing invalid FCM token: userId={}, errorCode={}", user.getId(), errorCode);
+                log.warn("Removing invalid FCM token userId={} errorCode={}", user.getId(), errorCode);
                 deleteFcmTokenService.execute(user.getId());
             }
         }

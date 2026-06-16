@@ -25,6 +25,6 @@ public class DeleteFcmTokenServiceImpl implements DeleteFcmTokenService {
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         user.clearFcmToken();
-        log.info("FCM token deleted: userId={}", userId);
+        log.info("FCM token deleted userId={}", userId);
     }
 }

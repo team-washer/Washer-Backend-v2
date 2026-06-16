@@ -28,6 +28,6 @@ public class RegisterFcmTokenServiceImpl implements RegisterFcmTokenService {
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         user.updateFcmToken(token);
-        log.info("FCM token registered/updated: userId={}", userId);
+        log.info("FCM token registered or updated userId={}", userId);
     }
 }

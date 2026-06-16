@@ -33,7 +33,7 @@ public class FcmConfig {
     public FirebaseMessaging firebaseMessaging() throws IOException {
         if (fcmProperties.serviceAccountJson() == null || fcmProperties.serviceAccountJson().isBlank()) {
             throw new IllegalStateException(
-                    "FCM service account JSON is not configured. Set FIREBASE_SERVICE_ACCOUNT_JSON environment variable.");
+                    "FCM service account JSON is not configured. Set THIRD_PARTY_FCM_SERVICE_ACCOUNT_JSON environment variable.");
         }
 
         if (FirebaseApp.getApps().isEmpty()) {

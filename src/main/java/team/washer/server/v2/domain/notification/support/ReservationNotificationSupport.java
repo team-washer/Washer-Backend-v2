@@ -100,8 +100,12 @@ public class ReservationNotificationSupport {
     private void persistAndSend(final User user, final Notification notification, final String fcmTitle) {
         notificationRepository.save(notification);
         enforceNotificationLimit(user);
-        log.info("Notification sent userId={} type={}", user.getId(), notification.getType());
-        fcmNotificationSupport.send(user, fcmTitle, notification.getMessage());
+        log.info("Notification persisted userId={} type={}", user.getId(), notification.getType());
+        try {
+            fcmNotificationSupport.send(user, fcmTitle, notification.getMessage());
+        } catch (RuntimeException e) {
+            log.error("FCM notification send failed userId={} type={}", user.getId(), notification.getType(), e);
+        }
     }
 
     private void enforceNotificationLimit(final User user) {

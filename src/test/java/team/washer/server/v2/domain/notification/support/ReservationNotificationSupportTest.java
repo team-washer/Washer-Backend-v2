@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.notification.support;
 
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
 import org.junit.jupiter.api.DisplayName;
@@ -108,6 +109,29 @@ class ReservationNotificationSupportTest {
                 // Then
                 then(notificationRepository).should(times(1)).deleteOldestByUserExceedingLimit(user, 30);
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("FCM 전송이 실패할 때는")
+    class Describe_fcm_failure {
+
+        @Test
+        @DisplayName("알림을 저장하고 예외를 전파하지 않아야 한다")
+        void it_persists_notification_without_propagating_exception() {
+            // Given
+            User user = createUser();
+            Machine machine = createMachine();
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(notificationRepository.countByUser(user)).willReturn(1L);
+            willThrow(new RuntimeException("fcm down")).given(fcmNotificationSupport)
+                    .send(any(), anyString(), anyString());
+
+            // When & Then
+            assertThatCode(() -> reservationNotificationSupport.sendCompletion(user, machine))
+                    .doesNotThrowAnyException();
+            then(notificationRepository).should(times(1)).save(any(Notification.class));
         }
     }
 }
