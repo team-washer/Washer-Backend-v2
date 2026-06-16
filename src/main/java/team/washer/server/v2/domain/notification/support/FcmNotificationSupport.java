@@ -43,9 +43,16 @@ public class FcmNotificationSupport {
 
         try {
             final var notification = Notification.builder().setTitle(title).setBody(body).build();
-            final var message = Message.builder().setToken(token).setNotification(notification).putData("title", title)
-                    .putData("body", body).setAndroidConfig(androidConfig(title, body))
-                    .setApnsConfig(apnsConfig(title, body)).setWebpushConfig(webpushConfig(title, body)).build();
+            final var messageBuilder = Message.builder().setToken(token).setNotification(notification)
+                    .setAndroidConfig(androidConfig(title, body)).setApnsConfig(apnsConfig(title, body))
+                    .setWebpushConfig(webpushConfig(title, body));
+            if (title != null) {
+                messageBuilder.putData("title", title);
+            }
+            if (body != null) {
+                messageBuilder.putData("body", body);
+            }
+            final var message = messageBuilder.build();
             final String messageId = firebaseMessaging.send(message);
             log.info("FCM notification sent successfully userId={} messageId={}", user.getId(), messageId);
         } catch (FirebaseMessagingException e) {
