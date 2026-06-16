@@ -14,6 +14,7 @@ import team.washer.server.v2.domain.machine.dto.request.CreateMachineReqDto;
 import team.washer.server.v2.domain.machine.dto.request.UpdateMachineReqDto;
 import team.washer.server.v2.domain.machine.dto.request.UpdateMachineStatusReqDto;
 import team.washer.server.v2.domain.machine.dto.response.DeleteMachineResDto;
+import team.washer.server.v2.domain.machine.dto.response.ForceStopMachineResDto;
 import team.washer.server.v2.domain.machine.dto.response.MachineListResDto;
 import team.washer.server.v2.domain.machine.dto.response.MachineResDto;
 import team.washer.server.v2.domain.machine.dto.response.MachineStatusUpdateResDto;
@@ -21,6 +22,7 @@ import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.service.CreateMachineService;
 import team.washer.server.v2.domain.machine.service.DeleteMachineService;
+import team.washer.server.v2.domain.machine.service.ForceStopMachineService;
 import team.washer.server.v2.domain.machine.service.QueryAllMachinesService;
 import team.washer.server.v2.domain.machine.service.UpdateMachineService;
 import team.washer.server.v2.domain.machine.service.UpdateMachineStatusService;
@@ -37,6 +39,7 @@ public class AdminMachineController {
     private final CreateMachineService createMachineService;
     private final UpdateMachineService updateMachineService;
     private final DeleteMachineService deleteMachineService;
+    private final ForceStopMachineService forceStopMachineService;
 
     @GetMapping
     @Operation(summary = "전체 기기 조회", description = "필터링 옵션으로 기기 목록을 조회합니다 (페이지네이션 지원)")
@@ -56,6 +59,12 @@ public class AdminMachineController {
             @Parameter(description = "기기 ID") @PathVariable @NotNull Long id,
             @Valid @RequestBody UpdateMachineStatusReqDto request) {
         return updateMachineStatusService.execute(id, request.status());
+    }
+
+    @PostMapping("/{id}/force-stop")
+    @Operation(summary = "기기 강제 정지", description = "동작 중인 세탁기 또는 건조기를 SmartThings 명령으로 즉시 정지하고 활성 예약을 패널티 없이 취소합니다")
+    public ForceStopMachineResDto forceStopMachine(@Parameter(description = "기기 ID") @PathVariable @NotNull Long id) {
+        return forceStopMachineService.execute(id);
     }
 
     @PostMapping
