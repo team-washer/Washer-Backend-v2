@@ -101,7 +101,7 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
             LocalDateTime threshold,
             LocalDateTime recentCutoff) {
 
-        return jpaQueryFactory.selectFrom(reservation)
+        return jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.machine, machine).fetchJoin()
                 .where(reservation.status.eq(status),
                         reservation.createdAt.goe(recentCutoff),
                         reservation.reservedAt.lt(threshold))
