@@ -42,7 +42,7 @@ public class QueryReservationAvailabilityServiceImpl implements QueryReservation
             }
         }
 
-        if (isBanned || blocked || allTypesInCooldown) {
+        if (roomNumber == null || isBanned || blocked || allTypesInCooldown) {
             return new ReservationAvailabilityResDto(false, penaltyRedisUtil.getPenaltyExpiryTime(userId), isBanned);
         }
 

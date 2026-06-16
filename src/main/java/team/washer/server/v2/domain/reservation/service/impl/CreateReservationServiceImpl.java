@@ -48,13 +48,18 @@ public class CreateReservationServiceImpl implements CreateReservationService {
 
         user.validateFloorRestriction();
 
+        final String roomNumber = user.getRoomNumber();
+        if (roomNumber == null) {
+            throw new ExpectedException("호실 정보가 존재하지 않습니다.", HttpStatus.BAD_REQUEST);
+        }
+
         // 호실 세탁 강제 금지 검증
-        if (washingBanRepository.existsByRoomNumber(user.getRoomNumber())) {
+        if (washingBanRepository.existsByRoomNumber(roomNumber)) {
             throw new ExpectedException("해당 호실은 현재 세탁이 금지된 상태입니다.", HttpStatus.FORBIDDEN);
         }
 
         // 48시간 차단 검증 (호실 단위)
-        if (penaltyRedisUtil.isBlocked(user.getRoomNumber())) {
+        if (penaltyRedisUtil.isBlocked(roomNumber)) {
             throw new ExpectedException("48시간 내 취소 횟수를 초과하여 예약이 제한됩니다", HttpStatus.BAD_REQUEST);
         }
 
@@ -96,7 +101,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
 
         // 동일 호실의 동일 유형 기기 중복 예약 검증
         final boolean hasDuplicateTypeReservation = reservationRepository
-                .existsActiveReservationByRoomAndMachineType(user.getRoomNumber(), machine.getType());
+                .existsActiveReservationByRoomAndMachineType(roomNumber, machine.getType());
         if (hasDuplicateTypeReservation) {
             throw new ExpectedException(String.format("해당 호실에 이미 %s 예약이 존재합니다. 동일 유형의 기기는 동시에 두 개 이상 예약할 수 없습니다.",
                     machine.getType().getDescription()), HttpStatus.BAD_REQUEST);
