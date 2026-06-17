@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
-import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -22,7 +21,6 @@ import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 
 @Slf4j
-@EnableWebMvc
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
