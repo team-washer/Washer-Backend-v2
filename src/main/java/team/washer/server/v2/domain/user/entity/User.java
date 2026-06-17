@@ -17,6 +17,7 @@ import team.washer.server.v2.domain.malfunction.entity.MalfunctionReport;
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.user.enums.UserRole;
+import team.washer.server.v2.global.common.constants.NotificationConstants;
 import team.washer.server.v2.global.common.constants.TimeRestrictionConstants;
 import team.washer.server.v2.global.common.entity.BaseEntity;
 
@@ -72,7 +73,8 @@ public class User extends BaseEntity {
     @Column(name = "last_cancellation_at")
     private LocalDateTime lastCancellationAt;
 
-    @Column(name = "fcm_token", length = 255)
+    @Size(max = NotificationConstants.FCM_TOKEN_MAX_LENGTH, message = "FCM 토큰은 4096자를 초과할 수 없습니다")
+    @Column(name = "fcm_token", length = NotificationConstants.FCM_TOKEN_MAX_LENGTH)
     private String fcmToken;
 
     // 연관관계
