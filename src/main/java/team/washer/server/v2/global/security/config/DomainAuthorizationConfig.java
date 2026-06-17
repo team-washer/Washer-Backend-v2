@@ -32,7 +32,8 @@ public class DomainAuthorizationConfig {
                 // Swagger UI
                 .requestMatchers(swaggerUiResources, swaggerUiPath, apiDocsPath, apiDocsPath + "/**").permitAll()
                 // 헬스 체크
-                .requestMatchers("/api/v2/health", "/api/v2/admin/smartthings/**").permitAll()
+                .requestMatchers("/api/v2/health", "/api/v2/admin/smartthings/**", "/api/v2/app-versions/status")
+                .permitAll()
                 // 인증 엔드포인트
                 .requestMatchers("/api/v2/auth/login", "/api/v2/auth/refresh", "/api/v2/auth/token/status").permitAll()
                 // 관리자 엔드포인트
