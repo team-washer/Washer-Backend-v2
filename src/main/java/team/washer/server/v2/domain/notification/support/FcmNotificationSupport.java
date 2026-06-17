@@ -60,6 +60,7 @@ public class FcmNotificationSupport {
             log.error("Failed to send FCM notification userId={} errorCode={}", user.getId(), errorCode, e);
             if (errorCode == MessagingErrorCode.UNREGISTERED || errorCode == MessagingErrorCode.INVALID_ARGUMENT) {
                 log.warn("Removing invalid FCM token userId={} errorCode={}", user.getId(), errorCode);
+                user.clearFcmToken();
                 deleteFcmTokenService.execute(user.getId());
             }
         }
