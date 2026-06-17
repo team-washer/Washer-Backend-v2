@@ -2,6 +2,7 @@ package team.washer.server.v2.domain.notification.service.impl;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
@@ -19,12 +20,12 @@ public class DeleteFcmTokenServiceImpl implements DeleteFcmTokenService {
     private final UserRepository userRepository;
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void execute(final Long userId) {
         final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         user.clearFcmToken();
-        log.info("FCM token deleted: userId={}", userId);
+        log.info("FCM token deleted userId={}", userId);
     }
 }

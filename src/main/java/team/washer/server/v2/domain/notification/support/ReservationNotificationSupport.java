@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -100,8 +102,32 @@ public class ReservationNotificationSupport {
     private void persistAndSend(final User user, final Notification notification, final String fcmTitle) {
         notificationRepository.save(notification);
         enforceNotificationLimit(user);
-        log.info("Notification sent userId={} type={}", user.getId(), notification.getType());
-        fcmNotificationSupport.send(user, fcmTitle, notification.getMessage());
+        log.info("Notification persisted userId={} type={}", user.getId(), notification.getType());
+        sendAfterCommit(user, notification, fcmTitle);
+    }
+
+    private void sendAfterCommit(final User user, final Notification notification, final String fcmTitle) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+                @Override
+                public void afterCommit() {
+                    sendFcm(user, notification, fcmTitle);
+                }
+            });
+            return;
+        }
+
+        sendFcm(user, notification, fcmTitle);
+    }
+
+    private void sendFcm(final User user, final Notification notification, final String fcmTitle) {
+        try {
+            fcmNotificationSupport.send(user, fcmTitle, notification.getMessage());
+        } catch (RuntimeException e) {
+            log.error("FCM notification send failed userId={} type={}", user.getId(), notification.getType(), e);
+        }
     }
 
     private void enforceNotificationLimit(final User user) {
