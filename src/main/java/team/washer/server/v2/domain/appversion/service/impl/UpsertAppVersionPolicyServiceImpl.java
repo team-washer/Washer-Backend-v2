@@ -27,11 +27,7 @@ public class UpsertAppVersionPolicyServiceImpl implements UpsertAppVersionPolicy
         validateVersionCodeRange(reqDto);
 
         final var policy = appVersionPolicyRepository.findByPlatform(platform)
-                .orElseGet(() -> AppVersionPolicy.builder().platform(platform)
-                        .latestVersionName(reqDto.latestVersionName()).latestVersionCode(reqDto.latestVersionCode())
-                        .minSupportedVersionName(reqDto.minSupportedVersionName())
-                        .minSupportedVersionCode(reqDto.minSupportedVersionCode()).storeUrl(reqDto.storeUrl())
-                        .updateMessage(reqDto.updateMessage()).build());
+                .orElseGet(() -> AppVersionPolicy.builder().platform(platform).build());
 
         policy.updatePolicy(reqDto.latestVersionName(),
                 reqDto.latestVersionCode(),
