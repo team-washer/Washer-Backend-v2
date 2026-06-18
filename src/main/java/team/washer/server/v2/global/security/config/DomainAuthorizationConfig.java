@@ -36,6 +36,8 @@ public class DomainAuthorizationConfig {
                 .permitAll()
                 // 인증 엔드포인트
                 .requestMatchers("/api/v2/auth/login", "/api/v2/auth/refresh", "/api/v2/auth/token/status").permitAll()
+                // 앱 버전 정책 관리 API (관리자 전용 기능이나 토큰 없이 접근 허용)
+                .requestMatchers("/api/v2/admin/app-versions/**").permitAll()
                 // 관리자 엔드포인트
                 .requestMatchers("/api/v2/admin/**").hasAnyAuthority("DORMITORY_COUNCIL", "ADMIN")
                 // 그 외 엔드포인트 - 인증 필요
