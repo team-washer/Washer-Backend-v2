@@ -1,9 +1,11 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationAvailabilityResDto;
@@ -25,13 +27,15 @@ public class QueryReservationAvailabilityServiceImpl implements QueryReservation
     @Transactional(readOnly = true)
     public ReservationAvailabilityResDto execute() {
         final var userId = currentUserProvider.getCurrentUserId();
-        final var roomNumber = userRepository.findById(userId).map(u -> u.getRoomNumber()).orElse(null);
+        final var user = userRepository.findById(userId)
+                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+        final String roomNumber = user.getRoomNumber();
 
         // 호실 세탁 강제 금지 여부
-        final boolean isBanned = roomNumber != null && washingBanRepository.existsByRoomNumber(roomNumber);
+        final boolean isBanned = washingBanRepository.existsByRoomNumber(roomNumber);
 
         // 48시간 블록(호실 단위)이면 모든 예약 불가
-        final boolean blocked = roomNumber != null && penaltyRedisUtil.isBlocked(roomNumber);
+        final boolean blocked = penaltyRedisUtil.isBlocked(roomNumber);
 
         // 쿨다운은 유형별이므로 모든 기기 유형이 쿨다운 중일 때만 전체 예약 불가로 간주
         boolean allTypesInCooldown = true;
@@ -42,7 +46,7 @@ public class QueryReservationAvailabilityServiceImpl implements QueryReservation
             }
         }
 
-        if (roomNumber == null || isBanned || blocked || allTypesInCooldown) {
+        if (isBanned || blocked || allTypesInCooldown) {
             return new ReservationAvailabilityResDto(false, penaltyRedisUtil.getPenaltyExpiryTime(userId), isBanned);
         }
 
