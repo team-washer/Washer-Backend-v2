@@ -97,6 +97,59 @@ class QueryAppVersionStatusServiceTest {
         }
 
         @Test
+        @DisplayName("클라이언트 버전이 기존 최신 버전보다 높으면 최신 버전을 갱신하고 지원 상태를 반환해야 한다")
+        void it_registers_new_latest_version_when_client_version_is_higher() {
+            // Given
+            final var policy = createPolicy();
+            final var reqDto = new AppVersionStatusReqDto(AppPlatform.ANDROID, 20, "1.5.0");
+            given(appVersionPolicyRepository.findByPlatform(AppPlatform.ANDROID)).willReturn(Optional.of(policy));
+
+            // When
+            final var result = queryAppVersionStatusService.execute(reqDto);
+
+            // Then
+            assertThat(policy.getLatestVersionCode()).isEqualTo(20);
+            assertThat(policy.getLatestVersionName()).isEqualTo("1.5.0");
+            assertThat(result.latestVersionCode()).isEqualTo(20);
+            assertThat(result.latestVersionName()).isEqualTo("1.5.0");
+            assertThat(result.updateStatus()).isEqualTo(AppUpdateStatus.SUPPORTED);
+            assertThat(result.updateRequired()).isFalse();
+            assertThat(result.updateAvailable()).isFalse();
+        }
+
+        @Test
+        @DisplayName("클라이언트 버전이 기존 최신 버전보다 높지만 버전 이름이 없으면 버전 코드만 갱신해야 한다")
+        void it_registers_only_version_code_when_version_name_is_missing() {
+            // Given
+            final var policy = createPolicy();
+            final var reqDto = new AppVersionStatusReqDto(AppPlatform.ANDROID, 20, null);
+            given(appVersionPolicyRepository.findByPlatform(AppPlatform.ANDROID)).willReturn(Optional.of(policy));
+
+            // When
+            queryAppVersionStatusService.execute(reqDto);
+
+            // Then
+            assertThat(policy.getLatestVersionCode()).isEqualTo(20);
+            assertThat(policy.getLatestVersionName()).isEqualTo("1.4.0");
+        }
+
+        @Test
+        @DisplayName("클라이언트 버전이 기존 최신 버전과 같으면 최신 버전을 갱신하지 않아야 한다")
+        void it_keeps_latest_version_when_client_version_is_equal() {
+            // Given
+            final var policy = createPolicy();
+            final var reqDto = new AppVersionStatusReqDto(AppPlatform.ANDROID, 18, "1.4.0");
+            given(appVersionPolicyRepository.findByPlatform(AppPlatform.ANDROID)).willReturn(Optional.of(policy));
+
+            // When
+            final var result = queryAppVersionStatusService.execute(reqDto);
+
+            // Then
+            assertThat(policy.getLatestVersionCode()).isEqualTo(18);
+            assertThat(result.updateStatus()).isEqualTo(AppUpdateStatus.SUPPORTED);
+        }
+
+        @Test
         @DisplayName("플랫폼 정책이 없으면 ExpectedException을 던져야 한다")
         void it_throws_expected_exception_when_policy_not_found() {
             // Given

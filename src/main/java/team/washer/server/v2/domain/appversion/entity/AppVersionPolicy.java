@@ -68,6 +68,24 @@ public class AppVersionPolicy extends BaseEntity {
     }
 
     /**
+     * 클라이언트가 보고한 버전이 기존 최신 버전보다 높으면 해당 버전을 최신 버전으로 갱신합니다.
+     *
+     * @param versionCode
+     *            클라이언트 앱 버전 코드
+     * @param versionName
+     *            클라이언트 앱 버전 이름
+     */
+    public void registerIfHigherVersion(final int versionCode, final String versionName) {
+        if (versionCode <= this.latestVersionCode) {
+            return;
+        }
+        this.latestVersionCode = versionCode;
+        if (versionName != null && !versionName.isBlank()) {
+            this.latestVersionName = versionName;
+        }
+    }
+
+    /**
      * 현재 앱 버전의 업데이트 상태를 계산합니다.
      *
      * @param versionCode

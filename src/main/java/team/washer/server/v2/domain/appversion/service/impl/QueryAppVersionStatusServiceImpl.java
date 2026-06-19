@@ -20,10 +20,11 @@ public class QueryAppVersionStatusServiceImpl implements QueryAppVersionStatusSe
     private final AppVersionPolicyRepository appVersionPolicyRepository;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public AppVersionStatusResDto execute(final AppVersionStatusReqDto reqDto) {
         final var policy = appVersionPolicyRepository.findByPlatform(reqDto.platform())
                 .orElseThrow(() -> new ExpectedException("앱 버전 정책을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+        policy.registerIfHigherVersion(reqDto.versionCode(), reqDto.versionName());
         final var updateStatus = policy.resolveUpdateStatus(reqDto.versionCode());
 
         return mapToStatusResDto(policy, reqDto, updateStatus);
