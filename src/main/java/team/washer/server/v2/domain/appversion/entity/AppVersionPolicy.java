@@ -79,10 +79,11 @@ public class AppVersionPolicy extends BaseEntity {
         if (versionCode <= this.latestVersionCode) {
             return;
         }
-        this.latestVersionCode = versionCode;
-        if (versionName != null && !versionName.isBlank()) {
-            this.latestVersionName = versionName;
+        if (versionName == null || versionName.isBlank()) {
+            return;
         }
+        this.latestVersionCode = versionCode;
+        this.latestVersionName = versionName;
     }
 
     /**

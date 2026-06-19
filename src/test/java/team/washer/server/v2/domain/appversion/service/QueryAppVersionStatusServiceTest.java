@@ -118,8 +118,8 @@ class QueryAppVersionStatusServiceTest {
         }
 
         @Test
-        @DisplayName("클라이언트 버전이 기존 최신 버전보다 높지만 버전 이름이 없으면 버전 코드만 갱신해야 한다")
-        void it_registers_only_version_code_when_version_name_is_missing() {
+        @DisplayName("클라이언트 버전이 기존 최신 버전보다 높지만 버전 이름이 없으면 최신 버전을 갱신하지 않아야 한다")
+        void it_keeps_latest_version_when_version_name_is_missing() {
             // Given
             final var policy = createPolicy();
             final var reqDto = new AppVersionStatusReqDto(AppPlatform.ANDROID, 20, null);
@@ -129,7 +129,7 @@ class QueryAppVersionStatusServiceTest {
             queryAppVersionStatusService.execute(reqDto);
 
             // Then
-            assertThat(policy.getLatestVersionCode()).isEqualTo(20);
+            assertThat(policy.getLatestVersionCode()).isEqualTo(18);
             assertThat(policy.getLatestVersionName()).isEqualTo("1.4.0");
         }
 
