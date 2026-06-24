@@ -68,6 +68,16 @@ public record SmartThingsDeviceStatusResDto(
         return ms != null ? ms.value() : null;
     }
 
+    /** 세탁기 machineState 갱신 시각 반환 */
+    public String getWasherOperatingStateTimestamp() {
+        var main = getMainComponent();
+        if (main == null || main.washerOperatingState() == null) {
+            return null;
+        }
+        var ms = main.washerOperatingState().machineState();
+        return ms != null ? ms.timestamp() : null;
+    }
+
     /** 건조기 machineState 값 반환: "run" | "pause" | "stop" */
     public String getDryerOperatingState() {
         var main = getMainComponent();
@@ -76,6 +86,16 @@ public record SmartThingsDeviceStatusResDto(
         }
         var ms = main.dryerOperatingState().machineState();
         return ms != null ? ms.value() : null;
+    }
+
+    /** 건조기 machineState 갱신 시각 반환 */
+    public String getDryerOperatingStateTimestamp() {
+        var main = getMainComponent();
+        if (main == null || main.dryerOperatingState() == null) {
+            return null;
+        }
+        var ms = main.dryerOperatingState().machineState();
+        return ms != null ? ms.timestamp() : null;
     }
 
     /** washerJobState 값 반환: "wash" | "rinse" | "spin" | "finish" | ... */
@@ -88,6 +108,16 @@ public record SmartThingsDeviceStatusResDto(
         return js != null ? js.value() : null;
     }
 
+    /** washerJobState 갱신 시각 반환 */
+    public String getWasherJobStateTimestamp() {
+        var main = getMainComponent();
+        if (main == null || main.washerOperatingState() == null) {
+            return null;
+        }
+        var js = main.washerOperatingState().washerJobState();
+        return js != null ? js.timestamp() : null;
+    }
+
     /** dryerJobState 값 반환: "drying" | "cooling" | "finished" | ... */
     public String getDryerJobState() {
         var main = getMainComponent();
@@ -96,6 +126,16 @@ public record SmartThingsDeviceStatusResDto(
         }
         var js = main.dryerOperatingState().dryerJobState();
         return js != null ? js.value() : null;
+    }
+
+    /** dryerJobState 갱신 시각 반환 */
+    public String getDryerJobStateTimestamp() {
+        var main = getMainComponent();
+        if (main == null || main.dryerOperatingState() == null) {
+            return null;
+        }
+        var js = main.dryerOperatingState().dryerJobState();
+        return js != null ? js.timestamp() : null;
     }
 
     /** 세탁기 완료 예정 시간 반환 */

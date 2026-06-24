@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Map;
 import java.util.Optional;
 
@@ -65,6 +66,22 @@ class ReservationLifecycleProcessorTest {
         var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
         var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
         return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
+    }
+
+    private SmartThingsDeviceStatusResDto buildWasherStatusWithTimestamp(String machineStateTimestamp,
+            String jobStateTimestamp) {
+        var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("stop", machineStateTimestamp, null);
+        var jobStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("finish", jobStateTimestamp, null);
+        var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(machineStateAttr,
+                jobStateAttr,
+                null);
+        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
+        return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
+    }
+
+    private String isoUtc(LocalDateTime koreaTime) {
+        return koreaTime.atZone(ZoneId.of("Asia/Seoul")).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime()
+                .toString() + "Z";
     }
 
     @Nested
@@ -167,6 +184,51 @@ class ReservationLifecycleProcessorTest {
             when(reservation.getStartTime()).thenReturn(LocalDateTime.now());
             when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(Optional.of(staleCompletionTime));
+
+            // When
+            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, never()).complete();
+            verify(machine, never()).markAsAvailable();
+            verify(reservationRepository, never()).save(reservation);
+            verify(machineRepository, never()).save(machine);
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+        }
+
+        @Test
+        @DisplayName("완료 신호의 갱신 시각이 예약 시작 전이면 이전 상태로 보고 완료 처리하지 않는다")
+        void shouldNotCompleteReservation_WhenCompletionSignalTimestampBeforeReservationStartTime() {
+            // Given
+            var startTime = LocalDateTime.now();
+            var staleTimestamp = isoUtc(startTime.minusMinutes(1));
+            var deviceStatus = buildWasherStatusWithTimestamp(staleTimestamp, staleTimestamp);
+            givenRunningReservation();
+            when(machine.isWasher()).thenReturn(true);
+            when(reservation.getStartTime()).thenReturn(startTime);
+            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(Optional.of(startTime.plusMinutes(1)));
+
+            // When
+            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, never()).complete();
+            verify(machine, never()).markAsAvailable();
+            verify(reservationRepository, never()).save(reservation);
+            verify(machineRepository, never()).save(machine);
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+        }
+
+        @Test
+        @DisplayName("예상 완료 시간이 충분히 남아 있으면 완료 신호를 보류하고 예약을 유지한다")
+        void shouldNotCompleteReservation_WhenCompletionDetectedTooEarly() {
+            // Given
+            var deviceStatus = buildDeviceStatus(null);
+            givenRunningReservation();
+            when(reservation.getExpectedCompletionTime()).thenReturn(LocalDateTime.now().plusMinutes(10));
+            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(Optional.of(LocalDateTime.now()));
 
             // When
             reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
