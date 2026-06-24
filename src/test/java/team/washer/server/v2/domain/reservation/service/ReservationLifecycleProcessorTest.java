@@ -36,6 +36,7 @@ import team.washer.server.v2.global.common.constants.ReservationConstants;
 class ReservationLifecycleProcessorTest {
 
     private static final Long RESERVATION_ID = 1L;
+    private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     @InjectMocks
     private ReservationLifecycleProcessor reservationLifecycleProcessor;
@@ -80,8 +81,7 @@ class ReservationLifecycleProcessorTest {
     }
 
     private String isoUtc(LocalDateTime koreaTime) {
-        return koreaTime.atZone(ZoneId.of("Asia/Seoul")).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime()
-                .toString() + "Z";
+        return koreaTime.atZone(KOREA_ZONE).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime().toString() + "Z";
     }
 
     @Nested
@@ -200,7 +200,7 @@ class ReservationLifecycleProcessorTest {
         @DisplayName("완료 신호의 갱신 시각이 예약 시작 전이면 이전 상태로 보고 완료 처리하지 않는다")
         void shouldNotCompleteReservation_WhenCompletionSignalTimestampBeforeReservationStartTime() {
             // Given
-            var startTime = LocalDateTime.now();
+            var startTime = LocalDateTime.now(KOREA_ZONE);
             var staleTimestamp = isoUtc(startTime.minusMinutes(1));
             var deviceStatus = buildWasherStatusWithTimestamp(staleTimestamp, staleTimestamp);
             givenRunningReservation();
@@ -225,10 +225,11 @@ class ReservationLifecycleProcessorTest {
         void shouldNotCompleteReservation_WhenCompletionDetectedTooEarly() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
+            var nowKst = LocalDateTime.now(KOREA_ZONE);
             givenRunningReservation();
-            when(reservation.getExpectedCompletionTime()).thenReturn(LocalDateTime.now().plusMinutes(10));
+            when(reservation.getExpectedCompletionTime()).thenReturn(nowKst.plusMinutes(10));
             when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.of(LocalDateTime.now()));
+                    .thenReturn(Optional.of(nowKst));
 
             // When
             reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);

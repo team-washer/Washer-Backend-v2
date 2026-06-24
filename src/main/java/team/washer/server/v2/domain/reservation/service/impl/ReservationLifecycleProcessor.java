@@ -2,6 +2,7 @@ package team.washer.server.v2.domain.reservation.service.impl;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
@@ -35,6 +36,7 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 public class ReservationLifecycleProcessor {
 
     private static final long COMPLETION_EARLY_TOLERANCE_MINUTES = 2;
+    private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     private final ReservationRepository reservationRepository;
     private final MachineRepository machineRepository;
@@ -210,7 +212,8 @@ public class ReservationLifecycleProcessor {
             return false;
         }
         var earliestCompletionTime = expectedCompletionTime.minusMinutes(COMPLETION_EARLY_TOLERANCE_MINUTES);
-        return LocalDateTime.now().isBefore(earliestCompletionTime) && completionTime.isBefore(earliestCompletionTime);
+        return LocalDateTime.now(KOREA_ZONE).isBefore(earliestCompletionTime)
+                && completionTime.isBefore(earliestCompletionTime);
     }
 
     private boolean isTimestampBeforeStart(String timestamp, LocalDateTime startTime) {
