@@ -1,6 +1,5 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -25,6 +24,7 @@ import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Slf4j
 @Service
@@ -65,7 +65,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
 
         // 시간 제한 검증 (학년별 예약 시작 시각, 개발환경에서는 비활성화 가능)
         if (!reservationEnvironment.disableTimeRestriction()) {
-            user.validateTimeRestriction(LocalDateTime.now());
+            user.validateTimeRestriction(DateTimeUtil.nowInKorea());
         }
 
         // 동일 기기 동시 예약 직렬화를 위해 비관적 쓰기 락으로 조회
@@ -107,7 +107,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
                     machine.getType().getDescription()), HttpStatus.BAD_REQUEST);
         }
 
-        final var now = LocalDateTime.now();
+        final var now = DateTimeUtil.nowInKorea();
         final Reservation reservation = Reservation.builder().user(user).machine(machine).reservedAt(now)
                 .dayOfWeek(now.getDayOfWeek()).status(ReservationStatus.RESERVED).build();
 

@@ -163,7 +163,7 @@ class ReservationLifecycleProcessorTest {
             givenRunningReservation();
             when(reservation.getUser()).thenReturn(user);
             when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.of(LocalDateTime.now()));
+                    .thenReturn(Optional.of(LocalDateTime.now(KOREA_ZONE)));
 
             // When
             reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
@@ -179,9 +179,10 @@ class ReservationLifecycleProcessorTest {
         void shouldNotCompleteReservation_WhenCompletionTimeBeforeReservationStartTime() {
             // Given
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
-            var staleCompletionTime = LocalDateTime.now().minusMinutes(5);
+            var startTime = LocalDateTime.now(KOREA_ZONE);
+            var staleCompletionTime = startTime.minusMinutes(5);
             givenRunningReservation();
-            when(reservation.getStartTime()).thenReturn(LocalDateTime.now());
+            when(reservation.getStartTime()).thenReturn(startTime);
             when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(Optional.of(staleCompletionTime));
 
@@ -221,13 +222,14 @@ class ReservationLifecycleProcessorTest {
         }
 
         @Test
-        @DisplayName("예상 완료 시간이 충분히 남아 있으면 완료 신호를 보류하고 예약을 유지한다")
-        void shouldNotCompleteReservation_WhenCompletionDetectedTooEarly() {
+        @DisplayName("예상 완료 시간이 미래로 튀어도 완료 신호가 있으면 완료 처리한다")
+        void shouldCompleteReservation_WhenCompletionDetectedBeforeExpectedCompletionTime() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
             var nowKst = LocalDateTime.now(KOREA_ZONE);
             givenRunningReservation();
-            when(reservation.getExpectedCompletionTime()).thenReturn(nowKst.plusMinutes(10));
+            when(reservation.getUser()).thenReturn(user);
+            when(reservation.getExpectedCompletionTime()).thenReturn(nowKst.plusHours(10));
             when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(Optional.of(nowKst));
 
@@ -235,11 +237,11 @@ class ReservationLifecycleProcessorTest {
             reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
 
             // Then
-            verify(reservation, never()).complete();
-            verify(machine, never()).markAsAvailable();
-            verify(reservationRepository, never()).save(reservation);
-            verify(machineRepository, never()).save(machine);
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            verify(reservation, times(1)).complete();
+            verify(machine, times(1)).markAsAvailable();
+            verify(reservationRepository, times(1)).save(reservation);
+            verify(machineRepository, times(1)).save(machine);
+            verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
         }
 
         @Test
