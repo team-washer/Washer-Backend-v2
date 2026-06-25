@@ -20,6 +20,7 @@ import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.global.common.constants.NotificationConstants;
 import team.washer.server.v2.global.common.constants.TimeRestrictionConstants;
 import team.washer.server.v2.global.common.entity.BaseEntity;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Entity
 @Table(name = "users", indexes = {@Index(name = "idx_student_id", columnList = "student_id"),
@@ -126,7 +127,7 @@ public class User extends BaseEntity {
      * 마지막 취소 시각을 현재 시각으로 갱신합니다.
      */
     public void updateLastCancellationTime() {
-        this.lastCancellationAt = LocalDateTime.now();
+        this.lastCancellationAt = DateTimeUtil.nowInKorea();
     }
 
     /**
@@ -165,7 +166,7 @@ public class User extends BaseEntity {
             return false;
         }
         LocalDateTime penaltyExpiry = this.lastCancellationAt.plusMinutes(penaltyMinutes);
-        return LocalDateTime.now().isBefore(penaltyExpiry);
+        return DateTimeUtil.nowInKorea().isBefore(penaltyExpiry);
     }
 
     /**
@@ -240,8 +241,8 @@ public class User extends BaseEntity {
      *            패널티 만료 시각 (null이면 패널티 없음)
      */
     public void validateNotPenalized(final LocalDateTime penaltyExpiresAt) {
-        if (penaltyExpiresAt != null && LocalDateTime.now().isBefore(penaltyExpiresAt)) {
-            final long remainingMinutes = Duration.between(LocalDateTime.now(), penaltyExpiresAt).toMinutes();
+        if (penaltyExpiresAt != null && DateTimeUtil.nowInKorea().isBefore(penaltyExpiresAt)) {
+            final long remainingMinutes = Duration.between(DateTimeUtil.nowInKorea(), penaltyExpiresAt).toMinutes();
             throw new ExpectedException(String.format("현재 예약이 제한되어 있습니다. 제한 해제까지 %d분 남았습니다.", remainingMinutes),
                     HttpStatus.BAD_REQUEST);
         }

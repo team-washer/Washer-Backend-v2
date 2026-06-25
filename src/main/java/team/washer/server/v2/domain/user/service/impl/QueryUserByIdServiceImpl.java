@@ -14,6 +14,7 @@ import team.washer.server.v2.domain.user.dto.response.UserResDto;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.QueryUserByIdService;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Service
 @RequiredArgsConstructor
@@ -29,11 +30,10 @@ public class QueryUserByIdServiceImpl implements QueryUserByIdService {
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(user.getId());
-        final boolean isPenalized = penaltyExpiresAt != null && LocalDateTime.now().isBefore(penaltyExpiresAt);
+        final LocalDateTime now = DateTimeUtil.nowInKorea();
+        final boolean isPenalized = penaltyExpiresAt != null && now.isBefore(penaltyExpiresAt);
 
-        final Long penaltyRemainMinutes = isPenalized
-                ? Duration.between(LocalDateTime.now(), penaltyExpiresAt).toMinutes()
-                : null;
+        final Long penaltyRemainMinutes = isPenalized ? Duration.between(now, penaltyExpiresAt).toMinutes() : null;
         final String penaltyReason = isPenalized ? buildPenaltyReason(user.getId()) : null;
 
         return new UserResDto(user.getId(),

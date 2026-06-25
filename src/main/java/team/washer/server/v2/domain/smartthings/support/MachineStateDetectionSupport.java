@@ -1,7 +1,6 @@
 package team.washer.server.v2.domain.smartthings.support;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
@@ -20,12 +19,6 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 @Component
 @Slf4j
 public class MachineStateDetectionSupport {
-
-    /**
-     * completionTime은 항상 한국 시각(Asia/Seoul)으로 변환되므로, 비교 기준 시각도 시스템 타임존과 무관하게 한국 시각으로
-     * 고정한다.
-     */
-    private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
 
     /**
      * 기기가 작동 중인지 감지한다. 세탁기는 washerOperatingState, 건조기는 dryerOperatingState의
@@ -56,7 +49,7 @@ public class MachineStateDetectionSupport {
         if (status == null) {
             return Optional.empty();
         }
-        var now = LocalDateTime.now(KOREA_ZONE);
+        var now = DateTimeUtil.nowInKorea();
         if (isWasher) {
             return evaluateCompletion(status.getWasherJobState(),
                     "finish",

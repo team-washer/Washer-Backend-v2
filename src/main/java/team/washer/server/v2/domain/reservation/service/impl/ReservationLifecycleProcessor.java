@@ -35,6 +35,7 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 public class ReservationLifecycleProcessor {
 
     private static final long COMPLETION_EARLY_LOG_TOLERANCE_MINUTES = 2;
+    private static final long MAX_REASONABLE_CYCLE_MINUTES = 240;
 
     private final ReservationRepository reservationRepository;
     private final MachineRepository machineRepository;
@@ -107,7 +108,18 @@ public class ReservationLifecycleProcessor {
                         completionTime.get());
                 return;
             }
-            logEarlyCompletionSignalIfNeeded(reservation, completionTime.get());
+            if (isTooEarlyCompletion(reservation, completionTime.get())) {
+                if (!canAcceptEarlyCompletion(reservation, status, isWasher, completionTime.get())) {
+                    log.info(
+                            "completion deferred reason=too_early_completion reservationId={} startTime={} expectedCompletionTime={} completionTime={}",
+                            reservation.getId(),
+                            reservation.getStartTime(),
+                            reservation.getExpectedCompletionTime(),
+                            completionTime.get());
+                    return;
+                }
+                logEarlyCompletionAccepted(reservation, completionTime.get());
+            }
             reservation.complete();
             machine.markAsAvailable();
             reservationRepository.save(reservation);
@@ -204,21 +216,55 @@ public class ReservationLifecycleProcessor {
                 || isTimestampBeforeStart(getJobStateTimestamp(status, isWasher), startTime);
     }
 
-    private void logEarlyCompletionSignalIfNeeded(Reservation reservation, LocalDateTime completionTime) {
+    private boolean isTooEarlyCompletion(Reservation reservation, LocalDateTime completionTime) {
         var expectedCompletionTime = reservation.getExpectedCompletionTime();
         if (expectedCompletionTime == null) {
-            return;
+            return false;
         }
         var earliestCompletionTime = expectedCompletionTime.minusMinutes(COMPLETION_EARLY_LOG_TOLERANCE_MINUTES);
-        if (DateTimeUtil.nowInKorea().isBefore(earliestCompletionTime)
-                && completionTime.isBefore(earliestCompletionTime)) {
-            log.info(
-                    "completion accepted before expected time reservationId={} startTime={} expectedCompletionTime={} completionTime={}",
-                    reservation.getId(),
-                    reservation.getStartTime(),
-                    expectedCompletionTime,
-                    completionTime);
+        return completionTime.isBefore(earliestCompletionTime);
+    }
+
+    private boolean canAcceptEarlyCompletion(Reservation reservation,
+            SmartThingsDeviceStatusResDto status,
+            boolean isWasher,
+            LocalDateTime completionTime) {
+        return hasSuspiciousExpectedCompletionTime(reservation)
+                && hasFreshCompletionEvidence(reservation, status, isWasher, completionTime);
+    }
+
+    private boolean hasSuspiciousExpectedCompletionTime(Reservation reservation) {
+        var startTime = reservation.getStartTime();
+        var expectedCompletionTime = reservation.getExpectedCompletionTime();
+        if (startTime == null || expectedCompletionTime == null) {
+            return false;
         }
+        return Duration.between(startTime, expectedCompletionTime).toMinutes() > MAX_REASONABLE_CYCLE_MINUTES;
+    }
+
+    private boolean hasFreshCompletionEvidence(Reservation reservation,
+            SmartThingsDeviceStatusResDto status,
+            boolean isWasher,
+            LocalDateTime completionTime) {
+        var startTime = reservation.getStartTime();
+        if (startTime == null) {
+            return false;
+        }
+        var completionTimeStr = getCompletionTime(status, isWasher);
+        if (completionTimeStr != null && !completionTimeStr.isBlank() && !completionTime.isBefore(startTime)) {
+            return true;
+        }
+        return isTimestampAtOrAfterStart(getOperatingStateTimestamp(status, isWasher), startTime)
+                || isTimestampAtOrAfterStart(getJobStateTimestamp(status, isWasher), startTime);
+    }
+
+    private void logEarlyCompletionAccepted(Reservation reservation, LocalDateTime completionTime) {
+        log.info(
+                "completion accepted reason=suspicious_expected_completion_time reservationId={} startTime={} expectedCompletionTime={} completionTime={}",
+                reservation.getId(),
+                reservation.getStartTime(),
+                reservation.getExpectedCompletionTime(),
+                completionTime);
     }
 
     private boolean isTimestampBeforeStart(String timestamp, LocalDateTime startTime) {
@@ -227,6 +273,21 @@ public class ReservationLifecycleProcessor {
         }
         var updatedAt = DateTimeUtil.parseAndConvertToKoreaTime(timestamp);
         return updatedAt != null && updatedAt.isBefore(startTime);
+    }
+
+    private boolean isTimestampAtOrAfterStart(String timestamp, LocalDateTime startTime) {
+        if (timestamp == null || timestamp.isBlank()) {
+            return false;
+        }
+        var updatedAt = DateTimeUtil.parseAndConvertToKoreaTime(timestamp);
+        return updatedAt != null && !updatedAt.isBefore(startTime);
+    }
+
+    private String getCompletionTime(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        if (status == null) {
+            return null;
+        }
+        return isWasher ? status.getWasherCompletionTime() : status.getDryerCompletionTime();
     }
 
     private String getOperatingStateTimestamp(SmartThingsDeviceStatusResDto status, boolean isWasher) {
