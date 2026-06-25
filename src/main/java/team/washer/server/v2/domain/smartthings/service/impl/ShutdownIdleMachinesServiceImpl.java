@@ -56,6 +56,7 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
 
         var poweredOff = new ArrayList<String>();
         var unauthorizedStopped = new ArrayList<String>();
+        var skippedOperating = new ArrayList<String>();
         var failed = new ArrayList<String>();
 
         for (var machine : idleCandidates) {
@@ -70,6 +71,7 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                                 machine.getName(),
                                 machine.getDeviceId());
                     }
+                    case SKIPPED_OPERATING -> skippedOperating.add(machine.getName());
                     case SKIPPED_UNKNOWN -> {
                         // 상태 불명, 안전을 위해 종료하지 않음
                     }
@@ -93,13 +95,16 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
             }
         }
 
-        if (!poweredOff.isEmpty() || !unauthorizedStopped.isEmpty() || !failed.isEmpty()) {
+        if (!poweredOff.isEmpty() || !unauthorizedStopped.isEmpty() || !skippedOperating.isEmpty()
+                || !failed.isEmpty()) {
             log.info(
-                    "idle shutdown batch done. powered_off={} {} unauthorized_stopped={} {} skipped_active_reservation={} failed={}{}",
+                    "idle shutdown batch done. powered_off={} {} unauthorized_stopped={} {} skipped_operating={} {} skipped_active_reservation={} failed={}{}",
                     poweredOff.size(),
                     poweredOff,
                     unauthorizedStopped.size(),
                     unauthorizedStopped,
+                    skippedOperating.size(),
+                    skippedOperating,
                     skippedActiveCount,
                     failed.size(),
                     failed.isEmpty() ? "" : " " + failed);

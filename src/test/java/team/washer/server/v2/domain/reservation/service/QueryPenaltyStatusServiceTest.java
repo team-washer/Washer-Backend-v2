@@ -3,8 +3,6 @@ package team.washer.server.v2.domain.reservation.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
-import java.time.LocalDateTime;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -15,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import team.washer.server.v2.domain.reservation.service.impl.QueryPenaltyStatusServiceImpl;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("QueryPenaltyStatusServiceImpl 클래스의")
@@ -39,7 +38,7 @@ class QueryPenaltyStatusServiceTest {
             void it_returns_penalized_but_not_room_blocked() {
                 // Given
                 var userId = 1L;
-                var expiresAt = LocalDateTime.now().plusMinutes(5);
+                var expiresAt = DateTimeUtil.nowInKorea().plusMinutes(5);
                 given(penaltyRedisUtil.getPenaltyExpiryTime(userId)).willReturn(expiresAt);
                 given(penaltyRedisUtil.getBlockExpiryTime(userId)).willReturn(null);
 
@@ -66,7 +65,7 @@ class QueryPenaltyStatusServiceTest {
             void it_returns_penalized_and_room_blocked() {
                 // Given
                 var userId = 1L;
-                var blockExpiresAt = LocalDateTime.now().plusHours(40);
+                var blockExpiresAt = DateTimeUtil.nowInKorea().plusHours(40);
                 given(penaltyRedisUtil.getPenaltyExpiryTime(userId)).willReturn(blockExpiresAt);
                 given(penaltyRedisUtil.getBlockExpiryTime(userId)).willReturn(blockExpiresAt);
 
@@ -115,7 +114,7 @@ class QueryPenaltyStatusServiceTest {
             void it_returns_no_penalty_for_expired() {
                 // Given
                 var userId = 1L;
-                var expiredAt = LocalDateTime.now().minusMinutes(1);
+                var expiredAt = DateTimeUtil.nowInKorea().minusMinutes(1);
                 given(penaltyRedisUtil.getPenaltyExpiryTime(userId)).willReturn(expiredAt);
                 given(penaltyRedisUtil.getBlockExpiryTime(userId)).willReturn(null);
 

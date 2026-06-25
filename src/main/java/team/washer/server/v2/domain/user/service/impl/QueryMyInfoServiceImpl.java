@@ -13,6 +13,7 @@ import team.washer.server.v2.domain.user.dto.response.MyInfoResDto;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.QueryMyInfoService;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Service
 @RequiredArgsConstructor
@@ -30,7 +31,7 @@ public class QueryMyInfoServiceImpl implements QueryMyInfoService {
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
-        final boolean canReserve = penaltyExpiresAt == null || LocalDateTime.now().isAfter(penaltyExpiresAt);
+        final boolean canReserve = penaltyExpiresAt == null || DateTimeUtil.nowInKorea().isAfter(penaltyExpiresAt);
 
         return new MyInfoResDto(user.getId(),
                 user.getName(),

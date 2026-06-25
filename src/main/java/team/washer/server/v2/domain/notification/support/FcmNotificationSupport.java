@@ -37,7 +37,7 @@ public class FcmNotificationSupport {
     public void send(final User user, final String title, final String body) {
         final String token = user.getFcmToken();
         if (token == null || token.isBlank()) {
-            log.debug("FCM token not found skipping notification userId={}", user.getId());
+            log.info("FCM token not found skipping notification userId={}", user.getId());
             return;
         }
 

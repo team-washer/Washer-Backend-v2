@@ -26,6 +26,7 @@ import team.washer.server.v2.domain.reservation.repository.redis.TimeoutWarningR
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.PenaltyConstants;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("PenaltyRedisUtil 단위 테스트")
@@ -70,7 +71,8 @@ class PenaltyRedisUtilTest {
             LocalDateTime result = penaltyRedisUtil.getPenaltyExpiryTime(userId);
 
             // Then
-            assertThat(result).isBetween(LocalDateTime.now().plusSeconds(290), LocalDateTime.now().plusSeconds(310));
+            assertThat(result).isBetween(DateTimeUtil.nowInKorea().plusSeconds(290),
+                    DateTimeUtil.nowInKorea().plusSeconds(310));
         }
 
         @Test
@@ -91,7 +93,8 @@ class PenaltyRedisUtilTest {
             LocalDateTime result = penaltyRedisUtil.getPenaltyExpiryTime(userId);
 
             // Then
-            assertThat(result).isBetween(LocalDateTime.now().plusSeconds(3590), LocalDateTime.now().plusSeconds(3610));
+            assertThat(result).isBetween(DateTimeUtil.nowInKorea().plusSeconds(3590),
+                    DateTimeUtil.nowInKorea().plusSeconds(3610));
         }
 
         @Test

@@ -10,14 +10,20 @@ import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport
 @Slf4j
 public final class DateTimeUtil {
 
+    public static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
+
     private DateTimeUtil() {
         throw new UnsupportedOperationException("Utility class cannot be instantiated");
+    }
+
+    public static LocalDateTime nowInKorea() {
+        return LocalDateTime.now(KOREA_ZONE);
     }
 
     public static LocalDateTime parseAndConvertToKoreaTime(String timeStr) {
         try {
             var utcTime = ZonedDateTime.parse(timeStr);
-            return utcTime.withZoneSameInstant(ZoneId.of("Asia/Seoul")).toLocalDateTime();
+            return utcTime.withZoneSameInstant(KOREA_ZONE).toLocalDateTime();
         } catch (Exception e) {
             log.warn("Failed to parse time: {}", timeStr, e);
             return null;

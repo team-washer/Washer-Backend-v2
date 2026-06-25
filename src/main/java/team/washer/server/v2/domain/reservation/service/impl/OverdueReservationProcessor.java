@@ -1,6 +1,5 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.stereotype.Component;
@@ -60,8 +59,9 @@ public class OverdueReservationProcessor {
     @Transactional(readOnly = true)
     public List<OverdueTarget> findExpiredTargets() {
         // reservedAt 기준 타임아웃 상수 초과
-        var threshold = LocalDateTime.now().minusMinutes(ReservationStatus.RESERVED.getTimeoutMinutes());
-        var recentCutoff = LocalDateTime.now().minusHours(24);
+        var now = DateTimeUtil.nowInKorea();
+        var threshold = now.minusMinutes(ReservationStatus.RESERVED.getTimeoutMinutes());
+        var recentCutoff = now.minusHours(24);
 
         return reservationRepository.findExpiredReservations(ReservationStatus.RESERVED, threshold, recentCutoff)
                 .stream()

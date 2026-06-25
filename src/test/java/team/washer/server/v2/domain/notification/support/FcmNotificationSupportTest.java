@@ -36,6 +36,10 @@ class FcmNotificationSupportTest {
         return user;
     }
 
+    private User createUserWithoutToken() {
+        return User.builder().name("테스트").studentId("20210001").roomNumber("301").grade(3).floor(3).build();
+    }
+
     @Nested
     @DisplayName("send 메서드는")
     class Describe_send {
@@ -62,6 +66,17 @@ class FcmNotificationSupportTest {
             // When & Then
             assertThatCode(() -> fcmNotificationSupport.send(user, "제목", null)).doesNotThrowAnyException();
             then(firebaseMessaging).should(times(1)).send(any(Message.class));
+        }
+
+        @Test
+        @DisplayName("FCM 토큰이 없으면 발송을 시도하지 않아야 한다")
+        void it_skips_sending_when_fcm_token_is_missing() throws Exception {
+            // Given
+            User user = createUserWithoutToken();
+
+            // When & Then
+            assertThatCode(() -> fcmNotificationSupport.send(user, "제목", "본문")).doesNotThrowAnyException();
+            then(firebaseMessaging).should(never()).send(any(Message.class));
         }
     }
 }
