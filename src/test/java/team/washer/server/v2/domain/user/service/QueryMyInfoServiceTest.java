@@ -3,7 +3,6 @@ package team.washer.server.v2.domain.user.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
-import java.time.LocalDateTime;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -21,6 +20,7 @@ import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.impl.QueryMyInfoServiceImpl;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("QueryMyInfoServiceImpl 클래스의")
@@ -84,7 +84,7 @@ class QueryMyInfoServiceTest {
                 // Given
                 var userId = 1L;
                 var user = createUser();
-                var penaltyExpiresAt = LocalDateTime.now().plusMinutes(30);
+                var penaltyExpiresAt = DateTimeUtil.nowInKorea().plusMinutes(30);
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
                 given(penaltyRedisUtil.getPenaltyExpiryTime(userId)).willReturn(penaltyExpiresAt);
