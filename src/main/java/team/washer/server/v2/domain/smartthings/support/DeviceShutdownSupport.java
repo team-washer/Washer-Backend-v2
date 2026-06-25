@@ -57,25 +57,14 @@ public class DeviceShutdownSupport {
         }
 
         if (isOperating(machine, status)) {
-            SmartThingsCommandReqDto stopCommand;
-            if (machine.isWasher()) {
-                stopCommand = SmartThingsCommandReqDto.stopWasher();
-            } else if (machine.isDryer()) {
-                stopCommand = SmartThingsCommandReqDto.stopDryer();
-            } else {
-                log.warn("unknown machine type, skip shutdown machine={} deviceId={}",
-                        machine.getName(),
-                        machine.getDeviceId());
-                return ShutdownResult.SKIPPED_UNKNOWN;
-            }
-            if (!status.isRemoteControlEnabled()) {
-                log.info("remote control disabled but attempting stop anyway machine={} deviceId={}",
-                        machine.getName(),
-                        machine.getDeviceId());
-            }
-            sendDeviceCommandService.execute(machine.getDeviceId(), stopCommand);
-            log.info("device safely stopped machine={} deviceId={}", machine.getName(), machine.getDeviceId());
-            return ShutdownResult.STOPPED;
+            log.warn(
+                    "operating device detected without active reservation, skip shutdown machine={} deviceId={} machineState={} switchStatus={} remoteControlEnabled={}",
+                    machine.getName(),
+                    machine.getDeviceId(),
+                    extractMachineState(machine, status),
+                    status.getSwitchStatus(),
+                    status.isRemoteControlEnabled());
+            return ShutdownResult.SKIPPED_UNKNOWN;
         }
 
         if ("off".equalsIgnoreCase(status.getSwitchStatus())) {
@@ -94,12 +83,17 @@ public class DeviceShutdownSupport {
      * 기기가 물리적으로 작동 중(run 또는 pause)인지 판정한다. 세탁기/건조기는 타입에 맞는 machineState를 본다.
      */
     private boolean isOperating(Machine machine, SmartThingsDeviceStatusResDto status) {
+        var machineState = extractMachineState(machine, status);
+        return "run".equalsIgnoreCase(machineState) || "pause".equalsIgnoreCase(machineState);
+    }
+
+    private String extractMachineState(Machine machine, SmartThingsDeviceStatusResDto status) {
         String machineState = null;
         if (machine.isWasher()) {
             machineState = status.getWasherOperatingState();
         } else if (machine.isDryer()) {
             machineState = status.getDryerOperatingState();
         }
-        return "run".equalsIgnoreCase(machineState) || "pause".equalsIgnoreCase(machineState);
+        return machineState;
     }
 }

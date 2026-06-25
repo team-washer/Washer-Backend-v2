@@ -7,6 +7,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.jspecify.annotations.NonNull;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
@@ -30,6 +31,7 @@ import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService
  * 시작되지 않을 수 있습니다. 핵심 목적은 명령 전달 및 종료 명령 적용 여부 확인입니다.
  */
 @Component
+@ConditionalOnProperty(prefix = "smartthings.test-cycle", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 @Slf4j
 public class TestDeviceCycleRunner implements ApplicationRunner {

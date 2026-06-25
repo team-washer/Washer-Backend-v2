@@ -75,13 +75,8 @@ class DeviceShutdownSupportTest {
 
             var result = deviceShutdownSupport.shutdown(machine, washerStatus("run", true));
 
-            assertThat(result).isEqualTo(ShutdownResult.STOPPED);
-            var captor = ArgumentCaptor.forClass(SmartThingsCommandReqDto.class);
-            then(sendDeviceCommandService).should(times(1)).execute(eq("device-1"), captor.capture());
-            var command = captor.getValue().commands().get(0);
-            assertThat(command.capability()).isEqualTo("washerOperatingState");
-            assertThat(command.command()).isEqualTo("setMachineState");
-            assertThat(command.arguments()).containsExactly("stop");
+            assertThat(result).isEqualTo(ShutdownResult.SKIPPED_UNKNOWN);
+            then(sendDeviceCommandService).should(never()).execute(any(), any());
         }
 
         @Test
@@ -91,10 +86,8 @@ class DeviceShutdownSupportTest {
 
             var result = deviceShutdownSupport.shutdown(machine, dryerStatus("pause", true));
 
-            assertThat(result).isEqualTo(ShutdownResult.STOPPED);
-            var captor = ArgumentCaptor.forClass(SmartThingsCommandReqDto.class);
-            then(sendDeviceCommandService).should(times(1)).execute(eq("device-1"), captor.capture());
-            assertThat(captor.getValue().commands().get(0).capability()).isEqualTo("dryerOperatingState");
+            assertThat(result).isEqualTo(ShutdownResult.SKIPPED_UNKNOWN);
+            then(sendDeviceCommandService).should(never()).execute(any(), any());
         }
 
         @Test
@@ -104,13 +97,8 @@ class DeviceShutdownSupportTest {
 
             var result = deviceShutdownSupport.shutdown(machine, washerStatus("run", false));
 
-            assertThat(result).isEqualTo(ShutdownResult.STOPPED);
-            var captor = ArgumentCaptor.forClass(SmartThingsCommandReqDto.class);
-            then(sendDeviceCommandService).should(times(1)).execute(eq("device-1"), captor.capture());
-            var command = captor.getValue().commands().get(0);
-            assertThat(command.capability()).isEqualTo("washerOperatingState");
-            assertThat(command.command()).isEqualTo("setMachineState");
-            assertThat(command.arguments()).containsExactly("stop");
+            assertThat(result).isEqualTo(ShutdownResult.SKIPPED_UNKNOWN);
+            then(sendDeviceCommandService).should(never()).execute(any(), any());
         }
     }
 
