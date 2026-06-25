@@ -14,6 +14,7 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.global.common.entity.BaseEntity;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Entity
 @Table(name = "reservations", indexes = {@Index(name = "idx_status", columnList = "status"),
@@ -76,7 +77,7 @@ public class Reservation extends BaseEntity {
      * 기기 일시정지 시각을 기록합니다.
      */
     public void markAsPaused() {
-        this.pausedAt = LocalDateTime.now();
+        this.pausedAt = DateTimeUtil.nowInKorea();
     }
 
     /**
@@ -107,7 +108,7 @@ public class Reservation extends BaseEntity {
      * @return 타임아웃 초과 여부
      */
     public boolean isExpired() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = DateTimeUtil.nowInKorea();
 
         return switch (this.status) {
             case RESERVED ->
@@ -122,7 +123,7 @@ public class Reservation extends BaseEntity {
      * @return 타임아웃까지 남은 시간
      */
     public Duration getRemainingTimeUntilTimeout() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = DateTimeUtil.nowInKorea();
 
         return switch (this.status) {
             case RESERVED -> {
@@ -145,7 +146,7 @@ public class Reservation extends BaseEntity {
             throw new ExpectedException("예약 중인 예약만 시작할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
         this.status = ReservationStatus.RUNNING;
-        this.startTime = LocalDateTime.now();
+        this.startTime = DateTimeUtil.nowInKorea();
         this.expectedCompletionTime = expectedCompletionTime;
     }
 
@@ -170,7 +171,7 @@ public class Reservation extends BaseEntity {
             throw new ExpectedException("실행 중인 예약만 완료할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
         this.status = ReservationStatus.COMPLETED;
-        this.actualCompletionTime = LocalDateTime.now();
+        this.actualCompletionTime = DateTimeUtil.nowInKorea();
     }
 
     /**
@@ -181,7 +182,7 @@ public class Reservation extends BaseEntity {
             throw new ExpectedException("완료된 예약은 취소할 수 없습니다", HttpStatus.BAD_REQUEST);
         }
         this.status = ReservationStatus.CANCELLED;
-        this.cancelledAt = LocalDateTime.now();
+        this.cancelledAt = DateTimeUtil.nowInKorea();
     }
 
     /**

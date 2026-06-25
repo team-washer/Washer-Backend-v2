@@ -18,6 +18,7 @@ import team.washer.server.v2.domain.reservation.repository.redis.TimeoutWarningR
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.PenaltyConstants;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Slf4j
 @Component
@@ -62,7 +63,7 @@ public class PenaltyRedisUtil {
         if (remainingSeconds == null || remainingSeconds <= 0) {
             return null;
         }
-        return LocalDateTime.now().plusSeconds(remainingSeconds);
+        return DateTimeUtil.nowInKorea().plusSeconds(remainingSeconds);
     }
 
     private Long cooldownRemainingTtlSeconds(final Long userId, final MachineType machineType) {
@@ -225,7 +226,7 @@ public class PenaltyRedisUtil {
                 .save(CancellationBlockEntity.builder().roomNumber(roomNumber).ttl(newTtl).build());
         log.info("block extended roomNumber={} additionalDays={} newTtlSeconds={}", roomNumber, additionalDays, newTtl);
 
-        return LocalDateTime.now().plusSeconds(newTtl);
+        return DateTimeUtil.nowInKorea().plusSeconds(newTtl);
     }
 
     /**

@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.reservation.dto.response.PenaltyStatusResDto;
 import team.washer.server.v2.domain.reservation.service.QueryPenaltyStatusService;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Slf4j
 @Service
@@ -22,7 +23,7 @@ public class QueryPenaltyStatusServiceImpl implements QueryPenaltyStatusService 
     @Override
     @Transactional(readOnly = true)
     public PenaltyStatusResDto execute(final Long userId) {
-        final LocalDateTime now = LocalDateTime.now();
+        final LocalDateTime now = DateTimeUtil.nowInKorea();
         final LocalDateTime penaltyExpiresAt = penaltyRedisUtil.getPenaltyExpiryTime(userId);
         final boolean isPenalized = penaltyExpiresAt != null && now.isBefore(penaltyExpiresAt);
 

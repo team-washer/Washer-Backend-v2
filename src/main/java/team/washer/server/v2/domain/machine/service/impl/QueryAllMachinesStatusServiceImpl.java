@@ -158,7 +158,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
     }
 
     private Long calculateRemainingMinutes(LocalDateTime completionTime) {
-        var now = LocalDateTime.now();
+        var now = DateTimeUtil.nowInKorea();
         var duration = Duration.between(now, completionTime);
         return Math.max(0, duration.toMinutes());
     }
