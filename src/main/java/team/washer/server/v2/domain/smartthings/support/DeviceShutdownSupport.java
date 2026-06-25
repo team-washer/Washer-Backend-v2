@@ -32,6 +32,8 @@ public class DeviceShutdownSupport {
         POWERED_OFF,
         /** 작동 중인 기기를 안전하게 정지시킴 */
         STOPPED,
+        /** 작동 중인 기기라 종료 명령을 보내지 않음 */
+        SKIPPED_OPERATING,
         /** 기기 상태를 알 수 없어 종료하지 않음 */
         SKIPPED_UNKNOWN
     }
@@ -64,7 +66,7 @@ public class DeviceShutdownSupport {
                     extractMachineState(machine, status),
                     status.getSwitchStatus(),
                     status.isRemoteControlEnabled());
-            return ShutdownResult.SKIPPED_UNKNOWN;
+            return ShutdownResult.SKIPPED_OPERATING;
         }
 
         if ("off".equalsIgnoreCase(status.getSwitchStatus())) {
