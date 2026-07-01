@@ -25,11 +25,15 @@ public class CorsConfig {
     @Bean
     public CorsConfigurationSource configure() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(corsEnvironment.getAllowedOrigins());
+        if (corsEnvironment.getAllowedOriginPatterns().isEmpty()) {
+            configuration.setAllowedOrigins(corsEnvironment.getAllowedOrigins());
+        } else {
+            configuration.setAllowedOriginPatterns(corsEnvironment.getAllowedOriginPatterns());
+        }
         configuration.setAllowedMethods(
                 Arrays.stream(HttpMethod.values()).map(HttpMethod::name).collect(Collectors.toList()));
         configuration.addAllowedHeader("*");
-        configuration.setAllowCredentials(true);
+        configuration.setAllowCredentials(corsEnvironment.isAllowCredentials());
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
