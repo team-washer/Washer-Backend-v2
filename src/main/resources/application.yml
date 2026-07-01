@@ -25,6 +25,7 @@ spring:
           max-wait: -1ms
   security:
     cors:
+      allow-credentials: false
       allowed-origins:
         - '*'
   docker:
