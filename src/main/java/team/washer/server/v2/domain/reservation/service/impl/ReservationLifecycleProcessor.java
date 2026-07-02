@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.reservation.service.impl;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -10,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -35,6 +37,7 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 public class ReservationLifecycleProcessor {
 
     private static final long COMPLETION_EARLY_LOG_TOLERANCE_MINUTES = 2;
+    private static final long COMPLETION_BOUNDARY_GRACE_MINUTES = 5;
     private static final long MAX_REASONABLE_CYCLE_MINUTES = 240;
 
     private final ReservationRepository reservationRepository;
@@ -120,22 +123,17 @@ public class ReservationLifecycleProcessor {
                 }
                 logEarlyCompletionAccepted(reservation, completionTime.get());
             }
-            reservation.complete();
-            machine.markAsAvailable();
-            reservationRepository.save(reservation);
-            machineRepository.save(machine);
+            completeReservation(reservation, machine, completionTime.get(), "smartthings_completed");
+            return;
+        }
 
-            reservationNotificationSupport.sendCompletion(reservation.getUser(), machine);
+        var stoppedNearCompletionTime = getStoppedNearCompletionTime(reservation, status, isWasher);
+        if (stoppedNearCompletionTime.isPresent()) {
+            processStoppedNearCompletion(reservation, machine, stoppedNearCompletionTime.get());
+            return;
+        }
 
-            log.info(
-                    "Reservation completed reservationId={} userId={} machineId={} machineName={} completionTime={} expectedCompletionTime={}",
-                    reservation.getId(),
-                    reservation.getUser().getId(),
-                    machine.getId(),
-                    machine.getName(),
-                    completionTime.get(),
-                    reservation.getExpectedCompletionTime());
-        } else if (machineStateDetectionSupport.isInterrupted(status, isWasher)) {
+        if (machineStateDetectionSupport.isInterrupted(status, isWasher)) {
             // 사이클 단계 전환 중 순간적으로 보고되는 정지를 진짜 중단으로 오판하지 않도록, 연속으로 중단이
             // 감지될 때만 취소를 확정한다.
             reservation.incrementInterruptionCount();
@@ -199,6 +197,84 @@ public class ReservationLifecycleProcessor {
                 reservationRepository.save(reservation);
             }
         }
+    }
+
+    private void processStoppedNearCompletion(Reservation reservation, Machine machine, LocalDateTime completionTime) {
+        if (!completionTime.isAfter(DateTimeUtil.nowInKorea())) {
+            completeReservation(reservation, machine, completionTime, "stopped_near_completion");
+            return;
+        }
+
+        var changed = false;
+        if (reservation.getInterruptionCount() > 0) {
+            reservation.clearInterruptionCount();
+            changed = true;
+        }
+
+        var current = reservation.getExpectedCompletionTime();
+        if (current == null || Math.abs(Duration.between(current, completionTime).toSeconds()) >= 60) {
+            reservation.updateExpectedCompletionTime(completionTime);
+            changed = true;
+        }
+
+        if (changed) {
+            reservationRepository.save(reservation);
+        }
+
+        log.info(
+                "completion deferred reason=stopped_near_completion reservationId={} startTime={} expectedCompletionTime={} completionTime={}",
+                reservation.getId(),
+                reservation.getStartTime(),
+                reservation.getExpectedCompletionTime(),
+                completionTime);
+    }
+
+    private Optional<LocalDateTime> getStoppedNearCompletionTime(Reservation reservation,
+            SmartThingsDeviceStatusResDto status,
+            boolean isWasher) {
+        var machineState = getOperatingState(status, isWasher);
+        if (!"stop".equalsIgnoreCase(machineState)) {
+            return Optional.empty();
+        }
+
+        var completionTime = DateTimeUtil.parseAndConvertToKoreaTime(getCompletionTime(status, isWasher));
+        if (completionTime == null) {
+            return Optional.empty();
+        }
+
+        var startTime = reservation.getStartTime();
+        if (startTime != null && completionTime.isBefore(startTime)) {
+            return Optional.empty();
+        }
+
+        var secondsFromNow = Math.abs(Duration.between(DateTimeUtil.nowInKorea(), completionTime).toSeconds());
+        if (secondsFromNow > Duration.ofMinutes(COMPLETION_BOUNDARY_GRACE_MINUTES).toSeconds()) {
+            return Optional.empty();
+        }
+
+        return Optional.of(completionTime);
+    }
+
+    private void completeReservation(Reservation reservation,
+            Machine machine,
+            LocalDateTime completionTime,
+            String reason) {
+        reservation.complete();
+        machine.markAsAvailable();
+        reservationRepository.save(reservation);
+        machineRepository.save(machine);
+
+        reservationNotificationSupport.sendCompletion(reservation.getUser(), machine);
+
+        log.info(
+                "Reservation completed reason={} reservationId={} userId={} machineId={} machineName={} completionTime={} expectedCompletionTime={}",
+                reason,
+                reservation.getId(),
+                reservation.getUser().getId(),
+                machine.getId(),
+                machine.getName(),
+                completionTime,
+                reservation.getExpectedCompletionTime());
     }
 
     private boolean isStaleCompletion(Reservation reservation,
@@ -288,6 +364,13 @@ public class ReservationLifecycleProcessor {
             return null;
         }
         return isWasher ? status.getWasherCompletionTime() : status.getDryerCompletionTime();
+    }
+
+    private String getOperatingState(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        if (status == null) {
+            return null;
+        }
+        return isWasher ? status.getWasherOperatingState() : status.getDryerOperatingState();
     }
 
     private String getOperatingStateTimestamp(SmartThingsDeviceStatusResDto status, boolean isWasher) {
