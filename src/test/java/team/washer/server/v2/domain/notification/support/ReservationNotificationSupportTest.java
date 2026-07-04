@@ -10,6 +10,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -48,6 +50,11 @@ class ReservationNotificationSupportTest {
 
     private Machine createMachine() {
         return Machine.builder().name("WASHER-3F-L1").type(MachineType.WASHER).floor(3).build();
+    }
+
+    private Machine createMachine(final MachineType machineType) {
+        final String machineName = machineType == MachineType.WASHER ? "WASHER-3F-L1" : "DRYER-3F-R1";
+        return Machine.builder().name(machineName).type(machineType).floor(3).build();
     }
 
     @Nested
@@ -128,12 +135,13 @@ class ReservationNotificationSupportTest {
     @DisplayName("시작 알림 메시지는")
     class Describe_started_notification_message {
 
-        @Test
-        @DisplayName("세탁 시작 문구에 조사가 중복되지 않아야 한다")
-        void it_does_not_duplicate_particle_for_washer_started_message() {
+        @ParameterizedTest
+        @EnumSource(MachineType.class)
+        @DisplayName("세탁/건조 시작 문구에 조사가 중복되지 않아야 한다")
+        void it_does_not_duplicate_particle_for_started_message(final MachineType machineType) {
             // Given
             User user = createUser();
-            Machine machine = createMachine();
+            Machine machine = createMachine(machineType);
             LocalDateTime expectedCompletionTime = LocalDateTime.of(2026, 7, 4, 14, 30);
             given(notificationRepository.save(any(Notification.class)))
                     .willAnswer(invocation -> invocation.getArgument(0));
@@ -143,8 +151,10 @@ class ReservationNotificationSupportTest {
             reservationNotificationSupport.sendStarted(user, machine, expectedCompletionTime);
 
             // Then
+            final String expectedBody = machine.getName() + "의 " + machineType.getActionNoun()
+                    + " 시작되었습니다.\n예상 완료 시간: 14:30";
             then(fcmNotificationSupport).should(times(1))
-                    .send(user, "세탁기 시작 알림", "WASHER-3F-L1의 세탁이 시작되었습니다.\n예상 완료 시간: 14:30");
+                    .send(user, machineType.getDescription() + " 시작 알림", expectedBody);
         }
     }
 
