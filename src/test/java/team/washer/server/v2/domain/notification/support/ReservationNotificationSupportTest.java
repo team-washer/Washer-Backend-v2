@@ -3,6 +3,8 @@ package team.washer.server.v2.domain.notification.support;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
+import java.time.LocalDateTime;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -119,6 +121,30 @@ class ReservationNotificationSupportTest {
                 // Then
                 then(notificationRepository).should(times(1)).deleteOldestByUserExceedingLimit(user, 30);
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("시작 알림 메시지는")
+    class Describe_started_notification_message {
+
+        @Test
+        @DisplayName("세탁 시작 문구에 조사가 중복되지 않아야 한다")
+        void it_does_not_duplicate_particle_for_washer_started_message() {
+            // Given
+            User user = createUser();
+            Machine machine = createMachine();
+            LocalDateTime expectedCompletionTime = LocalDateTime.of(2026, 7, 4, 14, 30);
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(notificationRepository.countByUser(user)).willReturn(1L);
+
+            // When
+            reservationNotificationSupport.sendStarted(user, machine, expectedCompletionTime);
+
+            // Then
+            then(fcmNotificationSupport).should(times(1))
+                    .send(user, "세탁기 시작 알림", "WASHER-3F-L1의 세탁이 시작되었습니다.\n예상 완료 시간: 14:30");
         }
     }
 
