@@ -130,24 +130,6 @@ tasks.withType<Test> {
     useJUnitPlatform()
 }
 
-val generatedDir = file("$projectDir/src/main/generated")
-
-sourceSets {
-    main {
-        java {
-            srcDir(generatedDir)
-        }
-    }
-}
-
-tasks.withType<JavaCompile> {
-    options.generatedSourceOutputDirectory.set(generatedDir)
-}
-
-tasks.named<Delete>("clean") {
-    delete(generatedDir)
-}
-
 gitProperties {
     failOnNoGitDirectory = false
     keys = listOf(
