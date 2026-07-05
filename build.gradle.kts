@@ -28,10 +28,6 @@ spotless {
         endWithNewline()
         trimTrailingWhitespace()
     }
-    groovyGradle {
-        target("*.gradle")
-        greclipse()
-    }
 }
 
 tasks.compileJava {
