@@ -30,14 +30,6 @@ spotless {
     }
 }
 
-tasks.compileJava {
-    dependsOn("spotlessApply")
-}
-
-tasks.compileTestJava {
-    dependsOn("spotlessApply")
-}
-
 group = "team.washer"
 version = "v20260614.1"
 
