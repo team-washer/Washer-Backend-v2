@@ -29,6 +29,14 @@ spotless {
     }
 }
 
+tasks.compileJava {
+    dependsOn("spotlessApply")
+}
+
+tasks.compileTestJava {
+    dependsOn("spotlessApply")
+}
+
 group = "team.washer"
 version = "v20260614.1"
 
@@ -119,6 +127,24 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+val generatedDir = file("$projectDir/src/main/generated")
+
+sourceSets {
+    main {
+        java {
+            srcDir(generatedDir)
+        }
+    }
+}
+
+tasks.withType<JavaCompile> {
+    options.generatedSourceOutputDirectory.set(generatedDir)
+}
+
+tasks.named<Delete>("clean") {
+    delete(generatedDir)
 }
 
 gitProperties {
