@@ -71,9 +71,9 @@ class SendDeviceCommandServiceTest {
                 // When & Then
                 assertThatThrownBy(
                         () -> sendDeviceCommandService.execute("device-abc", SmartThingsCommandReqDto.powerOff()))
-                                .isInstanceOf(ExpectedException.class).hasMessage("SmartThings 토큰이 존재하지 않습니다")
-                                .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                        .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ExpectedException.class).hasMessage("SmartThings 토큰이 존재하지 않습니다")
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.NOT_FOUND));
 
                 then(feignClient).shouldHaveNoInteractions();
             }
@@ -93,9 +93,9 @@ class SendDeviceCommandServiceTest {
                 // When & Then
                 assertThatThrownBy(
                         () -> sendDeviceCommandService.execute("device-abc", SmartThingsCommandReqDto.powerOff()))
-                                .isInstanceOf(ExpectedException.class).hasMessage("SmartThings 토큰이 만료되었거나 유효하지 않습니다")
-                                .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                        .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ExpectedException.class).hasMessage("SmartThings 토큰이 만료되었거나 유효하지 않습니다")
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.NOT_FOUND));
 
                 then(feignClient).shouldHaveNoInteractions();
             }

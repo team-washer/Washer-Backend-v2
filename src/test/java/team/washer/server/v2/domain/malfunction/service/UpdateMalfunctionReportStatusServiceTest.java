@@ -109,7 +109,7 @@ class UpdateMalfunctionReportStatusServiceTest {
                 given(malfunctionReportRepository.findById(reportId)).willReturn(Optional.of(report));
                 given(malfunctionReportRepository
                         .existsByMachineAndStatusNotAndIdNot(machine, MalfunctionReportStatus.RESOLVED, reportId))
-                                .willReturn(false);
+                        .willReturn(false);
 
                 // When
                 MalfunctionReportResDto result = updateMalfunctionReportStatusService.execute(reportId, reqDto);
@@ -144,7 +144,7 @@ class UpdateMalfunctionReportStatusServiceTest {
                 given(malfunctionReportRepository.findById(reportId)).willReturn(Optional.of(report));
                 given(malfunctionReportRepository
                         .existsByMachineAndStatusNotAndIdNot(machine, MalfunctionReportStatus.RESOLVED, reportId))
-                                .willReturn(true); // 다른 미해결 신고 존재
+                        .willReturn(true); // 다른 미해결 신고 존재
 
                 // When
                 MalfunctionReportResDto result = updateMalfunctionReportStatusService.execute(reportId, reqDto);
@@ -179,7 +179,7 @@ class UpdateMalfunctionReportStatusServiceTest {
                 given(malfunctionReportRepository.findById(reportId)).willReturn(Optional.of(report));
                 given(malfunctionReportRepository
                         .existsByMachineAndStatusNotAndIdNot(machine, MalfunctionReportStatus.RESOLVED, reportId))
-                                .willReturn(false); // 다른 미해결 신고 없음
+                        .willReturn(false); // 다른 미해결 신고 없음
 
                 // When
                 MalfunctionReportResDto result = updateMalfunctionReportStatusService.execute(reportId, reqDto);

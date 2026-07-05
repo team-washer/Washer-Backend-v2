@@ -10,6 +10,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -133,23 +135,14 @@ class ReservationNotificationSupportTest {
     @DisplayName("시작 알림 메시지는")
     class Describe_started_notification_message {
 
-        @Test
-        @DisplayName("세탁 시작 문구에 조사가 중복되지 않아야 한다")
-        void it_does_not_duplicate_particle_for_washer_started_message() {
-            verifyStartedMessage(MachineType.WASHER);
-        }
-
-        @Test
-        @DisplayName("건조 시작 문구에 조사가 중복되지 않아야 한다")
-        void it_does_not_duplicate_particle_for_dryer_started_message() {
-            verifyStartedMessage(MachineType.DRYER);
-        }
-
-        private void verifyStartedMessage(final MachineType machineType) {
+        @ParameterizedTest
+        @EnumSource(MachineType.class)
+        @DisplayName("세탁/건조 시작 문구에 조사가 중복되지 않아야 한다")
+        void it_does_not_duplicate_particle_for_started_message(final MachineType machineType) {
             // Given
-            final User user = createUser();
-            final Machine machine = createMachine(machineType);
-            final LocalDateTime expectedCompletionTime = LocalDateTime.of(2026, 7, 4, 14, 30);
+            User user = createUser();
+            Machine machine = createMachine(machineType);
+            LocalDateTime expectedCompletionTime = LocalDateTime.of(2026, 7, 4, 14, 30);
             given(notificationRepository.save(any(Notification.class)))
                     .willAnswer(invocation -> invocation.getArgument(0));
             given(notificationRepository.countByUser(user)).willReturn(1L);

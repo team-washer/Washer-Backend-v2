@@ -82,7 +82,7 @@ class QueryAllReservationsServiceTest {
 
                 given(reservationRepository.findAllWithFilters(eq(
                         searchName), eq(null), eq(null), eq(null), eq(null), eq(null), any(Pageable.class)))
-                                .willReturn(reservationPage);
+                        .willReturn(reservationPage);
 
                 // When
                 AdminReservationListResDto result = queryAllReservationsService
@@ -115,7 +115,7 @@ class QueryAllReservationsServiceTest {
 
                 given(reservationRepository.findAllWithFilters(eq(
                         null), eq(searchMachineName), eq(null), eq(null), eq(null), eq(null), any(Pageable.class)))
-                                .willReturn(reservationPage);
+                        .willReturn(reservationPage);
 
                 // When
                 AdminReservationListResDto result = queryAllReservationsService
@@ -148,7 +148,7 @@ class QueryAllReservationsServiceTest {
 
                 given(reservationRepository.findAllWithFilters(eq(
                         null), eq(null), eq(status), eq(null), eq(null), eq(null), any(Pageable.class)))
-                                .willReturn(reservationPage);
+                        .willReturn(reservationPage);
 
                 // When
                 AdminReservationListResDto result = queryAllReservationsService
@@ -182,7 +182,7 @@ class QueryAllReservationsServiceTest {
 
                 given(reservationRepository.findAllWithFilters(eq(
                         null), eq(null), eq(null), eq(startDate), eq(endDate), eq(null), any(Pageable.class)))
-                                .willReturn(reservationPage);
+                        .willReturn(reservationPage);
 
                 // When
                 AdminReservationListResDto result = queryAllReservationsService
@@ -214,7 +214,7 @@ class QueryAllReservationsServiceTest {
 
                 given(reservationRepository.findAllWithFilters(eq(
                         null), eq(null), eq(null), eq(null), eq(null), eq(machineType), any(Pageable.class)))
-                                .willReturn(reservationPage);
+                        .willReturn(reservationPage);
 
                 // When
                 AdminReservationListResDto result = queryAllReservationsService
@@ -247,7 +247,7 @@ class QueryAllReservationsServiceTest {
 
                 given(reservationRepository.findAllWithFilters(eq(
                         null), eq(null), eq(null), eq(null), eq(null), eq(null), any(Pageable.class)))
-                                .willReturn(reservationPage);
+                        .willReturn(reservationPage);
 
                 // When
                 AdminReservationListResDto result = queryAllReservationsService

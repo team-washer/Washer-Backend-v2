@@ -144,7 +144,7 @@ class ForceStopMachineServiceTest {
                 given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
                 given(reservationRepository.findFirstActiveReservationByMachineId(machineId,
                         List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)))
-                                .willReturn(List.of(reservation));
+                        .willReturn(List.of(reservation));
                 given(reservationRepository.save(any(Reservation.class)))
                         .willAnswer(invocation -> invocation.getArgument(0));
                 given(machineRepository.save(any(Machine.class))).willAnswer(invocation -> invocation.getArgument(0));
@@ -196,7 +196,7 @@ class ForceStopMachineServiceTest {
                 given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
                 given(reservationRepository.findFirstActiveReservationByMachineId(machineId,
                         List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)))
-                                .willReturn(List.of(reservedReservation, runningReservation));
+                        .willReturn(List.of(reservedReservation, runningReservation));
                 given(reservationRepository.save(any(Reservation.class)))
                         .willAnswer(invocation -> invocation.getArgument(0));
                 given(machineRepository.save(any(Machine.class))).willAnswer(invocation -> invocation.getArgument(0));
@@ -265,7 +265,7 @@ class ForceStopMachineServiceTest {
                 given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
                 given(reservationRepository.findFirstActiveReservationByMachineId(machineId,
                         List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)))
-                                .willReturn(List.of(reservation));
+                        .willReturn(List.of(reservation));
                 given(machineRepository.save(any(Machine.class))).willAnswer(invocation -> invocation.getArgument(0));
 
                 // When
