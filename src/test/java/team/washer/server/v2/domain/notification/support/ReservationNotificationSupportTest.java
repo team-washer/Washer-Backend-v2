@@ -3,11 +3,15 @@ package team.washer.server.v2.domain.notification.support;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
+import java.time.LocalDateTime;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -46,6 +50,11 @@ class ReservationNotificationSupportTest {
 
     private Machine createMachine() {
         return Machine.builder().name("WASHER-3F-L1").type(MachineType.WASHER).floor(3).build();
+    }
+
+    private Machine createMachine(final MachineType machineType) {
+        final String machineName = machineType == MachineType.WASHER ? "WASHER-3F-L1" : "DRYER-3F-R1";
+        return Machine.builder().name(machineName).type(machineType).floor(3).build();
     }
 
     @Nested
@@ -119,6 +128,33 @@ class ReservationNotificationSupportTest {
                 // Then
                 then(notificationRepository).should(times(1)).deleteOldestByUserExceedingLimit(user, 30);
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("시작 알림 메시지는")
+    class Describe_started_notification_message {
+
+        @ParameterizedTest
+        @EnumSource(MachineType.class)
+        @DisplayName("세탁/건조 시작 문구에 조사가 중복되지 않아야 한다")
+        void it_does_not_duplicate_particle_for_started_message(final MachineType machineType) {
+            // Given
+            User user = createUser();
+            Machine machine = createMachine(machineType);
+            LocalDateTime expectedCompletionTime = LocalDateTime.of(2026, 7, 4, 14, 30);
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(notificationRepository.countByUser(user)).willReturn(1L);
+
+            // When
+            reservationNotificationSupport.sendStarted(user, machine, expectedCompletionTime);
+
+            // Then
+            final String expectedBody = machine.getName() + "의 " + machineType.getActionNoun()
+                    + " 시작되었습니다.\n예상 완료 시간: 14:30";
+            then(fcmNotificationSupport).should(times(1))
+                    .send(user, machineType.getDescription() + " 시작 알림", expectedBody);
         }
     }
 
