@@ -27,6 +27,15 @@ jobs:
       - name: Run Tests
         run: ./gradlew test
 
+      - name: Upload Test Report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: |
+            build/reports/tests/test
+            build/test-results/test
+
       - name: Code Format Check
         run: ./gradlew spotlessCheck
 
