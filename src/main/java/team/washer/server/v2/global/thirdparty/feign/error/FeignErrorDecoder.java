@@ -116,8 +116,8 @@ public class FeignErrorDecoder implements ErrorDecoder {
             case 429 -> new ExpectedException("요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", HttpStatus.TOO_MANY_REQUESTS);
             case 500 -> new ExpectedException("외부 서비스 내부 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR);
             case 502 -> new ExpectedException("게이트웨이 오류가 발생했습니다.", HttpStatus.BAD_GATEWAY);
-            case 503 ->
-                new ExpectedException("서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.", HttpStatus.SERVICE_UNAVAILABLE);
+            case 503 -> new ExpectedException("서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+                    HttpStatus.SERVICE_UNAVAILABLE);
             default -> new ExpectedException("외부 요청 처리 중 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR);
         };
     }

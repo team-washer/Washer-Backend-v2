@@ -102,9 +102,9 @@ class QueryMachineReservationHistoryServiceTest {
                 // When & Then
                 assertThatThrownBy(
                         () -> queryMachineReservationHistoryService.execute(machineId, null, null, null, pageable))
-                        .isInstanceOf(ExpectedException.class).hasMessage("존재하지 않는 기기입니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                                .isInstanceOf(ExpectedException.class).hasMessage("존재하지 않는 기기입니다")
+                                .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                        .isEqualTo(HttpStatus.NOT_FOUND));
 
                 then(reservationRepository).shouldHaveNoInteractions();
             }

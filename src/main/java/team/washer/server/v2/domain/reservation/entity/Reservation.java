@@ -111,8 +111,8 @@ public class Reservation extends BaseEntity {
         LocalDateTime now = DateTimeUtil.nowInKorea();
 
         return switch (this.status) {
-            case RESERVED ->
-                Duration.between(this.reservedAt, now).toMinutes() >= ReservationStatus.RESERVED.getTimeoutMinutes();
+            case RESERVED -> Duration.between(this.reservedAt, now).toMinutes() >= ReservationStatus.RESERVED
+                    .getTimeoutMinutes();
             default -> false;
         };
     }

@@ -62,7 +62,7 @@ class QueryAllMachinesServiceTest {
 
                 given(machineRepository.findAllWithFilters(eq(
                         searchName), eq(null), eq(null), eq(null), eq(true), any(Pageable.class)))
-                        .willReturn(machinePage);
+                                .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
@@ -91,7 +91,7 @@ class QueryAllMachinesServiceTest {
 
                 given(machineRepository
                         .findAllWithFilters(eq(null), eq(type), eq(null), eq(null), eq(true), any(Pageable.class)))
-                        .willReturn(machinePage);
+                                .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
@@ -120,7 +120,7 @@ class QueryAllMachinesServiceTest {
 
                 given(machineRepository
                         .findAllWithFilters(eq(null), eq(null), eq(floor), eq(null), eq(true), any(Pageable.class)))
-                        .willReturn(machinePage);
+                                .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
@@ -149,7 +149,7 @@ class QueryAllMachinesServiceTest {
 
                 given(machineRepository
                         .findAllWithFilters(eq(null), eq(null), eq(null), eq(status), eq(true), any(Pageable.class)))
-                        .willReturn(machinePage);
+                                .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
@@ -178,7 +178,7 @@ class QueryAllMachinesServiceTest {
 
                 given(machineRepository
                         .findAllWithFilters(eq(null), eq(null), eq(null), eq(null), eq(true), any(Pageable.class)))
-                        .willReturn(machinePage);
+                                .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
@@ -201,7 +201,7 @@ class QueryAllMachinesServiceTest {
 
                 given(machineRepository
                         .findAllWithFilters(eq(null), eq(null), eq(null), eq(null), eq(false), any(Pageable.class)))
-                        .willReturn(machinePage);
+                                .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
@@ -232,7 +232,7 @@ class QueryAllMachinesServiceTest {
 
                 given(machineRepository
                         .findAllWithFilters(eq(name), eq(type), eq(floor), eq(status), eq(true), any(Pageable.class)))
-                        .willReturn(machinePage);
+                                .willReturn(machinePage);
 
                 // When
                 MachineListResDto result = queryAllMachinesService
