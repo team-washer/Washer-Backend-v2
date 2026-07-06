@@ -191,11 +191,13 @@ public class User extends BaseEntity {
                 if (time.isBefore(TimeRestrictionConstants.RESTRICTION_START_TIME)) {
                     return;
                 }
-                if (time.isBefore(TimeRestrictionConstants.WEEKDAY_START_TIME)) {
-                    throw new ExpectedException(
-                            String.format("%s 이후에만 예약할 수 있습니다", TimeRestrictionConstants.WEEKDAY_START_TIME),
-                            HttpStatus.BAD_REQUEST);
-                }
+                // TODO(임시): 월~목 21:20 예약 시간 제한 일시 해제. 되돌릴 때 아래 블록 주석 해제할 것.
+                // if (time.isBefore(TimeRestrictionConstants.WEEKDAY_START_TIME)) {
+                // throw new ExpectedException(
+                // String.format("%s 이후에만 예약할 수 있습니다",
+                // TimeRestrictionConstants.WEEKDAY_START_TIME),
+                // HttpStatus.BAD_REQUEST);
+                // }
             }
             case SUNDAY -> {
                 if (time.isBefore(TimeRestrictionConstants.RESTRICTION_START_TIME)) {
