@@ -17,8 +17,8 @@ public enum NotificationType {
                                     "예약 자동 취소 알림",
                                     "{machineName}의 예약이 시간 초과로 자동 취소되었습니다. 패널티가 부과되었습니다."), PAUSE_TIMEOUT("일시정지 초과 알림",
                                             "{machineName}의 {action} 일시정지가 10분 이상 지속되어 예약이 패널티 없이 취소되었습니다."), STARTED(
-                                                    "세탁 시작 알림",
-                                                    "{machineName}의 {action}이 시작되었습니다.\n예상 완료 시간: {completionTime}"), TIMEOUT_WARNING(
+                                                    "시작 알림",
+                                                    "{machineName}의 {action} 시작되었습니다.\n예상 완료 시간: {completionTime}"), TIMEOUT_WARNING(
                                                             "예약 취소 경고",
                                                             "{machineName}의 예약이 시간 초과로 자동 취소되었습니다.\n첫 번째라 패널티는 없습니다. 다음부터는 패널티가 부과됩니다."), CANCELLATION_BLOCKED(
                                                                     "예약 차단 알림",
