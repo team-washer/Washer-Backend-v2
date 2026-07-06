@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 
 import java.time.LocalDateTime;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -48,6 +49,7 @@ class UserTest {
         class Context_weekday_user {
 
             @Test
+            @Disabled("임시: 월~목 21:20 예약 시간 제한 해제 기간 동안 비활성화. 제한 복구 시 함께 활성화")
             @DisplayName("21:20 이전이면 예외를 던진다")
             void it_throws_before_2120() {
                 final User user = createUser(1, UserRole.USER);
@@ -76,6 +78,7 @@ class UserTest {
             }
 
             @Test
+            @Disabled("임시: 월~목 21:20 예약 시간 제한 해제 기간 동안 비활성화. 제한 복구 시 함께 활성화")
             @DisplayName("학년과 무관하게 동일한 21:20 기준이 적용된다")
             void it_applies_same_time_regardless_of_grade() {
                 final User grade3 = createUser(3, UserRole.USER);
@@ -203,6 +206,7 @@ class UserTest {
             }
 
             @Test
+            @Disabled("임시: 월~목 21:20 예약 시간 제한 해제 기간 동안 비활성화. 제한 복구 시 함께 활성화")
             @DisplayName("월요일 08:00 정각부터는 제한이 적용되어 예외를 던진다")
             void it_throws_weekday_at_0800() {
                 final User user = createUser(1, UserRole.USER);
