@@ -123,7 +123,7 @@ public class HandleDataGsmEventServiceImpl implements HandleDataGsmEventService 
     private Integer extractInteger(JsonNode node, String... fieldNames) {
         for (final var fieldName : fieldNames) {
             final var value = node.path(fieldName);
-            if (value.isInt()) {
+            if (value.isNumber()) {
                 return value.asInt();
             }
             if (value.isTextual() && value.asText().matches("\\d+")) {

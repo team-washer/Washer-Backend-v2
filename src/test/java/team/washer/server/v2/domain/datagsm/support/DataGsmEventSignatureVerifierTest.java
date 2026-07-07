@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HexFormat;
+import java.util.Locale;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -32,6 +33,20 @@ class DataGsmEventSignatureVerifierTest {
             // Given
             final byte[] rawBody = "{\"id\":\"evt_1\"}".getBytes(StandardCharsets.UTF_8);
             final String signature = "sha256=" + calculateSignature(rawBody);
+
+            // When
+            final boolean result = verifier.verify(signature, rawBody);
+
+            // Then
+            assertThat(result).isTrue();
+        }
+
+        @Test
+        @DisplayName("서명 접두사와 Hex 값의 대소문자가 달라도 true를 반환한다")
+        void it_returns_true_for_case_insensitive_signature() throws Exception {
+            // Given
+            final byte[] rawBody = "{\"id\":\"evt_1\"}".getBytes(StandardCharsets.UTF_8);
+            final String signature = "  SHA256=" + calculateSignature(rawBody).toUpperCase(Locale.ROOT) + "  ";
 
             // When
             final boolean result = verifier.verify(signature, rawBody);

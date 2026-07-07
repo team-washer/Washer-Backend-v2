@@ -54,8 +54,8 @@ class HandleDataGsmEventServiceTest {
                       "student_id": "20210001",
                       "name": "김세탁",
                       "dormitory_room": 401,
-                      "grade": 3,
-                      "dormitory_floor": 4,
+                      "grade": 3.0,
+                      "dormitory_floor": 4.0,
                       "role": "DORMITORY_MANAGER"
                     }
                     """);
