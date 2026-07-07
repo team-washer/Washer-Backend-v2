@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.datagsm.support;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.HexFormat;
+import java.util.Locale;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -24,15 +25,20 @@ public class DataGsmEventSignatureVerifier {
     private final DataGsmEventEnvironment environment;
 
     public boolean verify(String signatureHeader, byte[] rawBody) {
-        if (signatureHeader == null || !signatureHeader.startsWith(SIGNATURE_PREFIX)) {
+        if (signatureHeader == null) {
             return false;
         }
+        final var normalizedSignatureHeader = signatureHeader.trim().toLowerCase(Locale.ROOT);
+        if (!normalizedSignatureHeader.startsWith(SIGNATURE_PREFIX)) {
+            return false;
+        }
+
         if (environment.secret() == null || environment.secret().isBlank()) {
             log.error("DataGSM event secret is missing");
             return false;
         }
 
-        final var received = signatureHeader.substring(SIGNATURE_PREFIX.length());
+        final var received = normalizedSignatureHeader.substring(SIGNATURE_PREFIX.length());
         final var expected = calculateSignature(rawBody);
         return MessageDigest.isEqual(received.getBytes(StandardCharsets.UTF_8),
                 expected.getBytes(StandardCharsets.UTF_8));
