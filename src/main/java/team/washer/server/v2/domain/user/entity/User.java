@@ -271,4 +271,29 @@ public class User extends BaseEntity {
             this.floor = floor;
         }
     }
+
+    /**
+     * DataGSM 이벤트로 전달된 사용자 정보를 반영합니다. 관리자 권한은 서비스 내부에서 별도로 지정하므로 DataGSM 역할 변경으로
+     * 덮어쓰지 않습니다.
+     *
+     * @param name
+     *            이름 (null이면 유지)
+     * @param roomNumber
+     *            호실 (null이면 유지)
+     * @param grade
+     *            학년 (null이면 유지)
+     * @param floor
+     *            층 (null이면 유지)
+     * @param role
+     *            사용자 권한 (null이면 유지)
+     */
+    public void updateDataGsmInfo(String name, String roomNumber, Integer grade, Integer floor, UserRole role) {
+        if (name != null) {
+            this.name = name;
+        }
+        updateInfo(roomNumber, grade, floor);
+        if (role != null && !this.role.isAdmin()) {
+            this.role = role;
+        }
+    }
 }
