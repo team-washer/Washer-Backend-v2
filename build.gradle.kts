@@ -21,11 +21,16 @@ dependencyManagement {
 spotless {
     java {
         target("src/main/java/**/*.java", "src/test/java/**/*.java")
+        eclipse().configFile("eclipse-formatter.xml")
         leadingTabsToSpaces(4)
         importOrder("java", "javax", "org", "com", " ")
         removeUnusedImports()
         endWithNewline()
         trimTrailingWhitespace()
+    }
+    groovyGradle {
+        target("*.gradle")
+        greclipse()
     }
 }
 
