@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.custom.UserRepositoryCustom;
 
 @Repository
@@ -26,6 +27,8 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     List<User> findByGrade(Integer grade);
 
     List<User> findByNameContaining(String name);
+
+    long countByRole(UserRole role);
 
     @Query("SELECT u FROM User u WHERE u.floor = :floor AND u.grade = :grade")
     List<User> findByFloorAndGrade(@Param("floor") Integer floor, @Param("grade") Integer grade);

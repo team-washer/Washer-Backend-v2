@@ -14,9 +14,12 @@ import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.user.dto.request.UpdateUserReqDto;
+import team.washer.server.v2.domain.user.dto.request.UpdateUserRoleReqDto;
 import team.washer.server.v2.domain.user.dto.response.UserListResDto;
 import team.washer.server.v2.domain.user.dto.response.UserResDto;
+import team.washer.server.v2.domain.user.dto.response.UserRoleUpdateResDto;
 import team.washer.server.v2.domain.user.dto.response.UserUpdateResDto;
+import team.washer.server.v2.domain.user.service.ChangeUserRoleService;
 import team.washer.server.v2.domain.user.service.DeleteUserService;
 import team.washer.server.v2.domain.user.service.QueryUserByIdService;
 import team.washer.server.v2.domain.user.service.SearchUserService;
@@ -33,6 +36,7 @@ public class AdminUserController {
     private final QueryUserByIdService queryUserByIdService;
     private final UpdateUserInfoService updateUserInfoService;
     private final DeleteUserService deleteUserService;
+    private final ChangeUserRoleService changeUserRoleService;
 
     @GetMapping
     @Operation(summary = "전체 사용자 조회", description = "필터링 옵션으로 사용자 목록을 조회합니다. 이름, 학번(부분 검색) 및 페이지네이션을 지원합니다.")
@@ -56,6 +60,13 @@ public class AdminUserController {
     public UserUpdateResDto updateUser(@Parameter(description = "사용자 ID") @PathVariable @NotNull Long id,
             @Valid @RequestBody UpdateUserReqDto request) {
         return updateUserInfoService.execute(id, request.roomNumber(), request.grade(), request.floor());
+    }
+
+    @PatchMapping("/{id}/role")
+    @Operation(summary = "사용자 권한 변경", description = "사용자의 권한(role)을 변경합니다. 관리자(ADMIN)만 호출할 수 있습니다.")
+    public UserRoleUpdateResDto changeUserRole(@Parameter(description = "사용자 ID") @PathVariable @NotNull Long id,
+            @Valid @RequestBody UpdateUserRoleReqDto request) {
+        return changeUserRoleService.execute(id, request.role());
     }
 
     @DeleteMapping("/{id}")
