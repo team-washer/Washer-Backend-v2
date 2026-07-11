@@ -249,6 +249,16 @@ public class User extends BaseEntity {
     }
 
     /**
+     * 사용자 권한을 변경합니다.
+     *
+     * @param newRole
+     *            새 권한
+     */
+    public void changeRole(final UserRole newRole) {
+        this.role = newRole;
+    }
+
+    /**
      * 사용자 정보 수정
      *
      * @param roomNumber
