@@ -76,7 +76,8 @@ public class ReservationLifecycleProcessor {
             return;
         }
 
-        var expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(status.getCompletionTime());
+        var expectedCompletionTime = DateTimeUtil
+                .parseAndConvertToKoreaTime(status.getCompletionTime(machine.isWasher()));
         reservation.start(expectedCompletionTime);
         machine.markAsInUse();
         reservationRepository.save(reservation);
@@ -189,7 +190,8 @@ public class ReservationLifecycleProcessor {
                 reservation.clearPausedAt();
                 log.info("Reservation {} resumed from pause, clearing pause tracking", reservation.getId());
             }
-            var updatedExpectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(status.getCompletionTime());
+            var updatedExpectedCompletionTime = DateTimeUtil
+                    .parseAndConvertToKoreaTime(getCompletionTime(status, isWasher));
             var current = reservation.getExpectedCompletionTime();
             if (updatedExpectedCompletionTime != null && (current == null
                     || Math.abs(Duration.between(current, updatedExpectedCompletionTime).toSeconds()) >= 60)) {

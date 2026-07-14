@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -142,6 +143,46 @@ class QueryAllMachinesStatusServiceTest {
 
             // Then
             assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("건조기 상태 조회 시 건조기 완료 예정 시간을 사용해야 한다")
+        void execute_ShouldUseDryerCompletionTime_WhenDryerStatusContainsWasherAndDryerCapabilities() {
+            // Given
+            givenUserMocked();
+
+            var machine = Machine.builder().name("D-3F-R1").type(MachineType.DRYER).deviceId("device-1").floor(3)
+                    .position(Position.RIGHT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.AVAILABLE).build();
+
+            var washerCompletionTime = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
+                    "2026-01-26T14:30:00Z",
+                    null);
+            var dryerCompletionTime = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T16:00:00Z",
+                    "2026-01-26T14:30:00Z",
+                    null);
+            var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null,
+                    null,
+                    washerCompletionTime);
+            var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(null, null, dryerCompletionTime);
+            var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState,
+                    dryerOpState,
+                    null,
+                    null);
+            var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
+
+            when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
+            when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
+                    .thenReturn(Map.of("device-1", deviceStatus));
+            when(reservationRepository.findActiveReservationByMachineId(any())).thenReturn(Optional.of(reservation));
+            when(reservation.getStatus()).thenReturn(ReservationStatus.RUNNING);
+            when(reservation.getUser()).thenReturn(user);
+
+            // When
+            var result = queryAllMachinesStatusService.execute(USER_ID, true);
+
+            // Then
+            assertThat(result.getFirst().expectedCompletionTime()).isEqualTo(LocalDateTime.of(2026, 1, 27, 1, 0));
         }
     }
 

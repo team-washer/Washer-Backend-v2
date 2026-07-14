@@ -69,7 +69,28 @@ class OverdueReservationProcessorTest {
     private SmartThingsDeviceStatusResDto buildDeviceStatus(String completionTime) {
         var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
         var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
-        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
+        var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(null, null, completionTimeAttr);
+        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState,
+                dryerOpState,
+                null,
+                null);
+        return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
+    }
+
+    private SmartThingsDeviceStatusResDto buildStatusWithMixedCompletionTime(String washerCompletionTime,
+            String dryerCompletionTime) {
+        var washerCompletionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(washerCompletionTime,
+                null,
+                null);
+        var dryerCompletionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(dryerCompletionTime, null, null);
+        var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null,
+                null,
+                washerCompletionTimeAttr);
+        var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(null, null, dryerCompletionTimeAttr);
+        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState,
+                dryerOpState,
+                null,
+                null);
         return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
     }
 
@@ -104,6 +125,27 @@ class OverdueReservationProcessorTest {
                     .sendStarted(eq(user), eq(machine), any(LocalDateTime.class));
             verify(reservation, never()).cancel();
             verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
+        }
+
+        @Test
+        @DisplayName("건조기 자동 시작 시 건조기 완료 예정 시간을 저장해야 한다")
+        void shouldAutoStartDryerWithDryerCompletionTime_WhenBothCompletionTimesExist() {
+            // Given
+            var deviceStatus = buildStatusWithMixedCompletionTime("2026-01-26T15:30:00Z", "2026-01-26T16:00:00Z");
+            givenReservedReservation();
+            when(reservation.getUser()).thenReturn(user);
+            when(machine.isWasher()).thenReturn(false);
+            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(true);
+
+            // When
+            var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, deviceStatus);
+
+            // Then
+            assertThat(result).isEqualTo(OverdueResult.AUTO_STARTED);
+            verify(reservation, times(1)).start(LocalDateTime.of(2026, 1, 27, 1, 0));
+            verify(reservationNotificationSupport, times(1))
+                    .sendStarted(user, machine, LocalDateTime.of(2026, 1, 27, 1, 0));
         }
     }
 
