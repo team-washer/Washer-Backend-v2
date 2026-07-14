@@ -173,6 +173,10 @@ public record SmartThingsDeviceStatusResDto(
     }
 
     /** 스위치 상태 값 반환: "on" | "off" */
+    public String getCompletionTime(boolean isWasher) {
+        return isWasher ? getWasherCompletionTime() : getDryerCompletionTime();
+    }
+
     public String getSwitchStatus() {
         var main = getMainComponent();
         if (main == null || main.switchCapability() == null) {
