@@ -78,7 +78,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
             switchStatus = deviceStatus.getSwitchStatus();
 
             if (reservation != null) {
-                var completionTimeStr = deviceStatus.getCompletionTime();
+                var completionTimeStr = deviceStatus.getCompletionTime(machine.isWasher());
                 if (completionTimeStr != null && !completionTimeStr.isBlank()) {
                     expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr);
                     if (expectedCompletionTime != null) {

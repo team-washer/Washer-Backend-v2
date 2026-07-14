@@ -81,7 +81,8 @@ public class OverdueReservationProcessor {
         var machine = reservation.getMachine();
 
         if (machineStateDetectionSupport.isRunning(status, machine.isWasher())) {
-            var expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(status.getCompletionTime());
+            var expectedCompletionTime = DateTimeUtil
+                    .parseAndConvertToKoreaTime(status.getCompletionTime(machine.isWasher()));
             reservation.start(expectedCompletionTime);
             machine.markAsInUse();
             reservationRepository.save(reservation);

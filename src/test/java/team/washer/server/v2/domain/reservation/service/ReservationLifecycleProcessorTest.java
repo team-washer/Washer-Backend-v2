@@ -65,7 +65,28 @@ class ReservationLifecycleProcessorTest {
     private SmartThingsDeviceStatusResDto buildDeviceStatus(String completionTime) {
         var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
         var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
-        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
+        var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(null, null, completionTimeAttr);
+        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState,
+                dryerOpState,
+                null,
+                null);
+        return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
+    }
+
+    private SmartThingsDeviceStatusResDto buildStatusWithMixedCompletionTime(String washerCompletionTime,
+            String dryerCompletionTime) {
+        var washerCompletionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(washerCompletionTime,
+                null,
+                null);
+        var dryerCompletionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(dryerCompletionTime, null, null);
+        var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null,
+                null,
+                washerCompletionTimeAttr);
+        var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(null, null, dryerCompletionTimeAttr);
+        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState,
+                dryerOpState,
+                null,
+                null);
         return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
     }
 
@@ -157,6 +178,28 @@ class ReservationLifecycleProcessorTest {
             // Then
             verify(reservation, never()).start(any());
             verify(reservationRepository, never()).save(reservation);
+        }
+
+        @Test
+        @DisplayName("건조기 예약 시작 시 건조기 완료 예정 시간을 저장해야 한다")
+        void shouldStartDryerReservationWithDryerCompletionTime_WhenBothCompletionTimesExist() {
+            // Given
+            var deviceStatus = buildStatusWithMixedCompletionTime("2026-01-26T15:30:00Z", "2026-01-26T16:00:00Z");
+            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservation.isReserved()).thenReturn(true);
+            when(reservation.getMachine()).thenReturn(machine);
+            when(reservation.getUser()).thenReturn(user);
+            when(machine.isWasher()).thenReturn(false);
+            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(true);
+
+            // When
+            reservationLifecycleProcessor.processReservedToRunning(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, times(1)).start(LocalDateTime.of(2026, 1, 27, 1, 0));
+            verify(reservationNotificationSupport, times(1))
+                    .sendStarted(user, machine, LocalDateTime.of(2026, 1, 27, 1, 0));
         }
 
         @Test
@@ -345,6 +388,29 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, times(1)).updateExpectedCompletionTime(any(LocalDateTime.class));
             verify(reservationRepository, times(1)).save(reservation);
             verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+        }
+
+        @Test
+        @DisplayName("건조기 진행 중 상태 갱신 시 건조기 완료 예정 시간을 저장해야 한다")
+        void shouldUpdateDryerExpectedCompletionTime_WhenBothCompletionTimesExist() {
+            // Given
+            var deviceStatus = buildStatusWithMixedCompletionTime("2026-01-26T15:30:00Z", "2026-01-26T16:00:00Z");
+            givenRunningReservation();
+            when(machine.isWasher()).thenReturn(false);
+            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(Optional.empty());
+            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(false);
+            when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(false);
+            when(reservation.getExpectedCompletionTime()).thenReturn(null);
+
+            // When
+            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, times(1)).updateExpectedCompletionTime(LocalDateTime.of(2026, 1, 27, 1, 0));
+            verify(reservationRepository, times(1)).save(reservation);
         }
 
         @Test
