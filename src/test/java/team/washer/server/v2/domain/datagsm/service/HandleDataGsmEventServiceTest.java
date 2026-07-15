@@ -51,7 +51,7 @@ class HandleDataGsmEventServiceTest {
             final var user = createUser();
             final byte[] rawBody = eventPayload("""
                     {
-                      "student_id": "20210001",
+                      "student_number": 3404,
                       "name": "김세탁",
                       "dormitory_room": 401,
                       "grade": 3.0,
@@ -60,7 +60,7 @@ class HandleDataGsmEventServiceTest {
                     }
                     """);
             given(idempotencySupport.isProcessed("evt_student_1")).willReturn(false);
-            given(userRepository.findByStudentId("20210001")).willReturn(Optional.of(user));
+            given(userRepository.findByStudentId("3404")).willReturn(Optional.of(user));
 
             // When
             handleDataGsmEventService.execute(rawBody);
@@ -83,7 +83,7 @@ class HandleDataGsmEventServiceTest {
                     idempotencySupport);
             final byte[] rawBody = eventPayload("""
                     {
-                      "student_id": "20210001",
+                      "student_number": 3404,
                       "name": "김세탁"
                     }
                     """);
@@ -106,12 +106,12 @@ class HandleDataGsmEventServiceTest {
                     idempotencySupport);
             final byte[] rawBody = eventPayload("""
                     {
-                      "student_id": "20210001",
+                      "student_number": 3404,
                       "name": "김세탁"
                     }
                     """);
             given(idempotencySupport.isProcessed("evt_student_1")).willReturn(false);
-            given(userRepository.findByStudentId("20210001")).willReturn(Optional.empty());
+            given(userRepository.findByStudentId("3404")).willReturn(Optional.empty());
 
             // When
             handleDataGsmEventService.execute(rawBody);
@@ -119,6 +119,32 @@ class HandleDataGsmEventServiceTest {
             // Then
             then(userRepository).should(never()).save(any(User.class));
             then(idempotencySupport).should(times(1)).markProcessed("evt_student_1");
+        }
+    }
+
+    @Nested
+    @DisplayName("student_id와 student_number가 함께 들어오면")
+    class Describe_both_student_id_and_student_number {
+
+        @Test
+        @DisplayName("DataGSM 내부 PK가 아닌 학번으로 사용자를 조회한다")
+        void it_looks_up_user_by_student_number() {
+            // Given
+            handleDataGsmEventService = new HandleDataGsmEventServiceImpl(objectMapper,
+                    userRepository,
+                    idempotencySupport);
+            final var user = createUser();
+            final byte[] rawBody = realWorldPayload();
+            given(idempotencySupport.isProcessed("evt_8d60e4c4208644d382c51fa014149324")).willReturn(false);
+            given(userRepository.findByStudentId("3404")).willReturn(Optional.of(user));
+
+            // When
+            handleDataGsmEventService.execute(rawBody);
+
+            // Then
+            then(userRepository).should(times(1)).findByStudentId("3404");
+            then(userRepository).should(never()).findByStudentId("127");
+            assertThat(user.getRoomNumber()).isEqualTo("412");
         }
     }
 
@@ -190,8 +216,42 @@ class HandleDataGsmEventServiceTest {
                 """.formatted(studentObject).getBytes(StandardCharsets.UTF_8);
     }
 
+    /**
+     * DataGSM이 실제로 전송하는 형태의 페이로드. student_id(127)는 DataGSM 내부 PK이고 실제 학번은
+     * student_number(3404)이므로, 학번 조회에는 student_number를 사용해야 한다.
+     */
+    private byte[] realWorldPayload() {
+        return """
+                {
+                  "data": {
+                    "new": [{
+                      "index": 0,
+                      "object": {
+                        "class_num": 4, "dormitory_floor": 4, "dormitory_room": 412,
+                        "email": "s24058@gsm.hs.kr", "grade": 3, "name": "김태은",
+                        "number": 4, "role": "GENERAL_STUDENT", "sex": "MAN",
+                        "student_id": 127, "student_number": 3404
+                      }
+                    }],
+                    "old": [{
+                      "index": 0,
+                      "object": {
+                        "class_num": 4, "dormitory_floor": 4, "dormitory_room": 411,
+                        "email": "s24058@gsm.hs.kr", "grade": 3, "name": "김태은",
+                        "number": 4, "role": "GENERAL_STUDENT", "sex": "MAN",
+                        "student_id": 127, "student_number": 3404
+                      }
+                    }]
+                  },
+                  "event": "student.updated",
+                  "id": "evt_8d60e4c4208644d382c51fa014149324",
+                  "timestamp": "2026-07-14T11:47:16.205061420Z"
+                }
+                """.getBytes(StandardCharsets.UTF_8);
+    }
+
     private User createUser() {
-        return User.builder().name("김기존").studentId("20210001").roomNumber("301").grade(2).floor(3).role(UserRole.USER)
+        return User.builder().name("김기존").studentId("3404").roomNumber("301").grade(2).floor(3).role(UserRole.USER)
                 .build();
     }
 }
