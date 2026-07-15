@@ -68,9 +68,9 @@ public class HandleDataGsmEventServiceImpl implements HandleDataGsmEventService 
                 return;
             }
 
-            final var studentId = extractText(student, "student_id", "studentId", "student_number", "studentNumber");
+            final var studentId = extractText(student, "student_number", "studentNumber");
             if (studentId == null) {
-                log.warn("DataGSM student event ignored because student id is missing");
+                log.warn("DataGSM student event ignored because student number is missing");
                 return;
             }
 
