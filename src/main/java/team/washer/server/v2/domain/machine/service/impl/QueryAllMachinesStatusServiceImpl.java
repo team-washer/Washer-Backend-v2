@@ -22,6 +22,7 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -36,6 +37,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
+    private final MachineStateDetectionSupport machineStateDetectionSupport;
     private final UserRepository userRepository;
 
     @Override
@@ -76,6 +78,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
             operatingState = getOperatingState(machine, deviceStatus);
             jobState = getJobState(machine, deviceStatus);
             switchStatus = deviceStatus.getSwitchStatus();
+            reservation = getDisplayReservation(machine, deviceStatus, reservation);
 
             if (reservation != null) {
                 var completionTimeStr = deviceStatus.getCompletionTime(machine.isWasher());
@@ -101,6 +104,17 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
                 reservation != null ? reservation.getId() : null,
                 reservation != null ? reservation.getUser().getId() : null,
                 reservation != null ? reservation.getUser().getRoomNumber() : null);
+    }
+
+    private Reservation getDisplayReservation(Machine machine,
+            SmartThingsDeviceStatusResDto deviceStatus,
+            Reservation reservation) {
+        if (reservation == null || !reservation.isRunning()) {
+            return reservation;
+        }
+        return machineStateDetectionSupport.isCompleted(deviceStatus, machine.isWasher()).isPresent()
+                ? null
+                : reservation;
     }
 
     /**

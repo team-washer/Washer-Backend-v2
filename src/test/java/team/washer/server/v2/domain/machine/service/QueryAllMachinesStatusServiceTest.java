@@ -32,6 +32,7 @@ import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 
@@ -49,6 +50,9 @@ class QueryAllMachinesStatusServiceTest {
 
     @Mock
     private DeviceStatusQuerySupport deviceStatusQuerySupport;
+
+    @Mock
+    private MachineStateDetectionSupport machineStateDetectionSupport;
 
     @Mock
     private UserRepository userRepository;
@@ -183,6 +187,49 @@ class QueryAllMachinesStatusServiceTest {
 
             // Then
             assertThat(result.getFirst().expectedCompletionTime()).isEqualTo(LocalDateTime.of(2026, 1, 27, 1, 0));
+        }
+
+        @Test
+        @DisplayName("완료 신호가 확인된 활성 예약은 완료 예정 시각과 예약 정보를 숨긴다")
+        void execute_ShouldHideReservationInfo_WhenActiveReservationIsCompletedOnDeviceStatus() {
+            // Given
+            givenUserMocked();
+
+            var machine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
+                    .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.AVAILABLE).build();
+
+            var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("stop",
+                    "2026-01-26T15:30:00Z",
+                    null);
+            var jobStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("finish", "2026-01-26T15:30:00Z", null);
+            var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:31:00Z",
+                    "2026-01-26T15:30:00Z",
+                    null);
+            var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(machineStateAttr,
+                    jobStateAttr,
+                    completionTimeAttr);
+            var deviceStatus = new SmartThingsDeviceStatusResDto(
+                    Map.of("main", new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null)));
+
+            when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
+            when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
+                    .thenReturn(Map.of("device-1", deviceStatus));
+            when(reservationRepository.findActiveReservationByMachineId(any())).thenReturn(Optional.of(reservation));
+            when(reservation.isRunning()).thenReturn(true);
+            when(machineStateDetectionSupport.isCompleted(deviceStatus, true))
+                    .thenReturn(Optional.of(LocalDateTime.of(2026, 1, 27, 0, 30)));
+
+            // When
+            var result = queryAllMachinesStatusService.execute(USER_ID, true);
+
+            // Then
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.AVAILABLE);
+            assertThat(result.getFirst().expectedCompletionTime()).isNull();
+            assertThat(result.getFirst().remainingMinutes()).isNull();
+            assertThat(result.getFirst().reservationId()).isNull();
+            assertThat(result.getFirst().userId()).isNull();
+            assertThat(result.getFirst().roomNumber()).isNull();
         }
     }
 

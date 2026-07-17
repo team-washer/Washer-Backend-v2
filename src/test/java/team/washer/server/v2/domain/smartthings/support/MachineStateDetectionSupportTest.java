@@ -83,14 +83,14 @@ class MachineStateDetectionSupportTest {
         }
 
         @Test
-        @DisplayName("jobState=finish, machineState=stop 이지만 완료 시각이 미래(잔여시간 남음)면 미완료로 판정한다")
-        void shouldNotComplete_WhenFinishedButCompletionTimeInFuture() {
+        @DisplayName("jobState=finish, machineState=stop 이면 완료 시각이 미래여도 완료로 판정한다")
+        void shouldComplete_WhenFinishedStoppedAndCompletionTimeInFuture() {
             var future = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusMinutes(3);
             var status = washerStatus("stop", "finish", isoUtc(future));
 
             var result = machineStateDetectionSupport.isCompleted(status, WASHER);
 
-            assertThat(result).isEmpty();
+            assertThat(result).isPresent();
         }
 
         @Test
@@ -144,6 +144,17 @@ class MachineStateDetectionSupportTest {
         void shouldComplete_WhenFinishedStoppedAndTimePassed() {
             var past = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(1);
             var status = dryerStatus("stop", "finished", isoUtc(past));
+
+            var result = machineStateDetectionSupport.isCompleted(status, DRYER);
+
+            assertThat(result).isPresent();
+        }
+
+        @Test
+        @DisplayName("jobState=finished, machineState=stop 이면 완료 시각이 미래여도 완료로 판정한다")
+        void shouldComplete_WhenDryerFinishedStoppedAndCompletionTimeInFuture() {
+            var future = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusMinutes(3);
+            var status = dryerStatus("stop", "finished", isoUtc(future));
 
             var result = machineStateDetectionSupport.isCompleted(status, DRYER);
 
