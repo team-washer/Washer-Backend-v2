@@ -80,25 +80,26 @@ public class MachineStateDetectionSupport {
         var completionTime = (completionTimeStr != null && !completionTimeStr.isBlank())
                 ? DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr)
                 : null;
+        if (finishedJobState.equalsIgnoreCase(jobState)) {
+            log.debug("device job is completed jobState={} completionTime={}", jobState, completionTime);
+            return Optional.of(completionTime != null && !completionTime.isAfter(now) ? completionTime : now);
+        }
+
         if (completionTime != null && completionTime.isAfter(now)) {
-            log.debug("job finished but completion time still in future completionTime={} jobState={}",
+            log.debug("device stopped but completion time still in future completionTime={} jobState={}",
                     completionTime,
                     jobState);
             return Optional.empty();
         }
 
-        if (!finishedJobState.equalsIgnoreCase(jobState)) {
-            if (isResetJobState(jobState) && completionTime != null) {
-                log.debug("device job is completed after job reset jobState={} completionTime={}",
-                        jobState,
-                        completionTime);
-                return Optional.of(completionTime);
-            }
-            return Optional.empty();
+        if (isResetJobState(jobState) && completionTime != null) {
+            log.debug("device job is completed after job reset jobState={} completionTime={}",
+                    jobState,
+                    completionTime);
+            return Optional.of(completionTime);
         }
 
-        log.debug("device job is completed jobState={} completionTime={}", jobState, completionTime);
-        return Optional.of(completionTime != null ? completionTime : now);
+        return Optional.empty();
     }
 
     private boolean isResetJobState(String jobState) {
