@@ -85,18 +85,18 @@ public class MachineStateDetectionSupport {
             return Optional.of(completionTime != null && !completionTime.isAfter(now) ? completionTime : now);
         }
 
+        if (isResetJobState(jobState) && completionTime != null) {
+            log.debug("device job is completed after job reset jobState={} completionTime={}",
+                    jobState,
+                    completionTime);
+            return Optional.of(completionTime.isAfter(now) ? now : completionTime);
+        }
+
         if (completionTime != null && completionTime.isAfter(now)) {
             log.debug("device stopped but completion time still in future completionTime={} jobState={}",
                     completionTime,
                     jobState);
             return Optional.empty();
-        }
-
-        if (isResetJobState(jobState) && completionTime != null) {
-            log.debug("device job is completed after job reset jobState={} completionTime={}",
-                    jobState,
-                    completionTime);
-            return Optional.of(completionTime);
         }
 
         return Optional.empty();

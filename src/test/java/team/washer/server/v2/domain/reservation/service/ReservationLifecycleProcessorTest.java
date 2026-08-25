@@ -296,11 +296,35 @@ class ReservationLifecycleProcessorTest {
         }
 
         @Test
-        @DisplayName("예상 완료 시간이 정상 범위이면 너무 이른 완료 신호를 보류한다")
-        void shouldNotCompleteReservation_WhenCompletionDetectedTooEarlyWithNormalExpectedTime() {
+        @DisplayName("예상 완료 시각보다 일러도 정지 상태의 최신 완료 증거가 있으면 완료 처리한다")
+        void shouldCompleteReservation_WhenCompletionDetectedTooEarlyWithFreshStoppedEvidence() {
             // Given
             var nowKst = LocalDateTime.now(KOREA_ZONE);
             var deviceStatus = buildDryerStatusWithTimestamp(isoUtc(nowKst), isoUtc(nowKst));
+            givenRunningReservation();
+            when(reservation.getUser()).thenReturn(user);
+            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(1));
+            when(reservation.getExpectedCompletionTime()).thenReturn(nowKst.plusMinutes(10));
+            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(Optional.of(nowKst));
+
+            // When
+            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, times(1)).complete();
+            verify(machine, times(1)).markAsAvailable();
+            verify(reservationRepository, times(1)).save(reservation);
+            verify(machineRepository, times(1)).save(machine);
+            verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
+        }
+
+        @Test
+        @DisplayName("예상 완료 시각보다 이른 완료 신호에 최신 정지 증거가 없으면 보류한다")
+        void shouldNotCompleteReservation_WhenCompletionDetectedTooEarlyWithoutFreshStoppedEvidence() {
+            // Given
+            var nowKst = LocalDateTime.now(KOREA_ZONE);
+            var deviceStatus = buildDeviceStatus(null);
             givenRunningReservation();
             when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(1));
             when(reservation.getExpectedCompletionTime()).thenReturn(nowKst.plusMinutes(10));

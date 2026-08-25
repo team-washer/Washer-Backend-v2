@@ -307,8 +307,25 @@ public class ReservationLifecycleProcessor {
             SmartThingsDeviceStatusResDto status,
             boolean isWasher,
             LocalDateTime completionTime) {
+        if (hasFreshStoppedCompletionEvidence(reservation, status, isWasher, completionTime)) {
+            return true;
+        }
         return hasSuspiciousExpectedCompletionTime(reservation)
                 && hasFreshCompletionEvidence(reservation, status, isWasher, completionTime);
+    }
+
+    private boolean hasFreshStoppedCompletionEvidence(Reservation reservation,
+            SmartThingsDeviceStatusResDto status,
+            boolean isWasher,
+            LocalDateTime completionTime) {
+        var startTime = reservation.getStartTime();
+        if (startTime == null || completionTime.isBefore(startTime)) {
+            return false;
+        }
+        if (!"stop".equalsIgnoreCase(getOperatingState(status, isWasher))) {
+            return false;
+        }
+        return hasFreshCompletionEvidence(reservation, status, isWasher, completionTime);
     }
 
     private boolean hasSuspiciousExpectedCompletionTime(Reservation reservation) {
@@ -338,7 +355,7 @@ public class ReservationLifecycleProcessor {
 
     private void logEarlyCompletionAccepted(Reservation reservation, LocalDateTime completionTime) {
         log.info(
-                "completion accepted reason=suspicious_expected_completion_time reservationId={} startTime={} expectedCompletionTime={} completionTime={}",
+                "completion accepted reason=fresh_completion_evidence reservationId={} startTime={} expectedCompletionTime={} completionTime={}",
                 reservation.getId(),
                 reservation.getStartTime(),
                 reservation.getExpectedCompletionTime(),
