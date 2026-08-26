@@ -261,12 +261,18 @@ public class ReservationLifecycleProcessor {
         }
     }
 
+    /**
+     * 예약을 완료 처리한다. 중단·일시정지 경로와 마찬가지로 디바운스 카운터와 일시정지 추적을 함께 정리하여, 완료된 예약에 진행 중에만 의미가
+     * 있는 값이 남지 않도록 한다.
+     */
     private void completeReservation(Reservation reservation,
             Machine machine,
             LocalDateTime completionTime,
             String reason) {
         reservation.complete();
         reservation.clearCompletionCount();
+        reservation.clearInterruptionCount();
+        reservation.clearPausedAt();
         machine.markAsAvailable();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
