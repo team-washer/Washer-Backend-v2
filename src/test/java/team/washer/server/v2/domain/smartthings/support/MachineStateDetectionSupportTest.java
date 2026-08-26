@@ -125,14 +125,14 @@ class MachineStateDetectionSupportTest {
         }
 
         @Test
-        @DisplayName("완료 직후 jobState가 none으로 리셋되고 완료 시각이 미래여도 완료로 판정한다")
-        void shouldComplete_WhenJobStateResetAndCompletionTimeInFuture() {
+        @DisplayName("jobState가 none으로 리셋되어도 완료 시각이 미래이면 완료로 판정하지 않는다")
+        void shouldNotComplete_WhenJobStateResetAndCompletionTimeInFuture() {
             var future = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusHours(1);
             var status = washerStatus("stop", "none", isoUtc(future));
 
             var result = machineStateDetectionSupport.isCompleted(status, WASHER);
 
-            assertThat(result).isPresent();
+            assertThat(result).isEmpty();
         }
 
         @Test
@@ -195,14 +195,14 @@ class MachineStateDetectionSupportTest {
         }
 
         @Test
-        @DisplayName("건조 완료 직후 jobState가 none으로 리셋되고 완료 시각이 미래여도 완료로 판정한다")
-        void shouldComplete_WhenDryerJobStateResetAndCompletionTimeInFuture() {
+        @DisplayName("건조 jobState가 none으로 리셋되어도 완료 시각이 미래이면 완료로 판정하지 않는다")
+        void shouldNotComplete_WhenDryerJobStateResetAndCompletionTimeInFuture() {
             var future = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusHours(1);
             var status = dryerStatus("stop", "none", isoUtc(future));
 
             var result = machineStateDetectionSupport.isCompleted(status, DRYER);
 
-            assertThat(result).isPresent();
+            assertThat(result).isEmpty();
         }
     }
 
