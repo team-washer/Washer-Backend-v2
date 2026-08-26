@@ -22,7 +22,6 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
-import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -37,7 +36,6 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
-    private final MachineStateDetectionSupport machineStateDetectionSupport;
     private final UserRepository userRepository;
 
     @Override
@@ -78,7 +76,6 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
             operatingState = getOperatingState(machine, deviceStatus);
             jobState = getJobState(machine, deviceStatus);
             switchStatus = deviceStatus.getSwitchStatus();
-            reservation = getDisplayReservation(machine, deviceStatus, reservation);
 
             if (reservation != null) {
                 var completionTimeStr = deviceStatus.getCompletionTime(machine.isWasher());
@@ -106,20 +103,13 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
                 reservation != null ? reservation.getUser().getRoomNumber() : null);
     }
 
-    private Reservation getDisplayReservation(Machine machine,
-            SmartThingsDeviceStatusResDto deviceStatus,
-            Reservation reservation) {
-        if (reservation == null || !reservation.isRunning()) {
-            return reservation;
-        }
-        return machineStateDetectionSupport.isCompleted(deviceStatus, machine.isWasher()).isPresent()
-                ? null
-                : reservation;
-    }
-
     /**
-     * 예약 정보와 실제 기기 작동 상태를 기반으로 가용성을 동적으로 계산한다. 예약 상태를 우선 source of truth로 사용하되, 예약이
-     * 없어도 SmartThings에서 실제 작동 중(무단 사용)이면 IN_USE로 표시해 중복 예약을 차단한다.
+     * 예약 정보와 실제 기기 작동 상태를 기반으로 가용성을 동적으로 계산한다. 예약 상태를 유일한 source of truth로 사용하되,
+     * 예약이 없어도 SmartThings에서 실제 작동 중(무단 사용)이면 IN_USE로 표시해 중복 예약을 차단한다.
+     *
+     * <p>
+     * 완료 여부를 이 API에서 따로 예측하지 않는다. 완료 확정은 라이프사이클 스케줄러가 디바운스와 가드를 거쳐 DB에 반영하며, 목록은 그
+     * 결과만 그대로 보여준다. 화면에 표시된 상태와 DB에 저장된 상태가 갈라지지 않게 하기 위함이다.
      */
     private MachineAvailability computeAvailability(Machine machine,
             Reservation reservation,
