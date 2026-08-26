@@ -107,6 +107,24 @@ public class MachineStateDetectionSupport {
     }
 
     /**
+     * 기기 전원이 꺼졌는지 감지한다.
+     *
+     * <p>
+     * 전원 차단은 사이클 진행 여부와 무관하게 명백한 중단이므로, 완료 예정 시각 근처의 정지를 보류하는 판정보다 먼저 평가되어야 한다. 그렇지
+     * 않으면 완료 예정 시각이 유예 범위 안에 있는 동안 중단이 영영 확정되지 않는다.
+     */
+    public boolean isPoweredOff(SmartThingsDeviceStatusResDto status) {
+        if (status == null) {
+            return false;
+        }
+        var isPoweredOff = "off".equalsIgnoreCase(status.getSwitchStatus());
+        if (isPoweredOff) {
+            log.debug("device power off detected switch=off");
+        }
+        return isPoweredOff;
+    }
+
+    /**
      * 기기가 비정상 중단되었는지 감지한다.
      *
      * <p>
@@ -119,8 +137,7 @@ public class MachineStateDetectionSupport {
         if (status == null) {
             return false;
         }
-        if ("off".equalsIgnoreCase(status.getSwitchStatus())) {
-            log.debug("device power off detected switch=off");
+        if (isPoweredOff(status)) {
             return true;
         }
 
