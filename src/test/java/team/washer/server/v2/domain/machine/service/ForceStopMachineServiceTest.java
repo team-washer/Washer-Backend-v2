@@ -31,6 +31,7 @@ import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.enums.Position;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.machine.service.impl.ForceStopMachineServiceImpl;
+import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -63,6 +64,9 @@ class ForceStopMachineServiceTest {
 
     @Mock
     private SendDeviceCommandService sendDeviceCommandService;
+
+    @Mock
+    private ReservationNotificationSupport reservationNotificationSupport;
 
     @Mock
     private TransactionTemplate transactionTemplate;
@@ -169,6 +173,45 @@ class ForceStopMachineServiceTest {
                 assertThat(command.arguments()).containsExactly("stop");
                 then(reservationRepository).should(times(1)).save(reservation);
                 then(machineRepository).should(times(1)).save(machine);
+                then(reservationNotificationSupport).should(times(1)).sendForceStop(reservation.getUser(), machine);
+            }
+        }
+
+        @Nested
+        @DisplayName("진행 중 예약이 있으나 이미 정지된 기기이면")
+        class Context_with_running_reservation_and_already_stopped_machine {
+
+            @Test
+            @DisplayName("순간 정지를 강제 정지로 오인하지 않도록 예약을 취소하지 않고 알림도 보내지 않는다")
+            void it_keeps_running_reservation_without_cancellation() {
+                // Given
+                var machineId = 1L;
+                var machine = createMachine(MachineType.WASHER, MachineStatus.NORMAL, MachineAvailability.IN_USE);
+                var reservation = createReservation(machine, ReservationStatus.RUNNING);
+                var status = washerStatus("stop");
+                setId(machine, machineId);
+                setId(reservation, 10L);
+
+                given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
+                given(machineRepository.findByIdForUpdate(machineId)).willReturn(Optional.of(machine));
+                given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
+                given(reservationRepository.findFirstActiveReservationByMachineId(machineId,
+                        List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)))
+                        .willReturn(List.of(reservation));
+                given(machineRepository.save(any(Machine.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+                // When
+                var result = forceStopMachineService.execute(machineId);
+
+                // Then
+                assertThat(result.forceStopResult()).isEqualTo(ForceStopResult.ALREADY_STOPPED);
+                assertThat(result.cancelledReservationId()).isNull();
+                assertThat(result.reservationCancelled()).isFalse();
+                assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RUNNING);
+                assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.IN_USE);
+                then(sendDeviceCommandService).shouldHaveNoInteractions();
+                then(reservationRepository).should(never()).save(any(Reservation.class));
+                then(reservationNotificationSupport).shouldHaveNoInteractions();
             }
         }
 
@@ -278,6 +321,7 @@ class ForceStopMachineServiceTest {
                 assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.RESERVED);
                 then(sendDeviceCommandService).shouldHaveNoInteractions();
                 then(reservationRepository).should(never()).save(any(Reservation.class));
+                then(reservationNotificationSupport).shouldHaveNoInteractions();
             }
         }
 

@@ -18,6 +18,7 @@ import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.machine.service.ForceStopMachineService;
+import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -35,6 +36,7 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
     private final ReservationRepository reservationRepository;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
     private final SendDeviceCommandService sendDeviceCommandService;
+    private final ReservationNotificationSupport reservationNotificationSupport;
     private final TransactionTemplate transactionTemplate;
 
     @Override
@@ -112,15 +114,21 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
                 .or(() -> activeReservations.stream().filter(Reservation::isReserved).findFirst());
     }
 
+    /**
+     * 정지 명령을 실제로 전송한 경우에만 활성 예약을 취소하고, 취소된 사용자에게 알림을 보낸다.
+     *
+     * <p>
+     * {@code ALREADY_STOPPED}는 단발 조회로 판정하므로 라이프사이클의 디바운스를 거치지 않는다. 사이클 단계 전환 중
+     * 순간적으로 보고된 정지일 때 관리자가 버튼을 누르면 정상 진행 중인 예약이 취소되므로, 이 경우에는 취소하지 않는다. 기기가 이미 멈춘
+     * 채로 남아 있는 예약은 라이프사이클의 중단 확정이나 관리자 예약 취소가 처리한다.
+     */
     private Long cancelActiveReservationIfNeeded(Reservation reservation, ForceStopResult forceStopResult) {
-        if (reservation == null) {
-            return null;
-        }
-        if (forceStopResult != ForceStopResult.STOPPED && !reservation.isRunning()) {
+        if (reservation == null || forceStopResult != ForceStopResult.STOPPED) {
             return null;
         }
         reservation.cancel();
         reservationRepository.save(reservation);
+        reservationNotificationSupport.sendForceStop(reservation.getUser(), reservation.getMachine());
         return reservation.getId();
     }
 
