@@ -13,6 +13,7 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.constants.ReservationConstants;
 import team.washer.server.v2.global.common.entity.BaseEntity;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -73,6 +74,10 @@ public class Reservation extends BaseEntity {
     @Builder.Default
     private int interruptionCount = 0;
 
+    @Column(name = "completion_count", nullable = false)
+    @Builder.Default
+    private int completionCount = 0;
+
     /**
      * 기기 일시정지 시각을 기록합니다.
      */
@@ -100,6 +105,20 @@ public class Reservation extends BaseEntity {
      */
     public void clearInterruptionCount() {
         this.interruptionCount = 0;
+    }
+
+    /**
+     * 사이클 완료 감지 횟수를 1 증가시킵니다. 기기가 순간적으로 보고한 완료 신호를 진짜 완료와 구분하기 위한 디바운스 카운터입니다.
+     */
+    public void incrementCompletionCount() {
+        this.completionCount++;
+    }
+
+    /**
+     * 사이클 완료 감지 추적을 초기화합니다. 완료 신호가 사라지거나 가드에 의해 보류되면 호출합니다.
+     */
+    public void clearCompletionCount() {
+        this.completionCount = 0;
     }
 
     /**
@@ -147,20 +166,50 @@ public class Reservation extends BaseEntity {
         }
         this.status = ReservationStatus.RUNNING;
         this.startTime = DateTimeUtil.nowInKorea();
-        this.expectedCompletionTime = expectedCompletionTime;
+        this.expectedCompletionTime = isReasonableCompletionTime(expectedCompletionTime)
+                ? expectedCompletionTime
+                : null;
     }
 
     /**
      * 실행 중인 예약의 예상 완료 시각을 갱신합니다. RUNNING 상태가 아니면 예외를 발생시킵니다.
      *
+     * <p>
+     * 기기가 보고한 값이 합리적인 사이클 길이를 벗어나면 이상치로 보고 갱신하지 않습니다. 조기 완료 판정의 기준선이 오염되는 것을 막기
+     * 위함입니다.
+     *
      * @param expectedCompletionTime
      *            갱신할 예상 완료 시각
+     * @return 갱신 여부. 이상치로 판단되어 무시되면 {@code false}
      */
-    public void updateExpectedCompletionTime(LocalDateTime expectedCompletionTime) {
+    public boolean updateExpectedCompletionTime(LocalDateTime expectedCompletionTime) {
         if (this.status != ReservationStatus.RUNNING) {
             throw new ExpectedException("실행 중인 예약만 완료 시각을 갱신할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
+        if (!isReasonableCompletionTime(expectedCompletionTime)) {
+            return false;
+        }
         this.expectedCompletionTime = expectedCompletionTime;
+        return true;
+    }
+
+    /**
+     * 예상 완료 시각 후보가 합리적인 사이클 길이(최대 {@code MAX_REASONABLE_CYCLE_MINUTES}분) 안에 있는지
+     * 판정합니다. 시작 시각이 아직 없으면 현재 시각을 기준으로 삼습니다.
+     *
+     * @param candidate
+     *            검증할 예상 완료 시각
+     * @return 합리적인 범위 안에 있으면 {@code true}
+     */
+    private boolean isReasonableCompletionTime(LocalDateTime candidate) {
+        if (candidate == null) {
+            return false;
+        }
+        var baseTime = this.startTime != null ? this.startTime : DateTimeUtil.nowInKorea();
+        if (candidate.isBefore(baseTime)) {
+            return false;
+        }
+        return Duration.between(baseTime, candidate).toMinutes() <= ReservationConstants.MAX_REASONABLE_CYCLE_MINUTES;
     }
 
     /**
