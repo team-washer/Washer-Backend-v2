@@ -21,6 +21,7 @@ import team.washer.server.v2.domain.machine.service.ForceStopMachineService;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
+import team.washer.server.v2.domain.reservation.util.ActiveReservationSelector;
 import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
@@ -106,10 +107,9 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
     }
 
     private Optional<Reservation> findActiveReservationWithRunningPriority(Long machineId) {
-        final var activeReservations = reservationRepository.findFirstActiveReservationByMachineId(machineId,
-                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING));
-        return activeReservations.stream().filter(Reservation::isRunning).findFirst()
-                .or(() -> activeReservations.stream().filter(Reservation::isReserved).findFirst());
+        return ActiveReservationSelector
+                .selectPrimary(reservationRepository.findFirstActiveReservationByMachineId(machineId,
+                        List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)));
     }
 
     private Long cancelActiveReservationIfNeeded(Reservation reservation, ForceStopResult forceStopResult) {
