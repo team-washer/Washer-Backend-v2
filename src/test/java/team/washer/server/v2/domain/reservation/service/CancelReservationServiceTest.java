@@ -64,6 +64,9 @@ class CancelReservationServiceTest {
 
     private Reservation createReservation(final ReservationStatus status, final Long userId) {
         var machine = createMachine();
+        if (status == ReservationStatus.RUNNING) {
+            machine.markAsInUse();
+        }
         given(user.getId()).willReturn(userId);
         return Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now()).status(status).build();
     }
@@ -159,8 +162,8 @@ class CancelReservationServiceTest {
         class Context_with_running_reservation_by_owner {
 
             @Test
-            @DisplayName("패널티 없이 예약이 취소되어야 한다")
-            void it_cancels_without_penalty() {
+            @DisplayName("예약과 기기 상태를 보존하고 CONFLICT 예외를 발생시켜야 한다")
+            void it_keeps_running_state_and_throws_conflict() {
                 // Given
                 var userId = 1L;
                 var reservationId = 10L;
@@ -169,15 +172,18 @@ class CancelReservationServiceTest {
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
 
-                // When
-                var result = cancelReservationService.execute(reservationId);
+                // When & Then
+                assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
+                        .isInstanceOf(ExpectedException.class)
+                        .hasMessage("이미 기기 사용이 시작되어 예약을 취소할 수 없습니다. 최신 상태를 확인해주세요.")
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.CONFLICT));
 
-                // Then
-                assertThat(result).isNotNull();
-                assertThat(result.success()).isTrue();
-                assertThat(result.penaltyApplied()).isFalse();
-                assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+                assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RUNNING);
+                assertThat(reservation.getMachine().getAvailability()).isEqualTo(MachineAvailability.IN_USE);
                 then(penaltyRedisUtil).should(never()).applyCooldown(anyLong(), any());
+                then(reservationRepository).should(never()).save(any());
+                then(machineRepository).should(never()).save(any());
             }
         }
 
@@ -225,6 +231,31 @@ class CancelReservationServiceTest {
                         .isInstanceOf(ExpectedException.class).hasMessage("활성 예약만 취소할 수 있습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));
+            }
+        }
+
+        @Nested
+        @DisplayName("이미 취소된 예약을 다시 취소하려 할 때")
+        class Context_with_cancelled_reservation {
+
+            @Test
+            @DisplayName("ExpectedException을 발생시키고 저장하지 않아야 한다")
+            void it_throws_bad_request_exception_without_saving() {
+                // Given
+                var userId = 1L;
+                var reservationId = 10L;
+                var reservation = createReservation(ReservationStatus.CANCELLED, userId);
+
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+
+                // When & Then
+                assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
+                        .isInstanceOf(ExpectedException.class)
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_REQUEST));
+                then(reservationRepository).should(never()).save(any());
+                then(machineRepository).should(never()).save(any());
             }
         }
 

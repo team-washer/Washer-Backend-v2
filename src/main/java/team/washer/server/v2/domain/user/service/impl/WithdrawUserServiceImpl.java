@@ -39,6 +39,10 @@ public class WithdrawUserServiceImpl implements WithdrawUserService {
 
         final var activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
         final var activeReservations = reservationRepository.findByUserAndStatusIn(user, activeStatuses);
+        if (activeReservations.stream().anyMatch(reservation -> reservation.getStatus() == ReservationStatus.RUNNING)) {
+            throw new ExpectedException("기기 사용 중에는 회원탈퇴를 할 수 없습니다. 사용 완료 후 다시 시도해주세요.", HttpStatus.CONFLICT);
+        }
+
         final var machinesToUpdate = new ArrayList<Machine>();
         for (final var reservation : activeReservations) {
             final var machine = reservation.getMachine();

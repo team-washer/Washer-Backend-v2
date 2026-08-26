@@ -44,6 +44,10 @@ public class CancelReservationServiceImpl implements CancelReservationService {
             throw new ExpectedException("활성 예약만 취소할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
 
+        if (reservation.isRunning()) {
+            throw new ExpectedException("이미 기기 사용이 시작되어 예약을 취소할 수 없습니다. 최신 상태를 확인해주세요.", HttpStatus.CONFLICT);
+        }
+
         boolean applyPenalty = false;
 
         // RESERVED 상태에서 수동 취소 시 패널티 적용
