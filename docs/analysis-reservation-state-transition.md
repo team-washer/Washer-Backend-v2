@@ -21,14 +21,20 @@ PR #102 범위의 항목은 해당 PR에 인라인 코멘트로 남겼다. 이 �
 
 | 브랜치 | 범위 | 상태 |
 |---|---|---|
-| `fix/reservation-completion-detection-unification` | 3장 1~3단계 (2-1 · 2-2 · 2-3 · 2-4) | 진행 중 |
-| 후속 브랜치 (2-5) | `ReservationTimeoutScheduler` 운영시간 체크 | 예정 |
-| 후속 브랜치 (2-6) | 강제정지 `ALREADY_STOPPED` 취소 조건 + 취소 알림 | 예정 |
-| 후속 브랜치 (2-7) | `complete()` 시 잔여 상태 정리 | 예정 |
-| 후속 브랜치 (2-8) | 활성 예약 선택 규칙 통일 | 예정 |
+| `fix/reservation-completion-detection-unification` | 3장 1~3단계 (2-1 · 2-2 · 2-3 · 2-4) | PR #103 |
+| `fix/reservation-lifecycle-residue` | 2-5 + 2-7 | 진행 중 |
+| `fix/force-stop-cancellation-notification` | 2-6 | 예정 |
+| `fix/active-reservation-selection` | 2-8 | 예정 |
 
-2-5 ~ 2-8은 코어 3단계와 서로 독립적이므로 **각각 별도 브랜치·PR로 진행한다.**
-리뷰 단위를 작게 유지하고, 코어 변경의 회귀 여부를 별건과 섞이지 않게 확인하기 위함이다.
+별건은 코어 3단계와 독립적이므로 분리하되, 규모에 맞춰 묶는다.
+
+- **2-5 + 2-7**: 각각 수 줄 규모이고 둘 다 reservation 도메인이라 하나로 묶는다.
+- **2-6**: `NotificationType`을 새로 만들어야 하고 관리자 기능의 동작 자체가 바뀌므로 단독으로 둔다.
+- **2-8**: 활성 예약 선택 규칙을 바꾸면 목록 API 표시가 달라져 회귀 확인 지점이 다르므로 단독으로 둔다.
+
+`fix/reservation-lifecycle-residue`는 2-7이 코어 브랜치에서 재작성한 `completeReservation`을
+건드리므로 `develop`이 아니라 **코어 브랜치 위에 쌓아 올린다.** 코어가 머지되면 base가
+`develop`으로 전환된다.
 
 ---
 

@@ -234,6 +234,8 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, times(1)).incrementCompletionCount();
             verify(reservation, times(1)).complete();
             verify(reservation, times(1)).clearCompletionCount();
+            verify(reservation, times(1)).clearInterruptionCount();
+            verify(reservation, times(1)).clearPausedAt();
             verify(machine, times(1)).markAsAvailable();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
