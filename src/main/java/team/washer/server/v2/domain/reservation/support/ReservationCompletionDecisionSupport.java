@@ -17,10 +17,11 @@ import team.washer.server.v2.global.util.DateTimeUtil;
  * 기기 사이클의 완료 여부를 판정하는 단일 진입점.
  *
  * <p>
- * 완료 후보를 찾는 경로는 두 가지다. SmartThings가 jobState·machineState로 완료를 보고한 경우
- * ({@code smartthings_completed})와, 완료 예정 시각 근처에서 기기가 정지한 채 그 시각이 지난 경우
- * ({@code stopped_near_completion}). 두 경로 모두 동일한 가드(이전 사이클 신호 검사·조기 완료 검사)를
- * 거치므로, 어느 경로로 들어오든 같은 질문에 같은 답이 나온다.
+ * 완료 후보를 찾는 경로는 세 가지다. SmartThings가 jobState·machineState로 완료를 보고한 경우
+ * ({@code smartthings_completed}), 완료 예정 시각 근처에서 기기가 정지한 채 그 시각이 지난 경우
+ * ({@code stopped_near_completion}), 그리고 기기가 정지하면서 jobState를 리셋하고 완료 예정 시각을 다음
+ * 사이클 기준의 미래 값으로 되돌린 경우({@code stopped_reset_completion})다. 세 경로 모두 동일한 가드(이전
+ * 사이클 신호 검사·조기 완료 검사)를 거치므로, 어느 경로로 들어오든 같은 질문에 같은 답이 나온다.
  *
  * <p>
  * 이 컴포넌트는 판정만 하고 상태를 바꾸지 않는다. 디바운스와 DB 갱신은 호출 측
@@ -33,6 +34,7 @@ public class ReservationCompletionDecisionSupport {
 
     private static final String REASON_SMARTTHINGS_COMPLETED = "smartthings_completed";
     private static final String REASON_STOPPED_NEAR_COMPLETION = "stopped_near_completion";
+    private static final String REASON_STOPPED_RESET_COMPLETION = "stopped_reset_completion";
     private static final String REASON_STALE_COMPLETION = "stale_completion";
     private static final String REASON_TOO_EARLY_COMPLETION = "too_early_completion";
 
@@ -92,9 +94,73 @@ public class ReservationCompletionDecisionSupport {
         if (detected.isPresent()) {
             return Optional.of(new CompletionCandidate(detected.get(), REASON_SMARTTHINGS_COMPLETED));
         }
-        return findNearCompletionStopTime(reservation, status, isWasher)
+        var nearCompletion = findNearCompletionStopTime(reservation, status, isWasher)
                 .filter(completionTime -> !completionTime.isAfter(DateTimeUtil.nowInKorea()))
                 .map(completionTime -> new CompletionCandidate(completionTime, REASON_STOPPED_NEAR_COMPLETION));
+        if (nearCompletion.isPresent()) {
+            return nearCompletion;
+        }
+
+        return findStoppedResetCompletionTime(reservation, status, isWasher)
+                .map(completionTime -> new CompletionCandidate(completionTime, REASON_STOPPED_RESET_COMPLETION));
+    }
+
+    /**
+     * 기기가 이번 사이클을 끝내고 정지하면서 jobState를 리셋하고, 완료 예정 시각을 다음 사이클 기준의 미래 값으로 되돌린 상태인지
+     * 판정한다.
+     *
+     * <p>
+     * 이 경우 보고된 완료 예정 시각은 이번 사이클의 종료 시각이 아니므로 완료 시각으로 쓸 수 없고, 미래 값이라
+     * {@code isCompleted} 와 {@code stopped_near_completion} 어느 경로에도 걸리지 않는다. 그대로 두면
+     * 사이클이 끝났는데도 예약이 RUNNING 으로 남아 기기가 계속 IN_USE로 표시되므로, 이번 사이클에서 갱신된 상태 타임스탬프를 근거로
+     * 완료 후보로 잡고 완료 시각은 현재 시각으로 본다.
+     *
+     * <p>
+     * 전원이 꺼진 정지는 완료가 아니라 중단이므로 여기서 제외한다.
+     */
+    private Optional<LocalDateTime> findStoppedResetCompletionTime(Reservation reservation,
+            SmartThingsDeviceStatusResDto status,
+            boolean isWasher) {
+        if (status == null || machineStateDetectionSupport.isPoweredOff(status)) {
+            return Optional.empty();
+        }
+        if (!"stop".equalsIgnoreCase(getOperatingState(status, isWasher))
+                || !isResetJobState(getJobState(status, isWasher))) {
+            return Optional.empty();
+        }
+
+        var completionTime = DateTimeUtil.parseAndConvertToKoreaTime(getCompletionTime(status, isWasher));
+        var now = DateTimeUtil.nowInKorea();
+        if (completionTime == null || !completionTime.isAfter(now)) {
+            return Optional.empty();
+        }
+
+        var startTime = reservation.getStartTime();
+        if (startTime == null || completionTime.isBefore(startTime)) {
+            return Optional.empty();
+        }
+        // 이번 사이클에서 실제로 상태가 갱신됐다는 근거가 없으면 이전 사이클의 잔재로 본다.
+        if (!isTimestampAtOrAfterStart(getOperatingStateTimestamp(status, isWasher), startTime)
+                && !isTimestampAtOrAfterStart(getJobStateTimestamp(status, isWasher), startTime)) {
+            return Optional.empty();
+        }
+
+        log.debug("device stopped with job reset and future completion time completionTime={} startTime={}",
+                completionTime,
+                startTime);
+        return Optional.of(now);
+    }
+
+    private boolean isResetJobState(String jobState) {
+        return jobState == null || jobState.isBlank() || "none".equalsIgnoreCase(jobState);
+    }
+
+    private boolean isTimestampAtOrAfterStart(String timestamp, LocalDateTime startTime) {
+        if (timestamp == null || timestamp.isBlank()) {
+            return false;
+        }
+        var updatedAt = DateTimeUtil.parseAndConvertToKoreaTime(timestamp);
+        return updatedAt != null && !updatedAt.isBefore(startTime);
     }
 
     /**
@@ -176,6 +242,13 @@ public class ReservationCompletionDecisionSupport {
             return null;
         }
         return isWasher ? status.getWasherOperatingState() : status.getDryerOperatingState();
+    }
+
+    private String getJobState(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        if (status == null) {
+            return null;
+        }
+        return isWasher ? status.getWasherJobState() : status.getDryerJobState();
     }
 
     private String getOperatingStateTimestamp(SmartThingsDeviceStatusResDto status, boolean isWasher) {

@@ -324,4 +324,104 @@ class ReservationCompletionDecisionSupportTest {
             assertThat(result).isFalse();
         }
     }
+
+    @Nested
+    @DisplayName("jobState 리셋 정지 경로")
+    class StoppedResetCompletionPathTest {
+
+        @Test
+        @DisplayName("정지 상태에서 jobState가 리셋되고 완료 예정 시각이 미래로 되돌아가면 현재 시각으로 완료 판정한다")
+        void shouldReturnCompleted_WhenStoppedWithJobResetAndFutureCompletionTime() {
+            // Given
+            var nowKst = LocalDateTime.now(KOREA_ZONE);
+            var startTime = nowKst.minusMinutes(60);
+            var status = buildWasherStatus("stop", isoUtc(nowKst), "none", isoUtc(nowKst), isoUtc(nowKst.plusHours(1)));
+            when(reservation.getStartTime()).thenReturn(startTime);
+            when(reservation.getExpectedCompletionTime()).thenReturn(nowKst.minusMinutes(1));
+            givenNoDetectedCompletion();
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, true);
+
+            // Then
+            assertThat(decision.isCompleted()).isTrue();
+            assertThat(decision.reason()).isEqualTo("stopped_reset_completion");
+            assertThat(decision.completionTime()).isBetween(nowKst, nowKst.plusMinutes(1));
+        }
+
+        @Test
+        @DisplayName("전원이 꺼진 정지는 완료가 아니라 중단이므로 완료 후보로 보지 않는다")
+        void shouldReturnNotCompleted_WhenPoweredOff() {
+            // Given
+            var nowKst = LocalDateTime.now(KOREA_ZONE);
+            var status = buildWasherStatus("stop", isoUtc(nowKst), "none", isoUtc(nowKst), isoUtc(nowKst.plusHours(1)));
+            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(60));
+            when(machineStateDetectionSupport.isPoweredOff(status)).thenReturn(true);
+            givenNoDetectedCompletion();
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, true);
+
+            // Then
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.isDeferred()).isFalse();
+        }
+
+        @Test
+        @DisplayName("상태 갱신 시각이 모두 예약 시작 전이면 이전 사이클의 잔재로 보고 완료 후보로 보지 않는다")
+        void shouldReturnNotCompleted_WhenAllTimestampsBeforeStartTime() {
+            // Given
+            var nowKst = LocalDateTime.now(KOREA_ZONE);
+            var startTime = nowKst.minusMinutes(10);
+            var staleTimestamp = isoUtc(startTime.minusMinutes(5));
+            var status = buildWasherStatus("stop", staleTimestamp, "none", staleTimestamp, isoUtc(nowKst.plusHours(1)));
+            when(reservation.getStartTime()).thenReturn(startTime);
+            givenNoDetectedCompletion();
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, true);
+
+            // Then
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.isDeferred()).isFalse();
+        }
+
+        @Test
+        @DisplayName("jobState가 사이클 진행 중이면 완료 후보로 보지 않는다")
+        void shouldReturnNotCompleted_WhenJobStateStillRunning() {
+            // Given
+            var nowKst = LocalDateTime.now(KOREA_ZONE);
+            var status = buildWasherStatus("stop", isoUtc(nowKst), "spin", isoUtc(nowKst), isoUtc(nowKst.plusHours(1)));
+            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(10));
+            givenNoDetectedCompletion();
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, true);
+
+            // Then
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.isDeferred()).isFalse();
+        }
+
+        @Test
+        @DisplayName("완료 예정 시각이 이미 지난 경우는 이 경로가 아니라 근처 정지 경로가 처리한다")
+        void shouldReturnNotCompleted_WhenCompletionTimeAlreadyPassedOutsideGrace() {
+            // Given
+            var nowKst = LocalDateTime.now(KOREA_ZONE);
+            var status = buildWasherStatus("stop",
+                    isoUtc(nowKst),
+                    "none",
+                    isoUtc(nowKst),
+                    isoUtc(nowKst.minusMinutes(30)));
+            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(60));
+            givenNoDetectedCompletion();
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, true);
+
+            // Then
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.isDeferred()).isFalse();
+        }
+    }
 }
