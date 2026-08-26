@@ -46,6 +46,15 @@ public class ReservationNotificationSupport {
     }
 
     /**
+     * 관리자 강제 정지에 의한 예약 취소 알림을 전송한다.
+     */
+    @Transactional
+    public void sendForceStop(User user, Machine machine) {
+        var notification = Notification.createForceStopNotification(user, machine);
+        persistAndSend(user, notification, machine.getType().getDescription() + " 강제 정지 알림");
+    }
+
+    /**
      * 일시정지 초과 알림을 전송한다.
      */
     @Transactional
