@@ -28,6 +28,7 @@ import team.washer.server.v2.domain.reservation.repository.ReservationRepository
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor;
 import team.washer.server.v2.domain.reservation.support.CompletionDecision;
 import team.washer.server.v2.domain.reservation.support.ReservationCompletionDecisionSupport;
+import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
@@ -54,6 +55,9 @@ class ReservationLifecycleProcessorTest {
 
     @Mock
     private ReservationCompletionDecisionSupport completionDecisionSupport;
+
+    @Mock
+    private ReservationStartDecisionSupport reservationStartDecisionSupport;
 
     @Mock
     private ReservationNotificationSupport reservationNotificationSupport;
@@ -110,7 +114,7 @@ class ReservationLifecycleProcessorTest {
             when(reservation.getMachine()).thenReturn(machine);
             when(reservation.getUser()).thenReturn(user);
             when(reservation.getExpectedCompletionTime()).thenReturn(expectedCompletionTime);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+            when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
 
             // When
@@ -130,7 +134,7 @@ class ReservationLifecycleProcessorTest {
             when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isReserved()).thenReturn(true);
             when(reservation.getMachine()).thenReturn(machine);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+            when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
 
             // When
@@ -153,7 +157,7 @@ class ReservationLifecycleProcessorTest {
             when(reservation.getUser()).thenReturn(user);
             when(reservation.getExpectedCompletionTime()).thenReturn(dryerCompletionTime);
             when(machine.isWasher()).thenReturn(false);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+            when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
 
             // When
@@ -174,7 +178,7 @@ class ReservationLifecycleProcessorTest {
             when(reservation.getMachine()).thenReturn(machine);
             when(reservation.getUser()).thenReturn(user);
             when(reservation.getExpectedCompletionTime()).thenReturn(null);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+            when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
 
             // When
