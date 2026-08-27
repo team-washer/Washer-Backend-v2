@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.smartthings.dto.response;
 
+import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -17,6 +18,8 @@ public record SmartThingsDeviceStatusResDto(
     private static final String DRYER_FINISHED_JOB_STATE = "finished";
     private static final String IDLE_JOB_STATE = "none";
     private static final String SWITCH_OFF = "off";
+    private static final List<String> WASHER_ACTIVE_JOB_STATES = List.of("wash", "rinse", "spin");
+    private static final List<String> DRYER_ACTIVE_JOB_STATES = List.of("drying", "cooling");
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ComponentStatus(@JsonProperty("washerOperatingState") WasherOperatingState washerOperatingState,
@@ -218,6 +221,18 @@ public record SmartThingsDeviceStatusResDto(
     public boolean isJobStateFinished(boolean isWasher) {
         return (isWasher ? WASHER_FINISHED_JOB_STATE : DRYER_FINISHED_JOB_STATE)
                 .equalsIgnoreCase(getJobState(isWasher));
+    }
+
+    /**
+     * jobState가 사이클 진행 중을 뜻하는 값인지 여부 반환. 세탁기는 wash/rinse/spin, 건조기는 drying/cooling을
+     * 진행 신호로 본다.
+     */
+    public boolean isJobStateActive(boolean isWasher) {
+        var jobState = getJobState(isWasher);
+        if (jobState == null || jobState.isBlank()) {
+            return false;
+        }
+        return (isWasher ? WASHER_ACTIVE_JOB_STATES : DRYER_ACTIVE_JOB_STATES).contains(jobState.toLowerCase());
     }
 
     /** 기기 전원이 꺼진 상태(switch=off)인지 여부 반환 */

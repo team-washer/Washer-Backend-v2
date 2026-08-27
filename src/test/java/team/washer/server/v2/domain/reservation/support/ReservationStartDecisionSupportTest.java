@@ -17,6 +17,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.DryerOperatingState;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.SwitchCapability;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.WasherOperatingState;
+import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 
 @DisplayName("ReservationStartDecisionSupport 시작 판정")
 class ReservationStartDecisionSupportTest {
@@ -24,7 +25,8 @@ class ReservationStartDecisionSupportTest {
     private static final boolean WASHER = true;
     private static final boolean DRYER = false;
 
-    private final ReservationStartDecisionSupport reservationStartDecisionSupport = new ReservationStartDecisionSupport();
+    private final ReservationStartDecisionSupport reservationStartDecisionSupport = new ReservationStartDecisionSupport(
+            new MachineStateDetectionSupport());
 
     private static String isoUtc(ZonedDateTime koreaTime) {
         return koreaTime.withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime().toString() + "Z";
@@ -65,6 +67,14 @@ class ReservationStartDecisionSupportTest {
         @DisplayName("machineState=run이면 STARTED를 반환한다")
         void shouldStart_WhenMachineStateRun() {
             var status = washerStatus("run", "wash", null);
+
+            assertThat(reservationStartDecisionSupport.decide(status, WASHER)).isEqualTo(StartDecision.STARTED);
+        }
+
+        @Test
+        @DisplayName("machineState=pause이면 이미 실제 사이클이 시작된 것으로 보고 STARTED를 반환한다")
+        void shouldStart_WhenMachineStatePause() {
+            var status = washerStatus("pause", null, null);
 
             assertThat(reservationStartDecisionSupport.decide(status, WASHER)).isEqualTo(StartDecision.STARTED);
         }

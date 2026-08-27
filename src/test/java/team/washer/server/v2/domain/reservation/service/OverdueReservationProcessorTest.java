@@ -26,6 +26,7 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor;
 import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor.OverdueResult;
@@ -34,6 +35,8 @@ import team.washer.server.v2.domain.reservation.support.ReservationStartDecision
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.constants.ReservationConstants;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("OverdueReservationProcessor 개별 만료 예약 처리")
@@ -258,11 +261,13 @@ class OverdueReservationProcessorTest {
     class MachineStateUnknown {
 
         @Test
-        @DisplayName("예약을 취소하거나 패널티를 적용하지 않고 SKIPPED를 반환한다")
-        void shouldSkipWithoutPenalty_WhenStartDecisionUnknown() {
+        @DisplayName("추가 보류 시간 안이면 예약을 취소하거나 패널티를 적용하지 않고 SKIPPED를 반환한다")
+        void shouldSkipWithoutPenalty_WhenStartDecisionUnknownWithinGrace() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
             givenReservedReservation();
+            when(reservation.getReservedAt()).thenReturn(DateTimeUtil.nowInKorea()
+                    .minusMinutes(ReservationConstants.UNKNOWN_START_DECISION_GRACE_MINUTES + 4L));
             when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(StartDecision.UNKNOWN);
 
@@ -275,6 +280,33 @@ class OverdueReservationProcessorTest {
             verify(reservation, never()).cancel();
             verify(reservationRepository, never()).save(any());
             verify(machineRepository, never()).save(any());
+            verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
+            verify(penaltyRedisUtil, never()).recordCancellation(any());
+            verify(reservationNotificationSupport, never()).sendAutoCancellation(any(), any());
+            verify(reservationNotificationSupport, never()).sendTimeoutWarning(any(), any());
+        }
+
+        @Test
+        @DisplayName("추가 보류 시간을 넘긴 UNKNOWN 예약은 패널티 없이 정리한다")
+        void shouldCancelWithoutPenalty_WhenStartDecisionUnknownAfterGrace() {
+            // Given
+            var deviceStatus = buildDeviceStatus(null);
+            givenReservedReservation();
+            when(reservation.getReservedAt())
+                    .thenReturn(DateTimeUtil.nowInKorea().minusMinutes(ReservationStatus.RESERVED.getTimeoutMinutes()
+                            + ReservationConstants.UNKNOWN_START_DECISION_GRACE_MINUTES + 1L));
+            when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(StartDecision.UNKNOWN);
+
+            // When
+            var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, deviceStatus);
+
+            // Then
+            assertThat(result).isEqualTo(OverdueResult.CANCELLED_WITHOUT_PENALTY);
+            verify(reservation, times(1)).cancel();
+            verify(machine, times(1)).markAsAvailable();
+            verify(reservationRepository, times(1)).save(reservation);
+            verify(machineRepository, times(1)).save(machine);
             verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
             verify(penaltyRedisUtil, never()).recordCancellation(any());
             verify(reservationNotificationSupport, never()).sendAutoCancellation(any(), any());
