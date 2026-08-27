@@ -6,6 +6,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -27,6 +29,7 @@ import team.washer.server.v2.domain.reservation.config.ReservationEnvironment;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.CreateReservationServiceImpl;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
@@ -84,9 +87,9 @@ class CreateReservationServiceTest {
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.WASHER);
-            when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(false);
-            when(reservationRepository.existsActiveReservationByRoomAndMachineType(ROOM_NUMBER, MachineType.WASHER))
-                    .thenReturn(false);
+            when(reservationRepository.findByMachineAndStatusIn(eq(machine), any())).thenReturn(List.of());
+            when(reservationRepository.findByUserAndStatusIn(eq(user), any())).thenReturn(List.of());
+            when(reservationRepository.findActiveReservationsByRoomNumber(ROOM_NUMBER)).thenReturn(List.of());
             when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
 
             when(reservation.getId()).thenReturn(1L);
@@ -100,6 +103,45 @@ class CreateReservationServiceTest {
 
             // Then
             assertThat(result).isNotNull();
+            verify(reservationRepository).save(any(Reservation.class));
+        }
+
+        @Test
+        @DisplayName("기기에 만료된 RESERVED 예약만 남아 있으면 정리 후 새 예약을 생성한다")
+        void execute_ShouldCreateReservation_AfterCleaningExpiredMachineReservation() {
+            // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
+            final var reqDto = new CreateReservationReqDto(1L);
+            var machineWithExpiredReservation = Machine.builder().name("세탁기-1").type(MachineType.WASHER)
+                    .availability(MachineAvailability.RESERVED).build();
+            var expiredReservation = Reservation.builder().user(user).machine(machineWithExpiredReservation)
+                    .reservedAt(LocalDateTime.now().minusMinutes(6)).status(ReservationStatus.RESERVED).build();
+
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(machineRepository.findByIdForUpdate(reqDto.machineId()))
+                    .thenReturn(Optional.of(machineWithExpiredReservation));
+            when(penaltyRedisUtil.isInCooldown(eq(USER_ID), any())).thenReturn(false);
+            when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(false);
+            when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
+            when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(reservationRepository.findByMachineAndStatusIn(eq(machineWithExpiredReservation), any()))
+                    .thenReturn(List.of(expiredReservation));
+            when(reservationRepository.findByUserAndStatusIn(eq(user), any())).thenReturn(List.of());
+            when(reservationRepository.findActiveReservationsByRoomNumber(ROOM_NUMBER)).thenReturn(List.of());
+            when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
+            when(reservation.getId()).thenReturn(1L);
+            when(reservation.getUser()).thenReturn(user);
+            when(reservation.getMachine()).thenReturn(machineWithExpiredReservation);
+            when(user.getId()).thenReturn(USER_ID);
+
+            // When
+            final ReservationResDto result = createReservationService.execute(reqDto);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(expiredReservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+            verify(reservationRepository).saveAll(List.of(expiredReservation));
+            verify(machineRepository, times(2)).save(machineWithExpiredReservation);
             verify(reservationRepository).save(any(Reservation.class));
         }
 
@@ -118,9 +160,9 @@ class CreateReservationServiceTest {
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.DRYER);
-            when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(false);
-            when(reservationRepository.existsActiveReservationByRoomAndMachineType(ROOM_NUMBER, MachineType.DRYER))
-                    .thenReturn(false);
+            when(reservationRepository.findByMachineAndStatusIn(eq(machine), any())).thenReturn(List.of());
+            when(reservationRepository.findByUserAndStatusIn(eq(user), any())).thenReturn(List.of());
+            when(reservationRepository.findActiveReservationsByRoomNumber(ROOM_NUMBER)).thenReturn(List.of());
             when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
 
             when(reservation.getId()).thenReturn(2L);
@@ -187,6 +229,7 @@ class CreateReservationServiceTest {
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(machine.getAvailability()).thenReturn(MachineAvailability.IN_USE);
             when(machine.getName()).thenReturn("세탁기-1");
+            when(reservationRepository.findByMachineAndStatusIn(eq(machine), any())).thenReturn(List.of());
 
             // When & Then
             assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
@@ -208,7 +251,9 @@ class CreateReservationServiceTest {
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(machine.getName()).thenReturn("세탁기-1");
-            when(reservationRepository.existsByMachineAndStatusIn(eq(machine), any())).thenReturn(true);
+            when(reservationRepository.findByMachineAndStatusIn(eq(machine), any())).thenReturn(List.of(reservation));
+            when(reservation.isActive()).thenReturn(true);
+            when(reservation.isExpired()).thenReturn(false);
 
             // When & Then
             assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
@@ -230,7 +275,10 @@ class CreateReservationServiceTest {
             when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(false);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
-            when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(true);
+            when(reservationRepository.findByMachineAndStatusIn(eq(machine), any())).thenReturn(List.of());
+            when(reservationRepository.findByUserAndStatusIn(eq(user), any())).thenReturn(List.of(reservation));
+            when(reservation.isActive()).thenReturn(true);
+            when(reservation.isExpired()).thenReturn(false);
 
             // When & Then
             assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
@@ -289,9 +337,13 @@ class CreateReservationServiceTest {
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.WASHER);
-            when(reservationRepository.existsByUserAndStatusIn(eq(user), any())).thenReturn(false);
-            when(reservationRepository.existsActiveReservationByRoomAndMachineType(ROOM_NUMBER, MachineType.WASHER))
-                    .thenReturn(true);
+            when(reservationRepository.findByMachineAndStatusIn(eq(machine), any())).thenReturn(List.of());
+            when(reservationRepository.findByUserAndStatusIn(eq(user), any())).thenReturn(List.of());
+            when(reservationRepository.findActiveReservationsByRoomNumber(ROOM_NUMBER))
+                    .thenReturn(List.of(reservation));
+            when(reservation.getMachine()).thenReturn(machine);
+            when(reservation.isActive()).thenReturn(true);
+            when(reservation.isExpired()).thenReturn(false);
 
             // When & Then
             assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)

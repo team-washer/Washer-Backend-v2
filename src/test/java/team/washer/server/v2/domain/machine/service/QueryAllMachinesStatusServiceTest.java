@@ -305,6 +305,24 @@ class QueryAllMachinesStatusServiceTest {
         }
 
         @Test
+        @DisplayName("만료된 RESERVED 예약은 활성 예약으로 노출하지 않는다")
+        void computeAvailability_ShouldIgnoreExpiredReservedReservation() {
+            // Given
+            when(reservation.isExpired()).thenReturn(true);
+            givenMachineWithReservation(buildMachine(MachineAvailability.RESERVED), reservation);
+
+            // When
+            var result = queryAllMachinesStatusService.execute(USER_ID, true);
+
+            // Then
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.AVAILABLE);
+            assertThat(result.getFirst().reservationId()).isNull();
+            assertThat(result.getFirst().userId()).isNull();
+            assertThat(result.getFirst().roomNumber()).isNull();
+            verify(reservation, never()).getStatus();
+        }
+
+        @Test
         @DisplayName("예약 상태가 RUNNING이면 IN_USE를 반환한다")
         void computeAvailability_ShouldReturnInUse_WhenReservationStatusIsRunning() {
             // Given
