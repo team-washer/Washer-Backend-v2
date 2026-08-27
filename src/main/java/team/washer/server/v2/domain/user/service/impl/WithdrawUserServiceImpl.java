@@ -13,6 +13,7 @@ import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepos
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
+import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.user.repository.UserRepository;
@@ -38,8 +39,8 @@ public class WithdrawUserServiceImpl implements WithdrawUserService {
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final var activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
-        final var activeReservations = reservationRepository.findByUserAndStatusIn(user, activeStatuses);
-        if (activeReservations.stream().anyMatch(reservation -> reservation.getStatus() == ReservationStatus.RUNNING)) {
+        final var activeReservations = reservationRepository.findByUserAndStatusInForUpdate(user, activeStatuses);
+        if (activeReservations.stream().anyMatch(Reservation::isRunning)) {
             throw new ExpectedException("기기 사용 중에는 회원탈퇴를 할 수 없습니다. 사용 완료 후 다시 시도해주세요.", HttpStatus.CONFLICT);
         }
 

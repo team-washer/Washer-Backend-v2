@@ -88,7 +88,7 @@ class CancelReservationServiceTest {
                 var reservation = createReservation(ReservationStatus.RESERVED, userId);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
                 given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(0L);
 
                 // When
@@ -120,7 +120,7 @@ class CancelReservationServiceTest {
                 var reservation = createReservation(ReservationStatus.RESERVED, userId);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
                 given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(5L);
                 given(user.getRoomNumber()).willReturn("101");
                 given(penaltyRedisUtil.isBlocked("101")).willReturn(false);
@@ -143,7 +143,7 @@ class CancelReservationServiceTest {
                 var reservation = createReservation(ReservationStatus.RESERVED, userId);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
                 given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(6L);
                 given(user.getRoomNumber()).willReturn("101");
                 given(penaltyRedisUtil.isBlocked("101")).willReturn(true);
@@ -170,7 +170,7 @@ class CancelReservationServiceTest {
                 var reservation = createReservation(ReservationStatus.RUNNING, userId);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
@@ -201,7 +201,7 @@ class CancelReservationServiceTest {
                 var reservation = createReservation(ReservationStatus.RESERVED, ownerUserId);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(requestUserId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
@@ -224,11 +224,11 @@ class CancelReservationServiceTest {
                 var reservation = createReservation(ReservationStatus.COMPLETED, userId);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("활성 예약만 취소할 수 있습니다")
+                        .isInstanceOf(ExpectedException.class).hasMessage("취소할 수 있는 상태의 예약이 아닙니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));
             }
@@ -247,7 +247,7 @@ class CancelReservationServiceTest {
                 var reservation = createReservation(ReservationStatus.CANCELLED, userId);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
@@ -270,7 +270,7 @@ class CancelReservationServiceTest {
                 var userId = 1L;
                 var reservationId = 999L;
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.empty());
+                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.empty());
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))

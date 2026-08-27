@@ -97,13 +97,14 @@ class WithdrawUserServiceTest {
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.findByUserAndStatusIn(user, ACTIVE_STATUSES)).willReturn(List.of());
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
+                        .willReturn(List.of());
 
                 // When
                 withdrawUserService.execute();
 
                 // Then
-                then(reservationRepository).should(times(1)).findByUserAndStatusIn(user, ACTIVE_STATUSES);
+                then(reservationRepository).should(times(1)).findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES);
                 then(machineRepository).should(never()).save(any(Machine.class));
                 then(refreshTokenRedisRepository).should(times(1)).deleteById(userId);
                 then(withdrawnStudentRedisUtil).should(times(1)).markWithdrawn(user.getStudentId());
@@ -126,7 +127,7 @@ class WithdrawUserServiceTest {
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.findByUserAndStatusIn(user, ACTIVE_STATUSES))
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reservation));
 
                 // When
@@ -157,7 +158,7 @@ class WithdrawUserServiceTest {
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.findByUserAndStatusIn(user, ACTIVE_STATUSES))
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reservation));
 
                 // When & Then
@@ -193,7 +194,7 @@ class WithdrawUserServiceTest {
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.findByUserAndStatusIn(user, ACTIVE_STATUSES))
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reserved, running));
 
                 // When & Then
@@ -228,7 +229,7 @@ class WithdrawUserServiceTest {
                 assertThatThrownBy(() -> withdrawUserService.execute()).isInstanceOf(ExpectedException.class)
                         .hasMessage("사용자를 찾을 수 없습니다").hasFieldOrPropertyWithValue("statusCode", HttpStatus.NOT_FOUND);
 
-                then(reservationRepository).should(never()).findByUserAndStatusIn(any(User.class), anyList());
+                then(reservationRepository).should(never()).findByUserAndStatusInForUpdate(any(User.class), anyList());
                 then(refreshTokenRedisRepository).should(never()).deleteById(anyLong());
                 then(withdrawnStudentRedisUtil).should(never()).markWithdrawn(anyString());
                 then(userRepository).should(never()).delete(any(User.class));
