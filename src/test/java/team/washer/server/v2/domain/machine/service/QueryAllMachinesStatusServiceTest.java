@@ -32,7 +32,6 @@ import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
-import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 
@@ -50,9 +49,6 @@ class QueryAllMachinesStatusServiceTest {
 
     @Mock
     private DeviceStatusQuerySupport deviceStatusQuerySupport;
-
-    @Mock
-    private MachineStateDetectionSupport machineStateDetectionSupport;
 
     @Mock
     private UserRepository userRepository;
@@ -190,14 +186,14 @@ class QueryAllMachinesStatusServiceTest {
         }
 
         @Test
-        @DisplayName("완료 신호가 확인된 활성 예약은 완료 예정 시각과 예약 정보를 숨긴다")
-        void execute_ShouldHideReservationInfo_WhenActiveReservationIsCompletedOnDeviceStatus() {
+        @DisplayName("기기가 완료 신호를 보고해도 DB의 RUNNING 예약이 남아 있으면 IN_USE와 예약 정보를 그대로 반환한다")
+        void execute_ShouldKeepReservationInfo_WhenDeviceReportsCompletionButReservationStillRunning() {
             // Given
             givenUserMocked();
 
             var machine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
                     .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
-                    .availability(MachineAvailability.AVAILABLE).build();
+                    .availability(MachineAvailability.IN_USE).build();
 
             var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("stop",
                     "2026-01-26T15:30:00Z",
@@ -216,20 +212,21 @@ class QueryAllMachinesStatusServiceTest {
             when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
                     .thenReturn(Map.of("device-1", deviceStatus));
             when(reservationRepository.findActiveReservationByMachineId(any())).thenReturn(Optional.of(reservation));
-            when(reservation.isRunning()).thenReturn(true);
-            when(machineStateDetectionSupport.isCompleted(deviceStatus, true))
-                    .thenReturn(Optional.of(LocalDateTime.of(2026, 1, 27, 0, 30)));
+            when(reservation.getId()).thenReturn(10L);
+            when(reservation.getStatus()).thenReturn(ReservationStatus.RUNNING);
+            when(reservation.getUser()).thenReturn(user);
+            when(user.getId()).thenReturn(USER_ID);
+            when(user.getRoomNumber()).thenReturn("301");
 
             // When
             var result = queryAllMachinesStatusService.execute(USER_ID, true);
 
             // Then
-            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.AVAILABLE);
-            assertThat(result.getFirst().expectedCompletionTime()).isNull();
-            assertThat(result.getFirst().remainingMinutes()).isNull();
-            assertThat(result.getFirst().reservationId()).isNull();
-            assertThat(result.getFirst().userId()).isNull();
-            assertThat(result.getFirst().roomNumber()).isNull();
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.IN_USE);
+            assertThat(result.getFirst().expectedCompletionTime()).isEqualTo(LocalDateTime.of(2026, 1, 27, 0, 31));
+            assertThat(result.getFirst().reservationId()).isEqualTo(10L);
+            assertThat(result.getFirst().userId()).isEqualTo(USER_ID);
+            assertThat(result.getFirst().roomNumber()).isEqualTo("301");
         }
     }
 

@@ -6,11 +6,17 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 
 @Schema(description = "SmartThings 기기 상태 응답")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record SmartThingsDeviceStatusResDto(
         @Schema(description = "컴포넌트 목록") @JsonProperty("components") Map<String, ComponentStatus> components) {
+
+    private static final String WASHER_FINISHED_JOB_STATE = "finish";
+    private static final String DRYER_FINISHED_JOB_STATE = "finished";
+    private static final String IDLE_JOB_STATE = "none";
+    private static final String SWITCH_OFF = "off";
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ComponentStatus(@JsonProperty("washerOperatingState") WasherOperatingState washerOperatingState,
@@ -172,11 +178,54 @@ public record SmartThingsDeviceStatusResDto(
         return null;
     }
 
-    /** 스위치 상태 값 반환: "on" | "off" */
+    /** 기기 타입에 해당하는 완료 예정 시간 반환 */
     public String getCompletionTime(boolean isWasher) {
         return isWasher ? getWasherCompletionTime() : getDryerCompletionTime();
     }
 
+    /**
+     * 기기 타입에 해당하는 machineState를 {@link MachineOperatingState}로 반환한다. 세탁기·건조기
+     * capability를 동시에 노출하는 기기에서 반대쪽 값을 읽지 않도록, 분기는 이 메서드로 일원화한다.
+     */
+    public MachineOperatingState getOperatingState(boolean isWasher) {
+        return MachineOperatingState.from(isWasher ? getWasherOperatingState() : getDryerOperatingState());
+    }
+
+    /** 기기 타입에 해당하는 machineState 갱신 시각 반환 */
+    public String getOperatingStateTimestamp(boolean isWasher) {
+        return isWasher ? getWasherOperatingStateTimestamp() : getDryerOperatingStateTimestamp();
+    }
+
+    /** 기기 타입에 해당하는 jobState 반환 */
+    public String getJobState(boolean isWasher) {
+        return isWasher ? getWasherJobState() : getDryerJobState();
+    }
+
+    /** 기기 타입에 해당하는 jobState 갱신 시각 반환 */
+    public String getJobStateTimestamp(boolean isWasher) {
+        return isWasher ? getWasherJobStateTimestamp() : getDryerJobStateTimestamp();
+    }
+
+    /** jobState가 사이클 종료 직후 리셋된 값(none·공백·null)인지 여부 반환 */
+    public boolean isJobStateReset(boolean isWasher) {
+        var jobState = getJobState(isWasher);
+        return jobState == null || jobState.isBlank() || IDLE_JOB_STATE.equalsIgnoreCase(jobState);
+    }
+
+    /**
+     * jobState가 정상 완료를 뜻하는 값인지 여부 반환. 세탁기는 finish, 건조기는 finished로 보고한다.
+     */
+    public boolean isJobStateFinished(boolean isWasher) {
+        return (isWasher ? WASHER_FINISHED_JOB_STATE : DRYER_FINISHED_JOB_STATE)
+                .equalsIgnoreCase(getJobState(isWasher));
+    }
+
+    /** 기기 전원이 꺼진 상태(switch=off)인지 여부 반환 */
+    public boolean isSwitchOff() {
+        return SWITCH_OFF.equalsIgnoreCase(getSwitchStatus());
+    }
+
+    /** 스위치 상태 값 반환: "on" | "off" */
     public String getSwitchStatus() {
         var main = getMainComponent();
         if (main == null || main.switchCapability() == null) {

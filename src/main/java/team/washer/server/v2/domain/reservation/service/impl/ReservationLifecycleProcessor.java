@@ -3,7 +3,6 @@ package team.washer.server.v2.domain.reservation.service.impl;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -17,6 +16,8 @@ import team.washer.server.v2.domain.notification.support.ReservationNotification
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
+import team.washer.server.v2.domain.reservation.support.CompletionDecision;
+import team.washer.server.v2.domain.reservation.support.ReservationCompletionDecisionSupport;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
@@ -30,19 +31,20 @@ import team.washer.server.v2.global.util.DateTimeUtil;
  * 트랜잭션 밖에서 수행하고, 이 컴포넌트는 조회된 상태를 바탕으로 개별 예약의 DB 갱신만 짧은 독립 트랜잭션
  * ({@link Propagation#REQUIRES_NEW})으로 처리한다. 외부 API 호출이 DB 커넥션을 점유하지 않도록 하여 커넥션
  * 풀 고갈을 방지한다.
+ *
+ * <p>
+ * 완료 여부 판정 자체는 {@link ReservationCompletionDecisionSupport}가 전담하고, 이 컴포넌트는 그
+ * 결과에 디바운스를 적용하여 상태 전이를 확정한다.
  */
 @Component
 @RequiredArgsConstructor
 @Slf4j
 public class ReservationLifecycleProcessor {
 
-    private static final long COMPLETION_EARLY_LOG_TOLERANCE_MINUTES = 2;
-    private static final long COMPLETION_BOUNDARY_GRACE_MINUTES = 5;
-    private static final long MAX_REASONABLE_CYCLE_MINUTES = 240;
-
     private final ReservationRepository reservationRepository;
     private final MachineRepository machineRepository;
     private final MachineStateDetectionSupport machineStateDetectionSupport;
+    private final ReservationCompletionDecisionSupport completionDecisionSupport;
     private final ReservationNotificationSupport reservationNotificationSupport;
 
     /**
@@ -76,12 +78,22 @@ public class ReservationLifecycleProcessor {
             return;
         }
 
-        var expectedCompletionTime = DateTimeUtil
+        var reportedCompletionTime = DateTimeUtil
                 .parseAndConvertToKoreaTime(status.getCompletionTime(machine.isWasher()));
-        reservation.start(expectedCompletionTime);
+        reservation.start(reportedCompletionTime);
         machine.markAsInUse();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
+
+        var expectedCompletionTime = reservation.getExpectedCompletionTime();
+        if (reportedCompletionTime != null && expectedCompletionTime == null) {
+            log.warn(
+                    "expected completion time rejected on start reservationId={} startTime={} reported={} maxCycleMinutes={}",
+                    reservation.getId(),
+                    reservation.getStartTime(),
+                    reportedCompletionTime,
+                    ReservationConstants.MAX_REASONABLE_CYCLE_MINUTES);
+        }
 
         reservationNotificationSupport.sendStarted(reservation.getUser(), machine, expectedCompletionTime);
 
@@ -91,6 +103,10 @@ public class ReservationLifecycleProcessor {
     /**
      * RUNNING 예약을 기기 상태에 따라 완료·중단·일시정지·진행으로 처리한다. 외부 API 호출 이후의 DB 갱신만 독립 트랜잭션으로
      * 처리한다.
+     *
+     * <p>
+     * 판정 순서는 완료 → 전원 차단 → 완료 예정 시각 근처 정지 → 비정상 중단 → 일시정지 → 진행이다. 전원 차단은 사이클 종료 직전의
+     * 정지 보류보다 앞에 두어, 유예 범위 안에서 중단이 영영 확정되지 않는 상황을 막는다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processRunningToCompleted(Long reservationId, SmartThingsDeviceStatusResDto status) {
@@ -100,225 +116,163 @@ public class ReservationLifecycleProcessor {
         }
         var machine = reservation.getMachine();
         var isWasher = machine.isWasher();
-        var completionTime = machineStateDetectionSupport.isCompleted(status, isWasher);
 
-        if (completionTime.isPresent()) {
-            if (isStaleCompletion(reservation, status, isWasher, completionTime.get())) {
-                log.info(
-                        "completion deferred reason=stale_completion reservationId={} startTime={} expectedCompletionTime={} completionTime={}",
-                        reservation.getId(),
-                        reservation.getStartTime(),
-                        reservation.getExpectedCompletionTime(),
-                        completionTime.get());
-                return;
-            }
-            if (isTooEarlyCompletion(reservation, completionTime.get())) {
-                if (!canAcceptEarlyCompletion(reservation, status, isWasher, completionTime.get())) {
-                    log.info(
-                            "completion deferred reason=too_early_completion reservationId={} startTime={} expectedCompletionTime={} completionTime={}",
-                            reservation.getId(),
-                            reservation.getStartTime(),
-                            reservation.getExpectedCompletionTime(),
-                            completionTime.get());
-                    return;
-                }
-                logEarlyCompletionAccepted(reservation, completionTime.get());
-            }
-            completeReservation(reservation, machine, completionTime.get(), "smartthings_completed");
+        var decision = completionDecisionSupport.decide(reservation, status, isWasher);
+        if (decision.isCompleted()) {
+            processCompletionCandidate(reservation, machine, decision);
             return;
         }
 
-        var stoppedNearCompletionTime = getStoppedNearCompletionTime(reservation, status, isWasher);
-        if (stoppedNearCompletionTime.isPresent()) {
-            processStoppedNearCompletion(reservation, machine, stoppedNearCompletionTime.get());
+        clearCompletionCount(reservation);
+        if (decision.isDeferred()) {
+            logCompletionDeferred(reservation, decision.reason(), decision.completionTime());
             return;
         }
 
-        var stoppedResetCompletionTime = getStoppedResetCompletionTime(reservation, status, isWasher);
-        if (stoppedResetCompletionTime.isPresent()) {
-            processStoppedResetCompletion(reservation, machine, stoppedResetCompletionTime.get());
+        if (machineStateDetectionSupport.isPoweredOff(status)) {
+            processInterruption(reservation, machine);
             return;
         }
-
+        if (completionDecisionSupport.isStoppedNearCompletion(reservation, status, isWasher)) {
+            logCompletionDeferred(reservation, "stopped_near_completion", reservation.getExpectedCompletionTime());
+            return;
+        }
         if (machineStateDetectionSupport.isInterrupted(status, isWasher)) {
-            // 사이클 단계 전환 중 순간적으로 보고되는 정지를 진짜 중단으로 오판하지 않도록, 연속으로 중단이
-            // 감지될 때만 취소를 확정한다.
-            reservation.incrementInterruptionCount();
-            if (reservation.getInterruptionCount() >= ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD) {
-                reservation.cancel();
-                reservation.clearInterruptionCount();
-                machine.markAsAvailable();
-                reservationRepository.save(reservation);
-                machineRepository.save(machine);
-
-                reservationNotificationSupport.sendInterruption(reservation.getUser(), machine);
-
-                log.warn(
-                        "Reservation {} cancelled due to confirmed machine interruption, no penalty applied (RUNNING → CANCELLED)",
-                        reservation.getId());
-            } else {
-                reservationRepository.save(reservation);
-                log.warn("Reservation {} interruption suspected count={} threshold={} deferring cancellation",
-                        reservation.getId(),
-                        reservation.getInterruptionCount(),
-                        ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD);
-            }
-        } else if (machineStateDetectionSupport.isPaused(status, isWasher)) {
-            if (reservation.getInterruptionCount() > 0) {
-                reservation.clearInterruptionCount();
-                reservationRepository.save(reservation);
-            }
-            if (reservation.getPausedAt() == null) {
-                reservation.markAsPaused();
-                reservationRepository.save(reservation);
-                log.info("Reservation {} pause started, tracking pause time", reservation.getId());
-            } else if (Duration.between(reservation.getPausedAt(), DateTimeUtil.nowInKorea())
-                    .toMinutes() >= ReservationConstants.PAUSE_TIMEOUT_MINUTES) {
-                reservation.cancel();
-                reservation.clearPausedAt();
-                machine.markAsAvailable();
-                reservationRepository.save(reservation);
-                machineRepository.save(machine);
-
-                reservationNotificationSupport.sendPauseTimeout(reservation.getUser(), machine);
-
-                log.warn(
-                        "Reservation {} cancelled due to prolonged pause ({}min+), no penalty applied (RUNNING → CANCELLED)",
-                        reservation.getId(),
-                        ReservationConstants.PAUSE_TIMEOUT_MINUTES);
-            }
-        } else {
-            if (reservation.getInterruptionCount() > 0) {
-                reservation.clearInterruptionCount();
-                reservationRepository.save(reservation);
-            }
-            if (reservation.getPausedAt() != null) {
-                reservation.clearPausedAt();
-                log.info("Reservation {} resumed from pause, clearing pause tracking", reservation.getId());
-            }
-            var updatedExpectedCompletionTime = DateTimeUtil
-                    .parseAndConvertToKoreaTime(getCompletionTime(status, isWasher));
-            var current = reservation.getExpectedCompletionTime();
-            if (updatedExpectedCompletionTime != null && (current == null
-                    || Math.abs(Duration.between(current, updatedExpectedCompletionTime).toSeconds()) >= 60)) {
-                reservation.updateExpectedCompletionTime(updatedExpectedCompletionTime);
-                reservationRepository.save(reservation);
-            }
+            processInterruption(reservation, machine);
+            return;
         }
+        if (machineStateDetectionSupport.isPaused(status, isWasher)) {
+            processPaused(reservation, machine);
+            return;
+        }
+        processRunning(reservation, status, isWasher);
     }
 
-    private void processStoppedNearCompletion(Reservation reservation, Machine machine, LocalDateTime completionTime) {
-        if (!completionTime.isAfter(DateTimeUtil.nowInKorea())) {
-            completeReservation(reservation, machine, completionTime, "stopped_near_completion");
+    /**
+     * 완료 후보를 디바운스한다. 연속으로 {@code COMPLETION_CONFIRM_THRESHOLD}회 완료로 판정된 경우에만 완료를
+     * 확정하여, 사이클 도중 한 번 보고된 순간 정지가 곧바로 완료로 굳어지는 것을 막는다.
+     */
+    private void processCompletionCandidate(Reservation reservation, Machine machine, CompletionDecision decision) {
+        reservation.incrementCompletionCount();
+        if (reservation.getCompletionCount() < ReservationConstants.COMPLETION_CONFIRM_THRESHOLD) {
+            reservationRepository.save(reservation);
+            log.info("completion suspected reservationId={} reason={} count={} threshold={} completionTime={}",
+                    reservation.getId(),
+                    decision.reason(),
+                    reservation.getCompletionCount(),
+                    ReservationConstants.COMPLETION_CONFIRM_THRESHOLD,
+                    decision.completionTime());
+            return;
+        }
+        completeReservation(reservation, machine, decision.completionTime(), decision.reason());
+    }
+
+    private void processInterruption(Reservation reservation, Machine machine) {
+        // 사이클 단계 전환 중 순간적으로 보고되는 정지를 진짜 중단으로 오판하지 않도록, 연속으로 중단이
+        // 감지될 때만 취소를 확정한다.
+        reservation.incrementInterruptionCount();
+        if (reservation.getInterruptionCount() < ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD) {
+            reservationRepository.save(reservation);
+            log.warn("Reservation {} interruption suspected count={} threshold={} deferring cancellation",
+                    reservation.getId(),
+                    reservation.getInterruptionCount(),
+                    ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD);
             return;
         }
 
+        reservation.cancel();
+        reservation.clearInterruptionCount();
+        machine.markAsAvailable();
+        reservationRepository.save(reservation);
+        machineRepository.save(machine);
+
+        reservationNotificationSupport.sendInterruption(reservation.getUser(), machine);
+
+        log.warn(
+                "Reservation {} cancelled due to confirmed machine interruption, no penalty applied (RUNNING → CANCELLED)",
+                reservation.getId());
+    }
+
+    private void processPaused(Reservation reservation, Machine machine) {
+        if (reservation.getInterruptionCount() > 0) {
+            reservation.clearInterruptionCount();
+            reservationRepository.save(reservation);
+        }
+        if (reservation.getPausedAt() == null) {
+            reservation.markAsPaused();
+            reservationRepository.save(reservation);
+            log.info("Reservation {} pause started, tracking pause time", reservation.getId());
+            return;
+        }
+        if (Duration.between(reservation.getPausedAt(), DateTimeUtil.nowInKorea())
+                .toMinutes() < ReservationConstants.PAUSE_TIMEOUT_MINUTES) {
+            return;
+        }
+
+        reservation.cancel();
+        reservation.clearPausedAt();
+        machine.markAsAvailable();
+        reservationRepository.save(reservation);
+        machineRepository.save(machine);
+
+        reservationNotificationSupport.sendPauseTimeout(reservation.getUser(), machine);
+
+        log.warn("Reservation {} cancelled due to prolonged pause ({}min+), no penalty applied (RUNNING → CANCELLED)",
+                reservation.getId(),
+                ReservationConstants.PAUSE_TIMEOUT_MINUTES);
+    }
+
+    /**
+     * 기기가 정상 진행 중일 때 디바운스 카운터와 일시정지 추적을 정리하고, 기기가 보고한 완료 예정 시각을 반영한다. 상한을 벗어난 이상치는
+     * 엔티티가 거부하므로 조기 완료 판정의 기준선이 오염되지 않는다.
+     */
+    private void processRunning(Reservation reservation, SmartThingsDeviceStatusResDto status, boolean isWasher) {
         var changed = false;
         if (reservation.getInterruptionCount() > 0) {
             reservation.clearInterruptionCount();
             changed = true;
         }
-
-        var current = reservation.getExpectedCompletionTime();
-        if (current == null || Math.abs(Duration.between(current, completionTime).toSeconds()) >= 60) {
-            reservation.updateExpectedCompletionTime(completionTime);
+        if (reservation.getPausedAt() != null) {
+            reservation.clearPausedAt();
             changed = true;
+            log.info("Reservation {} resumed from pause, clearing pause tracking", reservation.getId());
+        }
+
+        var reportedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(getCompletionTime(status, isWasher));
+        var current = reservation.getExpectedCompletionTime();
+        if (reportedCompletionTime != null
+                && (current == null || Math.abs(Duration.between(current, reportedCompletionTime).toSeconds()) >= 60)) {
+            if (reservation.updateExpectedCompletionTime(reportedCompletionTime)) {
+                changed = true;
+            } else {
+                log.warn(
+                        "expected completion time rejected reservationId={} startTime={} reported={} current={} "
+                                + "maxCycleMinutes={}",
+                        reservation.getId(),
+                        reservation.getStartTime(),
+                        reportedCompletionTime,
+                        current,
+                        ReservationConstants.MAX_REASONABLE_CYCLE_MINUTES);
+            }
         }
 
         if (changed) {
             reservationRepository.save(reservation);
         }
-
-        log.info(
-                "completion deferred reason=stopped_near_completion reservationId={} startTime={} expectedCompletionTime={} completionTime={}",
-                reservation.getId(),
-                reservation.getStartTime(),
-                reservation.getExpectedCompletionTime(),
-                completionTime);
     }
 
-    private void processStoppedResetCompletion(Reservation reservation, Machine machine, LocalDateTime completionTime) {
-        reservation.incrementInterruptionCount();
-        if (reservation.getInterruptionCount() >= ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD) {
-            reservation.clearInterruptionCount();
-            completeReservation(reservation, machine, completionTime, "stopped_reset_completion_confirmed");
-            return;
-        }
-
-        reservationRepository.save(reservation);
-        log.info(
-                "completion deferred reason=stopped_reset_completion_confirmation reservationId={} count={} threshold={} startTime={} expectedCompletionTime={} completionTime={}",
-                reservation.getId(),
-                reservation.getInterruptionCount(),
-                ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD,
-                reservation.getStartTime(),
-                reservation.getExpectedCompletionTime(),
-                completionTime);
-    }
-
-    private Optional<LocalDateTime> getStoppedNearCompletionTime(Reservation reservation,
-            SmartThingsDeviceStatusResDto status,
-            boolean isWasher) {
-        var machineState = getOperatingState(status, isWasher);
-        if (!"stop".equalsIgnoreCase(machineState)) {
-            return Optional.empty();
-        }
-
-        var completionTime = DateTimeUtil.parseAndConvertToKoreaTime(getCompletionTime(status, isWasher));
-        if (completionTime == null) {
-            return Optional.empty();
-        }
-
-        var startTime = reservation.getStartTime();
-        if (startTime != null && completionTime.isBefore(startTime)) {
-            return Optional.empty();
-        }
-
-        var secondsFromNow = Math.abs(Duration.between(DateTimeUtil.nowInKorea(), completionTime).toSeconds());
-        if (secondsFromNow > Duration.ofMinutes(COMPLETION_BOUNDARY_GRACE_MINUTES).toSeconds()) {
-            return Optional.empty();
-        }
-
-        return Optional.of(completionTime);
-    }
-
-    private Optional<LocalDateTime> getStoppedResetCompletionTime(Reservation reservation,
-            SmartThingsDeviceStatusResDto status,
-            boolean isWasher) {
-        if (status == null) {
-            return Optional.empty();
-        }
-        if ("off".equalsIgnoreCase(status.getSwitchStatus())) {
-            return Optional.empty();
-        }
-
-        var machineState = getOperatingState(status, isWasher);
-        if (!"stop".equalsIgnoreCase(machineState) || !isResetJobState(getJobState(status, isWasher))) {
-            return Optional.empty();
-        }
-
-        var completionTime = DateTimeUtil.parseAndConvertToKoreaTime(getCompletionTime(status, isWasher));
-        if (completionTime == null || !completionTime.isAfter(DateTimeUtil.nowInKorea())) {
-            return Optional.empty();
-        }
-
-        var startTime = reservation.getStartTime();
-        if (startTime == null || completionTime.isBefore(startTime)) {
-            return Optional.empty();
-        }
-        if (!isTimestampAtOrAfterStart(getOperatingStateTimestamp(status, isWasher), startTime)
-                && !isTimestampAtOrAfterStart(getJobStateTimestamp(status, isWasher), startTime)) {
-            return Optional.empty();
-        }
-
-        return Optional.of(DateTimeUtil.nowInKorea());
-    }
-
+    /**
+     * 예약을 완료 처리한다. 중단·일시정지 경로와 마찬가지로 디바운스 카운터와 일시정지 추적을 함께 정리하여, 완료된 예약에 진행 중에만 의미가
+     * 있는 값이 남지 않도록 한다.
+     */
     private void completeReservation(Reservation reservation,
             Machine machine,
             LocalDateTime completionTime,
             String reason) {
         reservation.complete();
+        reservation.clearCompletionCount();
+        reservation.clearInterruptionCount();
+        reservation.clearPausedAt();
         machine.markAsAvailable();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
@@ -336,86 +290,21 @@ public class ReservationLifecycleProcessor {
                 reservation.getExpectedCompletionTime());
     }
 
-    private boolean isStaleCompletion(Reservation reservation,
-            SmartThingsDeviceStatusResDto status,
-            boolean isWasher,
-            LocalDateTime completionTime) {
-        var startTime = reservation.getStartTime();
-        if (startTime == null) {
-            return false;
+    private void clearCompletionCount(Reservation reservation) {
+        if (reservation.getCompletionCount() > 0) {
+            reservation.clearCompletionCount();
+            reservationRepository.save(reservation);
         }
-        if (completionTime.isBefore(startTime)) {
-            return true;
-        }
-        return isTimestampBeforeStart(getOperatingStateTimestamp(status, isWasher), startTime)
-                || isTimestampBeforeStart(getJobStateTimestamp(status, isWasher), startTime);
     }
 
-    private boolean isTooEarlyCompletion(Reservation reservation, LocalDateTime completionTime) {
-        var expectedCompletionTime = reservation.getExpectedCompletionTime();
-        if (expectedCompletionTime == null) {
-            return false;
-        }
-        var earliestCompletionTime = expectedCompletionTime.minusMinutes(COMPLETION_EARLY_LOG_TOLERANCE_MINUTES);
-        return completionTime.isBefore(earliestCompletionTime);
-    }
-
-    private boolean canAcceptEarlyCompletion(Reservation reservation,
-            SmartThingsDeviceStatusResDto status,
-            boolean isWasher,
-            LocalDateTime completionTime) {
-        return hasSuspiciousExpectedCompletionTime(reservation)
-                && hasFreshCompletionEvidence(reservation, status, isWasher, completionTime);
-    }
-
-    private boolean hasSuspiciousExpectedCompletionTime(Reservation reservation) {
-        var startTime = reservation.getStartTime();
-        var expectedCompletionTime = reservation.getExpectedCompletionTime();
-        if (startTime == null || expectedCompletionTime == null) {
-            return false;
-        }
-        return Duration.between(startTime, expectedCompletionTime).toMinutes() > MAX_REASONABLE_CYCLE_MINUTES;
-    }
-
-    private boolean hasFreshCompletionEvidence(Reservation reservation,
-            SmartThingsDeviceStatusResDto status,
-            boolean isWasher,
-            LocalDateTime completionTime) {
-        var startTime = reservation.getStartTime();
-        if (startTime == null) {
-            return false;
-        }
-        var completionTimeStr = getCompletionTime(status, isWasher);
-        if (completionTimeStr != null && !completionTimeStr.isBlank() && !completionTime.isBefore(startTime)) {
-            return true;
-        }
-        return isTimestampAtOrAfterStart(getOperatingStateTimestamp(status, isWasher), startTime)
-                || isTimestampAtOrAfterStart(getJobStateTimestamp(status, isWasher), startTime);
-    }
-
-    private void logEarlyCompletionAccepted(Reservation reservation, LocalDateTime completionTime) {
+    private void logCompletionDeferred(Reservation reservation, String reason, LocalDateTime completionTime) {
         log.info(
-                "completion accepted reason=suspicious_expected_completion_time reservationId={} startTime={} expectedCompletionTime={} completionTime={}",
+                "completion deferred reason={} reservationId={} startTime={} expectedCompletionTime={} completionTime={}",
+                reason,
                 reservation.getId(),
                 reservation.getStartTime(),
                 reservation.getExpectedCompletionTime(),
                 completionTime);
-    }
-
-    private boolean isTimestampBeforeStart(String timestamp, LocalDateTime startTime) {
-        if (timestamp == null || timestamp.isBlank()) {
-            return false;
-        }
-        var updatedAt = DateTimeUtil.parseAndConvertToKoreaTime(timestamp);
-        return updatedAt != null && updatedAt.isBefore(startTime);
-    }
-
-    private boolean isTimestampAtOrAfterStart(String timestamp, LocalDateTime startTime) {
-        if (timestamp == null || timestamp.isBlank()) {
-            return false;
-        }
-        var updatedAt = DateTimeUtil.parseAndConvertToKoreaTime(timestamp);
-        return updatedAt != null && !updatedAt.isBefore(startTime);
     }
 
     private String getCompletionTime(SmartThingsDeviceStatusResDto status, boolean isWasher) {
@@ -423,37 +312,5 @@ public class ReservationLifecycleProcessor {
             return null;
         }
         return isWasher ? status.getWasherCompletionTime() : status.getDryerCompletionTime();
-    }
-
-    private String getOperatingState(SmartThingsDeviceStatusResDto status, boolean isWasher) {
-        if (status == null) {
-            return null;
-        }
-        return isWasher ? status.getWasherOperatingState() : status.getDryerOperatingState();
-    }
-
-    private String getJobState(SmartThingsDeviceStatusResDto status, boolean isWasher) {
-        if (status == null) {
-            return null;
-        }
-        return isWasher ? status.getWasherJobState() : status.getDryerJobState();
-    }
-
-    private String getOperatingStateTimestamp(SmartThingsDeviceStatusResDto status, boolean isWasher) {
-        if (status == null) {
-            return null;
-        }
-        return isWasher ? status.getWasherOperatingStateTimestamp() : status.getDryerOperatingStateTimestamp();
-    }
-
-    private String getJobStateTimestamp(SmartThingsDeviceStatusResDto status, boolean isWasher) {
-        if (status == null) {
-            return null;
-        }
-        return isWasher ? status.getWasherJobStateTimestamp() : status.getDryerJobStateTimestamp();
-    }
-
-    private boolean isResetJobState(String jobState) {
-        return jobState == null || jobState.isBlank() || "none".equalsIgnoreCase(jobState);
     }
 }
