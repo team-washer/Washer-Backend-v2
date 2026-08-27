@@ -41,6 +41,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.DryerOperatingState;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.SwitchCapability;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.WasherOperatingState;
+import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.user.entity.User;
@@ -155,7 +156,7 @@ class ForceStopMachineServiceTest {
                 // Then
                 assertThat(result.machineId()).isEqualTo(machineId);
                 assertThat(result.forceStopResult()).isEqualTo(ForceStopResult.STOPPED);
-                assertThat(result.previousMachineState()).isEqualTo("run");
+                assertThat(result.previousMachineState()).isEqualTo(MachineOperatingState.RUN);
                 assertThat(result.cancelledReservationId()).isEqualTo(reservationId);
                 assertThat(result.reservationCancelled()).isTrue();
                 assertThat(result.availability()).isEqualTo(MachineAvailability.AVAILABLE);
