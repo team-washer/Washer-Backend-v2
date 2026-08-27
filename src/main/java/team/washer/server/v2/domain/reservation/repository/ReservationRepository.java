@@ -13,6 +13,7 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.custom.ReservationRepositoryCustom;
+import team.washer.server.v2.domain.reservation.util.ActiveReservationSelector;
 import team.washer.server.v2.domain.user.entity.User;
 
 @Repository
@@ -52,9 +53,12 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
     List<Reservation> findFirstActiveReservationByMachineId(@Param("machineId") Long machineId,
             @Param("statuses") List<ReservationStatus> statuses);
 
+    /**
+     * 기기의 대표 활성 예약을 조회한다. 선택 규칙은 {@link ActiveReservationSelector}가 정의한다.
+     */
     default Optional<Reservation> findActiveReservationByMachineId(Long machineId) {
-        return findFirstActiveReservationByMachineId(machineId,
-                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)).stream().findFirst();
+        return ActiveReservationSelector.selectPrimary(findFirstActiveReservationByMachineId(machineId,
+                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)));
     }
 
     @Query("SELECT r FROM Reservation r WHERE r.status = :status AND r.startTime < :threshold")
