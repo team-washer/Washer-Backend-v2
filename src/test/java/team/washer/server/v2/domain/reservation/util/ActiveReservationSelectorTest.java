@@ -2,7 +2,6 @@ package team.washer.server.v2.domain.reservation.util;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
@@ -11,12 +10,18 @@ import org.junit.jupiter.api.Test;
 
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @DisplayName("ActiveReservationSelector 활성 예약 선택 규칙")
 class ActiveReservationSelectorTest {
 
     private Reservation createReservation(ReservationStatus status) {
-        return Reservation.builder().reservedAt(LocalDateTime.now()).status(status).build();
+        return Reservation.builder().reservedAt(DateTimeUtil.nowInKorea()).status(status).build();
+    }
+
+    private Reservation createExpiredReservedReservation() {
+        return Reservation.builder().reservedAt(DateTimeUtil.nowInKorea().minusMinutes(6))
+                .status(ReservationStatus.RESERVED).build();
     }
 
     @Nested
@@ -63,6 +68,19 @@ class ActiveReservationSelectorTest {
 
             // Then
             assertThat(selected).containsSame(first);
+        }
+
+        @Test
+        @DisplayName("만료된 RESERVED만 있으면 선택하지 않는다")
+        void shouldReturnEmpty_WhenOnlyExpiredReservedExists() {
+            // Given
+            var expired = createExpiredReservedReservation();
+
+            // When
+            var selected = ActiveReservationSelector.selectPrimary(List.of(expired));
+
+            // Then
+            assertThat(selected).isEmpty();
         }
 
         @Test

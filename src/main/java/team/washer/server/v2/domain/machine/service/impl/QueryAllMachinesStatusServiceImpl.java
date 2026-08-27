@@ -56,18 +56,12 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
 
         var results = machines.stream().map(machine -> {
             var reservation = reservationRepository.findActiveReservationByMachineId(machine.getId()).orElse(null);
-            return mapToStatusDto(machine,
-                    deviceStatusMap.get(machine.getDeviceId()),
-                    getVisibleReservation(reservation));
+            return mapToStatusDto(machine, deviceStatusMap.get(machine.getDeviceId()), reservation);
         }).toList();
 
         log.info("Successfully queried status for {} machines", results.size());
 
         return results;
-    }
-
-    private Reservation getVisibleReservation(Reservation reservation) {
-        return reservation != null && reservation.isExpired() ? null : reservation;
     }
 
     private MachineStatusResDto mapToStatusDto(Machine machine,

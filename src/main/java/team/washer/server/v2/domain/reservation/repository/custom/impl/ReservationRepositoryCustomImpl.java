@@ -79,15 +79,6 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
     }
 
     @Override
-    public boolean existsActiveReservationByRoomAndMachineType(String roomNumber, MachineType machineType) {
-        return jpaQueryFactory.selectFrom(reservation).join(reservation.machine, machine)
-                .where(reservation.user.roomNumber.eq(roomNumber),
-                        reservation.machine.type.eq(machineType),
-                        reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.RUNNING))
-                .fetchFirst() != null;
-    }
-
-    @Override
     public List<Reservation> findActiveReservationsByRoomNumber(String roomNumber) {
         return jpaQueryFactory.selectFrom(reservation).join(reservation.user, user).fetchJoin()
                 .join(reservation.machine, machine).fetchJoin()

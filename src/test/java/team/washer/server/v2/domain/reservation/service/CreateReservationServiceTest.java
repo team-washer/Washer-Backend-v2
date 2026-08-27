@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -23,6 +22,7 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
+import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.config.ReservationEnvironment;
@@ -36,6 +36,7 @@ import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
 class CreateReservationServiceTest {
@@ -108,14 +109,14 @@ class CreateReservationServiceTest {
 
         @Test
         @DisplayName("기기에 만료된 RESERVED 예약만 남아 있으면 정리 후 새 예약을 생성한다")
-        void execute_ShouldCreateReservation_AfterCleaningExpiredMachineReservation() {
+        void execute_ShouldCreateReservation_WhenOnlyExpiredMachineReservationExists() {
             // Given
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L);
             var machineWithExpiredReservation = Machine.builder().name("세탁기-1").type(MachineType.WASHER)
-                    .availability(MachineAvailability.RESERVED).build();
+                    .status(MachineStatus.NORMAL).availability(MachineAvailability.RESERVED).build();
             var expiredReservation = Reservation.builder().user(user).machine(machineWithExpiredReservation)
-                    .reservedAt(LocalDateTime.now().minusMinutes(6)).status(ReservationStatus.RESERVED).build();
+                    .reservedAt(DateTimeUtil.nowInKorea().minusMinutes(6)).status(ReservationStatus.RESERVED).build();
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findByIdForUpdate(reqDto.machineId()))
@@ -139,10 +140,38 @@ class CreateReservationServiceTest {
 
             // Then
             assertThat(result).isNotNull();
-            assertThat(expiredReservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-            verify(reservationRepository).saveAll(List.of(expiredReservation));
-            verify(machineRepository, times(2)).save(machineWithExpiredReservation);
+            assertThat(expiredReservation.getStatus()).isEqualTo(ReservationStatus.RESERVED);
+            verify(reservationRepository, never()).saveAll(anyList());
+            verify(machineRepository, times(1)).save(machineWithExpiredReservation);
             verify(reservationRepository).save(any(Reservation.class));
+        }
+
+        @Test
+        @DisplayName("고장 기기에 만료된 RESERVED 예약만 남아 있어도 새 예약을 생성하지 않는다")
+        void execute_ShouldThrowException_WhenUnavailableMachineOnlyHasExpiredReservation() {
+            // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
+            final var reqDto = new CreateReservationReqDto(1L);
+            var unavailableMachine = Machine.builder().name("세탁기 1").type(MachineType.WASHER)
+                    .status(MachineStatus.MALFUNCTION).availability(MachineAvailability.UNAVAILABLE).build();
+            var expiredReservation = Reservation.builder().user(user).machine(unavailableMachine)
+                    .reservedAt(DateTimeUtil.nowInKorea().minusMinutes(6)).status(ReservationStatus.RESERVED).build();
+
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(machineRepository.findByIdForUpdate(reqDto.machineId())).thenReturn(Optional.of(unavailableMachine));
+            when(penaltyRedisUtil.isInCooldown(eq(USER_ID), any())).thenReturn(false);
+            when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(false);
+            when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
+            when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(reservationRepository.findByMachineAndStatusIn(eq(unavailableMachine), any()))
+                    .thenReturn(List.of(expiredReservation));
+
+            // When & Then
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+                    .hasMessageContaining("해당 기기를 사용할 수 없습니다");
+            assertThat(expiredReservation.getStatus()).isEqualTo(ReservationStatus.RESERVED);
+            verify(reservationRepository, never()).saveAll(anyList());
+            verify(machineRepository, never()).save(unavailableMachine);
         }
 
         @Test

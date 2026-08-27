@@ -12,6 +12,7 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
+import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.config.ReservationEnvironment;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
@@ -82,10 +83,10 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         }
 
         final var activeMachineReservations = reservationRepository.findByMachineAndStatusIn(machine, ACTIVE_STATUSES);
-        restoreMachineIfOnlyExpiredReservationsRemain(machine, activeMachineReservations);
 
         // 기기 가용성 검증
-        if (machine.getAvailability() != MachineAvailability.AVAILABLE) {
+        if (machine.getAvailability() != MachineAvailability.AVAILABLE
+                && !canReuseStaleReservedSlot(machine, activeMachineReservations)) {
             throw new ExpectedException(String.format("해당 기기를 사용할 수 없습니다. 기기: %s", machine.getName()),
                     HttpStatus.BAD_REQUEST);
         }
@@ -138,17 +139,12 @@ public class CreateReservationServiceImpl implements CreateReservationService {
                 saved.getUpdatedAt());
     }
 
-    private void restoreMachineIfOnlyExpiredReservationsRemain(Machine machine, List<Reservation> activeReservations) {
-        if (activeReservations.isEmpty() || hasCurrentActiveReservation(activeReservations)) {
-            return;
-        }
-        activeReservations.forEach(Reservation::cancel);
-        machine.markAsAvailable();
-        reservationRepository.saveAll(activeReservations);
-        machineRepository.save(machine);
-    }
-
     private boolean hasCurrentActiveReservation(List<Reservation> reservations) {
         return reservations.stream().anyMatch(reservation -> reservation.isActive() && !reservation.isExpired());
+    }
+
+    private boolean canReuseStaleReservedSlot(Machine machine, List<Reservation> activeReservations) {
+        return machine.getStatus() == MachineStatus.NORMAL && machine.getAvailability() == MachineAvailability.RESERVED
+                && !hasCurrentActiveReservation(activeReservations);
     }
 }
