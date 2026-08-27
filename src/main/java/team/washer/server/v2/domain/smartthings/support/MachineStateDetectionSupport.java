@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 /**
@@ -15,6 +16,11 @@ import team.washer.server.v2.global.util.DateTimeUtil;
  * <p>
  * 모든 판정은 기기 타입(세탁기/건조기)에 해당하는 capability만 검사한다. 하나의 deviceId가 세탁기·건조기
  * capability를 동시에 노출하는 경우, 사용하지 않는 쪽의 유휴 상태를 비정상 중단으로 오판하지 않기 위함이다.
+ *
+ * <p>
+ * 세탁기/건조기 분기와 원시 문자열 해석은 {@link SmartThingsDeviceStatusResDto}의 타입 인자 접근자
+ * ({@code getOperatingState(isWasher)} 등)가 담당한다. 이 컴포넌트는 그 위에서 "작동 중·완료·중단" 같은
+ * 판정만 수행한다.
  */
 @Component
 @Slf4j
@@ -28,8 +34,7 @@ public class MachineStateDetectionSupport {
         if (status == null) {
             return false;
         }
-        var machineState = isWasher ? status.getWasherOperatingState() : status.getDryerOperatingState();
-        var isRunning = "run".equalsIgnoreCase(machineState);
+        var isRunning = status.getOperatingState(isWasher) == MachineOperatingState.RUN;
         if (isRunning) {
             log.debug("device is running isWasher={}", isWasher);
         }
@@ -50,60 +55,41 @@ public class MachineStateDetectionSupport {
             return Optional.empty();
         }
         var now = DateTimeUtil.nowInKorea();
-        if (isWasher) {
-            return evaluateCompletion(status.getWasherJobState(),
-                    "finish",
-                    status.getWasherOperatingState(),
-                    status.getWasherCompletionTime(),
-                    now);
-        }
-        return evaluateCompletion(status
-                .getDryerJobState(), "finished", status.getDryerOperatingState(), status.getDryerCompletionTime(), now);
-    }
-
-    /**
-     * jobState·machineState·completionTime을 종합하여 단일 기기 타입의 완료 여부를 판정한다.
-     */
-    private Optional<LocalDateTime> evaluateCompletion(String jobState,
-            String finishedJobState,
-            String machineState,
-            String completionTimeStr,
-            LocalDateTime now) {
-        if (!"stop".equalsIgnoreCase(machineState)) {
-            if (finishedJobState.equalsIgnoreCase(jobState)) {
+        if (status.getOperatingState(isWasher) != MachineOperatingState.STOP) {
+            if (status.isJobStateFinished(isWasher)) {
                 log.debug("job finished but machine not stopped yet machineState={} jobState={}",
-                        machineState,
-                        jobState);
+                        status.getOperatingState(isWasher),
+                        status.getJobState(isWasher));
             }
             return Optional.empty();
         }
+
+        var completionTimeStr = status.getCompletionTime(isWasher);
         var completionTime = (completionTimeStr != null && !completionTimeStr.isBlank())
                 ? DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr)
                 : null;
-        if (finishedJobState.equalsIgnoreCase(jobState)) {
-            log.debug("device job is completed jobState={} completionTime={}", jobState, completionTime);
+        if (status.isJobStateFinished(isWasher)) {
+            log.debug("device job is completed jobState={} completionTime={}",
+                    status.getJobState(isWasher),
+                    completionTime);
             return Optional.of(completionTime != null && !completionTime.isAfter(now) ? completionTime : now);
         }
 
         if (completionTime != null && completionTime.isAfter(now)) {
             log.debug("device stopped but completion time still in future completionTime={} jobState={}",
                     completionTime,
-                    jobState);
+                    status.getJobState(isWasher));
             return Optional.empty();
         }
 
-        if (isResetJobState(jobState) && completionTime != null) {
+        if (status.isJobStateReset(isWasher) && completionTime != null) {
             log.debug("device job is completed after job reset jobState={} completionTime={}",
-                    jobState,
+                    status.getJobState(isWasher),
                     completionTime);
             return Optional.of(completionTime);
         }
 
         return Optional.empty();
-    }
-
-    private boolean isResetJobState(String jobState) {
-        return jobState == null || jobState.isBlank() || "none".equalsIgnoreCase(jobState);
     }
 
     /**
@@ -117,7 +103,7 @@ public class MachineStateDetectionSupport {
         if (status == null) {
             return false;
         }
-        var isPoweredOff = "off".equalsIgnoreCase(status.getSwitchStatus());
+        var isPoweredOff = status.isSwitchOff();
         if (isPoweredOff) {
             log.debug("device power off detected switch=off");
         }
@@ -141,22 +127,19 @@ public class MachineStateDetectionSupport {
             return true;
         }
 
-        var machineState = isWasher ? status.getWasherOperatingState() : status.getDryerOperatingState();
-        if (!"stop".equalsIgnoreCase(machineState)) {
+        if (status.getOperatingState(isWasher) != MachineOperatingState.STOP) {
+            return false;
+        }
+        if (status.isJobStateFinished(isWasher)) {
+            return false;
+        }
+        if (status.isJobStateReset(isWasher)) {
+            log.debug("machine stopped with idle jobState, not treated as interruption jobState={}",
+                    status.getJobState(isWasher));
             return false;
         }
 
-        var jobState = isWasher ? status.getWasherJobState() : status.getDryerJobState();
-        var finishedJobState = isWasher ? "finish" : "finished";
-        if (finishedJobState.equalsIgnoreCase(jobState)) {
-            return false;
-        }
-        if (jobState == null || jobState.isBlank() || "none".equalsIgnoreCase(jobState)) {
-            log.debug("machine stopped with idle jobState, not treated as interruption jobState={}", jobState);
-            return false;
-        }
-
-        log.debug("machine interrupted mid-cycle machineState=stop jobState={}", jobState);
+        log.debug("machine interrupted mid-cycle machineState=stop jobState={}", status.getJobState(isWasher));
         return true;
     }
 
@@ -167,8 +150,7 @@ public class MachineStateDetectionSupport {
         if (status == null) {
             return false;
         }
-        var machineState = isWasher ? status.getWasherOperatingState() : status.getDryerOperatingState();
-        var isPaused = "pause".equalsIgnoreCase(machineState);
+        var isPaused = status.getOperatingState(isWasher) == MachineOperatingState.PAUSE;
         if (isPaused) {
             log.debug("device is paused isWasher={}", isWasher);
         }

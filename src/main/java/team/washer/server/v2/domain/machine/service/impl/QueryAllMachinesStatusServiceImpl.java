@@ -21,6 +21,7 @@ import team.washer.server.v2.domain.machine.service.QueryAllMachinesStatusServic
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.util.DateTimeUtil;
@@ -66,15 +67,15 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
     private MachineStatusResDto mapToStatusDto(Machine machine,
             SmartThingsDeviceStatusResDto deviceStatus,
             Reservation reservation) {
-        String operatingState = null;
+        MachineOperatingState operatingState = MachineOperatingState.UNKNOWN;
         String jobState = null;
         String switchStatus = null;
         LocalDateTime expectedCompletionTime = null;
         Long remainingMinutes = null;
 
         if (deviceStatus != null) {
-            operatingState = getOperatingState(machine, deviceStatus);
-            jobState = getJobState(machine, deviceStatus);
+            operatingState = deviceStatus.getOperatingState(machine.isWasher());
+            jobState = deviceStatus.getJobState(machine.isWasher());
             switchStatus = deviceStatus.getSwitchStatus();
 
             if (reservation != null) {
@@ -131,34 +132,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
      * 기기가 물리적으로 작동 중(run 또는 pause)인지 판정한다. 세탁기/건조기는 타입에 맞는 machineState를 본다.
      */
     private boolean isOperating(Machine machine, SmartThingsDeviceStatusResDto deviceStatus) {
-        if (deviceStatus == null) {
-            return false;
-        }
-        String machineState = null;
-        if (machine.isWasher()) {
-            machineState = deviceStatus.getWasherOperatingState();
-        } else if (machine.isDryer()) {
-            machineState = deviceStatus.getDryerOperatingState();
-        }
-        return "run".equalsIgnoreCase(machineState) || "pause".equalsIgnoreCase(machineState);
-    }
-
-    private String getOperatingState(Machine machine, SmartThingsDeviceStatusResDto deviceStatus) {
-        if (machine.isWasher()) {
-            return deviceStatus.getWasherOperatingState();
-        } else if (machine.isDryer()) {
-            return deviceStatus.getDryerOperatingState();
-        }
-        return null;
-    }
-
-    private String getJobState(Machine machine, SmartThingsDeviceStatusResDto deviceStatus) {
-        if (machine.isWasher()) {
-            return deviceStatus.getWasherJobState();
-        } else if (machine.isDryer()) {
-            return deviceStatus.getDryerJobState();
-        }
-        return null;
+        return deviceStatus != null && deviceStatus.getOperatingState(machine.isWasher()).isOperating();
     }
 
     private Long calculateRemainingMinutes(LocalDateTime completionTime) {
