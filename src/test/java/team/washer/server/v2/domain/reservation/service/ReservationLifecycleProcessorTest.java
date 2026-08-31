@@ -200,6 +200,24 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, never()).start(any());
             verify(reservationRepository, never()).save(reservation);
         }
+
+        @Test
+        @DisplayName("RESERVED 상태여도 이미 만료된 예약이면 RUNNING으로 전환하지 않는다")
+        void shouldSkip_WhenReservedButExpired() {
+            // Given
+            var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
+            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservation.isReserved()).thenReturn(true);
+            when(reservation.isExpired()).thenReturn(true);
+
+            // When
+            reservationLifecycleProcessor.processReservedToRunning(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, never()).start(any());
+            verify(machineStateDetectionSupport, never()).isRunning(any(), anyBoolean());
+            verify(reservationRepository, never()).save(reservation);
+        }
     }
 
     @Nested
