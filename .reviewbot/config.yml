@@ -6,7 +6,7 @@ minSeverity: minor
 maxInlineComments: 25
 
 include:
-  - "**/*.go"
+  - "**/*.java"
 exclude:
   - "**/generated/**"
 
