@@ -95,7 +95,7 @@ class OverdueReservationProcessorTest {
     }
 
     private void givenReservedReservation() {
-        when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
         when(reservation.isReserved()).thenReturn(true);
         when(reservation.getMachine()).thenReturn(machine);
     }
@@ -236,7 +236,7 @@ class OverdueReservationProcessorTest {
         void shouldSkip_WhenNoLongerReserved() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isReserved()).thenReturn(false);
 
             // When

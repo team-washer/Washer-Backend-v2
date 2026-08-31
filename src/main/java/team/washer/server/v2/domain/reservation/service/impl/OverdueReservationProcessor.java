@@ -74,7 +74,7 @@ public class OverdueReservationProcessor {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public OverdueResult processOverdue(Long reservationId, SmartThingsDeviceStatusResDto status) {
-        var reservation = reservationRepository.findById(reservationId).orElse(null);
+        var reservation = reservationRepository.findByIdForUpdate(reservationId).orElse(null);
         if (reservation == null || !reservation.isReserved()) {
             return OverdueResult.SKIPPED;
         }
