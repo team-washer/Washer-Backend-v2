@@ -88,6 +88,14 @@ class ReservationStartDecisionSupportTest {
         }
 
         @Test
+        @DisplayName("machineState=stop이어도 active jobState가 있으면 STARTED를 반환한다")
+        void shouldStart_WhenStoppedButActiveJobStateExists() {
+            var status = washerStatus("stop", "wash", null);
+
+            assertThat(reservationStartDecisionSupport.decide(status, WASHER)).isEqualTo(StartDecision.STARTED);
+        }
+
+        @Test
         @DisplayName("건조기 active jobState가 있으면 STARTED를 반환한다")
         void shouldStartDryer_WhenActiveJobStateExists() {
             var status = dryerStatus(null, "drying", null);

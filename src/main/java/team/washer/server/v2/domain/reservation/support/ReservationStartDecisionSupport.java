@@ -46,9 +46,6 @@ public class ReservationStartDecisionSupport {
             log.debug("reservation start detected by paused machineState isWasher={}", isWasher);
             return StartDecision.STARTED;
         }
-        if (machineStateDetectionSupport.isStopped(status, isWasher)) {
-            return StartDecision.IDLE;
-        }
         if (status.isJobStateActive(isWasher)) {
             log.debug("reservation start detected by jobState isWasher={} jobState={}",
                     isWasher,
@@ -56,13 +53,22 @@ public class ReservationStartDecisionSupport {
             return StartDecision.STARTED;
         }
 
-        return machineStateDetectionSupport.resolveCompletionTime(status, isWasher)
+        var completionTimeDecision = machineStateDetectionSupport.resolveCompletionTime(status, isWasher)
                 .filter(completionTime -> completionTime.isAfter(DateTimeUtil.nowInKorea())).map(completionTime -> {
                     log.debug("reservation start detected by completionTime isWasher={} completionTime={}",
                             isWasher,
                             completionTime);
                     return StartDecision.STARTED;
                 }).orElse(StartDecision.UNKNOWN);
+        if (completionTimeDecision == StartDecision.STARTED) {
+            return StartDecision.STARTED;
+        }
+
+        if (machineStateDetectionSupport.isStopped(status, isWasher)) {
+            return StartDecision.IDLE;
+        }
+
+        return StartDecision.UNKNOWN;
     }
 
     /**
