@@ -41,6 +41,10 @@ public class Reservation extends BaseEntity {
     @JoinColumn(name = "machine_id", nullable = false, foreignKey = @ForeignKey(name = "fk_reservation_machine"))
     private Machine machine;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id", foreignKey = @ForeignKey(name = "fk_reservation_created_by"))
+    private User createdBy;
+
     @NotNull(message = "예약 시간은 필수입니다")
     @Column(name = "reserved_at", nullable = false)
     private LocalDateTime reservedAt;
@@ -241,6 +245,18 @@ public class Reservation extends BaseEntity {
      */
     public boolean isActive() {
         return this.status == ReservationStatus.RESERVED || this.status == ReservationStatus.RUNNING;
+    }
+
+    /**
+     * 관리자 대리 생성 예약 여부를 반환합니다.
+     *
+     * <p>
+     * 대리 예약은 사용자 본인이 요청한 것이 아니므로 취소·타임아웃 시 패널티를 부여하지 않습니다.
+     *
+     * @return 대리 예약 여부
+     */
+    public boolean isProxyReservation() {
+        return this.createdBy != null;
     }
 
     public boolean isReserved() {
