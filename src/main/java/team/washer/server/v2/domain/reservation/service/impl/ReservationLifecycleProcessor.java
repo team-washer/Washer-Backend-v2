@@ -18,6 +18,7 @@ import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.support.CompletionDecision;
 import team.washer.server.v2.domain.reservation.support.ReservationCompletionDecisionSupport;
+import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
@@ -45,6 +46,7 @@ public class ReservationLifecycleProcessor {
     private final MachineRepository machineRepository;
     private final MachineStateDetectionSupport machineStateDetectionSupport;
     private final ReservationCompletionDecisionSupport completionDecisionSupport;
+    private final ReservationStartDecisionSupport reservationStartDecisionSupport;
     private final ReservationNotificationSupport reservationNotificationSupport;
 
     /**
@@ -70,12 +72,12 @@ public class ReservationLifecycleProcessor {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processReservedToRunning(Long reservationId, SmartThingsDeviceStatusResDto status) {
-        var reservation = reservationRepository.findById(reservationId).orElse(null);
+        var reservation = reservationRepository.findByIdForUpdate(reservationId).orElse(null);
         if (reservation == null || !reservation.isReserved() || reservation.isExpired()) {
             return;
         }
         var machine = reservation.getMachine();
-        if (!machineStateDetectionSupport.isRunning(status, machine.isWasher())) {
+        if (!reservationStartDecisionSupport.isStarted(status, machine.isWasher())) {
             return;
         }
 
@@ -111,7 +113,7 @@ public class ReservationLifecycleProcessor {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processRunningToCompleted(Long reservationId, SmartThingsDeviceStatusResDto status) {
-        var reservation = reservationRepository.findById(reservationId).orElse(null);
+        var reservation = reservationRepository.findByIdForUpdate(reservationId).orElse(null);
         if (reservation == null || !reservation.isRunning()) {
             return;
         }

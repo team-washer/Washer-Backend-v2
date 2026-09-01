@@ -28,6 +28,7 @@ import team.washer.server.v2.domain.reservation.repository.ReservationRepository
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor;
 import team.washer.server.v2.domain.reservation.support.CompletionDecision;
 import team.washer.server.v2.domain.reservation.support.ReservationCompletionDecisionSupport;
+import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
@@ -54,6 +55,9 @@ class ReservationLifecycleProcessorTest {
 
     @Mock
     private ReservationCompletionDecisionSupport completionDecisionSupport;
+
+    @Mock
+    private ReservationStartDecisionSupport reservationStartDecisionSupport;
 
     @Mock
     private ReservationNotificationSupport reservationNotificationSupport;
@@ -105,12 +109,12 @@ class ReservationLifecycleProcessorTest {
             // Given
             var expectedCompletionTime = LocalDateTime.of(2026, 1, 27, 0, 30);
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isReserved()).thenReturn(true);
             when(reservation.getMachine()).thenReturn(machine);
             when(reservation.getUser()).thenReturn(user);
             when(reservation.getExpectedCompletionTime()).thenReturn(expectedCompletionTime);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+            when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
 
             // When
@@ -127,10 +131,10 @@ class ReservationLifecycleProcessorTest {
         void shouldNotStartReservation_WhenReservedButMachineNotRunning() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isReserved()).thenReturn(true);
             when(reservation.getMachine()).thenReturn(machine);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+            when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
 
             // When
@@ -147,13 +151,13 @@ class ReservationLifecycleProcessorTest {
             // Given
             var dryerCompletionTime = LocalDateTime.of(2026, 1, 27, 1, 0);
             var deviceStatus = buildStatusWithMixedCompletionTime("2026-01-26T15:30:00Z", "2026-01-26T16:00:00Z");
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isReserved()).thenReturn(true);
             when(reservation.getMachine()).thenReturn(machine);
             when(reservation.getUser()).thenReturn(user);
             when(reservation.getExpectedCompletionTime()).thenReturn(dryerCompletionTime);
             when(machine.isWasher()).thenReturn(false);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+            when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
 
             // When
@@ -169,12 +173,12 @@ class ReservationLifecycleProcessorTest {
         void shouldSendStartedWithoutExpectedTime_WhenReportedCompletionTimeRejected() {
             // Given
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isReserved()).thenReturn(true);
             when(reservation.getMachine()).thenReturn(machine);
             when(reservation.getUser()).thenReturn(user);
             when(reservation.getExpectedCompletionTime()).thenReturn(null);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+            when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
 
             // When
@@ -190,7 +194,7 @@ class ReservationLifecycleProcessorTest {
         void shouldSkip_WhenNoLongerReserved() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isReserved()).thenReturn(false);
 
             // When
@@ -206,7 +210,7 @@ class ReservationLifecycleProcessorTest {
         void shouldSkip_WhenReservedButExpired() {
             // Given
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isReserved()).thenReturn(true);
             when(reservation.isExpired()).thenReturn(true);
 
@@ -225,7 +229,7 @@ class ReservationLifecycleProcessorTest {
     class ProcessRunningToCompletedTest {
 
         private void givenRunningReservation() {
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isRunning()).thenReturn(true);
             when(reservation.getMachine()).thenReturn(machine);
         }
@@ -563,7 +567,7 @@ class ReservationLifecycleProcessorTest {
         void shouldSkip_WhenNoLongerRunning() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isRunning()).thenReturn(false);
 
             // When

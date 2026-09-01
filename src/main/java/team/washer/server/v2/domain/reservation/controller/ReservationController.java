@@ -61,7 +61,7 @@ public class ReservationController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "예약 취소", description = "예약을 취소합니다. RESERVED 상태에서 취소 시 5분간 재예약이 제한됩니다.")
+    @Operation(summary = "예약 취소", description = "RESERVED 상태의 예약을 취소합니다. 취소 시 5분간 동일 종류 기기 재예약이 제한됩니다. 이미 기기 사용이 시작된 RUNNING 예약은 취소할 수 없으며 409를 반환합니다.")
     public CancellationResDto cancelReservation(@Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
         return cancelReservationService.execute(id);
     }
