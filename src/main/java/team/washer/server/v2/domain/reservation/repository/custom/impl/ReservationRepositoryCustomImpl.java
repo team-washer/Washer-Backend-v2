@@ -23,12 +23,16 @@ import team.washer.server.v2.domain.reservation.entity.QReservation;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.custom.ReservationRepositoryCustom;
+import team.washer.server.v2.domain.user.entity.QUser;
 
 @Repository
 @RequiredArgsConstructor
 public class ReservationRepositoryCustomImpl implements ReservationRepositoryCustom {
 
     private static final QReservation latestReservation = new QReservation("latestReservation");
+
+    // QUser 기본 별칭(user)은 reservation.user 조인에 이미 사용되므로 대리 예약 생성자용 별칭을 따로 둔다
+    private static final QUser createdByUser = new QUser("createdByUser");
 
     private final JPAQueryFactory jpaQueryFactory;
 
@@ -118,9 +122,9 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                 .groupBy(latestReservation.machine.id);
 
         final var content = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
-                .leftJoin(reservation.machine, machine).fetchJoin().where(reservation.id.in(latestReservationIds))
-                .orderBy(reservation.createdAt.desc()).offset(pageable.getOffset()).limit(pageable.getPageSize())
-                .fetch();
+                .leftJoin(reservation.machine, machine).fetchJoin().leftJoin(reservation.createdBy, createdByUser)
+                .fetchJoin().where(reservation.id.in(latestReservationIds)).orderBy(reservation.createdAt.desc())
+                .offset(pageable.getOffset()).limit(pageable.getPageSize()).fetch();
 
         final var total = jpaQueryFactory.select(reservation.count()).from(reservation)
                 .where(reservation.id.in(latestReservationIds)).fetchOne();

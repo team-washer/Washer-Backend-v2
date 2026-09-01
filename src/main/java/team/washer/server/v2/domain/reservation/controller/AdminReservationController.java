@@ -14,10 +14,12 @@ import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.machine.enums.MachineType;
+import team.washer.server.v2.domain.reservation.dto.request.AdminCreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.request.ExtendBlockReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminCancellationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminMachineHistoryResDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminReservationListResDto;
+import team.washer.server.v2.domain.reservation.dto.response.AdminReservationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.PenaltyStatusResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.*;
@@ -35,6 +37,14 @@ public class AdminReservationController {
     private final QueryAllReservationsService queryAllReservationsService;
     private final AdminCancelReservationService adminCancelReservationService;
     private final QueryAdminMachineHistoryService queryAdminMachineHistoryService;
+    private final AdminCreateReservationService adminCreateReservationService;
+
+    @PostMapping
+    @Operation(summary = "대리 예약 생성", description = "관리자가 지정한 사용자 명의로 예약을 생성합니다. 시간대 제한, 48시간 호실 차단, 5분 쿨다운은 적용되지 않으며 층 제한, 호실 세탁 금지, 기기 가용성, 중복 예약 제한은 그대로 적용됩니다.")
+    public AdminReservationResDto createReservation(@Valid @RequestBody AdminCreateReservationReqDto reqDto) {
+
+        return adminCreateReservationService.execute(reqDto);
+    }
 
     @GetMapping("/users/{userId}/penalty-status")
     @Operation(summary = "사용자 패널티 상태 조회", description = "특정 사용자의 패널티 상태를 조회합니다.")
