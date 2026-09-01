@@ -2,7 +2,9 @@ package team.washer.server.v2.domain.reservation.support;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.springframework.stereotype.Component;
 
@@ -10,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
+import team.washer.server.v2.domain.smartthings.support.MachineCompletionSignal;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -91,10 +93,11 @@ public class ReservationCompletionDecisionSupport {
     private Optional<CompletionCandidate> findCompletionCandidate(Reservation reservation,
             SmartThingsDeviceStatusResDto status,
             boolean isWasher) {
-        var detected = machineStateDetectionSupport.isCompleted(status, isWasher);
-        if (detected.isPresent()) {
-            return Optional.of(new CompletionCandidate(detected.get(), REASON_SMARTTHINGS_COMPLETED));
+        var signal = machineStateDetectionSupport.detectCompletion(status, isWasher);
+        if (signal.isCompleted()) {
+            return Optional.of(new CompletionCandidate(signal.completionTime(), REASON_SMARTTHINGS_COMPLETED));
         }
+
         var nearCompletion = findNearCompletionStopTime(reservation, status, isWasher)
                 .filter(completionTime -> !completionTime.isAfter(DateTimeUtil.nowInKorea()))
                 .map(completionTime -> new CompletionCandidate(completionTime, REASON_STOPPED_NEAR_COMPLETION));
@@ -102,7 +105,7 @@ public class ReservationCompletionDecisionSupport {
             return nearCompletion;
         }
 
-        return findStoppedResetCompletionTime(reservation, status, isWasher)
+        return findStoppedResetCompletionTime(reservation, status, isWasher, signal)
                 .map(completionTime -> new CompletionCandidate(completionTime, REASON_STOPPED_RESET_COMPLETION));
     }
 
@@ -111,52 +114,35 @@ public class ReservationCompletionDecisionSupport {
      * 판정한다.
      *
      * <p>
-     * 이 경우 보고된 완료 예정 시각은 이번 사이클의 종료 시각이 아니므로 완료 시각으로 쓸 수 없고, 미래 값이라
-     * {@code isCompleted} 와 {@code stopped_near_completion} 어느 경로에도 걸리지 않는다. 그대로 두면
-     * 사이클이 끝났는데도 예약이 RUNNING 으로 남아 기기가 계속 IN_USE로 표시되므로, 이번 사이클에서 갱신된 상태 타임스탬프를 근거로
-     * 완료 후보로 잡고 완료 시각은 현재 시각으로 본다.
+     * 이 상태의 감지 자체는 {@link MachineStateDetectionSupport#detectCompletion}가
+     * {@code JOB_RESET_WITH_FUTURE_COMPLETION} 신호로 알려준다. 보고된 완료 예정 시각은 이번 사이클의 종료
+     * 시각이 아니므로 완료 시각으로 쓸 수 없고, 그대로 두면 사이클이 끝났는데도 예약이 RUNNING 으로 남아 기기가 계속 IN_USE로
+     * 표시된다. 여기서는 이번 사이클에서 실제로 상태가 갱신됐는지를 예약 시작 시각과 대조해 확인한 뒤 완료 시각을 현재 시각으로 본다.
      *
      * <p>
      * 전원이 꺼진 정지는 완료가 아니라 중단이므로 여기서 제외한다.
      */
     private Optional<LocalDateTime> findStoppedResetCompletionTime(Reservation reservation,
             SmartThingsDeviceStatusResDto status,
-            boolean isWasher) {
-        if (status == null || machineStateDetectionSupport.isPoweredOff(status)) {
-            return Optional.empty();
-        }
-        if (!isStopped(status, isWasher) || !status.isJobStateReset(isWasher)) {
-            return Optional.empty();
-        }
-
-        var completionTime = DateTimeUtil.parseAndConvertToKoreaTime(getCompletionTime(status, isWasher));
-        var now = DateTimeUtil.nowInKorea();
-        if (completionTime == null || !completionTime.isAfter(now)) {
+            boolean isWasher,
+            MachineCompletionSignal signal) {
+        if (!signal.isJobResetWithFutureCompletion() || machineStateDetectionSupport.isPoweredOff(status)) {
             return Optional.empty();
         }
 
         var startTime = reservation.getStartTime();
-        if (startTime == null || completionTime.isBefore(startTime)) {
+        if (startTime == null || signal.completionTime().isBefore(startTime)) {
             return Optional.empty();
         }
         // 이번 사이클에서 실제로 상태가 갱신됐다는 근거가 없으면 이전 사이클의 잔재로 본다.
-        if (!isTimestampAtOrAfterStart(resolveOperatingStateTimestamp(status, isWasher), startTime)
-                && !isTimestampAtOrAfterStart(resolveJobStateTimestamp(status, isWasher), startTime)) {
+        if (!hasStateTimestampAtOrAfter(status, isWasher, startTime)) {
             return Optional.empty();
         }
 
         log.debug("device stopped with job reset and future completion time completionTime={} startTime={}",
-                completionTime,
+                signal.completionTime(),
                 startTime);
-        return Optional.of(now);
-    }
-
-    private boolean isTimestampAtOrAfterStart(String timestamp, LocalDateTime startTime) {
-        if (timestamp == null || timestamp.isBlank()) {
-            return false;
-        }
-        var updatedAt = DateTimeUtil.parseAndConvertToKoreaTime(timestamp);
-        return updatedAt != null && !updatedAt.isBefore(startTime);
+        return Optional.of(DateTimeUtil.nowInKorea());
     }
 
     /**
@@ -165,11 +151,11 @@ public class ReservationCompletionDecisionSupport {
     private Optional<LocalDateTime> findNearCompletionStopTime(Reservation reservation,
             SmartThingsDeviceStatusResDto status,
             boolean isWasher) {
-        if (!isStopped(status, isWasher)) {
+        if (!machineStateDetectionSupport.isStopped(status, isWasher)) {
             return Optional.empty();
         }
 
-        var completionTime = DateTimeUtil.parseAndConvertToKoreaTime(getCompletionTime(status, isWasher));
+        var completionTime = machineStateDetectionSupport.resolveCompletionTime(status, isWasher).orElse(null);
         if (completionTime == null) {
             return Optional.empty();
         }
@@ -202,8 +188,7 @@ public class ReservationCompletionDecisionSupport {
         if (completionTime.isBefore(startTime)) {
             return true;
         }
-        return isTimestampBeforeStart(resolveOperatingStateTimestamp(status, isWasher), startTime)
-                || isTimestampBeforeStart(resolveJobStateTimestamp(status, isWasher), startTime);
+        return stateTimestamps(status, isWasher).anyMatch(updatedAt -> updatedAt.isBefore(startTime));
     }
 
     /**
@@ -218,31 +203,25 @@ public class ReservationCompletionDecisionSupport {
         return completionTime.isBefore(expectedCompletionTime.minusMinutes(COMPLETION_EARLY_TOLERANCE_MINUTES));
     }
 
-    private boolean isTimestampBeforeStart(String timestamp, LocalDateTime startTime) {
-        if (timestamp == null || timestamp.isBlank()) {
-            return false;
-        }
-        var updatedAt = DateTimeUtil.parseAndConvertToKoreaTime(timestamp);
-        return updatedAt != null && updatedAt.isBefore(startTime);
+    /**
+     * 이번 사이클에서 상태가 갱신됐다는 근거가 하나라도 있는지 판정한다.
+     */
+    private boolean hasStateTimestampAtOrAfter(SmartThingsDeviceStatusResDto status,
+            boolean isWasher,
+            LocalDateTime startTime) {
+        return stateTimestamps(status, isWasher).anyMatch(updatedAt -> !updatedAt.isBefore(startTime));
     }
 
     /**
-     * 기기가 물리적으로 정지(machineState=stop) 상태인지 판정한다.
+     * 기기가 보고한 machineState·jobState 갱신 시각 중 해석 가능한 값만 흘려보낸다.
      */
-    private boolean isStopped(SmartThingsDeviceStatusResDto status, boolean isWasher) {
-        return status != null && status.getOperatingState(isWasher) == MachineOperatingState.STOP;
-    }
-
-    private String getCompletionTime(SmartThingsDeviceStatusResDto status, boolean isWasher) {
-        return status == null ? null : status.getCompletionTime(isWasher);
-    }
-
-    private String resolveOperatingStateTimestamp(SmartThingsDeviceStatusResDto status, boolean isWasher) {
-        return status == null ? null : status.getOperatingStateTimestamp(isWasher);
-    }
-
-    private String resolveJobStateTimestamp(SmartThingsDeviceStatusResDto status, boolean isWasher) {
-        return status == null ? null : status.getJobStateTimestamp(isWasher);
+    private Stream<LocalDateTime> stateTimestamps(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        if (status == null) {
+            return Stream.empty();
+        }
+        return Stream.of(status.getOperatingStateTimestamp(isWasher), status.getJobStateTimestamp(isWasher))
+                .filter(timestamp -> timestamp != null && !timestamp.isBlank())
+                .map(DateTimeUtil::parseAndConvertToKoreaTime).filter(Objects::nonNull);
     }
 
     private record CompletionCandidate(LocalDateTime completionTime, String reason) {

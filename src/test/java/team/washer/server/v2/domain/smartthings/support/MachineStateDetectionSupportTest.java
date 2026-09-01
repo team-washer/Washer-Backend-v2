@@ -16,6 +16,8 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.DryerOperatingState;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.SwitchCapability;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.WasherOperatingState;
+import team.washer.server.v2.domain.smartthings.support.MachineCompletionSignal.Kind;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @DisplayName("MachineStateDetectionSupport 상태 판정")
 class MachineStateDetectionSupportTest {
@@ -66,9 +68,9 @@ class MachineStateDetectionSupportTest {
             var past = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(1);
             var status = washerStatus("stop", "finish", isoUtc(past));
 
-            var result = machineStateDetectionSupport.isCompleted(status, WASHER);
+            var result = machineStateDetectionSupport.detectCompletion(status, WASHER);
 
-            assertThat(result).isPresent();
+            assertThat(result.isCompleted()).isTrue();
         }
 
         @Test
@@ -77,9 +79,9 @@ class MachineStateDetectionSupportTest {
             var past = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(1);
             var status = washerStatus("run", "finish", isoUtc(past));
 
-            var result = machineStateDetectionSupport.isCompleted(status, WASHER);
+            var result = machineStateDetectionSupport.detectCompletion(status, WASHER);
 
-            assertThat(result).isEmpty();
+            assertThat(result.kind()).isEqualTo(Kind.NONE);
         }
 
         @Test
@@ -88,9 +90,9 @@ class MachineStateDetectionSupportTest {
             var future = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusMinutes(3);
             var status = washerStatus("stop", "finish", isoUtc(future));
 
-            var result = machineStateDetectionSupport.isCompleted(status, WASHER);
+            var result = machineStateDetectionSupport.detectCompletion(status, WASHER);
 
-            assertThat(result).isPresent();
+            assertThat(result.isCompleted()).isTrue();
         }
 
         @Test
@@ -98,9 +100,9 @@ class MachineStateDetectionSupportTest {
         void shouldNotComplete_WhenJobStateNotFinished() {
             var status = washerStatus("run", "spin", null);
 
-            var result = machineStateDetectionSupport.isCompleted(status, WASHER);
+            var result = machineStateDetectionSupport.detectCompletion(status, WASHER);
 
-            assertThat(result).isEmpty();
+            assertThat(result.kind()).isEqualTo(Kind.NONE);
         }
 
         @Test
@@ -108,9 +110,9 @@ class MachineStateDetectionSupportTest {
         void shouldComplete_WhenCompletionTimeNull() {
             var status = washerStatus("stop", "finish", null);
 
-            var result = machineStateDetectionSupport.isCompleted(status, WASHER);
+            var result = machineStateDetectionSupport.detectCompletion(status, WASHER);
 
-            assertThat(result).isPresent();
+            assertThat(result.isCompleted()).isTrue();
         }
 
         @Test
@@ -119,20 +121,21 @@ class MachineStateDetectionSupportTest {
             var past = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(1);
             var status = washerStatus("stop", "none", isoUtc(past));
 
-            var result = machineStateDetectionSupport.isCompleted(status, WASHER);
+            var result = machineStateDetectionSupport.detectCompletion(status, WASHER);
 
-            assertThat(result).isPresent();
+            assertThat(result.isCompleted()).isTrue();
         }
 
         @Test
-        @DisplayName("jobState가 none으로 리셋되어도 완료 시각이 미래이면 완료로 판정하지 않는다")
-        void shouldNotComplete_WhenJobStateResetAndCompletionTimeInFuture() {
+        @DisplayName("jobState가 none으로 리셋되어도 완료 시각이 미래이면 완료 시각을 쓸 수 없는 jobState 리셋 신호로 판정한다")
+        void shouldSignalJobReset_WhenJobStateResetAndCompletionTimeInFuture() {
             var future = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusHours(1);
             var status = washerStatus("stop", "none", isoUtc(future));
 
-            var result = machineStateDetectionSupport.isCompleted(status, WASHER);
+            var result = machineStateDetectionSupport.detectCompletion(status, WASHER);
 
-            assertThat(result).isEmpty();
+            assertThat(result.kind()).isEqualTo(Kind.JOB_RESET_WITH_FUTURE_COMPLETION);
+            assertThat(result.completionTime()).isAfter(DateTimeUtil.nowInKorea());
         }
 
         @Test
@@ -140,9 +143,9 @@ class MachineStateDetectionSupportTest {
         void shouldNotComplete_WhenJobStateResetAndCompletionTimeNull() {
             var status = washerStatus("stop", "none", null);
 
-            var result = machineStateDetectionSupport.isCompleted(status, WASHER);
+            var result = machineStateDetectionSupport.detectCompletion(status, WASHER);
 
-            assertThat(result).isEmpty();
+            assertThat(result.kind()).isEqualTo(Kind.NONE);
         }
     }
 
@@ -156,9 +159,9 @@ class MachineStateDetectionSupportTest {
             var past = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(1);
             var status = dryerStatus("stop", "finished", isoUtc(past));
 
-            var result = machineStateDetectionSupport.isCompleted(status, DRYER);
+            var result = machineStateDetectionSupport.detectCompletion(status, DRYER);
 
-            assertThat(result).isPresent();
+            assertThat(result.isCompleted()).isTrue();
         }
 
         @Test
@@ -167,9 +170,9 @@ class MachineStateDetectionSupportTest {
             var future = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusMinutes(3);
             var status = dryerStatus("stop", "finished", isoUtc(future));
 
-            var result = machineStateDetectionSupport.isCompleted(status, DRYER);
+            var result = machineStateDetectionSupport.detectCompletion(status, DRYER);
 
-            assertThat(result).isPresent();
+            assertThat(result.isCompleted()).isTrue();
         }
 
         @Test
@@ -178,9 +181,9 @@ class MachineStateDetectionSupportTest {
             var future = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusMinutes(2);
             var status = dryerStatus("run", "cooling", isoUtc(future));
 
-            var result = machineStateDetectionSupport.isCompleted(status, DRYER);
+            var result = machineStateDetectionSupport.detectCompletion(status, DRYER);
 
-            assertThat(result).isEmpty();
+            assertThat(result.kind()).isEqualTo(Kind.NONE);
         }
 
         @Test
@@ -189,20 +192,21 @@ class MachineStateDetectionSupportTest {
             var past = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).minusMinutes(1);
             var status = dryerStatus("stop", "none", isoUtc(past));
 
-            var result = machineStateDetectionSupport.isCompleted(status, DRYER);
+            var result = machineStateDetectionSupport.detectCompletion(status, DRYER);
 
-            assertThat(result).isPresent();
+            assertThat(result.isCompleted()).isTrue();
         }
 
         @Test
-        @DisplayName("건조 jobState가 none으로 리셋되어도 완료 시각이 미래이면 완료로 판정하지 않는다")
-        void shouldNotComplete_WhenDryerJobStateResetAndCompletionTimeInFuture() {
+        @DisplayName("건조 jobState가 none으로 리셋되어도 완료 시각이 미래이면 완료 시각을 쓸 수 없는 jobState 리셋 신호로 판정한다")
+        void shouldSignalJobReset_WhenDryerJobStateResetAndCompletionTimeInFuture() {
             var future = ZonedDateTime.now(ZoneId.of("Asia/Seoul")).plusHours(1);
             var status = dryerStatus("stop", "none", isoUtc(future));
 
-            var result = machineStateDetectionSupport.isCompleted(status, DRYER);
+            var result = machineStateDetectionSupport.detectCompletion(status, DRYER);
 
-            assertThat(result).isEmpty();
+            assertThat(result.kind()).isEqualTo(Kind.JOB_RESET_WITH_FUTURE_COMPLETION);
+            assertThat(result.completionTime()).isAfter(DateTimeUtil.nowInKorea());
         }
     }
 
