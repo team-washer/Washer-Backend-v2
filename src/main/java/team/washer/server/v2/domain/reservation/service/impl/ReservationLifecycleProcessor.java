@@ -62,6 +62,7 @@ public class ReservationLifecycleProcessor {
     @Transactional(readOnly = true)
     public List<LifecycleTarget> findTargets(ReservationStatus status) {
         return reservationRepository.findByStatusWithMachineAndUser(status).stream()
+                .filter(reservation -> status != ReservationStatus.RESERVED || !reservation.isExpired())
                 .map(reservation -> new LifecycleTarget(reservation.getId(), reservation.getMachine().getDeviceId()))
                 .toList();
     }
@@ -72,7 +73,7 @@ public class ReservationLifecycleProcessor {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processReservedToRunning(Long reservationId, SmartThingsDeviceStatusResDto status) {
         var reservation = reservationRepository.findByIdForUpdate(reservationId).orElse(null);
-        if (reservation == null || !reservation.isReserved()) {
+        if (reservation == null || !reservation.isReserved() || reservation.isExpired()) {
             return;
         }
         var machine = reservation.getMachine();

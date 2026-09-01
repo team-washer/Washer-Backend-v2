@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 import static org.mockito.Mockito.lenient;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +45,7 @@ import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ForceStopMachineServiceImpl 클래스의")
@@ -88,8 +88,8 @@ class ForceStopMachineServiceTest {
     private Reservation createReservation(Machine machine, ReservationStatus status) {
         var user = User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(3).floor(3).penaltyCount(0)
                 .build();
-        return Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now())
-                .startTime(LocalDateTime.now()).status(status).build();
+        final var now = DateTimeUtil.nowInKorea();
+        return Reservation.builder().user(user).machine(machine).reservedAt(now).startTime(now).status(status).build();
     }
 
     private SmartThingsDeviceStatusResDto washerStatus(String machineState) {

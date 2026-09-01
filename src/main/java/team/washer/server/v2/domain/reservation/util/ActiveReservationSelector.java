@@ -32,7 +32,7 @@ public final class ActiveReservationSelector {
         if (activeReservations == null || activeReservations.isEmpty()) {
             return Optional.empty();
         }
-        return activeReservations.stream().filter(Reservation::isRunning).findFirst()
-                .or(() -> activeReservations.stream().filter(Reservation::isReserved).findFirst());
+        return activeReservations.stream().filter(Reservation::isRunning).findFirst().or(() -> activeReservations
+                .stream().filter(reservation -> reservation.isReserved() && !reservation.isExpired()).findFirst());
     }
 }

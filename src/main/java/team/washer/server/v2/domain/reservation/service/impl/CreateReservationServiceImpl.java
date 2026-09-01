@@ -12,6 +12,7 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
+import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.config.ReservationEnvironment;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
@@ -30,6 +31,9 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 @Service
 @RequiredArgsConstructor
 public class CreateReservationServiceImpl implements CreateReservationService {
+
+    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
+            ReservationStatus.RUNNING);
 
     private final ReservationRepository reservationRepository;
     private final UserRepository userRepository;
@@ -78,30 +82,31 @@ public class CreateReservationServiceImpl implements CreateReservationService {
                     HttpStatus.BAD_REQUEST);
         }
 
+        final var activeMachineReservations = reservationRepository.findByMachineAndStatusIn(machine, ACTIVE_STATUSES);
+
         // 기기 가용성 검증
-        if (machine.getAvailability() != MachineAvailability.AVAILABLE) {
+        if (machine.getAvailability() != MachineAvailability.AVAILABLE
+                && !canReuseStaleReservedSlot(machine, activeMachineReservations)) {
             throw new ExpectedException(String.format("해당 기기를 사용할 수 없습니다. 기기: %s", machine.getName()),
                     HttpStatus.BAD_REQUEST);
         }
 
         // 기기 단위 중복 예약 검증 (가용성 플래그 드리프트에 대한 방어 심화)
-        final boolean hasActiveMachineReservation = reservationRepository.existsByMachineAndStatusIn(machine,
-                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING));
-        if (hasActiveMachineReservation) {
+        if (hasCurrentActiveReservation(activeMachineReservations)) {
             throw new ExpectedException(String.format("해당 기기에 이미 진행 중인 예약이 있습니다. 기기: %s", machine.getName()),
                     HttpStatus.CONFLICT);
         }
 
         // 개인 중복 예약 검증 (1인 1예약)
-        final boolean hasUserActiveReservation = reservationRepository.existsByUserAndStatusIn(user,
-                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING));
-        if (hasUserActiveReservation) {
+        final var userActiveReservations = reservationRepository.findByUserAndStatusIn(user, ACTIVE_STATUSES);
+        if (hasCurrentActiveReservation(userActiveReservations)) {
             throw new ExpectedException("이미 활성 예약이 존재합니다. 1인 1예약만 가능합니다.", HttpStatus.BAD_REQUEST);
         }
 
         // 동일 호실의 동일 유형 기기 중복 예약 검증
-        final boolean hasDuplicateTypeReservation = reservationRepository
-                .existsActiveReservationByRoomAndMachineType(roomNumber, machine.getType());
+        final boolean hasDuplicateTypeReservation = reservationRepository.findActiveReservationsByRoomNumber(roomNumber)
+                .stream().filter(reservation -> reservation.getMachine().getType() == machine.getType())
+                .anyMatch(reservation -> reservation.isActive() && !reservation.isExpired());
         if (hasDuplicateTypeReservation) {
             throw new ExpectedException(String.format("해당 호실에 이미 %s 예약이 존재합니다. 동일 유형의 기기는 동시에 두 개 이상 예약할 수 없습니다.",
                     machine.getType().getDescription()), HttpStatus.BAD_REQUEST);
@@ -132,5 +137,14 @@ public class CreateReservationServiceImpl implements CreateReservationService {
                 saved.getDayOfWeek(),
                 saved.getCreatedAt(),
                 saved.getUpdatedAt());
+    }
+
+    private boolean hasCurrentActiveReservation(List<Reservation> reservations) {
+        return reservations.stream().anyMatch(reservation -> reservation.isActive() && !reservation.isExpired());
+    }
+
+    private boolean canReuseStaleReservedSlot(Machine machine, List<Reservation> activeReservations) {
+        return machine.getStatus() == MachineStatus.NORMAL && machine.getAvailability() == MachineAvailability.RESERVED
+                && !hasCurrentActiveReservation(activeReservations);
     }
 }
