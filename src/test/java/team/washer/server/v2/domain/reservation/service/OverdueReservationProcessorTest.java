@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -208,6 +209,28 @@ class OverdueReservationProcessorTest {
             verify(reservationNotificationSupport, times(1)).sendTimeoutWarning(user, machine);
             verify(reservationNotificationSupport, never()).sendAutoCancellation(any(), any());
             verify(reservation, never()).start(any());
+        }
+
+        @Test
+        @DisplayName("관리자 대리 예약이면 취소와 기기 반납만 수행하고 패널티를 부여하지 않는다")
+        void shouldCancelWithoutPenalty_WhenProxyReservation() {
+            // Given
+            var deviceStatus = buildDeviceStatus(null);
+            givenReservedReservation();
+            when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(StartDecision.IDLE);
+            when(reservation.isProxyReservation()).thenReturn(true);
+
+            // When
+            var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, deviceStatus);
+
+            // Then
+            assertThat(result).isEqualTo(OverdueResult.CANCELLED_WITHOUT_PENALTY);
+            verify(reservation, times(1)).cancel();
+            verify(machine, times(1)).markAsAvailable();
+            verify(reservationRepository, times(1)).save(reservation);
+            verifyNoInteractions(penaltyRedisUtil);
+            verifyNoInteractions(reservationNotificationSupport);
         }
 
         @Test

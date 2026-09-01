@@ -113,6 +113,12 @@ public class OverdueReservationProcessor {
         reservationRepository.save(reservation);
         machineRepository.save(machine);
 
+        // 관리자 대리 예약은 사용자 본인이 요청한 것이 아니므로 타임아웃 패널티를 부여하지 않는다
+        if (reservation.isProxyReservation()) {
+            log.info("proxy reservation timeout cancelled without penalty reservationId={}", reservationId);
+            return OverdueResult.CANCELLED_WITHOUT_PENALTY;
+        }
+
         applyTimeoutPenalty(reservation.getUser(), machine);
         return OverdueResult.CANCELLED;
     }
