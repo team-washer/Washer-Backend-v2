@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -25,13 +26,17 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor;
 import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor.OverdueResult;
+import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
+import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport.StartDecision;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.constants.ReservationConstants;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("OverdueReservationProcessor 개별 만료 예약 처리")
@@ -55,7 +60,7 @@ class OverdueReservationProcessorTest {
     private ReservationNotificationSupport reservationNotificationSupport;
 
     @Mock
-    private MachineStateDetectionSupport machineStateDetectionSupport;
+    private ReservationStartDecisionSupport reservationStartDecisionSupport;
 
     @Mock
     private Reservation reservation;
@@ -111,8 +116,8 @@ class OverdueReservationProcessorTest {
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
             givenReservedReservation();
             when(reservation.getUser()).thenReturn(user);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(true);
+            when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(StartDecision.STARTED);
 
             // When
             var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, deviceStatus);
@@ -135,8 +140,8 @@ class OverdueReservationProcessorTest {
             givenReservedReservation();
             when(reservation.getUser()).thenReturn(user);
             when(machine.isWasher()).thenReturn(false);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(true);
+            when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(StartDecision.STARTED);
 
             // When
             var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, deviceStatus);
@@ -146,6 +151,30 @@ class OverdueReservationProcessorTest {
             verify(reservation, times(1)).start(LocalDateTime.of(2026, 1, 27, 1, 0));
             verify(reservationNotificationSupport, times(1))
                     .sendStarted(user, machine, LocalDateTime.of(2026, 1, 27, 1, 0));
+        }
+
+        @Test
+        @DisplayName("완료 예정 시간이 없어도 실행 신호가 있으면 타임아웃 취소와 패널티를 적용하지 않는다")
+        void shouldAutoStartWithoutPenalty_WhenRunningSignalExistsButCompletionTimeNull() {
+            // Given
+            var deviceStatus = buildDeviceStatus(null);
+            givenReservedReservation();
+            when(reservation.getUser()).thenReturn(user);
+            when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(StartDecision.STARTED);
+
+            // When
+            var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, deviceStatus);
+
+            // Then
+            assertThat(result).isEqualTo(OverdueResult.AUTO_STARTED);
+            verify(reservation, times(1)).start(isNull());
+            verify(reservation, never()).cancel();
+            verify(machine, times(1)).markAsInUse();
+            verify(machineRepository, times(1)).save(machine);
+            verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
+            verify(penaltyRedisUtil, never()).recordCancellation(any());
+            verify(reservationNotificationSupport, times(1)).sendStarted(user, machine, null);
         }
     }
 
@@ -159,8 +188,8 @@ class OverdueReservationProcessorTest {
             // Given
             var deviceStatus = buildDeviceStatus(null);
             givenReservedReservation();
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(false);
+            when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(StartDecision.IDLE);
             when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(penaltyRedisUtil.hasWarning(1L)).thenReturn(false);
@@ -187,8 +216,8 @@ class OverdueReservationProcessorTest {
             // Given
             var deviceStatus = buildDeviceStatus(null);
             givenReservedReservation();
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(false);
+            when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(StartDecision.IDLE);
             when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(penaltyRedisUtil.hasWarning(1L)).thenReturn(true);
@@ -211,8 +240,8 @@ class OverdueReservationProcessorTest {
             // Given
             var deviceStatus = buildDeviceStatus(null);
             givenReservedReservation();
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(false);
+            when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(StartDecision.IDLE);
             when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(user.getRoomNumber()).thenReturn("101");
@@ -224,6 +253,64 @@ class OverdueReservationProcessorTest {
 
             // Then
             verify(penaltyRedisUtil, times(1)).applyBlock("101");
+        }
+    }
+
+    @Nested
+    @DisplayName("기기 시작 여부를 확신할 수 없으면")
+    class MachineStateUnknown {
+
+        @Test
+        @DisplayName("추가 보류 시간 안이면 예약을 취소하거나 패널티를 적용하지 않고 SKIPPED를 반환한다")
+        void shouldSkipWithoutPenalty_WhenStartDecisionUnknownWithinGrace() {
+            // Given
+            var deviceStatus = buildDeviceStatus(null);
+            givenReservedReservation();
+            when(reservation.getReservedAt()).thenReturn(DateTimeUtil.nowInKorea()
+                    .minusMinutes(ReservationConstants.UNKNOWN_START_DECISION_GRACE_MINUTES + 4L));
+            when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(StartDecision.UNKNOWN);
+
+            // When
+            var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, deviceStatus);
+
+            // Then
+            assertThat(result).isEqualTo(OverdueResult.SKIPPED);
+            verify(reservation, never()).start(any());
+            verify(reservation, never()).cancel();
+            verify(reservationRepository, never()).save(any());
+            verify(machineRepository, never()).save(any());
+            verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
+            verify(penaltyRedisUtil, never()).recordCancellation(any());
+            verify(reservationNotificationSupport, never()).sendAutoCancellation(any(), any());
+            verify(reservationNotificationSupport, never()).sendTimeoutWarning(any(), any());
+        }
+
+        @Test
+        @DisplayName("추가 보류 시간을 넘긴 UNKNOWN 예약은 패널티 없이 정리한다")
+        void shouldCancelWithoutPenalty_WhenStartDecisionUnknownAfterGrace() {
+            // Given
+            var deviceStatus = buildDeviceStatus(null);
+            givenReservedReservation();
+            when(reservation.getReservedAt())
+                    .thenReturn(DateTimeUtil.nowInKorea().minusMinutes(ReservationStatus.RESERVED.getTimeoutMinutes()
+                            + ReservationConstants.UNKNOWN_START_DECISION_GRACE_MINUTES + 1L));
+            when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(StartDecision.UNKNOWN);
+
+            // When
+            var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, deviceStatus);
+
+            // Then
+            assertThat(result).isEqualTo(OverdueResult.CANCELLED_WITHOUT_PENALTY);
+            verify(reservation, times(1)).cancel();
+            verify(machine, times(1)).markAsAvailable();
+            verify(reservationRepository, times(1)).save(reservation);
+            verify(machineRepository, times(1)).save(machine);
+            verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
+            verify(penaltyRedisUtil, never()).recordCancellation(any());
+            verify(reservationNotificationSupport, never()).sendAutoCancellation(any(), any());
+            verify(reservationNotificationSupport, never()).sendTimeoutWarning(any(), any());
         }
     }
 

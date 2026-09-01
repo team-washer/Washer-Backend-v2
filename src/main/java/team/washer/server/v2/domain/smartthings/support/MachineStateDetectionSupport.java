@@ -42,6 +42,27 @@ public class MachineStateDetectionSupport {
     }
 
     /**
+     * 기기가 물리적으로 정지 상태인지 감지한다.
+     */
+    public boolean isStopped(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        return status != null && status.getOperatingState(isWasher) == MachineOperatingState.STOP;
+    }
+
+    /**
+     * 기기가 보고한 완료 예정 시각을 한국 시간으로 변환한다. 값이 없거나 파싱할 수 없으면 빈 값을 반환한다.
+     */
+    public Optional<LocalDateTime> resolveCompletionTime(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        if (status == null) {
+            return Optional.empty();
+        }
+        var completionTimeStr = status.getCompletionTime(isWasher);
+        if (completionTimeStr == null || completionTimeStr.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr));
+    }
+
+    /**
      * 기기 작업이 완료되었는지 감지하고, 완료된 경우 완료 시각을 반환한다.
      *
      * <p>
@@ -55,7 +76,7 @@ public class MachineStateDetectionSupport {
             return Optional.empty();
         }
         var now = DateTimeUtil.nowInKorea();
-        if (status.getOperatingState(isWasher) != MachineOperatingState.STOP) {
+        if (!isStopped(status, isWasher)) {
             if (status.isJobStateFinished(isWasher)) {
                 log.debug("job finished but machine not stopped yet machineState={} jobState={}",
                         status.getOperatingState(isWasher),
@@ -64,10 +85,7 @@ public class MachineStateDetectionSupport {
             return Optional.empty();
         }
 
-        var completionTimeStr = status.getCompletionTime(isWasher);
-        var completionTime = (completionTimeStr != null && !completionTimeStr.isBlank())
-                ? DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr)
-                : null;
+        var completionTime = resolveCompletionTime(status, isWasher).orElse(null);
         if (status.isJobStateFinished(isWasher)) {
             log.debug("device job is completed jobState={} completionTime={}",
                     status.getJobState(isWasher),

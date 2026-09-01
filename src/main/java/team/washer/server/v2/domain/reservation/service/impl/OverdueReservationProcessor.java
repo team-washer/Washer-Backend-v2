@@ -11,13 +11,16 @@ import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
+import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
+import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
+import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport.StartDecision;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.global.common.constants.PenaltyConstants;
+import team.washer.server.v2.global.common.constants.ReservationConstants;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 /**
@@ -38,7 +41,7 @@ public class OverdueReservationProcessor {
     private final MachineRepository machineRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
     private final ReservationNotificationSupport reservationNotificationSupport;
-    private final MachineStateDetectionSupport machineStateDetectionSupport;
+    private final ReservationStartDecisionSupport reservationStartDecisionSupport;
 
     /**
      * 외부 API 호출 대상이 되는 만료 예약의 식별자와 기기 ID 쌍.
@@ -50,7 +53,7 @@ public class OverdueReservationProcessor {
      * 개별 만료 예약 처리 결과. 호출 측의 요약 로그 집계에 사용한다.
      */
     public enum OverdueResult {
-        AUTO_STARTED, CANCELLED, SKIPPED
+        AUTO_STARTED, CANCELLED, CANCELLED_WITHOUT_PENALTY, SKIPPED
     }
 
     /**
@@ -80,7 +83,8 @@ public class OverdueReservationProcessor {
         }
         var machine = reservation.getMachine();
 
-        if (machineStateDetectionSupport.isRunning(status, machine.isWasher())) {
+        var startDecision = reservationStartDecisionSupport.decide(status, machine.isWasher());
+        if (startDecision == StartDecision.STARTED) {
             var expectedCompletionTime = DateTimeUtil
                     .parseAndConvertToKoreaTime(status.getCompletionTime(machine.isWasher()));
             reservation.start(expectedCompletionTime);
@@ -90,6 +94,19 @@ public class OverdueReservationProcessor {
             reservationNotificationSupport.sendStarted(reservation.getUser(), machine, expectedCompletionTime);
             return OverdueResult.AUTO_STARTED;
         }
+        if (startDecision == StartDecision.UNKNOWN) {
+            if (canCancelUnknownReservation(reservation)) {
+                reservation.cancel();
+                machine.markAsAvailable();
+                reservationRepository.save(reservation);
+                machineRepository.save(machine);
+                log.warn("reservation timeout cancelled without penalty due to unknown start state reservationId={}",
+                        reservationId);
+                return OverdueResult.CANCELLED_WITHOUT_PENALTY;
+            }
+            log.warn("reservation timeout deferred due to unknown start state reservationId={}", reservationId);
+            return OverdueResult.SKIPPED;
+        }
 
         reservation.cancel();
         machine.markAsAvailable();
@@ -98,6 +115,12 @@ public class OverdueReservationProcessor {
 
         applyTimeoutPenalty(reservation.getUser(), machine);
         return OverdueResult.CANCELLED;
+    }
+
+    private boolean canCancelUnknownReservation(Reservation reservation) {
+        var unknownDeadline = reservation.getReservedAt().plusMinutes(ReservationStatus.RESERVED.getTimeoutMinutes()
+                + ReservationConstants.UNKNOWN_START_DECISION_GRACE_MINUTES);
+        return !DateTimeUtil.nowInKorea().isBefore(unknownDeadline);
     }
 
     /**
