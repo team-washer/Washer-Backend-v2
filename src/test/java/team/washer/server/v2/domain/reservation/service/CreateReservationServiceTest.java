@@ -9,11 +9,11 @@ import static org.mockito.Mockito.*;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -32,6 +32,7 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.CreateReservationServiceImpl;
+import team.washer.server.v2.domain.reservation.support.ReservationCreationSupport;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
@@ -41,7 +42,6 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 @ExtendWith(MockitoExtension.class)
 class CreateReservationServiceTest {
 
-    @InjectMocks
     private CreateReservationServiceImpl createReservationService;
 
     @Mock
@@ -68,6 +68,19 @@ class CreateReservationServiceTest {
 
     private static final Long USER_ID = 1L;
     private static final String ROOM_NUMBER = "101";
+
+    // 검증 순서와 에러 메시지를 그대로 검증하기 위해 Support는 실제 구현체를 사용한다
+    @BeforeEach
+    void setUp() {
+        final var reservationCreationSupport = new ReservationCreationSupport(reservationRepository,
+                machineRepository,
+                washingBanRepository);
+        createReservationService = new CreateReservationServiceImpl(userRepository,
+                penaltyRedisUtil,
+                reservationEnvironment,
+                currentUserProvider,
+                reservationCreationSupport);
+    }
 
     @Nested
     @DisplayName("예약 생성")

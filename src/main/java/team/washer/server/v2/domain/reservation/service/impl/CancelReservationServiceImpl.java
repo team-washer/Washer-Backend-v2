@@ -48,20 +48,23 @@ public class CancelReservationServiceImpl implements CancelReservationService {
             throw new ExpectedException("취소할 수 있는 상태의 예약이 아닙니다", HttpStatus.BAD_REQUEST);
         }
 
-        // RESERVED 상태에서 수동 취소 시 패널티 적용
-        final User user = reservation.getUser();
-        penaltyRedisUtil.applyCooldown(userId, reservation.getMachine().getType());
-        penaltyRedisUtil.recordCancellation(userId);
-        user.updateLastCancellationTime();
-        if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
-            final boolean wasBlocked = penaltyRedisUtil.isBlocked(user.getRoomNumber());
-            penaltyRedisUtil.applyBlock(user.getRoomNumber());
-            if (!wasBlocked) {
-                reservationNotificationSupport.sendCancellationBlock(user, reservation.getMachine());
+        // 수동 취소 시 패널티 적용. 단, 관리자 대리 예약은 본인이 요청한 것이 아니므로 면제한다
+        final boolean applyPenalty = !reservation.isProxyReservation();
+        if (applyPenalty) {
+            final User user = reservation.getUser();
+            penaltyRedisUtil.applyCooldown(userId, reservation.getMachine().getType());
+            penaltyRedisUtil.recordCancellation(userId);
+            user.updateLastCancellationTime();
+            if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
+                final boolean wasBlocked = penaltyRedisUtil.isBlocked(user.getRoomNumber());
+                penaltyRedisUtil.applyBlock(user.getRoomNumber());
+                if (!wasBlocked) {
+                    reservationNotificationSupport.sendCancellationBlock(user, reservation.getMachine());
+                }
+                log.warn("48h block applied roomNumber={}", user.getRoomNumber());
             }
-            log.warn("48h block applied roomNumber={}", user.getRoomNumber());
+            log.info("manual cancel penalty applied userId={} reservationId={}", userId, reservationId);
         }
-        log.info("manual cancel penalty applied userId={} reservationId={}", userId, reservationId);
 
         final var machine = reservation.getMachine();
         reservation.cancel();
@@ -70,10 +73,11 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         machineRepository.save(machine);
         log.info("Cancelled reservation reservationId={} userId={}", reservationId, userId);
 
-        return mapToCancellationResDto();
+        return mapToCancellationResDto(applyPenalty);
     }
 
-    private CancellationResDto mapToCancellationResDto() {
-        return new CancellationResDto(true, "예약이 취소되었습니다. 5분간 동일 종류 기기 재예약이 제한됩니다.", true, null);
+    private CancellationResDto mapToCancellationResDto(final boolean penaltyApplied) {
+        final String message = penaltyApplied ? "예약이 취소되었습니다. 5분간 동일 종류 기기 재예약이 제한됩니다." : "예약이 취소되었습니다.";
+        return new CancellationResDto(true, message, penaltyApplied, null);
     }
 }

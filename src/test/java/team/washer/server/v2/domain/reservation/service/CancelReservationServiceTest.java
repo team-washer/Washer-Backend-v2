@@ -56,6 +56,9 @@ class CancelReservationServiceTest {
     @Mock
     private User user;
 
+    @Mock
+    private User adminUser;
+
     private Machine createMachine() {
         return Machine.builder().name("W-2F-L1").type(MachineType.WASHER).deviceId("device-1").floor(2)
                 .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
@@ -104,6 +107,35 @@ class CancelReservationServiceTest {
                 then(penaltyRedisUtil).should(times(1)).recordCancellation(userId);
                 then(reservationRepository).should(times(1)).save(reservation);
                 then(machineRepository).should(times(1)).save(reservation.getMachine());
+            }
+        }
+
+        @Nested
+        @DisplayName("관리자가 대리 생성한 RESERVED 예약을 소유자가 취소할 때")
+        class Context_with_proxy_reservation {
+
+            @Test
+            @DisplayName("패널티 없이 예약만 취소되어야 한다")
+            void it_cancels_without_penalty() {
+                // Given
+                var userId = 1L;
+                var reservationId = 10L;
+                var machine = createMachine();
+                given(user.getId()).willReturn(userId);
+                var reservation = Reservation.builder().user(user).machine(machine).createdBy(adminUser)
+                        .reservedAt(LocalDateTime.now()).status(ReservationStatus.RESERVED).build();
+
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
+
+                // When
+                var result = cancelReservationService.execute(reservationId);
+
+                // Then
+                assertThat(result.penaltyApplied()).isFalse();
+                assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+                assertThat(reservation.getMachine().getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
+                then(penaltyRedisUtil).shouldHaveNoInteractions();
             }
         }
 
