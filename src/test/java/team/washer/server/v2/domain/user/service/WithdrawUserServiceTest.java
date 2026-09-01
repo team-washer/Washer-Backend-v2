@@ -37,6 +37,9 @@ import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 @DisplayName("WithdrawUserServiceImpl 클래스의")
 class WithdrawUserServiceTest {
 
+    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
+            ReservationStatus.RUNNING);
+
     @InjectMocks
     private WithdrawUserServiceImpl withdrawUserService;
 
@@ -70,6 +73,9 @@ class WithdrawUserServiceTest {
     }
 
     private Reservation createReservation(final ReservationStatus status, final User user, final Machine machine) {
+        if (status == ReservationStatus.RUNNING) {
+            machine.markAsInUse();
+        }
         return Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now())
                 .startTime(LocalDateTime.now().plusMinutes(10)).status(status).build();
     }
@@ -79,26 +85,26 @@ class WithdrawUserServiceTest {
     class Describe_execute {
 
         @Nested
-        @DisplayName("활성 예약이 없는 사용자가 탈퇴할 때")
+        @DisplayName("활성 예약이 없는 사용자가 탈퇴하면")
         class Context_without_active_reservations {
 
             @Test
-            @DisplayName("리프레시 토큰을 삭제하고 탈퇴 학번을 기록한 후 사용자를 삭제해야 한다")
+            @DisplayName("리프레시 토큰을 제거하고 탈퇴 학번을 기록한 뒤 사용자를 삭제해야 한다")
             void it_deletes_user_with_token_and_withdrawal_recorded() {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
-                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.findByUserAndStatusIn(user, activeStatuses)).willReturn(List.of());
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
+                        .willReturn(List.of());
 
                 // When
                 withdrawUserService.execute();
 
                 // Then
-                then(reservationRepository).should(times(1)).findByUserAndStatusIn(user, activeStatuses);
+                then(reservationRepository).should(times(1)).findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES);
                 then(machineRepository).should(never()).save(any(Machine.class));
                 then(refreshTokenRedisRepository).should(times(1)).deleteById(userId);
                 then(withdrawnStudentRedisUtil).should(times(1)).markWithdrawn(user.getStudentId());
@@ -107,22 +113,21 @@ class WithdrawUserServiceTest {
         }
 
         @Nested
-        @DisplayName("RESERVED 상태의 예약이 있는 사용자가 탈퇴할 때")
+        @DisplayName("RESERVED 상태의 예약이 있는 사용자가 탈퇴하면")
         class Context_with_reserved_reservation {
 
             @Test
-            @DisplayName("예약을 패널티 없이 취소하고 기기를 AVAILABLE 상태로 변경한 후 사용자를 삭제해야 한다")
+            @DisplayName("예약을 취소하고 기기를 AVAILABLE 상태로 변경한 뒤 사용자를 삭제해야 한다")
             void it_cancels_reservation_and_deletes_user() {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
                 Machine machine = createMachine();
                 Reservation reservation = createReservation(ReservationStatus.RESERVED, user, machine);
-                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.findByUserAndStatusIn(user, activeStatuses))
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reservation));
 
                 // When
@@ -139,44 +144,44 @@ class WithdrawUserServiceTest {
         }
 
         @Nested
-        @DisplayName("RUNNING 상태의 예약이 있는 사용자가 탈퇴할 때")
+        @DisplayName("RUNNING 상태의 예약이 있는 사용자가 탈퇴하면")
         class Context_with_running_reservation {
 
             @Test
-            @DisplayName("예약을 패널티 없이 취소하고 기기를 AVAILABLE 상태로 변경한 후 사용자를 삭제해야 한다")
-            void it_cancels_reservation_and_deletes_user() {
+            @DisplayName("예약과 기기 상태를 보존하고 CONFLICT 예외를 발생시켜야 한다")
+            void it_keeps_running_reservation_and_throws_conflict() {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
                 Machine machine = createMachine();
                 Reservation reservation = createReservation(ReservationStatus.RUNNING, user, machine);
-                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.findByUserAndStatusIn(user, activeStatuses))
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reservation));
 
-                // When
-                withdrawUserService.execute();
+                // When & Then
+                assertThatThrownBy(() -> withdrawUserService.execute()).isInstanceOf(ExpectedException.class)
+                        .hasMessage("기기 사용 중에는 회원탈퇴를 할 수 없습니다. 사용 완료 후 다시 시도해주세요.")
+                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.CONFLICT);
 
-                // Then
-                assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-                assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
-                then(machineRepository).should(times(1)).saveAll(anyList());
-                then(refreshTokenRedisRepository).should(times(1)).deleteById(userId);
-                then(withdrawnStudentRedisUtil).should(times(1)).markWithdrawn(user.getStudentId());
-                then(userRepository).should(times(1)).delete(user);
+                assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RUNNING);
+                assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.IN_USE);
+                then(machineRepository).should(never()).saveAll(anyList());
+                then(refreshTokenRedisRepository).should(never()).deleteById(anyLong());
+                then(withdrawnStudentRedisUtil).should(never()).markWithdrawn(anyString());
+                then(userRepository).should(never()).delete(any(User.class));
             }
         }
 
         @Nested
-        @DisplayName("RESERVED와 RUNNING 예약이 동시에 있는 사용자가 탈퇴할 때")
+        @DisplayName("RESERVED와 RUNNING 예약이 동시에 있는 사용자가 탈퇴하면")
         class Context_with_multiple_active_reservations {
 
             @Test
-            @DisplayName("모든 활성 예약을 취소하고 사용자를 삭제해야 한다")
-            void it_cancels_all_reservations_and_deletes_user() {
+            @DisplayName("아무 예약도 변경하지 않고 CONFLICT 예외를 발생시켜야 한다")
+            void it_keeps_all_reservations_and_throws_conflict() {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
@@ -186,34 +191,33 @@ class WithdrawUserServiceTest {
                         .availability(MachineAvailability.IN_USE).build();
                 Reservation reserved = createReservation(ReservationStatus.RESERVED, user, machine1);
                 Reservation running = createReservation(ReservationStatus.RUNNING, user, machine2);
-                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.findByUserAndStatusIn(user, activeStatuses))
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reserved, running));
 
-                // When
-                withdrawUserService.execute();
+                // When & Then
+                assertThatThrownBy(() -> withdrawUserService.execute()).isInstanceOf(ExpectedException.class)
+                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.CONFLICT);
 
-                // Then
-                assertThat(reserved.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-                assertThat(machine1.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
-                assertThat(running.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
-                assertThat(machine2.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
-                then(machineRepository).should(times(1)).saveAll(anyList());
-                then(refreshTokenRedisRepository).should(times(1)).deleteById(userId);
-                then(withdrawnStudentRedisUtil).should(times(1)).markWithdrawn(user.getStudentId());
-                then(userRepository).should(times(1)).delete(user);
+                assertThat(reserved.getStatus()).isEqualTo(ReservationStatus.RESERVED);
+                assertThat(machine1.getAvailability()).isEqualTo(MachineAvailability.RESERVED);
+                assertThat(running.getStatus()).isEqualTo(ReservationStatus.RUNNING);
+                assertThat(machine2.getAvailability()).isEqualTo(MachineAvailability.IN_USE);
+                then(machineRepository).should(never()).saveAll(anyList());
+                then(refreshTokenRedisRepository).should(never()).deleteById(anyLong());
+                then(withdrawnStudentRedisUtil).should(never()).markWithdrawn(anyString());
+                then(userRepository).should(never()).delete(any(User.class));
             }
         }
 
         @Nested
-        @DisplayName("존재하지 않는 사용자 ID로 요청할 때")
+        @DisplayName("존재하지 않는 사용자 ID로 요청하면")
         class Context_with_nonexistent_user_id {
 
             @Test
-            @DisplayName("ExpectedException을 던져야 한다")
+            @DisplayName("ExpectedException을 발생시켜야 한다")
             void it_throws_expected_exception() {
                 // Given
                 Long userId = 999L;
@@ -225,7 +229,7 @@ class WithdrawUserServiceTest {
                 assertThatThrownBy(() -> withdrawUserService.execute()).isInstanceOf(ExpectedException.class)
                         .hasMessage("사용자를 찾을 수 없습니다").hasFieldOrPropertyWithValue("statusCode", HttpStatus.NOT_FOUND);
 
-                then(reservationRepository).should(never()).findByUserAndStatusIn(any(User.class), anyList());
+                then(reservationRepository).should(never()).findByUserAndStatusInForUpdate(any(User.class), anyList());
                 then(refreshTokenRedisRepository).should(never()).deleteById(anyLong());
                 then(withdrawnStudentRedisUtil).should(never()).markWithdrawn(anyString());
                 then(userRepository).should(never()).delete(any(User.class));

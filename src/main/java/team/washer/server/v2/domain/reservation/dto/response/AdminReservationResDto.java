@@ -20,5 +20,6 @@ public record AdminReservationResDto(@Schema(description = "예약 ID", example 
         @Schema(description = "예상 완료 시간", example = "2026-01-27T23:00:00") LocalDateTime expectedCompletionTime,
         @Schema(description = "실제 완료 시간", example = "2026-01-27T23:00:00") LocalDateTime actualCompletionTime,
         @Schema(description = "예약 상태", example = "RESERVED") ReservationStatus status,
-        @Schema(description = "취소 시간", example = "2026-01-27T21:20:00") LocalDateTime cancelledAt) {
+        @Schema(description = "취소 시간", example = "2026-01-27T21:20:00") LocalDateTime cancelledAt,
+        @Schema(description = "대리 예약을 생성한 관리자 이름. 사용자 본인 예약이면 null", example = "박관리") String createdByAdminName) {
 }

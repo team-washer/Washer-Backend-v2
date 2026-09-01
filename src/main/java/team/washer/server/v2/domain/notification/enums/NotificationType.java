@@ -24,7 +24,9 @@ public enum NotificationType {
                                                                     "예약 차단 알림",
                                                                     "48시간 내 예약 취소가 누적되어 해당 호실의 예약이 48시간 동안 제한됩니다."), CANCELLATION_BLOCK_EXTENDED(
                                                                             "예약 차단 연장 알림",
-                                                                            "관리자에 의해 예약 차단 기간이 연장되었습니다. {expiryAt}까지 해당 호실의 예약이 제한됩니다.");
+                                                                            "관리자에 의해 예약 차단 기간이 연장되었습니다. {expiryAt}까지 해당 호실의 예약이 제한됩니다."), FORCE_STOPPED(
+                                                                                    "강제 정지 알림",
+                                                                                    "관리자에 의해 {machineName}의 {action} 정지되어 예약이 패널티 없이 취소되었습니다.");
 
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter EXPIRY_FORMATTER = DateTimeFormatter.ofPattern("MM월 dd일 HH시 mm분");

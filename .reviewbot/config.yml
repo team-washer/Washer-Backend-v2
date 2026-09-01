@@ -1,0 +1,19 @@
+language: ko
+tone: professional
+allowStrongTone: false
+emoji: false
+minSeverity: nit
+maxInlineComments: 25
+
+include:
+  - "**/*.java"
+exclude:
+  - "**/generated/**"
+
+sandrone:
+  autoReview: true
+  autoReviewOnDraft: true
+  autoReviewOnPush: false
+  progressMessageTheme: programming
+  summaryPlacement: new-comment
+  maxReviewBatches: 8

@@ -33,21 +33,24 @@ public class CancelReservationServiceImpl implements CancelReservationService {
     @Transactional
     public CancellationResDto execute(final Long reservationId) {
         final var userId = currentUserProvider.getCurrentUserId();
-        final Reservation reservation = reservationRepository.findById(reservationId)
+        final Reservation reservation = reservationRepository.findByIdForUpdate(reservationId)
                 .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         if (!reservation.getUser().getId().equals(userId)) {
             throw new ExpectedException("예약을 취소할 권한이 없습니다", HttpStatus.FORBIDDEN);
         }
 
-        if (!reservation.isActive()) {
-            throw new ExpectedException("활성 예약만 취소할 수 있습니다", HttpStatus.BAD_REQUEST);
+        if (reservation.isRunning()) {
+            throw new ExpectedException("이미 기기 사용이 시작되어 예약을 취소할 수 없습니다. 최신 상태를 확인해주세요.", HttpStatus.CONFLICT);
         }
 
-        boolean applyPenalty = false;
+        if (!reservation.isReserved()) {
+            throw new ExpectedException("취소할 수 있는 상태의 예약이 아닙니다", HttpStatus.BAD_REQUEST);
+        }
 
-        // RESERVED 상태에서 수동 취소 시 패널티 적용
-        if (reservation.isReserved()) {
+        // 수동 취소 시 패널티 적용. 단, 관리자 대리 예약은 본인이 요청한 것이 아니므로 면제한다
+        final boolean applyPenalty = !reservation.isProxyReservation();
+        if (applyPenalty) {
             final User user = reservation.getUser();
             penaltyRedisUtil.applyCooldown(userId, reservation.getMachine().getType());
             penaltyRedisUtil.recordCancellation(userId);
@@ -58,10 +61,9 @@ public class CancelReservationServiceImpl implements CancelReservationService {
                 if (!wasBlocked) {
                     reservationNotificationSupport.sendCancellationBlock(user, reservation.getMachine());
                 }
-                log.warn("48h block applied roomNumber {}", user.getRoomNumber());
+                log.warn("48h block applied roomNumber={}", user.getRoomNumber());
             }
-            applyPenalty = true;
-            log.info("manual cancel penalty applied userId {} reservationId {}", userId, reservationId);
+            log.info("manual cancel penalty applied userId={} reservationId={}", userId, reservationId);
         }
 
         final var machine = reservation.getMachine();
@@ -69,7 +71,7 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         machine.markAsAvailable();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
-        log.info("Cancelled reservation {} by user {}", reservationId, userId);
+        log.info("Cancelled reservation reservationId={} userId={}", reservationId, userId);
 
         return mapToCancellationResDto(applyPenalty);
     }

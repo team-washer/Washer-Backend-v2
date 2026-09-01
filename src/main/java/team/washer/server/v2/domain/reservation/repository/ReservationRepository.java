@@ -5,14 +5,17 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import jakarta.persistence.LockModeType;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.custom.ReservationRepositoryCustom;
+import team.washer.server.v2.domain.reservation.util.ActiveReservationSelector;
 import team.washer.server.v2.domain.user.entity.User;
 
 @Repository
@@ -24,6 +27,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 
     List<Reservation> findByStatus(ReservationStatus status);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Reservation r JOIN FETCH r.machine JOIN FETCH r.user WHERE r.id = :id")
+    Optional<Reservation> findByIdForUpdate(@Param("id") Long id);
+
     @Query("SELECT r FROM Reservation r JOIN FETCH r.machine JOIN FETCH r.user WHERE r.status = :status")
     List<Reservation> findByStatusWithMachineAndUser(@Param("status") ReservationStatus status);
 
@@ -31,6 +38,11 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 
     @Query("SELECT r FROM Reservation r WHERE r.user = :user AND r.status IN :statuses")
     List<Reservation> findByUserAndStatusIn(@Param("user") User user,
+            @Param("statuses") List<ReservationStatus> statuses);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Reservation r JOIN FETCH r.machine WHERE r.user = :user AND r.status IN :statuses")
+    List<Reservation> findByUserAndStatusInForUpdate(@Param("user") User user,
             @Param("statuses") List<ReservationStatus> statuses);
 
     @Query("SELECT r FROM Reservation r WHERE r.machine = :machine AND r.status IN :statuses")
@@ -52,9 +64,12 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
     List<Reservation> findFirstActiveReservationByMachineId(@Param("machineId") Long machineId,
             @Param("statuses") List<ReservationStatus> statuses);
 
+    /**
+     * 기기의 대표 활성 예약을 조회한다. 선택 규칙은 {@link ActiveReservationSelector}가 정의한다.
+     */
     default Optional<Reservation> findActiveReservationByMachineId(Long machineId) {
-        return findFirstActiveReservationByMachineId(machineId,
-                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)).stream().findFirst();
+        return ActiveReservationSelector.selectPrimary(findFirstActiveReservationByMachineId(machineId,
+                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)));
     }
 
     @Query("SELECT r FROM Reservation r WHERE r.status = :status AND r.startTime < :threshold")
@@ -74,8 +89,6 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 
     @Query("SELECT DISTINCT r.machine.id FROM Reservation r WHERE r.status IN :statuses")
     List<Long> findMachineIdsByStatusIn(@Param("statuses") List<ReservationStatus> statuses);
-
-    boolean existsByMachineAndStatusIn(Machine machine, List<ReservationStatus> statuses);
 
     boolean existsByUserAndStatusIn(User user, List<ReservationStatus> statuses);
 }

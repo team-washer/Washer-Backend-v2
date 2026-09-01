@@ -41,7 +41,7 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
                 var result = overdueReservationProcessor.processOverdue(target.reservationId(), status);
                 switch (result) {
                     case AUTO_STARTED -> autoStarted.add(target.reservationId());
-                    case CANCELLED -> cancelled.add(target.reservationId());
+                    case CANCELLED, CANCELLED_WITHOUT_PENALTY -> cancelled.add(target.reservationId());
                     case SKIPPED -> {
                     }
                 }
