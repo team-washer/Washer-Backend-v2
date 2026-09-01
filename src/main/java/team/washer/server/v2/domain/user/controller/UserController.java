@@ -29,7 +29,7 @@ public class UserController {
     }
 
     @DeleteMapping("/me")
-    @Operation(summary = "회원탈퇴", description = "현재 로그인된 사용자의 계정을 삭제합니다. 활성 예약은 자동으로 취소되며, 탈퇴 후 30일간 재가입이 제한됩니다.")
+    @Operation(summary = "회원탈퇴", description = "현재 로그인된 사용자의 계정을 삭제합니다. RESERVED 예약은 자동으로 취소되며, RUNNING 예약이 있으면 409를 반환합니다. 탈퇴 후 30일간 재가입이 제한됩니다.")
     public CommonApiResponse withdrawUser() {
         withdrawUserService.execute();
         return CommonApiResponse.success("회원탈퇴가 완료되었습니다.");

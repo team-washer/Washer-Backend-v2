@@ -69,7 +69,7 @@ public class ReservationLifecycleProcessor {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processReservedToRunning(Long reservationId, SmartThingsDeviceStatusResDto status) {
-        var reservation = reservationRepository.findById(reservationId).orElse(null);
+        var reservation = reservationRepository.findByIdForUpdate(reservationId).orElse(null);
         if (reservation == null || !reservation.isReserved()) {
             return;
         }
@@ -110,7 +110,7 @@ public class ReservationLifecycleProcessor {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processRunningToCompleted(Long reservationId, SmartThingsDeviceStatusResDto status) {
-        var reservation = reservationRepository.findById(reservationId).orElse(null);
+        var reservation = reservationRepository.findByIdForUpdate(reservationId).orElse(null);
         if (reservation == null || !reservation.isRunning()) {
             return;
         }
