@@ -63,17 +63,23 @@ public class MachineStateDetectionSupport {
     }
 
     /**
-     * 기기 작업이 완료되었는지 감지하고, 완료된 경우 완료 시각을 반환한다.
+     * 기기 작업이 완료되었는지 감지한다.
      *
      * <p>
      * SmartThings 기기는 메인 사이클이 끝나면 냉각(cooling)·구김방지(wrinklePrevent) 등 잔여 단계가 남아 있어도
      * jobState를 finish/finished로 먼저 보고하는 경우가 있다. 반대로 완료 직후 jobState가 none/null로 빠르게
      * 리셋될 수 있으므로, machineState=stop(물리적 정지)와 completionTime이 현재 시각을 지났는지(잔여시간 0)를
      * 함께 확인한다.
+     *
+     * <p>
+     * jobState가 리셋된 정지에서 보고된 완료 시각이 미래이면 다음 사이클 기준으로 되돌아간 값이므로 완료 시각으로 쓸 수 없다. 이 경우
+     * 예약 컨텍스트로 한 번 더 검증해야 하므로 완료로 확정하지 않고
+     * {@link MachineCompletionSignal.Kind#JOB_RESET_WITH_FUTURE_COMPLETION} 신호로
+     * 넘긴다.
      */
-    public Optional<LocalDateTime> isCompleted(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+    public MachineCompletionSignal detectCompletion(SmartThingsDeviceStatusResDto status, boolean isWasher) {
         if (status == null) {
-            return Optional.empty();
+            return MachineCompletionSignal.none();
         }
         var now = DateTimeUtil.nowInKorea();
         if (!isStopped(status, isWasher)) {
@@ -82,7 +88,7 @@ public class MachineStateDetectionSupport {
                         status.getOperatingState(isWasher),
                         status.getJobState(isWasher));
             }
-            return Optional.empty();
+            return MachineCompletionSignal.none();
         }
 
         var completionTime = resolveCompletionTime(status, isWasher).orElse(null);
@@ -90,24 +96,30 @@ public class MachineStateDetectionSupport {
             log.debug("device job is completed jobState={} completionTime={}",
                     status.getJobState(isWasher),
                     completionTime);
-            return Optional.of(completionTime != null && !completionTime.isAfter(now) ? completionTime : now);
+            return MachineCompletionSignal
+                    .completed(completionTime != null && !completionTime.isAfter(now) ? completionTime : now);
         }
 
-        if (completionTime != null && completionTime.isAfter(now)) {
-            log.debug("device stopped but completion time still in future completionTime={} jobState={}",
+        if (!status.isJobStateReset(isWasher) || completionTime == null) {
+            if (completionTime != null && completionTime.isAfter(now)) {
+                log.debug("device stopped but completion time still in future completionTime={} jobState={}",
+                        completionTime,
+                        status.getJobState(isWasher));
+            }
+            return MachineCompletionSignal.none();
+        }
+
+        if (completionTime.isAfter(now)) {
+            log.debug("device stopped with job reset and future completion time completionTime={} jobState={}",
                     completionTime,
                     status.getJobState(isWasher));
-            return Optional.empty();
+            return MachineCompletionSignal.jobResetWithFutureCompletion(completionTime);
         }
 
-        if (status.isJobStateReset(isWasher) && completionTime != null) {
-            log.debug("device job is completed after job reset jobState={} completionTime={}",
-                    status.getJobState(isWasher),
-                    completionTime);
-            return Optional.of(completionTime);
-        }
-
-        return Optional.empty();
+        log.debug("device job is completed after job reset jobState={} completionTime={}",
+                status.getJobState(isWasher),
+                completionTime);
+        return MachineCompletionSignal.completed(completionTime);
     }
 
     /**
@@ -145,7 +157,7 @@ public class MachineStateDetectionSupport {
             return true;
         }
 
-        if (status.getOperatingState(isWasher) != MachineOperatingState.STOP) {
+        if (!isStopped(status, isWasher)) {
             return false;
         }
         if (status.isJobStateFinished(isWasher)) {
