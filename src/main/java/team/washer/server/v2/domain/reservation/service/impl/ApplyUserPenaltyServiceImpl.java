@@ -46,14 +46,16 @@ public class ApplyUserPenaltyServiceImpl implements ApplyUserPenaltyService {
             throw new ExpectedException("호실 정보를 찾을 수 없습니다.", HttpStatus.NOT_FOUND);
         }
 
-        // applyBlock은 예외를 삼키므로 부과 성공 여부를 직접 검증한다.
-        // 관리자에게 거짓 성공 응답이 나가면 제재가 집행되지 않은 채 종료된다.
-        penaltyRedisUtil.applyBlock(roomNumber);
-        if (!penaltyRedisUtil.isBlocked(roomNumber)) {
+        // 관리자에게 거짓 성공 응답이 나가면 제재가 집행되지 않은 채 종료되므로 저장 실패를 예외로 받는다.
+        // isBlocked로 판정하면 이미 차단 중인 호실에서 TTL 갱신 실패를 성공으로 오인한다.
+        try {
+            penaltyRedisUtil.applyBlockOrThrow(roomNumber);
+        } catch (Exception e) {
             log.error("failed to apply admin penalty roomNumber={} targetId={} actorId={}",
                     roomNumber,
                     userId,
-                    actorId);
+                    actorId,
+                    e);
             throw new ExpectedException("패널티 부과에 실패했습니다. 잠시 후 다시 시도해 주세요.", HttpStatus.INTERNAL_SERVER_ERROR);
         }
 

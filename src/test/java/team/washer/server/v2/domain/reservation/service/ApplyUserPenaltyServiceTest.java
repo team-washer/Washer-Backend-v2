@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
 
 import team.themoment.sdk.exception.ExpectedException;
@@ -82,13 +83,12 @@ class ApplyUserPenaltyServiceTest {
                 given(currentUserProvider.getCurrentUserId()).willReturn(ACTOR_ID);
                 given(userRepository.findById(ACTOR_ID)).willReturn(Optional.of(createAdmin()));
                 given(userRepository.findById(TARGET_ID)).willReturn(Optional.of(target));
-                given(penaltyRedisUtil.isBlocked(TARGET_ROOM)).willReturn(true);
 
                 // When
                 applyUserPenaltyService.execute(TARGET_ID, REASON);
 
                 // Then
-                then(penaltyRedisUtil).should(times(1)).applyBlock(TARGET_ROOM);
+                then(penaltyRedisUtil).should(times(1)).applyBlockOrThrow(TARGET_ROOM);
                 then(reservationNotificationSupport).should(times(1)).sendAdminPenalty(target, REASON);
             }
         }
@@ -105,13 +105,12 @@ class ApplyUserPenaltyServiceTest {
                 given(currentUserProvider.getCurrentUserId()).willReturn(ACTOR_ID);
                 given(userRepository.findById(ACTOR_ID)).willReturn(Optional.of(createDormitoryCouncil()));
                 given(userRepository.findById(TARGET_ID)).willReturn(Optional.of(target));
-                given(penaltyRedisUtil.isBlocked(TARGET_ROOM)).willReturn(true);
 
                 // When
                 applyUserPenaltyService.execute(TARGET_ID, REASON);
 
                 // Then
-                then(penaltyRedisUtil).should(times(1)).applyBlock(TARGET_ROOM);
+                then(penaltyRedisUtil).should(times(1)).applyBlockOrThrow(TARGET_ROOM);
                 then(reservationNotificationSupport).should(times(1)).sendAdminPenalty(target, REASON);
             }
         }
@@ -217,7 +216,8 @@ class ApplyUserPenaltyServiceTest {
                 given(currentUserProvider.getCurrentUserId()).willReturn(ACTOR_ID);
                 given(userRepository.findById(ACTOR_ID)).willReturn(Optional.of(createAdmin()));
                 given(userRepository.findById(TARGET_ID)).willReturn(Optional.of(createTarget()));
-                given(penaltyRedisUtil.isBlocked(TARGET_ROOM)).willReturn(false);
+                willThrow(new RedisConnectionFailureException("connection refused")).given(penaltyRedisUtil)
+                        .applyBlockOrThrow(TARGET_ROOM);
 
                 // When & Then
                 assertThatThrownBy(() -> applyUserPenaltyService.execute(TARGET_ID, REASON))
@@ -225,7 +225,26 @@ class ApplyUserPenaltyServiceTest {
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR));
 
-                then(penaltyRedisUtil).should(times(1)).applyBlock(TARGET_ROOM);
+                then(penaltyRedisUtil).should(times(1)).applyBlockOrThrow(TARGET_ROOM);
+                then(reservationNotificationSupport).shouldHaveNoInteractions();
+            }
+
+            @Test
+            @DisplayName("이미 차단 중인 호실이어도 갱신 실패를 성공으로 판정하지 않아야 한다")
+            void it_does_not_rely_on_is_blocked() {
+                // Given
+                given(currentUserProvider.getCurrentUserId()).willReturn(ACTOR_ID);
+                given(userRepository.findById(ACTOR_ID)).willReturn(Optional.of(createAdmin()));
+                given(userRepository.findById(TARGET_ID)).willReturn(Optional.of(createTarget()));
+                willThrow(new RedisConnectionFailureException("connection refused")).given(penaltyRedisUtil)
+                        .applyBlockOrThrow(TARGET_ROOM);
+
+                // When & Then
+                assertThatThrownBy(() -> applyUserPenaltyService.execute(TARGET_ID, REASON))
+                        .isInstanceOf(ExpectedException.class);
+
+                // 이미 차단 중인 호실에서 isBlocked는 true를 반환하므로 성공 판정 근거로 쓰면 안 된다
+                then(penaltyRedisUtil).should(never()).isBlocked(anyString());
                 then(reservationNotificationSupport).shouldHaveNoInteractions();
             }
         }
