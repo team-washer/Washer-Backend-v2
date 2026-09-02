@@ -68,7 +68,7 @@ public class CancelReservationServiceImpl implements CancelReservationService {
 
         final var machine = reservation.getMachine();
         reservation.cancel();
-        machine.markAsAvailable();
+        machine.releaseIfHeld();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
         log.info("Cancelled reservation reservationId={} userId={}", reservationId, userId);
