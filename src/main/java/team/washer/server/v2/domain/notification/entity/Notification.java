@@ -30,7 +30,7 @@ public class Notification extends BaseEntity {
 
     @NotNull(message = "알림 유형은 필수입니다")
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false, length = 20)
+    @Column(name = "type", nullable = false, length = 50)
     private NotificationType type;
 
     @ManyToOne(fetch = FetchType.LAZY)
