@@ -144,6 +144,36 @@ class WithdrawUserServiceTest {
         }
 
         @Nested
+        @DisplayName("고장 처리된 기기를 예약 중이던 사용자가 탈퇴하면")
+        class Context_with_reservation_on_malfunction_machine {
+
+            @Test
+            @DisplayName("예약만 취소하고 기기는 사용 불가 상태로 유지해야 한다")
+            void it_cancels_reservation_and_keeps_machine_unavailable() {
+                // Given
+                Long userId = 1L;
+                User user = createUser();
+                Machine machine = createMachine();
+                machine.markAsMalfunction();
+                Reservation reservation = createReservation(ReservationStatus.RESERVED, user, machine);
+
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
+                        .willReturn(List.of(reservation));
+
+                // When
+                withdrawUserService.execute();
+
+                // Then
+                assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+                assertThat(machine.getStatus()).isEqualTo(MachineStatus.MALFUNCTION);
+                assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.UNAVAILABLE);
+                then(userRepository).should(times(1)).delete(user);
+            }
+        }
+
+        @Nested
         @DisplayName("RUNNING 상태의 예약이 있는 사용자가 탈퇴하면")
         class Context_with_running_reservation {
 

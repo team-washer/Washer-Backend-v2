@@ -48,7 +48,7 @@ public class WithdrawUserServiceImpl implements WithdrawUserService {
         for (final var reservation : activeReservations) {
             final var machine = reservation.getMachine();
             reservation.cancel();
-            machine.markAsAvailable();
+            machine.releaseIfHeld();
             machinesToUpdate.add(machine);
         }
         machineRepository.saveAll(machinesToUpdate);
