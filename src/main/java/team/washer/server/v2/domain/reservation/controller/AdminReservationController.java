@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.request.AdminCreateReservationReqDto;
+import team.washer.server.v2.domain.reservation.dto.request.ApplyUserPenaltyReqDto;
 import team.washer.server.v2.domain.reservation.dto.request.ExtendBlockReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminCancellationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminMachineHistoryResDto;
@@ -32,6 +33,7 @@ import team.washer.server.v2.domain.reservation.service.*;
 public class AdminReservationController {
 
     private final QueryPenaltyStatusService queryPenaltyStatusService;
+    private final ApplyUserPenaltyService applyUserPenaltyService;
     private final ClearUserPenaltyService clearUserPenaltyService;
     private final ExtendCancellationBlockService extendCancellationBlockService;
     private final QueryAllReservationsService queryAllReservationsService;
@@ -51,6 +53,15 @@ public class AdminReservationController {
     public PenaltyStatusResDto getUserPenaltyStatus(
             @Parameter(description = "사용자 ID") @PathVariable @NotNull Long userId) {
         return queryPenaltyStatusService.execute(userId);
+    }
+
+    @PostMapping("/users/{userId}/penalty")
+    @Operation(summary = "사용자 세탁 패널티 부과", description = "특정 사용자의 호실에 48시간 예약 차단을 부과합니다. 5분 패널티 5회 누적과 동일한 제재이며, 관리자와 기숙사자치위원회가 사용할 수 있습니다. 이미 차단 중인 호실은 차단 기간이 48시간으로 갱신됩니다.")
+    public CommonApiResponse applyUserPenalty(@Parameter(description = "사용자 ID") @PathVariable @NotNull Long userId,
+            @Valid @RequestBody ApplyUserPenaltyReqDto reqDto) {
+
+        applyUserPenaltyService.execute(userId, reqDto.reason());
+        return CommonApiResponse.success("세탁 패널티가 부과되었습니다.");
     }
 
     @DeleteMapping("/users/{userId}/penalty")
