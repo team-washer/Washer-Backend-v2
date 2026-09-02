@@ -231,16 +231,36 @@ public class PenaltyRedisUtil {
 
     /**
      * 48시간 예약 차단을 호실 단위로 적용합니다.
+     * <p>
+     * 실패해도 예외를 던지지 않습니다. 자동 판정 경로(예약 취소·타임아웃)에서 Redis 장애 때문에 예약 처리 트랜잭션 전체가 실패하는 것을
+     * 막기 위함입니다. 부과 성공 여부를 확인해야 하는 호출자는 {@link #applyBlockOrThrow(String)}을 사용해야
+     * 합니다.
+     * </p>
      */
     public void applyBlock(final String roomNumber) {
         try {
-            final long ttlSeconds = PenaltyConstants.CANCELLATION_WINDOW_HOURS * 3600L;
-            cancellationBlockRedisRepository
-                    .save(CancellationBlockEntity.builder().roomNumber(roomNumber).ttl(ttlSeconds).build());
-            log.info("48h block applied roomNumber={}", roomNumber);
+            applyBlockOrThrow(roomNumber);
         } catch (Exception e) {
             log.error("failed to apply 48h block roomNumber={}", roomNumber, e);
         }
+    }
+
+    /**
+     * 48시간 예약 차단을 호실 단위로 적용하고, 실패 시 예외를 그대로 전파합니다.
+     * <p>
+     * 관리자 수동 부과처럼 집행 성공 여부를 호출자가 반드시 알아야 하는 경로에서 사용합니다.
+     * {@link #isBlocked(String)}으로 성공을 판정하면 이미 차단 중인 호실에서 TTL 갱신 실패를 성공으로 오인하므로, 저장
+     * 실패는 예외로 알려야 합니다.
+     * </p>
+     *
+     * @param roomNumber
+     *            차단 대상 호실 번호
+     */
+    public void applyBlockOrThrow(final String roomNumber) {
+        final long ttlSeconds = PenaltyConstants.CANCELLATION_WINDOW_HOURS * 3600L;
+        cancellationBlockRedisRepository
+                .save(CancellationBlockEntity.builder().roomNumber(roomNumber).ttl(ttlSeconds).build());
+        log.info("48h block applied roomNumber={}", roomNumber);
     }
 
     /**
