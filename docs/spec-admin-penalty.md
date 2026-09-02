@@ -32,7 +32,7 @@
 | 대상 가드 | **자기 자신 지목 금지** (호실 단위 가드는 두지 않음) |
 | 5분 쿨다운 | 함께 적용하지 **않음** |
 | 알림 | **신규 타입** `ADMIN_PENALTY_BLOCKED` 추가, 차단 중이어도 **항상 발송** |
-| Redis 실패 시 | 부과 후 `isBlocked()`로 **검증**, 실패하면 예외 전파(알림 미발송) |
+| Redis 실패 시 | `applyBlockOrThrow()`로 저장 실패를 **예외 전파**(알림 미발송) |
 
 ---
 
@@ -92,13 +92,18 @@ SDK가 자동 래핑 → 바디 없음, `CommonApiResponse.success("세탁 패�
 | 파일 | 변경 내용 |
 |------|-----------|
 | `domain/notification/enums/NotificationType.java` | `ADMIN_PENALTY_BLOCKED` 상수 추가 |
-| `domain/notification/entity/Notification.java` | `createAdminPenaltyNotification()` 정적 팩토리 추가 |
+| `domain/notification/entity/Notification.java` | `createAdminPenaltyNotification()` 정적 팩토리 추가, `type` 컬럼 길이 `20` → `50` |
 | `domain/notification/support/ReservationNotificationSupport.java` | `sendAdminPenalty()` 추가 |
 | `domain/reservation/controller/AdminReservationController.java` | POST 엔드포인트 추가 |
 
-### 변경하지 않는 파일
+### PenaltyRedisUtil 변경
 
-`PenaltyRedisUtil`은 **수정하지 않는다**. 기존 `applyBlock()` / `isBlocked()` 조합으로 충분하며, 자동 판정 경로가 공유하는 유틸에 예외 전파 로직을 넣으면 스케줄러 동작에 영향을 준다.
+`applyBlockOrThrow(String)`를 **추가**하고, 기존 `applyBlock()`은 이를 호출한 뒤 예외를 삼키도록 위임한다.
+저장 로직이 한 곳에만 남고 자동 판정 경로(`CancelReservationServiceImpl`, `OverdueReservationProcessor`)의 동작은 그대로 유지된다.
+
+> 초기 설계는 `applyBlock()` 호출 후 `isBlocked()`로 성공을 판정했으나 **false positive**가 있어 변경했다.
+> 이미 차단 중인 호실에서 TTL 갱신이 실패하면 남아 있는 키 때문에 `isBlocked()`가 `true`를 반환하고,
+> "TTL 48시간 갱신"이 수행되지 않았는데도 성공 응답과 알림이 나간다. (PR #121 리뷰 지적)
 
 ---
 
@@ -192,14 +197,16 @@ public class ApplyUserPenaltyServiceImpl implements ApplyUserPenaltyService {
             throw new ExpectedException("호실 정보를 찾을 수 없습니다.", HttpStatus.NOT_FOUND);
         }
 
-        // applyBlock은 예외를 삼키므로 부과 성공 여부를 직접 검증한다.
-        // 관리자에게 거짓 성공 응답이 나가면 제재가 집행되지 않은 채 종료된다.
-        penaltyRedisUtil.applyBlock(roomNumber);
-        if (!penaltyRedisUtil.isBlocked(roomNumber)) {
+        // 관리자에게 거짓 성공 응답이 나가면 제재가 집행되지 않은 채 종료되므로 저장 실패를 예외로 받는다.
+        // isBlocked로 판정하면 이미 차단 중인 호실에서 TTL 갱신 실패를 성공으로 오인한다.
+        try {
+            penaltyRedisUtil.applyBlockOrThrow(roomNumber);
+        } catch (Exception e) {
             log.error("failed to apply admin penalty roomNumber={} targetId={} actorId={}",
                     roomNumber,
                     userId,
-                    actorId);
+                    actorId,
+                    e);
             throw new ExpectedException("패널티 부과에 실패했습니다. 잠시 후 다시 시도해 주세요.",
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
@@ -219,7 +226,7 @@ public class ApplyUserPenaltyServiceImpl implements ApplyUserPenaltyService {
 **설계 노트**
 
 - `isAdmin()` 검사를 넣지 않는 것이 자치위 허용의 핵심이다. 실수로 추가하지 말 것.
-- `applyBlock()` → `isBlocked()` 순서로 검증한다. 검증 실패 시 알림이 발송되지 않는다.
+- `applyBlockOrThrow()`의 예외를 잡아 `ExpectedException`으로 바꾼다. 실패 시 알림이 발송되지 않는다.
 - Redis는 트랜잭션 롤백 대상이 아니므로, 알림 저장이 실패해도 차단은 남는다(제재가 남는 쪽이 안전한 실패 방향).
 - 로그가 부과자 추적의 유일한 수단이므로 `actorId`, `actorRole`, `reason`을 모두 남긴다.
 
@@ -230,6 +237,11 @@ public class ApplyUserPenaltyServiceImpl implements ApplyUserPenaltyService {
 ```java
 ADMIN_PENALTY_BLOCKED("예약 차단 알림", "관리자에 의해 해당 호실의 예약이 48시간 동안 제한됩니다.\n\n사유: {reason}")
 ```
+
+> **컬럼 길이 주의**: `notifications.type`은 `@Enumerated(EnumType.STRING)` + `length = 20`이었고 `ddl-auto: update`라 실제 `varchar(20)`이 생성된다.
+> `ADMIN_PENALTY_BLOCKED`는 21자라 저장 시 잘리거나 MySQL strict mode에서 Data truncation이 발생한다.
+> 다만 이 문제는 이번 기능이 만든 것이 아니다 — 기존 `CANCELLATION_BLOCK_EXTENDED`가 이미 **27자**로 한계를 넘고 있었다.
+> 최장 27자에 여유를 두어 `length = 50`으로 넓혀 기존 버그까지 함께 해소한다. 컬럼 확장이므로 `ddl-auto: update`가 `ALTER`로 안전하게 처리한다. (PR #121 리뷰 지적)
 
 > **주의**: `formatMessage(String reason)` 오버로드는 **추가할 수 없다.**
 > 이미 `formatMessage(String machineName)`이 존재해 시그니처가 충돌한다(`NotificationType.java:39`).
@@ -357,7 +369,8 @@ public CommonApiResponse applyUserPenalty(@Parameter(description = "사용자 ID
 - 존재하지 않는 부과자면 404
 - 존재하지 않는 대상 사용자면 404
 - 대상의 호실 정보가 없으면 404
-- `applyBlock` 후 `isBlocked`가 false면 500이고 **알림이 발송되지 않는다**
+- `applyBlockOrThrow`가 예외를 던지면 500이고 **알림이 발송되지 않는다**
+- 이미 차단 중인 호실에서도 `isBlocked`를 성공 판정에 **사용하지 않는다**(false positive 회귀 방지)
 
 > **"이미 차단 중인 호실도 알림이 재발송된다"는 단위 테스트로 작성하지 않았다.**
 > 서비스가 사전 차단 여부(`wasBlocked`)를 **조회하지 않으므로** 차단 중이든 아니든 실행 경로가 완전히 동일하다.
