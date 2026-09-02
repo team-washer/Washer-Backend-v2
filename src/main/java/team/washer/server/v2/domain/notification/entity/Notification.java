@@ -232,6 +232,22 @@ public class Notification extends BaseEntity {
     }
 
     /**
+     * 관리자 패널티 부과 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param reason
+     *            패널티 부과 사유
+     * @return 생성된 관리자 패널티 알림
+     */
+    public static Notification createAdminPenaltyNotification(User user, String reason) {
+        String message = NotificationType.ADMIN_PENALTY_BLOCKED.getMessageTemplate().replace("{reason}", reason);
+
+        return Notification.builder().user(user).type(NotificationType.ADMIN_PENALTY_BLOCKED).message(message)
+                .isRead(false).build();
+    }
+
+    /**
      * 알림을 읽음 상태로 변경합니다.
      */
     public void markAsRead() {
