@@ -107,6 +107,19 @@ public class Machine extends BaseEntity {
     }
 
     /**
+     * 예약 또는 사용 중으로 점유되어 있던 경우에만 기기를 사용 가능 상태로 해제합니다.
+     *
+     * <p>
+     * 고장 등으로 사용 불가 처리된 기기는 상태를 그대로 유지합니다. {@code status}가 {@code MALFUNCTION}인 기기는
+     * {@code availability}도 {@code UNAVAILABLE}이어야 한다는 불변식을 예약 해제 경로에서 지키기 위함입니다.
+     */
+    public void releaseIfHeld() {
+        if (this.availability == MachineAvailability.RESERVED || this.availability == MachineAvailability.IN_USE) {
+            this.availability = MachineAvailability.AVAILABLE;
+        }
+    }
+
+    /**
      * 기기 사용 중 상태로 변경합니다.
      */
     public void markAsInUse() {
