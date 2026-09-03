@@ -33,6 +33,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.service.impl.ReleaseFinishedWasherTubCleanServiceImpl;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.smartthings.support.WasherTubCleanMachineGuard;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReleaseFinishedWasherTubCleanServiceImpl 클래스의")
@@ -79,7 +80,7 @@ class ReleaseFinishedWasherTubCleanServiceTest {
         @Test
         @DisplayName("완료된 통세척 세탁기의 점유를 해제해야 한다")
         void it_releases_finished_tub_clean() {
-            var machine = createMachine(LocalDateTime.now().minusMinutes(10));
+            var machine = createMachine(DateTimeUtil.nowInKorea().minusMinutes(10));
             given(machineRepository.findByTypeAndAvailability(MachineType.WASHER, MachineAvailability.CLEANING))
                     .willReturn(List.of(machine));
             given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
@@ -95,7 +96,7 @@ class ReleaseFinishedWasherTubCleanServiceTest {
         @Test
         @DisplayName("명령 전송 직후에는 정지 상태가 조회되어도 점유를 해제하지 않아야 한다")
         void it_keeps_occupancy_during_command_start_grace_period() {
-            var machine = createMachine(LocalDateTime.now());
+            var machine = createMachine(DateTimeUtil.nowInKorea());
             given(machineRepository.findByTypeAndAvailability(MachineType.WASHER, MachineAvailability.CLEANING))
                     .willReturn(List.of(machine));
             given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
