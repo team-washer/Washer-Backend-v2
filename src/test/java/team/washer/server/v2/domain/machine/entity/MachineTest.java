@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.*;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineStatus;
@@ -18,6 +19,55 @@ class MachineTest {
         return Machine.builder().name("W-2F-L1").type(MachineType.WASHER).deviceId("device-1").floor(2)
                 .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
                 .availability(MachineAvailability.AVAILABLE).build();
+    }
+
+    @Nested
+    @DisplayName("통세척 상태 변경 메서드는")
+    class Describe_cleaning_state {
+
+        @Test
+        @DisplayName("통세척을 시작하면 통세척 중 상태로 변경해야 한다")
+        void it_marks_machine_as_cleaning() {
+            var machine = createMachine();
+
+            machine.markAsCleaning();
+
+            assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.CLEANING);
+        }
+
+        @Test
+        @DisplayName("정상 기기의 통세척이 끝나면 사용 가능 상태로 변경해야 한다")
+        void it_finishes_cleaning_on_normal_machine() {
+            var machine = createMachine();
+            machine.markAsCleaning();
+
+            machine.finishCleaning();
+
+            assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
+        }
+
+        @Test
+        @DisplayName("예약 해제는 통세척 중 상태를 변경하지 않아야 한다")
+        void it_keeps_cleaning_state_when_reservation_is_released() {
+            var machine = createMachine();
+            machine.markAsCleaning();
+
+            machine.releaseIfHeld();
+
+            assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.CLEANING);
+        }
+
+        @Test
+        @DisplayName("고장난 기기의 통세척 점유를 해제하면 사용 불가 상태를 유지해야 한다")
+        void it_keeps_malfunction_machine_unavailable_after_cleaning() {
+            var machine = createMachine();
+            machine.markAsCleaning();
+            ReflectionTestUtils.setField(machine, "status", MachineStatus.MALFUNCTION);
+
+            machine.finishCleaning();
+
+            assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.UNAVAILABLE);
+        }
     }
 
     @Nested
