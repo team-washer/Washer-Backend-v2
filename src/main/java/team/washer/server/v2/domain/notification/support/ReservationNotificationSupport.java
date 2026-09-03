@@ -108,6 +108,15 @@ public class ReservationNotificationSupport {
         persistAndSend(user, notification, "예약 차단 알림");
     }
 
+    /**
+     * 관리자 패널티 부과 알림을 전송한다.
+     */
+    @Transactional
+    public void sendAdminPenalty(User user, String reason) {
+        var notification = Notification.createAdminPenaltyNotification(user, reason);
+        persistAndSend(user, notification, "예약 차단 알림");
+    }
+
     private void persistAndSend(final User user, final Notification notification, final String fcmTitle) {
         notificationRepository.save(notification);
         enforceNotificationLimit(user);

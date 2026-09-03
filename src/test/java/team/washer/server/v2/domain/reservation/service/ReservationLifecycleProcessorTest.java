@@ -258,7 +258,7 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, times(1)).clearCompletionCount();
             verify(reservation, times(1)).clearInterruptionCount();
             verify(reservation, times(1)).clearPausedAt();
-            verify(machine, times(1)).markAsAvailable();
+            verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
             verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
@@ -280,7 +280,7 @@ class ReservationLifecycleProcessorTest {
             // Then
             verify(reservation, times(1)).incrementCompletionCount();
             verify(reservation, never()).complete();
-            verify(machine, never()).markAsAvailable();
+            verify(machine, never()).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, never()).save(machine);
             verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
@@ -396,7 +396,7 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, times(1)).incrementInterruptionCount();
             verify(reservation, times(1)).cancel();
             verify(reservation, times(1)).clearInterruptionCount();
-            verify(machine, times(1)).markAsAvailable();
+            verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
             verify(reservationNotificationSupport, times(1)).sendInterruption(user, machine);
@@ -451,7 +451,7 @@ class ReservationLifecycleProcessorTest {
             // Then
             verify(reservation, times(1)).cancel();
             verify(reservation, times(1)).clearPausedAt();
-            verify(machine, times(1)).markAsAvailable();
+            verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
             verify(reservationNotificationSupport, times(1)).sendPauseTimeout(user, machine);

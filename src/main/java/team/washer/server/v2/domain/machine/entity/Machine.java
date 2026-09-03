@@ -107,6 +107,28 @@ public class Machine extends BaseEntity {
     }
 
     /**
+     * 예약 또는 사용 중으로 점유되어 있던 경우에만 기기를 사용 가능 상태로 해제합니다.
+     *
+     * <p>
+     * 고장난 기기는 해제하지 않고 {@code UNAVAILABLE}로 되돌립니다. {@code status}가
+     * {@code MALFUNCTION}이면 {@code availability}도 {@code UNAVAILABLE}이어야 한다는 불변식을
+     * 예약 해제 경로에서 보장하기 위함입니다. 고장 처리 시점에 이미 진행 중이던 예약이 스케줄러에 의해 {@code IN_USE}로 전환되는
+     * 등, 다른 경로에서 어긋난 상태로 들어오더라도 이 지점에서 불변식이 복원됩니다.
+     *
+     * <p>
+     * 고장이 아닌데 {@code UNAVAILABLE}로 차단된 기기는 관리자가 의도적으로 내린 상태이므로 그대로 유지합니다.
+     */
+    public void releaseIfHeld() {
+        if (this.status == MachineStatus.MALFUNCTION) {
+            this.availability = MachineAvailability.UNAVAILABLE;
+            return;
+        }
+        if (this.availability == MachineAvailability.RESERVED || this.availability == MachineAvailability.IN_USE) {
+            this.availability = MachineAvailability.AVAILABLE;
+        }
+    }
+
+    /**
      * 기기 사용 중 상태로 변경합니다.
      */
     public void markAsInUse() {
@@ -118,6 +140,25 @@ public class Machine extends BaseEntity {
      */
     public void markAsReserved() {
         this.availability = MachineAvailability.RESERVED;
+    }
+
+    /**
+     * 기기를 통세척 중 상태로 변경합니다.
+     */
+    public void markAsCleaning() {
+        this.availability = MachineAvailability.CLEANING;
+    }
+
+    /**
+     * 통세척 중인 기기를 정상 상태에 맞게 해제합니다.
+     */
+    public void finishCleaning() {
+        if (this.availability != MachineAvailability.CLEANING) {
+            return;
+        }
+        this.availability = this.status == MachineStatus.NORMAL
+                ? MachineAvailability.AVAILABLE
+                : MachineAvailability.UNAVAILABLE;
     }
 
     /**

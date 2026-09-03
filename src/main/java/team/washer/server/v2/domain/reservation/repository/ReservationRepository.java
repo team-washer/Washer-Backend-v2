@@ -1,6 +1,5 @@
 package team.washer.server.v2.domain.reservation.repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -71,10 +70,6 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
         return ActiveReservationSelector.selectPrimary(findFirstActiveReservationByMachineId(machineId,
                 List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)));
     }
-
-    @Query("SELECT r FROM Reservation r WHERE r.status = :status AND r.startTime < :threshold")
-    List<Reservation> findExpiredReservedReservations(@Param("status") ReservationStatus status,
-            @Param("threshold") LocalDateTime threshold);
 
     @Query("SELECT COUNT(r) FROM Reservation r WHERE r.machine = :machine AND r.status IN :statuses")
     long countActiveReservationsByMachine(@Param("machine") Machine machine,

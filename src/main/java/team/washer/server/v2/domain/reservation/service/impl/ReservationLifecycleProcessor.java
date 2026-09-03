@@ -185,7 +185,7 @@ public class ReservationLifecycleProcessor {
 
         reservation.cancel();
         reservation.clearInterruptionCount();
-        machine.markAsAvailable();
+        machine.releaseIfHeld();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
 
@@ -214,7 +214,7 @@ public class ReservationLifecycleProcessor {
 
         reservation.cancel();
         reservation.clearPausedAt();
-        machine.markAsAvailable();
+        machine.releaseIfHeld();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
 
@@ -276,7 +276,7 @@ public class ReservationLifecycleProcessor {
         reservation.clearCompletionCount();
         reservation.clearInterruptionCount();
         reservation.clearPausedAt();
-        machine.markAsAvailable();
+        machine.releaseIfHeld();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
 

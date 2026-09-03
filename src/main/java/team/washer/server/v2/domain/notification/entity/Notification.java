@@ -30,7 +30,7 @@ public class Notification extends BaseEntity {
 
     @NotNull(message = "알림 유형은 필수입니다")
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false, length = 20)
+    @Column(name = "type", nullable = false, length = 50)
     private NotificationType type;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -228,6 +228,22 @@ public class Notification extends BaseEntity {
         String message = NotificationType.CANCELLATION_BLOCK_EXTENDED.formatMessage(newExpiryAt);
 
         return Notification.builder().user(user).type(NotificationType.CANCELLATION_BLOCK_EXTENDED).message(message)
+                .isRead(false).build();
+    }
+
+    /**
+     * 관리자 패널티 부과 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param reason
+     *            패널티 부과 사유
+     * @return 생성된 관리자 패널티 알림
+     */
+    public static Notification createAdminPenaltyNotification(User user, String reason) {
+        String message = NotificationType.ADMIN_PENALTY_BLOCKED.getMessageTemplate().replace("{reason}", reason);
+
+        return Notification.builder().user(user).type(NotificationType.ADMIN_PENALTY_BLOCKED).message(message)
                 .isRead(false).build();
     }
 

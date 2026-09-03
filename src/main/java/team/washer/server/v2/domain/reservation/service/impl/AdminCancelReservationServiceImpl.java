@@ -30,7 +30,7 @@ public class AdminCancelReservationServiceImpl implements AdminCancelReservation
         }
         reservation.cancel();
         final var machine = reservation.getMachine();
-        machine.markAsAvailable();
+        machine.releaseIfHeld();
         final var savedReservation = reservationRepository.save(reservation);
         return new AdminCancellationResDto(savedReservation.getId(),
                 savedReservation.getUser().getName(),
