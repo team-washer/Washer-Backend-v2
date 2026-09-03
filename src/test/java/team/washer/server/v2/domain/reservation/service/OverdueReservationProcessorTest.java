@@ -227,7 +227,7 @@ class OverdueReservationProcessorTest {
             // Then
             assertThat(result).isEqualTo(OverdueResult.CANCELLED_WITHOUT_PENALTY);
             verify(reservation, times(1)).cancel();
-            verify(machine, times(1)).markAsAvailable();
+            verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verifyNoInteractions(penaltyRedisUtil);
             verifyNoInteractions(reservationNotificationSupport);
@@ -327,7 +327,7 @@ class OverdueReservationProcessorTest {
             // Then
             assertThat(result).isEqualTo(OverdueResult.CANCELLED_WITHOUT_PENALTY);
             verify(reservation, times(1)).cancel();
-            verify(machine, times(1)).markAsAvailable();
+            verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
             verify(penaltyRedisUtil, never()).applyCooldown(any(), any());

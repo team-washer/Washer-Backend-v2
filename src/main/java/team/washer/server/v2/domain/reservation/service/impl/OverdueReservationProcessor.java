@@ -97,7 +97,7 @@ public class OverdueReservationProcessor {
         if (startDecision == StartDecision.UNKNOWN) {
             if (canCancelUnknownReservation(reservation)) {
                 reservation.cancel();
-                machine.markAsAvailable();
+                machine.releaseIfHeld();
                 reservationRepository.save(reservation);
                 machineRepository.save(machine);
                 log.warn("reservation timeout cancelled without penalty due to unknown start state reservationId={}",
@@ -109,7 +109,7 @@ public class OverdueReservationProcessor {
         }
 
         reservation.cancel();
-        machine.markAsAvailable();
+        machine.releaseIfHeld();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
 
