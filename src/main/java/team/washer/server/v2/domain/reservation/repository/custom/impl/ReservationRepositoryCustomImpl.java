@@ -18,12 +18,15 @@ import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import lombok.RequiredArgsConstructor;
+import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.entity.QReservation;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.custom.ReservationRepositoryCustom;
 import team.washer.server.v2.domain.user.entity.QUser;
+import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Repository
 @RequiredArgsConstructor
@@ -89,6 +92,46 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                 .where(reservation.user.roomNumber.eq(roomNumber),
                         reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.RUNNING))
                 .orderBy(reservation.createdAt.desc()).fetch();
+    }
+
+    @Override
+    public List<Reservation> findCurrentlyActiveByUser(User targetUser) {
+        return jpaQueryFactory.selectFrom(reservation).join(reservation.user, user).fetchJoin()
+                .join(reservation.machine, machine).fetchJoin()
+                .where(reservation.user.eq(targetUser), currentlyActive()).orderBy(reservation.createdAt.desc())
+                .fetch();
+    }
+
+    @Override
+    public List<Reservation> findCurrentlyActiveByMachine(Machine targetMachine) {
+        return jpaQueryFactory.selectFrom(reservation).join(reservation.machine, machine).fetchJoin()
+                .where(reservation.machine.eq(targetMachine), currentlyActive()).orderBy(reservation.createdAt.desc())
+                .fetch();
+    }
+
+    @Override
+    public List<Reservation> findCurrentlyActiveByRoomNumber(String roomNumber) {
+        return jpaQueryFactory.selectFrom(reservation).join(reservation.user, user).fetchJoin()
+                .join(reservation.machine, machine).fetchJoin()
+                .where(reservation.user.roomNumber.eq(roomNumber), currentlyActive())
+                .orderBy(reservation.createdAt.desc()).fetch();
+    }
+
+    /**
+     * 만료되지 않은 활성 예약 조건을 반환합니다. {@link Reservation#isCurrentlyActive()}와 동일한 규칙을 쿼리
+     * 조건으로 표현한 것으로, 전체를 로드한 뒤 메모리에서 거르지 않도록 합니다.
+     *
+     * <p>
+     * RUNNING은 타임아웃 대상이 아니므로 그대로 통과시키고, RESERVED는 타임아웃 컷오프 이후에 예약된 건만 남긴다.
+     *
+     * @return 만료되지 않은 활성 예약 조건
+     */
+    private BooleanExpression currentlyActive() {
+        final LocalDateTime reservedAtCutoff = DateTimeUtil.nowInKorea()
+                .minusMinutes(ReservationStatus.RESERVED.getTimeoutMinutes());
+
+        return reservation.status.eq(ReservationStatus.RUNNING)
+                .or(reservation.status.eq(ReservationStatus.RESERVED).and(reservation.reservedAt.gt(reservedAtCutoff)));
     }
 
     @Override

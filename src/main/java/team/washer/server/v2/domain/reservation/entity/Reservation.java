@@ -248,6 +248,19 @@ public class Reservation extends BaseEntity {
     }
 
     /**
+     * 만료되지 않은 현재 활성 예약인지 반환합니다.
+     *
+     * <p>
+     * 활성 상태이더라도 타임아웃이 지난 RESERVED 예약은 활성으로 세지 않습니다. 스케줄러가 아직 정리하지 못한 만료 예약이 새 예약을
+     * 막거나 조회 결과에 노출되는 것을 방지하기 위함입니다.
+     *
+     * @return 만료되지 않은 활성 예약 여부
+     */
+    public boolean isCurrentlyActive() {
+        return isActive() && !isExpired();
+    }
+
+    /**
      * 관리자 대리 생성 예약 여부를 반환합니다.
      *
      * <p>
