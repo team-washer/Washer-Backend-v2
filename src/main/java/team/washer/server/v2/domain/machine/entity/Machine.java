@@ -143,6 +143,25 @@ public class Machine extends BaseEntity {
     }
 
     /**
+     * 기기를 통세척 중 상태로 변경합니다.
+     */
+    public void markAsCleaning() {
+        this.availability = MachineAvailability.CLEANING;
+    }
+
+    /**
+     * 통세척 중인 기기를 정상 상태에 맞게 해제합니다.
+     */
+    public void finishCleaning() {
+        if (this.availability != MachineAvailability.CLEANING) {
+            return;
+        }
+        this.availability = this.status == MachineStatus.NORMAL
+                ? MachineAvailability.AVAILABLE
+                : MachineAvailability.UNAVAILABLE;
+    }
+
+    /**
      * 기기 사용 불가 상태로 변경합니다.
      */
     public void markAsUnavailable() {

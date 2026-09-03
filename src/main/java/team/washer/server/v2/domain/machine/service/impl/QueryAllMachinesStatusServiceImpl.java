@@ -106,7 +106,8 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
 
     /**
      * 예약 정보와 실제 기기 작동 상태를 기반으로 가용성을 동적으로 계산한다. 예약 상태를 유일한 source of truth로 사용하되,
-     * 예약이 없어도 SmartThings에서 실제 작동 중(무단 사용)이면 IN_USE로 표시해 중복 예약을 차단한다.
+     * 예약이 없어도 SmartThings에서 실제 작동 중(무단 사용)이면 IN_USE로 표시해 중복 예약을 차단한다. 사용 불가와 통세척 중
+     * 상태는 DB에 저장된 관리 상태를 우선한다.
      *
      * <p>
      * 완료 여부를 이 API에서 따로 예측하지 않는다. 완료 확정은 라이프사이클 스케줄러가 디바운스와 가드를 거쳐 DB에 반영하며, 목록은 그
@@ -115,8 +116,9 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
     private MachineAvailability computeAvailability(Machine machine,
             Reservation reservation,
             SmartThingsDeviceStatusResDto deviceStatus) {
-        if (machine.getAvailability() == MachineAvailability.UNAVAILABLE) {
-            return MachineAvailability.UNAVAILABLE;
+        if (machine.getAvailability() == MachineAvailability.UNAVAILABLE
+                || machine.getAvailability() == MachineAvailability.CLEANING) {
+            return machine.getAvailability();
         }
         if (reservation == null) {
             return isOperating(machine, deviceStatus) ? MachineAvailability.IN_USE : MachineAvailability.AVAILABLE;

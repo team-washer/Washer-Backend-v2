@@ -348,5 +348,19 @@ class QueryAllMachinesStatusServiceTest {
             // Then
             assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.UNAVAILABLE);
         }
+
+        @Test
+        @DisplayName("기기가 통세척 중이면 예약과 무관하게 CLEANING을 반환한다")
+        void computeAvailability_ShouldReturnCleaning_WhenMachineIsCleaning() {
+            // Given
+            when(reservation.getUser()).thenReturn(user);
+            givenMachineWithReservation(buildMachine(MachineAvailability.CLEANING), reservation);
+
+            // When
+            var result = queryAllMachinesStatusService.execute(USER_ID, true);
+
+            // Then
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.CLEANING);
+        }
     }
 }
