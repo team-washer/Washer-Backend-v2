@@ -3,7 +3,6 @@ package team.washer.server.v2.domain.reservation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import java.util.List;
@@ -217,9 +216,7 @@ class AdminCreateReservationServiceTest {
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machineRepository.findByIdForUpdate(MACHINE_ID)).thenReturn(Optional.of(machine));
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
-            when(activeReservation.isActive()).thenReturn(true);
-            when(reservationRepository.findByMachineAndStatusIn(eq(machine), any()))
-                    .thenReturn(List.of(activeReservation));
+            when(reservationRepository.findCurrentlyActiveByMachine(machine)).thenReturn(List.of(activeReservation));
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
@@ -238,9 +235,7 @@ class AdminCreateReservationServiceTest {
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machineRepository.findByIdForUpdate(MACHINE_ID)).thenReturn(Optional.of(machine));
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
-            when(activeReservation.isActive()).thenReturn(true);
-            when(reservationRepository.findByUserAndStatusIn(eq(targetUser), any()))
-                    .thenReturn(List.of(activeReservation));
+            when(reservationRepository.findCurrentlyActiveByUser(targetUser)).thenReturn(List.of(activeReservation));
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
@@ -260,8 +255,7 @@ class AdminCreateReservationServiceTest {
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(machine.getType()).thenReturn(MachineType.WASHER);
             when(activeReservation.getMachine()).thenReturn(machine);
-            when(activeReservation.isActive()).thenReturn(true);
-            when(reservationRepository.findActiveReservationsByRoomNumber(ROOM_NUMBER))
+            when(reservationRepository.findCurrentlyActiveByRoomNumber(ROOM_NUMBER))
                     .thenReturn(List.of(activeReservation));
 
             // When & Then

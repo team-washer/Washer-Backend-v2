@@ -6,9 +6,11 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
+import team.washer.server.v2.domain.user.entity.User;
 
 public interface ReservationRepositoryCustom {
 
@@ -63,6 +65,33 @@ public interface ReservationRepositoryCustom {
      * @return 해당 호실의 활성(RESERVED/RUNNING) 예약 목록 (createdAt 내림차순)
      */
     List<Reservation> findActiveReservationsByRoomNumber(String roomNumber);
+
+    /**
+     * 사용자의 현재 활성 예약 목록을 조회합니다. 타임아웃이 지난 RESERVED 예약은 쿼리 단계에서 제외됩니다.
+     *
+     * @param user
+     *            조회 대상 사용자
+     * @return 만료되지 않은 활성 예약 목록 (createdAt 내림차순)
+     */
+    List<Reservation> findCurrentlyActiveByUser(User user);
+
+    /**
+     * 기기의 현재 활성 예약 목록을 조회합니다. 타임아웃이 지난 RESERVED 예약은 쿼리 단계에서 제외됩니다.
+     *
+     * @param machine
+     *            조회 대상 기기
+     * @return 만료되지 않은 활성 예약 목록 (createdAt 내림차순)
+     */
+    List<Reservation> findCurrentlyActiveByMachine(Machine machine);
+
+    /**
+     * 호실의 현재 활성 예약 목록을 조회합니다. 타임아웃이 지난 RESERVED 예약은 쿼리 단계에서 제외됩니다.
+     *
+     * @param roomNumber
+     *            호실 번호
+     * @return 만료되지 않은 활성 예약 목록 (createdAt 내림차순)
+     */
+    List<Reservation> findCurrentlyActiveByRoomNumber(String roomNumber);
 
     /**
      * 기기별 예약 히스토리 조회
