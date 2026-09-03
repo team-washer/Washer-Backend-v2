@@ -66,9 +66,7 @@ class QueryRoomActiveReservationsServiceTest {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             final Reservation reservation = mock(Reservation.class);
-            when(reservationRepository.findActiveReservationsByRoomNumber(ROOM_NUMBER))
-                    .thenReturn(List.of(reservation));
-            when(reservation.isExpired()).thenReturn(false);
+            when(reservationRepository.findCurrentlyActiveByRoomNumber(ROOM_NUMBER)).thenReturn(List.of(reservation));
             stubReservationDtoFields(reservation, 1L);
 
             // When
@@ -88,10 +86,8 @@ class QueryRoomActiveReservationsServiceTest {
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             final Reservation washerReservation = mock(Reservation.class);
             final Reservation dryerReservation = mock(Reservation.class);
-            when(reservationRepository.findActiveReservationsByRoomNumber(ROOM_NUMBER))
+            when(reservationRepository.findCurrentlyActiveByRoomNumber(ROOM_NUMBER))
                     .thenReturn(List.of(washerReservation, dryerReservation));
-            when(washerReservation.isExpired()).thenReturn(false);
-            when(dryerReservation.isExpired()).thenReturn(false);
             stubReservationDtoFields(washerReservation, 1L);
             stubReservationDtoFields(dryerReservation, 2L);
 
@@ -103,55 +99,13 @@ class QueryRoomActiveReservationsServiceTest {
         }
 
         @Test
-        @DisplayName("만료 예약과 유효 예약이 혼재하면 유효한 예약만 반환한다")
-        void execute_ShouldReturnOnlyValidReservations_WhenMixedExpiredAndValidReservationsExist() {
-            // Given
-            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-            when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
-            final Reservation expiredReservation = mock(Reservation.class);
-            final Reservation validReservation = mock(Reservation.class);
-            when(reservationRepository.findActiveReservationsByRoomNumber(ROOM_NUMBER))
-                    .thenReturn(List.of(expiredReservation, validReservation));
-            when(expiredReservation.isExpired()).thenReturn(true);
-            when(validReservation.isExpired()).thenReturn(false);
-            stubReservationDtoFields(validReservation, 2L);
-
-            // When
-            final RoomActiveReservationsResDto result = queryRoomActiveReservationsService.execute();
-
-            // Then
-            assertThat(result.reservations()).hasSize(1);
-            assertThat(result.reservations().get(0).id()).isEqualTo(2L);
-        }
-
-        @Test
-        @DisplayName("만료된 예약만 존재하면 빈 목록을 반환한다")
-        void execute_ShouldReturnEmptyList_WhenOnlyExpiredReservationsExist() {
-            // Given
-            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-            when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
-            final Reservation expiredReservation = mock(Reservation.class);
-            when(reservationRepository.findActiveReservationsByRoomNumber(ROOM_NUMBER))
-                    .thenReturn(List.of(expiredReservation));
-            when(expiredReservation.isExpired()).thenReturn(true);
-
-            // When
-            final RoomActiveReservationsResDto result = queryRoomActiveReservationsService.execute();
-
-            // Then
-            assertThat(result.reservations()).isEmpty();
-        }
-
-        @Test
         @DisplayName("호실에 활성 예약이 없으면 빈 목록을 반환한다")
         void execute_ShouldReturnEmptyList_WhenNoActiveReservationsExist() {
             // Given
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
-            when(reservationRepository.findActiveReservationsByRoomNumber(anyString()))
+            when(reservationRepository.findCurrentlyActiveByRoomNumber(anyString()))
                     .thenReturn(Collections.emptyList());
 
             // When

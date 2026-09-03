@@ -36,9 +36,6 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 @RequiredArgsConstructor
 public class ReservationCreationSupport {
 
-    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
-            ReservationStatus.RUNNING);
-
     private final ReservationRepository reservationRepository;
     private final MachineRepository machineRepository;
     private final WashingBanRepository washingBanRepository;
@@ -91,32 +88,30 @@ public class ReservationCreationSupport {
      *            락을 획득한 기기
      */
     public void validateMachineAndReservations(final User user, final Machine machine) {
-        final var activeMachineReservations = reservationRepository.findByMachineAndStatusIn(machine, ACTIVE_STATUSES);
+        final var machineReservations = reservationRepository.findCurrentlyActiveByMachine(machine);
 
         // 기기 가용성 검증
         if (machine.getAvailability() != MachineAvailability.AVAILABLE
-                && !canReuseStaleReservedSlot(machine, activeMachineReservations)) {
+                && !canReuseStaleReservedSlot(machine, machineReservations)) {
             throw new ExpectedException(String.format("해당 기기를 사용할 수 없습니다. 기기: %s", machine.getName()),
                     HttpStatus.BAD_REQUEST);
         }
 
         // 기기 단위 중복 예약 검증 (가용성 플래그 드리프트에 대한 방어 심화)
-        if (hasCurrentActiveReservation(activeMachineReservations)) {
+        if (!machineReservations.isEmpty()) {
             throw new ExpectedException(String.format("해당 기기에 이미 진행 중인 예약이 있습니다. 기기: %s", machine.getName()),
                     HttpStatus.CONFLICT);
         }
 
         // 개인 중복 예약 검증 (1인 1예약)
-        final var userActiveReservations = reservationRepository.findByUserAndStatusIn(user, ACTIVE_STATUSES);
-        if (hasCurrentActiveReservation(userActiveReservations)) {
+        if (!reservationRepository.findCurrentlyActiveByUser(user).isEmpty()) {
             throw new ExpectedException("이미 활성 예약이 존재합니다. 1인 1예약만 가능합니다.", HttpStatus.BAD_REQUEST);
         }
 
         // 동일 호실의 동일 유형 기기 중복 예약 검증
         final boolean hasDuplicateTypeReservation = reservationRepository
-                .findActiveReservationsByRoomNumber(user.getRoomNumber()).stream()
-                .filter(reservation -> reservation.getMachine().getType() == machine.getType())
-                .anyMatch(reservation -> reservation.isActive() && !reservation.isExpired());
+                .findCurrentlyActiveByRoomNumber(user.getRoomNumber()).stream()
+                .anyMatch(reservation -> reservation.getMachine().getType() == machine.getType());
         if (hasDuplicateTypeReservation) {
             throw new ExpectedException(String.format("해당 호실에 이미 %s 예약이 존재합니다. 동일 유형의 기기는 동시에 두 개 이상 예약할 수 없습니다.",
                     machine.getType().getDescription()), HttpStatus.BAD_REQUEST);
@@ -124,28 +119,18 @@ public class ReservationCreationSupport {
     }
 
     /**
-     * 타임아웃이 지나지 않은 진짜 활성 예약이 있는지 판정합니다.
-     *
-     * @param reservations
-     *            판정 대상 예약 목록
-     * @return 만료되지 않은 활성 예약 존재 여부
-     */
-    private boolean hasCurrentActiveReservation(final List<Reservation> reservations) {
-        return reservations.stream().anyMatch(reservation -> reservation.isActive() && !reservation.isExpired());
-    }
-
-    /**
      * 만료된 예약만 남아 RESERVED로 굳어버린 기기를 재사용할 수 있는지 판정합니다.
      *
      * @param machine
      *            락을 획득한 기기
-     * @param activeReservations
-     *            해당 기기의 활성 상태 예약 목록
+     * @param currentlyActiveReservations
+     *            해당 기기의 만료되지 않은 활성 예약 목록
      * @return 재사용 가능 여부
      */
-    private boolean canReuseStaleReservedSlot(final Machine machine, final List<Reservation> activeReservations) {
+    private boolean canReuseStaleReservedSlot(final Machine machine,
+            final List<Reservation> currentlyActiveReservations) {
         return machine.getStatus() == MachineStatus.NORMAL && machine.getAvailability() == MachineAvailability.RESERVED
-                && !hasCurrentActiveReservation(activeReservations);
+                && currentlyActiveReservations.isEmpty();
     }
 
     /**
