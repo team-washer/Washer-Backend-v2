@@ -71,6 +71,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
                 List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)));
     }
 
+    @Query("SELECT COUNT(r) FROM Reservation r WHERE r.machine = :machine AND r.status IN :statuses")
+    long countActiveReservationsByMachine(@Param("machine") Machine machine,
+            @Param("statuses") List<ReservationStatus> statuses);
+
     @Query("SELECT r FROM Reservation r WHERE r.user = :user ORDER BY r.createdAt DESC")
     List<Reservation> findReservationHistoryByUser(@Param("user") User user);
 
