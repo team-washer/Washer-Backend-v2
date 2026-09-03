@@ -68,6 +68,54 @@ class MachineTest {
         }
 
         @Test
+        @DisplayName("고장난 기기가 예약됨 상태로 어긋나 있어도 사용 불가로 되돌려야 한다")
+        void it_restores_unavailable_when_malfunction_machine_is_reserved() {
+            // Given
+            final var machine = createMachine();
+            machine.markAsMalfunction();
+            machine.markAsReserved();
+
+            // When
+            machine.releaseIfHeld();
+
+            // Then
+            assertThat(machine.getStatus()).isEqualTo(MachineStatus.MALFUNCTION);
+            assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.UNAVAILABLE);
+        }
+
+        @Test
+        @DisplayName("고장난 기기가 사용 중 상태로 어긋나 있어도 사용 불가로 되돌려야 한다")
+        void it_restores_unavailable_when_malfunction_machine_is_in_use() {
+            // Given
+            final var machine = createMachine();
+            machine.markAsMalfunction();
+            machine.markAsInUse();
+
+            // When
+            machine.releaseIfHeld();
+
+            // Then
+            assertThat(machine.getStatus()).isEqualTo(MachineStatus.MALFUNCTION);
+            assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.UNAVAILABLE);
+        }
+
+        @Test
+        @DisplayName("고장난 기기가 사용 가능 상태로 어긋나 있어도 사용 불가로 되돌려야 한다")
+        void it_restores_unavailable_when_malfunction_machine_is_available() {
+            // Given
+            final var machine = createMachine();
+            machine.markAsMalfunction();
+            machine.markAsAvailable();
+
+            // When
+            machine.releaseIfHeld();
+
+            // Then
+            assertThat(machine.getStatus()).isEqualTo(MachineStatus.MALFUNCTION);
+            assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.UNAVAILABLE);
+        }
+
+        @Test
         @DisplayName("사용 불가로 처리된 정상 기기의 상태를 그대로 유지해야 한다")
         void it_keeps_unavailable_normal_machine_unavailable() {
             // Given
