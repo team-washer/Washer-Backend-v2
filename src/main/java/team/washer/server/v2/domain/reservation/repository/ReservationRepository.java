@@ -35,17 +35,9 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 
     List<Reservation> findByStatusIn(List<ReservationStatus> statuses);
 
-    @Query("SELECT r FROM Reservation r WHERE r.user = :user AND r.status IN :statuses")
-    List<Reservation> findByUserAndStatusIn(@Param("user") User user,
-            @Param("statuses") List<ReservationStatus> statuses);
-
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM Reservation r JOIN FETCH r.machine WHERE r.user = :user AND r.status IN :statuses")
     List<Reservation> findByUserAndStatusInForUpdate(@Param("user") User user,
-            @Param("statuses") List<ReservationStatus> statuses);
-
-    @Query("SELECT r FROM Reservation r WHERE r.machine = :machine AND r.status IN :statuses")
-    List<Reservation> findByMachineAndStatusIn(@Param("machine") Machine machine,
             @Param("statuses") List<ReservationStatus> statuses);
 
     default List<Reservation> findAllActiveReservations() {

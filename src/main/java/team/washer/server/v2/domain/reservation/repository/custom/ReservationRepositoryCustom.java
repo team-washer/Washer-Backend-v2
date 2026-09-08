@@ -58,15 +58,6 @@ public interface ReservationRepositoryCustom {
             Pageable pageable);
 
     /**
-     * 호실 번호 기준 활성 예약 목록 조회
-     *
-     * @param roomNumber
-     *            호실 번호
-     * @return 해당 호실의 활성(RESERVED/RUNNING) 예약 목록 (createdAt 내림차순)
-     */
-    List<Reservation> findActiveReservationsByRoomNumber(String roomNumber);
-
-    /**
      * 사용자의 현재 활성 예약 목록을 조회합니다. 타임아웃이 지난 RESERVED 예약은 쿼리 단계에서 제외됩니다.
      *
      * @param user
