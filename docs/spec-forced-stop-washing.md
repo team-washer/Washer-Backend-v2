@@ -97,7 +97,7 @@ public record WashingBanResDto(
 **`domain/admin/service/CreateWashingBanService.java`**
 ```java
 public interface CreateWashingBanService {
-    void createWashingBan(CreateWashingBanReqDto reqDto);
+    void execute(CreateWashingBanReqDto reqDto);
 }
 ```
 
@@ -111,7 +111,7 @@ public interface CreateWashingBanService {
 **`domain/admin/service/DeleteWashingBanService.java`**
 ```java
 public interface DeleteWashingBanService {
-    void deleteWashingBan(String roomNumber);
+    void execute(String roomNumber);
 }
 ```
 
@@ -125,7 +125,7 @@ public interface DeleteWashingBanService {
 **`domain/admin/service/QueryAllWashingBansService.java`**
 ```java
 public interface QueryAllWashingBansService {
-    List<WashingBanResDto> queryAllWashingBans();
+    List<WashingBanResDto> execute();
 }
 ```
 
@@ -158,21 +158,21 @@ public class AdminWashingBanController {
     @Operation(summary = "호실 세탁 금지 등록")
     @PostMapping
     public CommonApiResponse createWashingBan(@RequestBody @Valid CreateWashingBanReqDto reqDto) {
-        createWashingBanService.createWashingBan(reqDto);
+        createWashingBanService.execute(reqDto);
         return CommonApiResponse.success();
     }
 
     @Operation(summary = "호실 세탁 금지 해제")
     @DeleteMapping("/{roomNumber}")
     public CommonApiResponse deleteWashingBan(@PathVariable String roomNumber) {
-        deleteWashingBanService.deleteWashingBan(roomNumber);
+        deleteWashingBanService.execute(roomNumber);
         return CommonApiResponse.success();
     }
 
     @Operation(summary = "금지 호실 목록 조회")
     @GetMapping
     public List<WashingBanResDto> queryAllWashingBans() {
-        return queryAllWashingBansService.queryAllWashingBans();
+        return queryAllWashingBansService.execute();
     }
 }
 ```
