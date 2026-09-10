@@ -18,7 +18,7 @@
 | 활성 차단 없을 때 | 400 Bad Request |
 | API 파라미터 | userId 기준 (해제 API와 동일 패턴) |
 | 알림 | 연장 시 사용자에게 새 만료 시각 포함 발송 |
-| 알림 타입 | 기존 `CANCELLATION_BLOCKED` 재사용 |
+| 알림 타입 | 연장 전용 `CANCELLATION_BLOCK_EXTENDED` 신규 추가 |
 
 ---
 
@@ -183,12 +183,11 @@ public LocalDateTime extendBlock(final String roomNumber, final long additionalD
  * @return 생성된 차단 연장 알림
  */
 public static Notification createBlockExtensionNotification(User user, LocalDateTime newExpiryAt) {
-    String formatted = newExpiryAt.format(DateTimeFormatter.ofPattern("MM월 dd일 HH시 mm분"));
-    String message = "관리자에 의해 예약 차단 기간이 연장되었습니다. " + formatted + "까지 해당 호실의 예약이 제한됩니다.";
+    String message = NotificationType.CANCELLATION_BLOCK_EXTENDED.formatMessage(newExpiryAt);
 
     return Notification.builder()
             .user(user)
-            .type(NotificationType.CANCELLATION_BLOCKED)
+            .type(NotificationType.CANCELLATION_BLOCK_EXTENDED)
             .message(message)
             .isRead(false)
             .build();
