@@ -23,7 +23,7 @@
 | 영구 저장소 | MySQL + Spring Data JPA + QueryDSL |
 | 임시 저장소 | Redis (패널티, 쿨다운, refreshToken) |
 | 외부 연동 | SmartThings(OpenFeign), DataGSM OAuth, FCM, Discord, AWS CloudWatch |
-| 빌드 | Gradle 8.11.1 (Kotlin DSL) |
+| 빌드 | Gradle 9.4.0 (Kotlin DSL) |
 | 포맷터 | Spotless (120자, 4 스페이스) |
 
 ---
