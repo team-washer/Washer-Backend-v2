@@ -46,7 +46,7 @@ class QueryAdminDashboardServiceTest {
         @DisplayName("활성 예약, 고장 신고, 기기, 세탁정지 학생 통계를 성공적으로 조회한다")
         void execute_ShouldReturnDashboardStatistics_WhenDataExists() {
             // Given
-            when(reservationRepository.countActiveReservations()).thenReturn(5L);
+            when(reservationRepository.countCurrentlyActive()).thenReturn(5L);
             when(malfunctionReportRepository.countByStatus(MalfunctionReportStatus.PENDING)).thenReturn(3L);
             when(malfunctionReportRepository.countByStatus(MalfunctionReportStatus.IN_PROGRESS)).thenReturn(2L);
             when(malfunctionReportRepository.countByStatus(MalfunctionReportStatus.RESOLVED)).thenReturn(10L);
@@ -72,7 +72,7 @@ class QueryAdminDashboardServiceTest {
         @DisplayName("데이터가 없으면 모든 통계가 0으로 반환된다")
         void execute_ShouldReturnZeroStatistics_WhenNoDataExists() {
             // Given
-            when(reservationRepository.countActiveReservations()).thenReturn(0L);
+            when(reservationRepository.countCurrentlyActive()).thenReturn(0L);
             when(malfunctionReportRepository.countByStatus(MalfunctionReportStatus.PENDING)).thenReturn(0L);
             when(malfunctionReportRepository.countByStatus(MalfunctionReportStatus.IN_PROGRESS)).thenReturn(0L);
             when(malfunctionReportRepository.countByStatus(MalfunctionReportStatus.RESOLVED)).thenReturn(0L);

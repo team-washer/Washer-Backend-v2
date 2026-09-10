@@ -50,7 +50,9 @@ class ReservationRepositoryCurrentlyActiveTest {
     private TestEntityManager entityManager;
 
     private User owner;
+    private User expiredOnlyOwner;
     private Machine washer;
+    private Machine expiredOnlyMachine;
 
     private Reservation freshReserved;
     private Reservation justBeforeTimeoutReserved;
@@ -82,6 +84,14 @@ class ReservationRepositoryCurrentlyActiveTest {
         longRunning = persistReservation(ReservationStatus.RUNNING, now.minusHours(3));
         completed = persistReservation(ReservationStatus.COMPLETED, now.minusMinutes(1));
         cancelled = persistReservation(ReservationStatus.CANCELLED, now.minusMinutes(1));
+
+        // 만료된 RESERVED 예약만 남은 사용자와 기기. 스케줄러가 아직 정리하지 못한 상태를 재현한다
+        expiredOnlyOwner = persist(
+                User.builder().name("이건조").studentId("2102").roomNumber("302").grade(1).floor(3).build());
+        expiredOnlyMachine = persist(Machine.builder().name("W3R1").type(MachineType.WASHER).deviceId("device-w3r1")
+                .floor(3).position(Position.RIGHT).number(1).build());
+        persist(Reservation.builder().user(expiredOnlyOwner).machine(expiredOnlyMachine)
+                .status(ReservationStatus.RESERVED).reservedAt(now.minusMinutes(TIMEOUT_MINUTES + 30)).build());
 
         entityManager.flush();
         entityManager.clear();
@@ -117,6 +127,81 @@ class ReservationRepositoryCurrentlyActiveTest {
         @DisplayName("만료되지 않은 활성 예약만 반환한다")
         void 만료되지_않은_활성_예약만_반환한다() {
             assertActiveIdsAre(() -> reservationRepository.findCurrentlyActiveByRoomNumber(ROOM_NUMBER));
+        }
+    }
+
+    @Nested
+    @DisplayName("findCurrentlyActiveByMachineId 메서드는")
+    class FindCurrentlyActiveByMachineId {
+
+        @Test
+        @DisplayName("만료되지 않은 활성 예약만 반환한다")
+        void 만료되지_않은_활성_예약만_반환한다() {
+            assertActiveIdsAre(() -> reservationRepository.findCurrentlyActiveByMachineId(washer.getId()));
+        }
+
+        @Test
+        @DisplayName("만료 예약만 남은 기기에는 빈 목록을 반환한다")
+        void 만료_예약만_남은_기기에는_빈_목록을_반환한다() {
+            assertThat(reservationRepository.findCurrentlyActiveByMachineId(expiredOnlyMachine.getId())).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("findCurrentlyActiveReservationByMachineId 메서드는")
+    class FindCurrentlyActiveReservationByMachineId {
+
+        @Test
+        @DisplayName("RUNNING 예약을 대표 예약으로 반환한다")
+        void RUNNING_예약을_대표_예약으로_반환한다() {
+            assertThat(reservationRepository.findCurrentlyActiveReservationByMachineId(washer.getId())).get()
+                    .extracting(Reservation::getId).isEqualTo(longRunning.getId());
+        }
+
+        @Test
+        @DisplayName("만료 예약만 남은 기기에는 빈 값을 반환한다")
+        void 만료_예약만_남은_기기에는_빈_값을_반환한다() {
+            assertThat(reservationRepository.findCurrentlyActiveReservationByMachineId(expiredOnlyMachine.getId()))
+                    .isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("findCurrentlyActiveMachineIds 메서드는")
+    class FindCurrentlyActiveMachineIds {
+
+        @Test
+        @DisplayName("만료 예약만 남은 기기를 제외한 기기 ID만 반환한다")
+        void 만료_예약만_남은_기기를_제외한_기기_ID만_반환한다() {
+            assertThat(reservationRepository.findCurrentlyActiveMachineIds()).containsExactly(washer.getId());
+        }
+    }
+
+    @Nested
+    @DisplayName("countCurrentlyActive 메서드는")
+    class CountCurrentlyActive {
+
+        @Test
+        @DisplayName("만료 예약을 제외한 활성 예약 수를 반환한다")
+        void 만료_예약을_제외한_활성_예약_수를_반환한다() {
+            assertThat(reservationRepository.countCurrentlyActive()).isEqualTo(4L);
+        }
+    }
+
+    @Nested
+    @DisplayName("existsCurrentlyActiveByUser 메서드는")
+    class ExistsCurrentlyActiveByUser {
+
+        @Test
+        @DisplayName("만료되지 않은 활성 예약이 있으면 참을 반환한다")
+        void 만료되지_않은_활성_예약이_있으면_참을_반환한다() {
+            assertThat(reservationRepository.existsCurrentlyActiveByUser(owner)).isTrue();
+        }
+
+        @Test
+        @DisplayName("만료 예약만 남은 사용자에게는 거짓을 반환한다")
+        void 만료_예약만_남은_사용자에게는_거짓을_반환한다() {
+            assertThat(reservationRepository.existsCurrentlyActiveByUser(expiredOnlyOwner)).isFalse();
         }
     }
 

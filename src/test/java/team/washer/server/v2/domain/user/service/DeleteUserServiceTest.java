@@ -3,7 +3,6 @@ package team.washer.server.v2.domain.user.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -16,7 +15,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import team.themoment.sdk.exception.ExpectedException;
-import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
@@ -54,17 +52,15 @@ class DeleteUserServiceTest {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
-                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
-
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.existsByUserAndStatusIn(user, activeStatuses)).willReturn(false);
+                given(reservationRepository.existsCurrentlyActiveByUser(user)).willReturn(false);
 
                 // When
                 deleteUserService.execute(userId);
 
                 // Then
                 then(userRepository).should(times(1)).findById(userId);
-                then(reservationRepository).should(times(1)).existsByUserAndStatusIn(user, activeStatuses);
+                then(reservationRepository).should(times(1)).existsCurrentlyActiveByUser(user);
                 then(userRepository).should(times(1)).delete(user);
             }
         }
@@ -79,10 +75,8 @@ class DeleteUserServiceTest {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
-                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
-
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.existsByUserAndStatusIn(user, activeStatuses)).willReturn(true);
+                given(reservationRepository.existsCurrentlyActiveByUser(user)).willReturn(true);
 
                 // When & Then
                 assertThatThrownBy(() -> deleteUserService.execute(userId)).isInstanceOf(ExpectedException.class)
@@ -90,7 +84,7 @@ class DeleteUserServiceTest {
                         .hasFieldOrPropertyWithValue("statusCode", HttpStatus.BAD_REQUEST);
 
                 then(userRepository).should(times(1)).findById(userId);
-                then(reservationRepository).should(times(1)).existsByUserAndStatusIn(user, activeStatuses);
+                then(reservationRepository).should(times(1)).existsCurrentlyActiveByUser(user);
                 then(userRepository).should(never()).delete(any(User.class));
             }
         }
@@ -105,10 +99,8 @@ class DeleteUserServiceTest {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
-                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
-
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.existsByUserAndStatusIn(user, activeStatuses)).willReturn(true);
+                given(reservationRepository.existsCurrentlyActiveByUser(user)).willReturn(true);
 
                 // When & Then
                 assertThatThrownBy(() -> deleteUserService.execute(userId)).isInstanceOf(ExpectedException.class)
@@ -116,7 +108,7 @@ class DeleteUserServiceTest {
                         .hasFieldOrPropertyWithValue("statusCode", HttpStatus.BAD_REQUEST);
 
                 then(userRepository).should(times(1)).findById(userId);
-                then(reservationRepository).should(times(1)).existsByUserAndStatusIn(user, activeStatuses);
+                then(reservationRepository).should(times(1)).existsCurrentlyActiveByUser(user);
                 then(userRepository).should(never()).delete(any(User.class));
             }
         }
@@ -131,17 +123,15 @@ class DeleteUserServiceTest {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
-                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
-
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.existsByUserAndStatusIn(user, activeStatuses)).willReturn(false);
+                given(reservationRepository.existsCurrentlyActiveByUser(user)).willReturn(false);
 
                 // When
                 deleteUserService.execute(userId);
 
                 // Then
                 then(userRepository).should(times(1)).findById(userId);
-                then(reservationRepository).should(times(1)).existsByUserAndStatusIn(user, activeStatuses);
+                then(reservationRepository).should(times(1)).existsCurrentlyActiveByUser(user);
                 then(userRepository).should(times(1)).delete(user);
             }
         }
@@ -156,17 +146,38 @@ class DeleteUserServiceTest {
                 // Given
                 Long userId = 1L;
                 User user = createUser();
-                List<ReservationStatus> activeStatuses = List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING);
-
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(reservationRepository.existsByUserAndStatusIn(user, activeStatuses)).willReturn(false);
+                given(reservationRepository.existsCurrentlyActiveByUser(user)).willReturn(false);
 
                 // When
                 deleteUserService.execute(userId);
 
                 // Then
                 then(userRepository).should(times(1)).findById(userId);
-                then(reservationRepository).should(times(1)).existsByUserAndStatusIn(user, activeStatuses);
+                then(reservationRepository).should(times(1)).existsCurrentlyActiveByUser(user);
+                then(userRepository).should(times(1)).delete(user);
+            }
+        }
+
+        @Nested
+        @DisplayName("타임아웃이 지난 RESERVED 예약만 남은 사용자를 삭제할 때")
+        class Context_with_expired_reservations_only {
+
+            @Test
+            @DisplayName("사용자를 삭제해야 한다")
+            void it_deletes_user() {
+                // Given
+                Long userId = 1L;
+                User user = createUser();
+
+                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(reservationRepository.existsCurrentlyActiveByUser(user)).willReturn(false);
+
+                // When
+                deleteUserService.execute(userId);
+
+                // Then
+                then(reservationRepository).should(times(1)).existsCurrentlyActiveByUser(user);
                 then(userRepository).should(times(1)).delete(user);
             }
         }
@@ -188,7 +199,7 @@ class DeleteUserServiceTest {
                         .hasMessage("사용자를 찾을 수 없습니다").hasFieldOrPropertyWithValue("statusCode", HttpStatus.NOT_FOUND);
 
                 then(userRepository).should(times(1)).findById(userId);
-                then(reservationRepository).should(never()).existsByUserAndStatusIn(any(User.class), anyList());
+                then(reservationRepository).should(never()).existsCurrentlyActiveByUser(any(User.class));
                 then(userRepository).should(never()).delete(any(User.class));
             }
         }
