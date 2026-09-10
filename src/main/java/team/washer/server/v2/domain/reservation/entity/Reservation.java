@@ -126,18 +126,18 @@ public class Reservation extends BaseEntity {
     }
 
     /**
-     * 예약 타임아웃 초과 여부를 반환합니다.
+     * 예약 타임아웃 초과 여부를 반환합니다. 타임아웃 유무와 길이는 {@link ReservationStatus}의 설정을 그대로 따르므로,
+     * 상태별 타임아웃을 바꾸려면 열거형만 수정하면 됩니다.
      *
      * @return 타임아웃 초과 여부
      */
     public boolean isExpired() {
-        LocalDateTime now = DateTimeUtil.nowInKorea();
+        if (!this.status.hasTimeout()) {
+            return false;
+        }
 
-        return switch (this.status) {
-            case RESERVED ->
-                Duration.between(this.reservedAt, now).toMinutes() >= ReservationStatus.RESERVED.getTimeoutMinutes();
-            default -> false;
-        };
+        return Duration.between(this.reservedAt, DateTimeUtil.nowInKorea()).toMinutes() >= this.status
+                .getTimeoutMinutes();
     }
 
     /**
@@ -146,16 +146,14 @@ public class Reservation extends BaseEntity {
      * @return 타임아웃까지 남은 시간
      */
     public Duration getRemainingTimeUntilTimeout() {
-        LocalDateTime now = DateTimeUtil.nowInKorea();
+        if (!this.status.hasTimeout()) {
+            return Duration.ZERO;
+        }
 
-        return switch (this.status) {
-            case RESERVED -> {
-                long minutes = ReservationStatus.RESERVED.getTimeoutMinutes()
-                        - Duration.between(this.reservedAt, now).toMinutes();
-                yield Duration.ofMinutes(Math.max(0, minutes));
-            }
-            default -> Duration.ZERO;
-        };
+        final long remainingMinutes = this.status.getTimeoutMinutes()
+                - Duration.between(this.reservedAt, DateTimeUtil.nowInKorea()).toMinutes();
+
+        return Duration.ofMinutes(Math.max(0, remainingMinutes));
     }
 
     /**
@@ -245,6 +243,19 @@ public class Reservation extends BaseEntity {
      */
     public boolean isActive() {
         return this.status == ReservationStatus.RESERVED || this.status == ReservationStatus.RUNNING;
+    }
+
+    /**
+     * 만료되지 않은 현재 활성 예약인지 반환합니다.
+     *
+     * <p>
+     * 활성 상태이더라도 타임아웃이 지난 RESERVED 예약은 활성으로 세지 않습니다. 스케줄러가 아직 정리하지 못한 만료 예약이 새 예약을
+     * 막거나 조회 결과에 노출되는 것을 방지하기 위함입니다.
+     *
+     * @return 만료되지 않은 활성 예약 여부
+     */
+    public boolean isCurrentlyActive() {
+        return isActive() && !isExpired();
     }
 
     /**

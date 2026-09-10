@@ -32,7 +32,8 @@ public final class ActiveReservationSelector {
         if (activeReservations == null || activeReservations.isEmpty()) {
             return Optional.empty();
         }
-        return activeReservations.stream().filter(Reservation::isRunning).findFirst().or(() -> activeReservations
-                .stream().filter(reservation -> reservation.isReserved() && !reservation.isExpired()).findFirst());
+        // RUNNING이 하나도 없을 때만 두 번째 분기에 도달하므로, 여기서 통과하는 것은 만료되지 않은 RESERVED뿐이다
+        return activeReservations.stream().filter(Reservation::isRunning).findFirst()
+                .or(() -> activeReservations.stream().filter(Reservation::isCurrentlyActive).findFirst());
     }
 }

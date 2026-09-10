@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
 
 @DisplayName("Reservation 예상 완료 시각 상한 검증")
@@ -166,6 +167,59 @@ class ReservationTest {
 
             // Then
             assertThat(reservation.getCompletionCount()).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("현재 활성 예약 판정")
+    class IsCurrentlyActiveTest {
+
+        private Reservation buildReservation(ReservationStatus status, int reservedMinutesAgo) {
+            return Reservation.builder().status(status)
+                    .reservedAt(LocalDateTime.now(KOREA_ZONE).minusMinutes(reservedMinutesAgo)).build();
+        }
+
+        @Test
+        @DisplayName("타임아웃 전 RESERVED 예약은 활성으로 판정한다")
+        void shouldReturnTrue_WhenReservedAndNotExpired() {
+            // Given
+            var reservation = buildReservation(ReservationStatus.RESERVED, 1);
+
+            // When & Then
+            assertThat(reservation.isCurrentlyActive()).isTrue();
+        }
+
+        @Test
+        @DisplayName("타임아웃이 지난 RESERVED 예약은 활성으로 판정하지 않는다")
+        void shouldReturnFalse_WhenReservedAndExpired() {
+            // Given
+            var reservation = buildReservation(ReservationStatus.RESERVED,
+                    ReservationStatus.RESERVED.getTimeoutMinutes() + 1);
+
+            // When & Then
+            assertThat(reservation.isCurrentlyActive()).isFalse();
+        }
+
+        @Test
+        @DisplayName("RUNNING 예약은 예약 시각과 무관하게 활성으로 판정한다")
+        void shouldReturnTrue_WhenRunning() {
+            // Given
+            var reservation = buildReservation(ReservationStatus.RUNNING, 120);
+
+            // When & Then
+            assertThat(reservation.isCurrentlyActive()).isTrue();
+        }
+
+        @Test
+        @DisplayName("완료·취소된 예약은 활성으로 판정하지 않는다")
+        void shouldReturnFalse_WhenCompletedOrCancelled() {
+            // Given
+            var completed = buildReservation(ReservationStatus.COMPLETED, 1);
+            var cancelled = buildReservation(ReservationStatus.CANCELLED, 1);
+
+            // When & Then
+            assertThat(completed.isCurrentlyActive()).isFalse();
+            assertThat(cancelled.isCurrentlyActive()).isFalse();
         }
     }
 }

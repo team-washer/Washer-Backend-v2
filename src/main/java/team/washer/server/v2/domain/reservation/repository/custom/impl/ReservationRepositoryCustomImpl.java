@@ -18,12 +18,15 @@ import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import lombok.RequiredArgsConstructor;
+import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.entity.QReservation;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.custom.ReservationRepositoryCustom;
 import team.washer.server.v2.domain.user.entity.QUser;
+import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Repository
 @RequiredArgsConstructor
@@ -33,6 +36,9 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     // QUser 기본 별칭(user)은 reservation.user 조인에 이미 사용되므로 대리 예약 생성자용 별칭을 따로 둔다
     private static final QUser createdByUser = new QUser("createdByUser");
+
+    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
+            ReservationStatus.RUNNING);
 
     private final JPAQueryFactory jpaQueryFactory;
 
@@ -83,12 +89,63 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
     }
 
     @Override
-    public List<Reservation> findActiveReservationsByRoomNumber(String roomNumber) {
+    public List<Reservation> findCurrentlyActiveByUser(User targetUser) {
         return jpaQueryFactory.selectFrom(reservation).join(reservation.user, user).fetchJoin()
                 .join(reservation.machine, machine).fetchJoin()
-                .where(reservation.user.roomNumber.eq(roomNumber),
-                        reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.RUNNING))
+                .where(reservation.user.eq(targetUser), currentlyActive()).orderBy(reservation.createdAt.desc())
+                .fetch();
+    }
+
+    @Override
+    public List<Reservation> findCurrentlyActiveByMachine(Machine targetMachine) {
+        return jpaQueryFactory.selectFrom(reservation).join(reservation.machine, machine).fetchJoin()
+                .where(reservation.machine.eq(targetMachine), currentlyActive()).orderBy(reservation.createdAt.desc())
+                .fetch();
+    }
+
+    @Override
+    public List<Reservation> findCurrentlyActiveByRoomNumber(String roomNumber) {
+        return jpaQueryFactory.selectFrom(reservation).join(reservation.user, user).fetchJoin()
+                .join(reservation.machine, machine).fetchJoin()
+                .where(reservation.user.roomNumber.eq(roomNumber), currentlyActive())
                 .orderBy(reservation.createdAt.desc()).fetch();
+    }
+
+    /**
+     * 만료되지 않은 활성 예약 조건을 반환합니다. {@link Reservation#isCurrentlyActive()}와 동일한 규칙을 쿼리
+     * 조건으로 표현한 것으로, 전체를 로드한 뒤 메모리에서 거르지 않도록 합니다.
+     *
+     * <p>
+     * 타임아웃 유무와 길이는 엔티티와 마찬가지로 {@link ReservationStatus}의 설정에서 파생되므로, 상태별 타임아웃을 바꾸면
+     * 양쪽 판정이 함께 따라옵니다.
+     *
+     * @return 만료되지 않은 활성 예약 조건
+     */
+    private BooleanExpression currentlyActive() {
+        final LocalDateTime now = DateTimeUtil.nowInKorea();
+
+        return ACTIVE_STATUSES.stream().map(status -> notExpired(status, now)).reduce(BooleanExpression::or)
+                .orElseThrow();
+    }
+
+    /**
+     * 특정 상태의 만료되지 않은 예약 조건을 반환합니다. 타임아웃이 없는 상태는 상태 일치만으로 통과시키고, 타임아웃이 있는 상태는 컷오프
+     * 이후에 예약된 건만 남깁니다.
+     *
+     * @param status
+     *            판정 대상 예약 상태
+     * @param now
+     *            컷오프 계산 기준 시각
+     * @return 해당 상태의 만료되지 않은 예약 조건
+     */
+    private BooleanExpression notExpired(final ReservationStatus status, final LocalDateTime now) {
+        final BooleanExpression statusMatches = reservation.status.eq(status);
+
+        if (!status.hasTimeout()) {
+            return statusMatches;
+        }
+
+        return statusMatches.and(reservation.reservedAt.gt(now.minusMinutes(status.getTimeoutMinutes())));
     }
 
     @Override

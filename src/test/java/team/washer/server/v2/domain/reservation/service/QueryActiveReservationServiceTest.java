@@ -2,8 +2,6 @@ package team.washer.server.v2.domain.reservation.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -65,9 +63,7 @@ class QueryActiveReservationServiceTest {
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final Reservation reservation = mock(Reservation.class);
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-            when(reservationRepository.findByUserAndStatusIn(eq(user), anyList())).thenReturn(List.of(reservation));
-            when(reservation.isExpired()).thenReturn(false);
-            when(reservation.getCreatedAt()).thenReturn(LocalDateTime.now());
+            when(reservationRepository.findCurrentlyActiveByUser(user)).thenReturn(List.of(reservation));
             stubReservationDtoFields(reservation, 1L);
 
             // When
@@ -79,44 +75,16 @@ class QueryActiveReservationServiceTest {
         }
 
         @Test
-        @DisplayName("만료 예약과 유효 예약이 혼재하면 유효한 예약을 반환한다")
-        void execute_ShouldReturnValidReservation_WhenMixedExpiredAndValidReservationsExist() {
+        @DisplayName("활성 예약이 여러 개이면 조회 순서상 가장 최근인 첫 예약을 반환한다")
+        void execute_ShouldReturnLatestReservation_WhenMultipleActiveReservationsExist() {
             // Given
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
-            final Reservation expiredReservation = mock(Reservation.class);
-            final Reservation validReservation = mock(Reservation.class);
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-            when(reservationRepository.findByUserAndStatusIn(eq(user), anyList()))
-                    .thenReturn(List.of(expiredReservation, validReservation));
-            when(expiredReservation.isExpired()).thenReturn(true);
-            when(validReservation.isExpired()).thenReturn(false);
-            when(validReservation.getCreatedAt()).thenReturn(LocalDateTime.now());
-            stubReservationDtoFields(validReservation, 2L);
-
-            // When
-            final ReservationResDto result = queryActiveReservationService.execute();
-
-            // Then
-            assertThat(result).isNotNull();
-            assertThat(result.id()).isEqualTo(2L);
-        }
-
-        @Test
-        @DisplayName("유효한 예약이 여러 개이면 생성 시각이 가장 최근인 예약을 반환한다")
-        void execute_ShouldReturnLatestReservation_WhenMultipleValidReservationsExist() {
-            // Given
-            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
-            final Reservation olderReservation = mock(Reservation.class);
             final Reservation newerReservation = mock(Reservation.class);
-            final LocalDateTime older = LocalDateTime.now().minusMinutes(10);
-            final LocalDateTime newer = LocalDateTime.now();
+            final Reservation olderReservation = mock(Reservation.class);
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-            when(reservationRepository.findByUserAndStatusIn(eq(user), anyList()))
-                    .thenReturn(List.of(olderReservation, newerReservation));
-            when(olderReservation.isExpired()).thenReturn(false);
-            when(newerReservation.isExpired()).thenReturn(false);
-            when(olderReservation.getCreatedAt()).thenReturn(older);
-            when(newerReservation.getCreatedAt()).thenReturn(newer);
+            // 리포지토리가 createdAt 내림차순으로 반환한다
+            when(reservationRepository.findCurrentlyActiveByUser(user))
+                    .thenReturn(List.of(newerReservation, olderReservation));
             stubReservationDtoFields(newerReservation, 2L);
 
             // When
@@ -128,30 +96,12 @@ class QueryActiveReservationServiceTest {
         }
 
         @Test
-        @DisplayName("만료된 예약만 존재하면 null을 반환한다")
-        void execute_ShouldReturnNull_WhenOnlyExpiredReservationsExist() {
-            // Given
-            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
-            final Reservation expiredReservation = mock(Reservation.class);
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-            when(reservationRepository.findByUserAndStatusIn(eq(user), anyList()))
-                    .thenReturn(List.of(expiredReservation));
-            when(expiredReservation.isExpired()).thenReturn(true);
-
-            // When
-            final ReservationResDto result = queryActiveReservationService.execute();
-
-            // Then
-            assertThat(result).isNull();
-        }
-
-        @Test
         @DisplayName("활성 예약이 없으면 null을 반환한다")
         void execute_ShouldReturnNull_WhenNoActiveReservationsExist() {
             // Given
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-            when(reservationRepository.findByUserAndStatusIn(eq(user), anyList())).thenReturn(Collections.emptyList());
+            when(reservationRepository.findCurrentlyActiveByUser(user)).thenReturn(Collections.emptyList());
 
             // When
             final ReservationResDto result = queryActiveReservationService.execute();
