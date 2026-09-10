@@ -102,7 +102,7 @@ class UpdateMachineStatusServiceTest {
                     given(machine.getId()).willReturn(machineId);
 
                     given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
-                    given(reservationRepository.findActiveReservationByMachineId(machineId))
+                    given(reservationRepository.findCurrentlyActiveReservationByMachineId(machineId))
                             .willReturn(Optional.empty());
                     given(machineRepository.save(any(Machine.class)))
                             .willAnswer(invocation -> invocation.getArgument(0));
@@ -115,7 +115,7 @@ class UpdateMachineStatusServiceTest {
                     assertThat(result.status()).isEqualTo(MachineStatus.NORMAL);
                     assertThat(result.availability()).isEqualTo(MachineAvailability.AVAILABLE);
                     then(machineRepository).should(times(1)).findById(machineId);
-                    then(reservationRepository).should(times(1)).findActiveReservationByMachineId(machineId);
+                    then(reservationRepository).should(times(1)).findCurrentlyActiveReservationByMachineId(machineId);
                     then(machineRepository).should(times(1)).save(any(Machine.class));
                 }
             }
@@ -134,7 +134,7 @@ class UpdateMachineStatusServiceTest {
                     Reservation reservation = createReservation(machine, ReservationStatus.RESERVED);
 
                     given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
-                    given(reservationRepository.findActiveReservationByMachineId(machineId))
+                    given(reservationRepository.findCurrentlyActiveReservationByMachineId(machineId))
                             .willReturn(Optional.of(reservation));
                     given(machineRepository.save(any(Machine.class)))
                             .willAnswer(invocation -> invocation.getArgument(0));
@@ -147,7 +147,7 @@ class UpdateMachineStatusServiceTest {
                     assertThat(result.status()).isEqualTo(MachineStatus.NORMAL);
                     assertThat(result.availability()).isEqualTo(MachineAvailability.RESERVED);
                     then(machineRepository).should(times(1)).findById(machineId);
-                    then(reservationRepository).should(times(1)).findActiveReservationByMachineId(machineId);
+                    then(reservationRepository).should(times(1)).findCurrentlyActiveReservationByMachineId(machineId);
                     then(machineRepository).should(times(1)).save(any(Machine.class));
                 }
             }

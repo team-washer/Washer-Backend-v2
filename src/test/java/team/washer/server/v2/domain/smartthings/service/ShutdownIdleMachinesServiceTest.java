@@ -23,7 +23,6 @@ import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.enums.Position;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
@@ -50,9 +49,6 @@ class ShutdownIdleMachinesServiceTest {
 
     @Mock
     private DeviceShutdownSupport deviceShutdownSupport;
-
-    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
-            ReservationStatus.RUNNING);
 
     private static final SmartThingsDeviceStatusResDto EMPTY_STATUS = new SmartThingsDeviceStatusResDto(Map.of());
 
@@ -97,7 +93,7 @@ class ShutdownIdleMachinesServiceTest {
                 // Given
                 var machine = createMachine(1L, "W-2F-L1", "device-1");
                 given(machineRepository.findAll()).willReturn(List.of(machine));
-                given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
+                given(reservationRepository.findCurrentlyActiveMachineIds()).willReturn(List.of());
                 given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
                         .willReturn(Map.of("device-1", EMPTY_STATUS));
                 given(deviceShutdownSupport.shutdown(eq(machine), any())).willReturn(ShutdownResult.POWERED_OFF);
@@ -120,7 +116,7 @@ class ShutdownIdleMachinesServiceTest {
                 // Given
                 var machine = createMachine(1L, "W-2F-L1", "device-1");
                 given(machineRepository.findAll()).willReturn(List.of(machine));
-                given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of(1L));
+                given(reservationRepository.findCurrentlyActiveMachineIds()).willReturn(List.of(1L));
 
                 // When
                 shutdownIdleMachinesService.execute();
@@ -141,7 +137,7 @@ class ShutdownIdleMachinesServiceTest {
                 // Given
                 var machine = createMachine(1L, "W-2F-L1", "device-1");
                 given(machineRepository.findAll()).willReturn(List.of(machine));
-                given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
+                given(reservationRepository.findCurrentlyActiveMachineIds()).willReturn(List.of());
                 given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
                         .willReturn(Map.of("device-1", EMPTY_STATUS));
                 given(deviceShutdownSupport.shutdown(eq(machine), any())).willReturn(ShutdownResult.STOPPED);
@@ -165,7 +161,7 @@ class ShutdownIdleMachinesServiceTest {
                 var machine1 = createMachine(1L, "W-2F-L1", "device-1");
                 var machine2 = createMachine(2L, "W-2F-R1", "device-2");
                 given(machineRepository.findAll()).willReturn(List.of(machine1, machine2));
-                given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
+                given(reservationRepository.findCurrentlyActiveMachineIds()).willReturn(List.of());
                 given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1", "device-2")))
                         .willReturn(Map.of("device-1", EMPTY_STATUS, "device-2", EMPTY_STATUS));
                 willThrow(new SmartThingsPermissionException("권한 없음")).given(deviceShutdownSupport)
@@ -191,7 +187,7 @@ class ShutdownIdleMachinesServiceTest {
                 var machine1 = createMachine(1L, "W-2F-L1", "device-1");
                 var machine2 = createMachine(2L, "W-2F-R1", "device-2");
                 given(machineRepository.findAll()).willReturn(List.of(machine1, machine2));
-                given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
+                given(reservationRepository.findCurrentlyActiveMachineIds()).willReturn(List.of());
                 given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1", "device-2")))
                         .willReturn(Map.of("device-1", EMPTY_STATUS, "device-2", EMPTY_STATUS));
                 willThrow(new RuntimeException("일시적 오류")).given(deviceShutdownSupport).shutdown(eq(machine1), any());

@@ -62,7 +62,8 @@ class DeleteMachineServiceTest {
                 var machineId = 1L;
                 var machine = createMachine();
                 given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
-                given(reservationRepository.findActiveReservationByMachineId(machineId)).willReturn(Optional.empty());
+                given(reservationRepository.findCurrentlyActiveReservationByMachineId(machineId))
+                        .willReturn(Optional.empty());
 
                 // When
                 var result = deleteMachineService.execute(machineId);
@@ -85,7 +86,7 @@ class DeleteMachineServiceTest {
                 var machineId = 1L;
                 var machine = createMachine();
                 given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
-                given(reservationRepository.findActiveReservationByMachineId(machineId))
+                given(reservationRepository.findCurrentlyActiveReservationByMachineId(machineId))
                         .willReturn(Optional.of(activeReservation));
 
                 // When & Then

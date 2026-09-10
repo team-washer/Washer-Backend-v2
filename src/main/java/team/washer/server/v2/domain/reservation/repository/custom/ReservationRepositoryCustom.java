@@ -85,6 +85,38 @@ public interface ReservationRepositoryCustom {
     List<Reservation> findCurrentlyActiveByRoomNumber(String roomNumber);
 
     /**
+     * 기기 ID로 현재 활성 예약 목록을 조회합니다. 타임아웃이 지난 RESERVED 예약은 쿼리 단계에서 제외됩니다.
+     *
+     * @param machineId
+     *            조회 대상 기기 ID
+     * @return 만료되지 않은 활성 예약 목록 (createdAt 내림차순)
+     */
+    List<Reservation> findCurrentlyActiveByMachineId(Long machineId);
+
+    /**
+     * 현재 활성 예약이 걸려 있는 기기 ID 목록을 조회합니다. 타임아웃이 지난 RESERVED 예약만 남은 기기는 포함되지 않습니다.
+     *
+     * @return 만료되지 않은 활성 예약이 있는 기기 ID 목록
+     */
+    List<Long> findCurrentlyActiveMachineIds();
+
+    /**
+     * 현재 활성 예약 수를 반환합니다. 타임아웃이 지난 RESERVED 예약은 집계에서 제외됩니다.
+     *
+     * @return 만료되지 않은 활성 예약 수
+     */
+    long countCurrentlyActive();
+
+    /**
+     * 사용자에게 현재 활성 예약이 있는지 반환합니다. 타임아웃이 지난 RESERVED 예약만 남아 있으면 거짓입니다.
+     *
+     * @param user
+     *            조회 대상 사용자
+     * @return 만료되지 않은 활성 예약 존재 여부
+     */
+    boolean existsCurrentlyActiveByUser(User user);
+
+    /**
      * 기기별 예약 히스토리 조회
      *
      * @param machineId

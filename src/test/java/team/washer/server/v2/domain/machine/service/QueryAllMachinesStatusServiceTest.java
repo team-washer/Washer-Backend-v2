@@ -98,7 +98,7 @@ class QueryAllMachinesStatusServiceTest {
             when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1", "device-2")))
                     .thenReturn(Map.of("device-1", deviceStatus, "device-2", deviceStatus));
 
-            when(reservationRepository.findActiveReservationByMachineId(any())).thenReturn(Optional.empty());
+            when(reservationRepository.findCurrentlyActiveReservationByMachineId(any())).thenReturn(Optional.empty());
 
             // When
             var result = queryAllMachinesStatusService.execute(USER_ID, true);
@@ -122,7 +122,7 @@ class QueryAllMachinesStatusServiceTest {
 
             when(machineRepository.findAll()).thenReturn(List.of(machine1));
             when(deviceStatusQuerySupport.queryAllDevicesStatus(any())).thenReturn(Map.of());
-            when(reservationRepository.findActiveReservationByMachineId(any())).thenReturn(Optional.empty());
+            when(reservationRepository.findCurrentlyActiveReservationByMachineId(any())).thenReturn(Optional.empty());
 
             // When
             var result = queryAllMachinesStatusService.execute(USER_ID, false);
@@ -174,7 +174,8 @@ class QueryAllMachinesStatusServiceTest {
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
             when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
                     .thenReturn(Map.of("device-1", deviceStatus));
-            when(reservationRepository.findActiveReservationByMachineId(any())).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findCurrentlyActiveReservationByMachineId(any()))
+                    .thenReturn(Optional.of(reservation));
             when(reservation.getStatus()).thenReturn(ReservationStatus.RUNNING);
             when(reservation.getUser()).thenReturn(user);
 
@@ -211,7 +212,8 @@ class QueryAllMachinesStatusServiceTest {
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
             when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
                     .thenReturn(Map.of("device-1", deviceStatus));
-            when(reservationRepository.findActiveReservationByMachineId(any())).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findCurrentlyActiveReservationByMachineId(any()))
+                    .thenReturn(Optional.of(reservation));
             when(reservation.getId()).thenReturn(10L);
             when(reservation.getStatus()).thenReturn(ReservationStatus.RUNNING);
             when(reservation.getUser()).thenReturn(user);
@@ -272,7 +274,7 @@ class QueryAllMachinesStatusServiceTest {
             givenUserMocked();
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
             when(deviceStatusQuerySupport.queryAllDevicesStatus(any())).thenReturn(Map.of());
-            when(reservationRepository.findActiveReservationByMachineId(any()))
+            when(reservationRepository.findCurrentlyActiveReservationByMachineId(any()))
                     .thenReturn(Optional.ofNullable(reservationOrNull));
         }
 

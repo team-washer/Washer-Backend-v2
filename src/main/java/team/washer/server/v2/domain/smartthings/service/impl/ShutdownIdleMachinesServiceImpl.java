@@ -1,7 +1,6 @@
 package team.washer.server.v2.domain.smartthings.service.impl;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -12,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.service.ShutdownIdleMachinesService;
@@ -33,9 +31,6 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
     @Autowired(required = false)
     private DiscordErrorNotificationService discordErrorNotificationService;
 
-    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
-            ReservationStatus.RUNNING);
-
     @Override
     public void execute() {
         var machines = machineRepository.findAll();
@@ -43,7 +38,8 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
             return;
         }
 
-        var activeMachineIds = Set.copyOf(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES));
+        // 만료 예약만 남은 기기는 실제로 아무도 쓰지 않으므로 유휴 전원 차단 대상에 포함한다
+        var activeMachineIds = Set.copyOf(reservationRepository.findCurrentlyActiveMachineIds());
 
         var idleCandidates = machines.stream().filter(machine -> !activeMachineIds.contains(machine.getId())).toList();
         var skippedActiveCount = machines.size() - idleCandidates.size();

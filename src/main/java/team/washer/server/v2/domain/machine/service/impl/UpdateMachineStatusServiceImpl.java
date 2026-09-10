@@ -34,8 +34,9 @@ public class UpdateMachineStatusServiceImpl implements UpdateMachineStatusServic
         } else if (status == MachineStatus.NORMAL) {
             machine.markAsNormal();
 
-            // 복구 후 실제 예약 상태에 맞게 availability 재동기화
-            findActiveReservation(machine).ifPresent(reservation -> {
+            // 복구 후 실제 예약 상태에 맞게 availability 재동기화. 만료된 RESERVED 예약은 활성으로 보지 않으므로
+            // markAsNormal()이 설정한 AVAILABLE이 그대로 유지된다
+            findCurrentlyActiveReservation(machine).ifPresent(reservation -> {
                 switch (reservation.getStatus()) {
                     case RESERVED -> machine.markAsReserved();
                     case RUNNING -> machine.markAsInUse();
@@ -53,7 +54,7 @@ public class UpdateMachineStatusServiceImpl implements UpdateMachineStatusServic
                 savedMachine.getAvailability());
     }
 
-    private Optional<Reservation> findActiveReservation(Machine machine) {
-        return reservationRepository.findActiveReservationByMachineId(machine.getId());
+    private Optional<Reservation> findCurrentlyActiveReservation(Machine machine) {
+        return reservationRepository.findCurrentlyActiveReservationByMachineId(machine.getId());
     }
 }
