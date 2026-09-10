@@ -111,6 +111,33 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                 .orderBy(reservation.createdAt.desc()).fetch();
     }
 
+    @Override
+    public List<Reservation> findCurrentlyActiveByMachineId(Long machineId) {
+        return jpaQueryFactory.selectFrom(reservation).join(reservation.machine, machine).fetchJoin()
+                .join(reservation.user, user).fetchJoin().where(reservation.machine.id.eq(machineId), currentlyActive())
+                .orderBy(reservation.createdAt.desc()).fetch();
+    }
+
+    @Override
+    public List<Long> findCurrentlyActiveMachineIds() {
+        return jpaQueryFactory.select(reservation.machine.id).distinct().from(reservation).where(currentlyActive())
+                .fetch();
+    }
+
+    @Override
+    public long countCurrentlyActive() {
+        final var total = jpaQueryFactory.select(reservation.count()).from(reservation).where(currentlyActive())
+                .fetchOne();
+
+        return total != null ? total : 0L;
+    }
+
+    @Override
+    public boolean existsCurrentlyActiveByUser(User targetUser) {
+        return jpaQueryFactory.selectOne().from(reservation).where(reservation.user.eq(targetUser), currentlyActive())
+                .fetchFirst() != null;
+    }
+
     /**
      * 만료되지 않은 활성 예약 조건을 반환합니다. {@link Reservation#isCurrentlyActive()}와 동일한 규칙을 쿼리
      * 조건으로 표현한 것으로, 전체를 로드한 뒤 메모리에서 거르지 않도록 합니다.
