@@ -44,23 +44,21 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
         return findByStatusIn(List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING));
     }
 
-    @Query("SELECT COUNT(r) FROM Reservation r WHERE r.status IN :statuses")
-    long countAllActiveReservations(@Param("statuses") List<ReservationStatus> statuses);
-
-    default long countActiveReservations() {
-        return countAllActiveReservations(List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING));
-    }
-
     @Query("SELECT r FROM Reservation r WHERE r.machine.id = :machineId AND r.status IN :statuses ORDER BY r.createdAt DESC")
     List<Reservation> findFirstActiveReservationByMachineId(@Param("machineId") Long machineId,
             @Param("statuses") List<ReservationStatus> statuses);
 
     /**
-     * 기기의 대표 활성 예약을 조회한다. 선택 규칙은 {@link ActiveReservationSelector}가 정의한다.
+     * 기기의 대표 활성 예약을 조회한다. 만료 예약 제외는
+     * {@link ReservationRepositoryCustom#findCurrentlyActiveByMachineId(Long)}가 쿼리
+     * 단계에서 처리하고, 남은 후보 중 대표를 고르는 규칙은 {@link ActiveReservationSelector}가 정의한다.
+     *
+     * <p>
+     * 타임아웃이 지난 RESERVED 예약만 남은 기기는 {@link Optional#empty()}가 된다. 스케줄러가 아직 정리하지 못한
+     * 만료 예약이 기기를 점유한 것처럼 보이게 하지 않기 위함이다.
      */
-    default Optional<Reservation> findActiveReservationByMachineId(Long machineId) {
-        return ActiveReservationSelector.selectPrimary(findFirstActiveReservationByMachineId(machineId,
-                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)));
+    default Optional<Reservation> findCurrentlyActiveReservationByMachineId(Long machineId) {
+        return ActiveReservationSelector.selectPrimary(findCurrentlyActiveByMachineId(machineId));
     }
 
     @Query("SELECT COUNT(r) FROM Reservation r WHERE r.machine = :machine AND r.status IN :statuses")
@@ -76,6 +74,4 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 
     @Query("SELECT DISTINCT r.machine.id FROM Reservation r WHERE r.status IN :statuses")
     List<Long> findMachineIdsByStatusIn(@Param("statuses") List<ReservationStatus> statuses);
-
-    boolean existsByUserAndStatusIn(User user, List<ReservationStatus> statuses);
 }
