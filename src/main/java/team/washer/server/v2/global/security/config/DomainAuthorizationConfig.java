@@ -39,6 +39,8 @@ public class DomainAuthorizationConfig {
                 .requestMatchers("/api/v2/auth/login", "/api/v2/auth/refresh", "/api/v2/auth/token/status").permitAll()
                 // 관리자 엔드포인트
                 .requestMatchers("/api/v2/admin/**").hasAnyAuthority("DORMITORY_COUNCIL", "ADMIN")
+                // SmartThings 액세스 토큰은 관리자급 권한이 필요하다.
+                .requestMatchers("/api/v2/smartthings/token").hasAnyAuthority("DORMITORY_COUNCIL", "ADMIN")
                 // 그 외 엔드포인트 - 인증 필요
                 .anyRequest().authenticated();
     }
