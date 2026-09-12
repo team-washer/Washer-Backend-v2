@@ -16,6 +16,7 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 /**
@@ -39,6 +40,7 @@ public class ReservationCreationSupport {
     private final ReservationRepository reservationRepository;
     private final MachineRepository machineRepository;
     private final WashingBanRepository washingBanRepository;
+    private final UserRepository userRepository;
 
     /**
      * 사용자의 호실 관련 제약을 검증합니다. 층 제한, 호실 정보 존재 여부, 호실 세탁 강제 금지를 차례로 확인합니다.
@@ -61,6 +63,16 @@ public class ReservationCreationSupport {
         }
 
         return roomNumber;
+    }
+
+    /**
+     * 사용자·호실 예약 정책 범위를 비관적 쓰기 락으로 잠급니다.
+     *
+     * @param userId
+     *            예약 주체가 되는 사용자 ID
+     */
+    public void lockReservationPolicyScope(final Long userId) {
+        userRepository.findRoomUserIdsByUserIdForUpdate(userId);
     }
 
     /**
