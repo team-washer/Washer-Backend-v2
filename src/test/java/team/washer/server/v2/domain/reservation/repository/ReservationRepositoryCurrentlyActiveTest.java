@@ -206,6 +206,23 @@ class ReservationRepositoryCurrentlyActiveTest {
     }
 
     @Nested
+    @DisplayName("existsCurrentlyActiveByMachine 메서드는")
+    class ExistsCurrentlyActiveByMachine {
+
+        @Test
+        @DisplayName("만료되지 않은 활성 예약이 있으면 참을 반환한다")
+        void 만료되지_않은_활성_예약이_있으면_참을_반환한다() {
+            assertThat(reservationRepository.existsCurrentlyActiveByMachine(washer)).isTrue();
+        }
+
+        @Test
+        @DisplayName("만료 예약만 남은 기기에는 거짓을 반환한다")
+        void 만료_예약만_남은_기기에는_거짓을_반환한다() {
+            assertThat(reservationRepository.existsCurrentlyActiveByMachine(expiredOnlyMachine)).isFalse();
+        }
+    }
+
+    @Nested
     @DisplayName("쿼리 조건과 엔티티 판정은")
     class QueryAndEntityRule {
 
