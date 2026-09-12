@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -18,11 +19,15 @@ import team.washer.server.v2.domain.smartthings.service.TriggerManualDeviceSyncS
  *
  * <p>
  * 자동 동기화 스케줄러와 별개로, 관리자가 임의 시점에 기기 목록 동기화를 수동으로 촉발할 수 있습니다.
+ *
+ * <p>
+ * 운영 데이터에 영향을 주는 기능이므로 DORMITORY_COUNCIL 또는 ADMIN 권한을 가진 인증 요청만 접근할 수 있습니다.
  */
 @RestController
 @RequestMapping("/api/v2/admin/smartthings/devices")
 @RequiredArgsConstructor
 @Tag(name = "Admin SmartThings Device", description = "SmartThings 기기 관리 API (관리자용)")
+@SecurityRequirement(name = "bearerAuth")
 public class AdminSmartThingsDeviceController {
 
     private final TriggerManualDeviceSyncService triggerManualDeviceSyncService;
@@ -37,7 +42,8 @@ public class AdminSmartThingsDeviceController {
     @PostMapping("/sync")
     @Operation(summary = "기기 목록 수동 동기화", description = "SmartThings 전체 기기 목록을 재동기화합니다. "
             + "오발 방지를 위해 본문의 확인 키 값으로 반드시 true를 전달해야 합니다. "
-            + "요청 스레드를 블로킹하지 않고 즉시 접수하며, 접수 후 5초 창 안에 들어온 요청은 하나로 통합되어 백그라운드에서 한 번만 실행됩니다.")
+            + "요청 스레드를 블로킹하지 않고 즉시 접수하며, 접수 후 5초 창 안에 들어온 요청은 하나로 통합되어 백그라운드에서 한 번만 실행됩니다. "
+            + "DORMITORY_COUNCIL 또는 ADMIN 권한이 필요합니다.")
     public DeviceSyncTriggerResDto syncDevices(@Valid @RequestBody TriggerDeviceSyncReqDto request) {
         return triggerManualDeviceSyncService.execute(request);
     }

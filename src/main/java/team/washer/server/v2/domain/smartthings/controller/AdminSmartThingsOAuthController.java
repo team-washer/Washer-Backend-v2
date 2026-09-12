@@ -11,6 +11,7 @@ import org.springframework.web.util.UriComponentsBuilder;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +26,10 @@ import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnv
  *
  * <p>
  * SmartThings OAuth 2.0 Authorization Code Flow 진입점 및 콜백을 처리합니다.
+ *
+ * <p>
+ * 인가 범위가 경로별로 다릅니다. 인증 시작({@code /authorize})은 관리자 전용이며, 콜백({@code /callback})은
+ * SmartThings 리다이렉트가 직접 진입해야 하므로 비인증 공개 경로로 유지하고 일회성 state 검증으로 보호합니다.
  */
 @RestController
 @RequestMapping("/api/v2/admin/smartthings/oauth")
@@ -42,11 +47,16 @@ public class AdminSmartThingsOAuthController {
     /**
      * SmartThings OAuth 인증 URL 조회
      *
+     * <p>
+     * 관리자 전용 경로입니다. 리다이렉트가 아닌 인증 URL 문자열을 반환하므로, 인증된 관리자가 응답으로 받은 URL을 브라우저에서 직접 열어
+     * 인증을 진행합니다.
+     *
      * @return SmartThings 인증 페이지 URL
      */
     @GetMapping("/authorize")
+    @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "SmartThings 인증 URL 조회", description = "SmartThings OAuth 인증을 시작하기 위한 인증 URL을 반환합니다. "
-            + "반환된 URL을 브라우저에서 열어 SmartThings 계정으로 인증을 진행하세요.")
+            + "반환된 URL을 브라우저에서 열어 SmartThings 계정으로 인증을 진행하세요. DORMITORY_COUNCIL 또는 ADMIN 권한이 필요합니다.")
     public String getAuthorizationUrl() {
         var state = UUID.randomUUID().toString();
         stateStore.save(state);
@@ -60,6 +70,9 @@ public class AdminSmartThingsOAuthController {
     /**
      * SmartThings OAuth 콜백 처리
      *
+     * <p>
+     * SmartThings 리다이렉트가 직접 진입하는 비인증 공개 경로입니다. 인가 대신 일회성 state 검증으로 요청 출처를 확인합니다.
+     *
      * @param code
      *            SmartThings 인증 완료 후 전달받은 인증 코드
      * @param state
@@ -68,7 +81,7 @@ public class AdminSmartThingsOAuthController {
      */
     @GetMapping("/callback")
     @Operation(summary = "SmartThings OAuth 콜백 처리", description = "SmartThings 인증 완료 후 리다이렉트되는 콜백 엔드포인트입니다. "
-            + "인증 코드를 액세스 토큰으로 교환하고 DB에 저장합니다.")
+            + "인증 코드를 액세스 토큰으로 교환하고 DB에 저장합니다. " + "외부 리다이렉트가 진입해야 하므로 비인증 공개 경로이며, 일회성 state 검증으로 보호됩니다.")
     public CommonApiResponse handleCallback(
             @Parameter(description = "SmartThings 인증 코드", required = true) @RequestParam String code,
             @Parameter(description = "CSRF 방지 state 값", required = true) @RequestParam String state) {
