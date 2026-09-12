@@ -29,7 +29,6 @@ import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.enums.Position;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
@@ -47,9 +46,6 @@ import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsTub
 @ExtendWith(MockitoExtension.class)
 @DisplayName("RunWasherTubCleanServiceImpl 클래스의")
 class RunWasherTubCleanServiceTest {
-
-    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
-            ReservationStatus.RUNNING);
 
     @InjectMocks
     private RunWasherTubCleanServiceImpl runWasherTubCleanService;
@@ -114,7 +110,7 @@ class RunWasherTubCleanServiceTest {
             given(machineRepository.findByTypeAndStatusAndAvailability(MachineType.WASHER,
                     MachineStatus.NORMAL,
                     MachineAvailability.AVAILABLE)).willReturn(List.of(machine));
-            given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
+            given(reservationRepository.findCurrentlyActiveMachineIds()).willReturn(List.of());
             given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
                     .willReturn(Map.of("device-1", idleStatus(true)));
             given(machineGuard.occupyIfAvailable(1L))
@@ -138,7 +134,7 @@ class RunWasherTubCleanServiceTest {
             given(machineRepository.findByTypeAndStatusAndAvailability(MachineType.WASHER,
                     MachineStatus.NORMAL,
                     MachineAvailability.AVAILABLE)).willReturn(List.of(machine));
-            given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of(1L));
+            given(reservationRepository.findCurrentlyActiveMachineIds()).willReturn(List.of(1L));
 
             runWasherTubCleanService.execute();
 
@@ -154,7 +150,7 @@ class RunWasherTubCleanServiceTest {
             given(machineRepository.findByTypeAndStatusAndAvailability(MachineType.WASHER,
                     MachineStatus.NORMAL,
                     MachineAvailability.AVAILABLE)).willReturn(List.of(machine));
-            given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
+            given(reservationRepository.findCurrentlyActiveMachineIds()).willReturn(List.of());
             given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
                     .willReturn(Map.of("device-1", idleStatus(false)));
 
@@ -173,7 +169,7 @@ class RunWasherTubCleanServiceTest {
             given(machineRepository.findByTypeAndStatusAndAvailability(MachineType.WASHER,
                     MachineStatus.NORMAL,
                     MachineAvailability.AVAILABLE)).willReturn(List.of(machine));
-            given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
+            given(reservationRepository.findCurrentlyActiveMachineIds()).willReturn(List.of());
             given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
                     .willReturn(Map.of("device-1", idleStatus(true)));
             given(machineGuard.occupyIfAvailable(1L))

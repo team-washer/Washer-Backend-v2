@@ -1,6 +1,5 @@
 package team.washer.server.v2.domain.smartthings.support;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.springframework.stereotype.Component;
@@ -10,7 +9,6 @@ import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 
 /**
@@ -19,9 +17,6 @@ import team.washer.server.v2.domain.reservation.repository.ReservationRepository
 @Component
 @RequiredArgsConstructor
 public class WasherTubCleanMachineGuard {
-
-    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
-            ReservationStatus.RUNNING);
 
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
@@ -64,7 +59,7 @@ public class WasherTubCleanMachineGuard {
     }
 
     private boolean hasActiveReservation(Machine machine) {
-        return reservationRepository.countActiveReservationsByMachine(machine, ACTIVE_STATUSES) > 0;
+        return reservationRepository.existsCurrentlyActiveByMachine(machine);
     }
 
     /**

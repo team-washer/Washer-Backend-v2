@@ -24,7 +24,6 @@ import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.enums.Position;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.AttributeState;
@@ -38,9 +37,6 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReleaseFinishedWasherTubCleanServiceImpl 클래스의")
 class ReleaseFinishedWasherTubCleanServiceTest {
-
-    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
-            ReservationStatus.RUNNING);
 
     @InjectMocks
     private ReleaseFinishedWasherTubCleanServiceImpl releaseService;
@@ -83,7 +79,7 @@ class ReleaseFinishedWasherTubCleanServiceTest {
             var machine = createMachine(DateTimeUtil.nowInKorea().minusMinutes(10));
             given(machineRepository.findByTypeAndAvailability(MachineType.WASHER, MachineAvailability.CLEANING))
                     .willReturn(List.of(machine));
-            given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
+            given(reservationRepository.findCurrentlyActiveMachineIds()).willReturn(List.of());
             given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
                     .willReturn(Map.of("device-1", stoppedStatus()));
             given(machineGuard.releaseIfNoActiveReservation(1L)).willReturn(true);
@@ -99,7 +95,7 @@ class ReleaseFinishedWasherTubCleanServiceTest {
             var machine = createMachine(DateTimeUtil.nowInKorea());
             given(machineRepository.findByTypeAndAvailability(MachineType.WASHER, MachineAvailability.CLEANING))
                     .willReturn(List.of(machine));
-            given(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES)).willReturn(List.of());
+            given(reservationRepository.findCurrentlyActiveMachineIds()).willReturn(List.of());
 
             releaseService.execute();
 
