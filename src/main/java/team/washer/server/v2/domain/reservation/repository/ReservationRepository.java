@@ -61,17 +61,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
         return ActiveReservationSelector.selectPrimary(findCurrentlyActiveByMachineId(machineId));
     }
 
-    @Query("SELECT COUNT(r) FROM Reservation r WHERE r.machine = :machine AND r.status IN :statuses")
-    long countActiveReservationsByMachine(@Param("machine") Machine machine,
-            @Param("statuses") List<ReservationStatus> statuses);
-
     @Query("SELECT r FROM Reservation r WHERE r.user = :user ORDER BY r.createdAt DESC")
     List<Reservation> findReservationHistoryByUser(@Param("user") User user);
 
     default List<Reservation> findAllRunningReservations() {
         return findByStatus(ReservationStatus.RUNNING);
     }
-
-    @Query("SELECT DISTINCT r.machine.id FROM Reservation r WHERE r.status IN :statuses")
-    List<Long> findMachineIdsByStatusIn(@Param("statuses") List<ReservationStatus> statuses);
 }

@@ -12,7 +12,6 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
@@ -26,8 +25,6 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 @Slf4j
 public class ReleaseFinishedWasherTubCleanServiceImpl implements ReleaseFinishedWasherTubCleanService {
 
-    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
-            ReservationStatus.RUNNING);
     private static final long COMMAND_START_GRACE_MINUTES = 5;
 
     private final MachineRepository machineRepository;
@@ -58,7 +55,7 @@ public class ReleaseFinishedWasherTubCleanServiceImpl implements ReleaseFinished
     }
 
     private List<Machine> findCandidates(LocalDateTime now) {
-        var activeMachineIds = Set.copyOf(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES));
+        var activeMachineIds = Set.copyOf(reservationRepository.findCurrentlyActiveMachineIds());
         var graceThreshold = now.minusMinutes(COMMAND_START_GRACE_MINUTES);
         return machineRepository.findByTypeAndAvailability(MachineType.WASHER, MachineAvailability.CLEANING).stream()
                 .filter(machine -> !activeMachineIds.contains(machine.getId()))
