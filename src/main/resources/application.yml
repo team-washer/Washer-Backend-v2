@@ -71,6 +71,7 @@ sdk:
     not-logging-urls:
       - "/v3/api-docs/**"
       - "/swagger-ui/**"
+      - "/api/v2/admin/smartthings/oauth/**"
   swagger:
     enabled: true
     title: "Washer API"
