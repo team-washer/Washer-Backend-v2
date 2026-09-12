@@ -2,6 +2,7 @@ package team.washer.server.v2.domain.reservation.service.impl;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
@@ -35,8 +36,10 @@ public class AdminCreateReservationServiceImpl implements AdminCreateReservation
     private final ReservationCreationSupport reservationCreationSupport;
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public AdminReservationResDto execute(final AdminCreateReservationReqDto reqDto) {
+        reservationCreationSupport.lockReservationPolicyScope(reqDto.userId());
+
         final User targetUser = userRepository.findById(reqDto.userId())
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 

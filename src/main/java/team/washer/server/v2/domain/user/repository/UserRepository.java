@@ -22,6 +22,19 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
 
     List<User> findByRoomNumber(String roomNumber);
 
+    @Query(value = """
+            SELECT u.id
+            FROM users u
+            WHERE u.room_number = (
+                SELECT target.room_number
+                FROM users target
+                WHERE target.id = :userId
+            )
+            ORDER BY u.id
+            FOR UPDATE
+            """, nativeQuery = true)
+    List<Long> findRoomUserIdsByUserIdForUpdate(@Param("userId") Long userId);
+
     List<User> findByFloor(Integer floor);
 
     List<User> findByGrade(Integer grade);
