@@ -60,13 +60,14 @@ public class DeviceShutdownSupport {
 
         if (isOperating(machine, status)) {
             log.warn(
-                    "operating device detected without active reservation, skip shutdown machine={} deviceId={} machineState={} switchStatus={} remoteControlEnabled={}",
+                    "operating device detected without active reservation, stop command sent machine={} deviceId={} machineState={} switchStatus={} remoteControlEnabled={}",
                     machine.getName(),
                     machine.getDeviceId(),
                     extractMachineState(machine, status),
                     status.getSwitchStatus(),
                     status.isRemoteControlEnabled());
-            return ShutdownResult.SKIPPED_OPERATING;
+            sendDeviceCommandService.execute(machine.getDeviceId(), createStopCommand(machine));
+            return ShutdownResult.STOPPED;
         }
 
         if ("off".equalsIgnoreCase(status.getSwitchStatus())) {
@@ -87,6 +88,13 @@ public class DeviceShutdownSupport {
     private boolean isOperating(Machine machine, SmartThingsDeviceStatusResDto status) {
         var machineState = extractMachineState(machine, status);
         return "run".equalsIgnoreCase(machineState) || "pause".equalsIgnoreCase(machineState);
+    }
+
+    private SmartThingsCommandReqDto createStopCommand(Machine machine) {
+        if (machine.isWasher()) {
+            return SmartThingsCommandReqDto.stopWasher();
+        }
+        return SmartThingsCommandReqDto.stopDryer();
     }
 
     private String extractMachineState(Machine machine, SmartThingsDeviceStatusResDto status) {
