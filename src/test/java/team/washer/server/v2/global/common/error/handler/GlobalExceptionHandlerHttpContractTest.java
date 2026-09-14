@@ -245,6 +245,17 @@ class GlobalExceptionHandlerHttpContractTest {
         }
 
         @Test
+        @DisplayName("외부 장애를 감싼 5xx ExpectedException은 서비스 문구로 응답하고 운영 알림을 보낸다")
+        void respondsExpectedServerExceptionWithNotification() throws Exception {
+            final var result = performAsUser(get(BASE_PATH + "/external"));
+
+            assertErrorContract(result, HttpStatus.BAD_GATEWAY, "BAD_GATEWAY");
+            result.andExpect(jsonPath("$.message").value("기기 상태를 확인할 수 없습니다"));
+            then(discordErrorNotificationService).should()
+                    .notifyError(any(ExpectedException.class), isNull(), anyMap());
+        }
+
+        @Test
         @DisplayName("Redis 연결 실패는 SERVICE_UNAVAILABLE로 응답하고 운영 알림을 보낸다")
         void respondsServiceUnavailableWithNotification() throws Exception {
             final var result = performAsUser(get(BASE_PATH + "/redis"));
@@ -314,6 +325,11 @@ class GlobalExceptionHandlerHttpContractTest {
         @GetMapping("/expected")
         ItemResDto expected() {
             throw new ExpectedException("항목을 찾을 수 없습니다", HttpStatus.NOT_FOUND);
+        }
+
+        @GetMapping("/external")
+        ItemResDto external() {
+            throw new ExpectedException("기기 상태를 확인할 수 없습니다", HttpStatus.BAD_GATEWAY);
         }
 
         @GetMapping("/conflict")

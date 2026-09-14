@@ -56,8 +56,8 @@ import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotif
  * 않는다.
  *
  * <p>
- * 운영 Discord 알림은 예상하지 못한 500 오류와 중요 외부 시스템(Redis·SmartThings) 장애에만 보낸다. 사용자 요청
- * 오류(4xx)는 알림 대상이 아니다.
+ * 운영 Discord 알림은 예상하지 못한 500 오류와 중요 외부 시스템(Redis·SmartThings) 장애에만 보낸다. 외부 장애를
+ * 감싼 5xx {@link ExpectedException}도 여기에 포함된다. 사용자 요청 오류(4xx)는 알림 대상이 아니다.
  */
 @Slf4j
 @RestControllerAdvice
@@ -69,10 +69,24 @@ public class GlobalExceptionHandler {
     @Autowired(required = false)
     private DiscordErrorNotificationService discordErrorNotificationService;
 
+    /**
+     * 서비스가 의도적으로 던진 예외. 5xx는 {@code FeignErrorDecoder}와 SmartThings 호출부가 외부 시스템 장애를
+     * 감싼 경우이므로 사용자 요청 오류와 달리 운영 알림을 보낸다.
+     */
     @ExceptionHandler(ExpectedException.class)
-    public ResponseEntity<CommonApiResponse<ErrorDetailResDto>> expectedException(ExpectedException ex) {
-        log.warn("expected exception status={} message={}", ex.getStatusCode(), ex.getMessage());
-        log.trace("expected exception detail", ex);
+    public ResponseEntity<CommonApiResponse<ErrorDetailResDto>> expectedException(ExpectedException ex,
+            HttpServletRequest request) {
+        if (ex.getStatusCode().is5xxServerError()) {
+            log.error("expected server exception status={} path={} message={}",
+                    ex.getStatusCode(),
+                    request.getRequestURI(),
+                    ex.getMessage(),
+                    ex);
+            notifyOperators(ex, request);
+        } else {
+            log.warn("expected exception status={} message={}", ex.getStatusCode(), ex.getMessage());
+            log.trace("expected exception detail", ex);
+        }
         return error(ex.getStatusCode(), ex.getStatusCode().name(), ex.getMessage(), null);
     }
 
