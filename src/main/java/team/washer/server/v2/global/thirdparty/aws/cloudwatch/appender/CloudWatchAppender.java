@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.cloudwatchlogs.model.PutLogEventsRequest;
 import software.amazon.awssdk.services.cloudwatchlogs.model.PutRetentionPolicyRequest;
 import software.amazon.awssdk.services.cloudwatchlogs.model.ResourceAlreadyExistsException;
 import software.amazon.awssdk.services.cloudwatchlogs.model.ResourceNotFoundException;
+import team.washer.server.v2.global.common.trace.TraceIdFilter;
 
 /**
  * AWS CloudWatch Logs로 로그를 비동기 배치 전송하는 Logback Appender.
@@ -125,6 +126,8 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
         if (!isStarted()) {
             return;
         }
+        // 전송 스레드에서 읽기 전에 요청 스레드의 MDC(추적 ID)와 메시지를 확정해 둔다
+        eventObject.prepareForDeferredProcessing();
         try {
             var success = logQueue.offer(eventObject, maxBlockTimeMillis, TimeUnit.MILLISECONDS);
             if (!success) {
@@ -218,14 +221,24 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
         }
     }
 
+    /**
+     * 오류 응답의 추적 ID로 CloudWatch 로그를 검색할 수 있도록 요청 로그에 추적 ID를 붙인다.
+     */
+    private String formatMessage(final ILoggingEvent event) {
+        final var traceId = event.getMDCPropertyMap().get(TraceIdFilter.MDC_KEY);
+        if (traceId == null) {
+            return event.getFormattedMessage();
+        }
+        return "traceId=" + traceId + " " + event.getFormattedMessage();
+    }
+
     private void flushBatch(final List<ILoggingEvent> batch) {
         if (batch.isEmpty()) {
             return;
         }
 
-        var logEvents = batch.stream()
-                .map(event -> InputLogEvent.builder().timestamp(event.getTimeStamp())
-                        .message(event.getFormattedMessage()).build())
+        var logEvents = batch.stream().map(
+                event -> InputLogEvent.builder().timestamp(event.getTimeStamp()).message(formatMessage(event)).build())
                 .sorted((a, b) -> Long.compare(a.timestamp(), b.timestamp())).toList();
 
         for (int attempt = 0; attempt < maxRetries; attempt++) {
