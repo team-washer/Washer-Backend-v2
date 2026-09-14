@@ -69,7 +69,8 @@ class AdminCreateReservationServiceTest {
     void setUp() {
         final var reservationCreationSupport = new ReservationCreationSupport(reservationRepository,
                 machineRepository,
-                washingBanRepository);
+                washingBanRepository,
+                userRepository);
         adminCreateReservationService = new AdminCreateReservationServiceImpl(userRepository,
                 currentUserProvider,
                 reservationCreationSupport);

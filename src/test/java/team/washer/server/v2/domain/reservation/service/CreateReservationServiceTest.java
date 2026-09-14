@@ -72,7 +72,8 @@ class CreateReservationServiceTest {
     void setUp() {
         final var reservationCreationSupport = new ReservationCreationSupport(reservationRepository,
                 machineRepository,
-                washingBanRepository);
+                washingBanRepository,
+                userRepository);
         createReservationService = new CreateReservationServiceImpl(userRepository,
                 penaltyRedisUtil,
                 reservationEnvironment,
