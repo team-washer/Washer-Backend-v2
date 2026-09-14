@@ -97,7 +97,7 @@ class SmartThingsAuthorizationSecurityTest {
         @DisplayName("비인증 사용자와 일반 사용자의 요청을 거부한다")
         void rejectsUnauthenticatedAndUserRequests() throws Exception {
             mockMvc.perform(post(SYNC_PATH).contentType("application/json").content("{\"confirmed\":true}"))
-                    .andExpect(status().isForbidden());
+                    .andExpect(status().isUnauthorized());
             mockMvc.perform(post(SYNC_PATH).with(user("user").authorities(new SimpleGrantedAuthority("USER")))
                     .contentType("application/json").content("{\"confirmed\":true}")).andExpect(status().isForbidden());
 
@@ -126,9 +126,9 @@ class SmartThingsAuthorizationSecurityTest {
     class Describe_authorize {
 
         @Test
-        @DisplayName("일반 사용자의 요청을 거부하고 관리자급 권한을 허용한다")
+        @DisplayName("비인증 요청은 401, 일반 사용자의 요청은 403으로 거부하고 관리자급 권한을 허용한다")
         void requiresManagerAuthority() throws Exception {
-            mockMvc.perform(get(AUTHORIZE_PATH)).andExpect(status().isForbidden());
+            mockMvc.perform(get(AUTHORIZE_PATH)).andExpect(status().isUnauthorized());
             mockMvc.perform(get(AUTHORIZE_PATH).with(user("user").authorities(new SimpleGrantedAuthority("USER"))))
                     .andExpect(status().isForbidden());
             mockMvc.perform(get(AUTHORIZE_PATH)
@@ -147,7 +147,7 @@ class SmartThingsAuthorizationSecurityTest {
         @Test
         @DisplayName("관리자급 권한이 없는 요청을 거부한다")
         void rejectsNonManagerRequests() throws Exception {
-            mockMvc.perform(get(TOKEN_PATH)).andExpect(status().isForbidden());
+            mockMvc.perform(get(TOKEN_PATH)).andExpect(status().isUnauthorized());
             mockMvc.perform(get(TOKEN_PATH).with(user("user").authorities(new SimpleGrantedAuthority("USER"))))
                     .andExpect(status().isForbidden());
 
