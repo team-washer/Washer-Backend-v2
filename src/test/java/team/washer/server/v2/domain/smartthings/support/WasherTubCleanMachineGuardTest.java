@@ -3,7 +3,6 @@ package team.washer.server.v2.domain.smartthings.support;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -21,15 +20,11 @@ import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.enums.Position;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("WasherTubCleanMachineGuard 클래스의")
 class WasherTubCleanMachineGuardTest {
-
-    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
-            ReservationStatus.RUNNING);
 
     @InjectMocks
     private WasherTubCleanMachineGuard machineGuard;
@@ -57,7 +52,7 @@ class WasherTubCleanMachineGuardTest {
         void it_occupies_available_washer() {
             var machine = createMachine();
             given(machineRepository.findByIdForUpdate(1L)).willReturn(Optional.of(machine));
-            given(reservationRepository.countActiveReservationsByMachine(machine, ACTIVE_STATUSES)).willReturn(0L);
+            given(reservationRepository.existsCurrentlyActiveByMachine(machine)).willReturn(false);
 
             var result = machineGuard.occupyIfAvailable(1L);
 
@@ -71,7 +66,7 @@ class WasherTubCleanMachineGuardTest {
         void it_skips_washer_with_active_reservation() {
             var machine = createMachine();
             given(machineRepository.findByIdForUpdate(1L)).willReturn(Optional.of(machine));
-            given(reservationRepository.countActiveReservationsByMachine(machine, ACTIVE_STATUSES)).willReturn(1L);
+            given(reservationRepository.existsCurrentlyActiveByMachine(machine)).willReturn(true);
 
             var result = machineGuard.occupyIfAvailable(1L);
 
@@ -90,12 +85,26 @@ class WasherTubCleanMachineGuardTest {
             var machine = createMachine();
             machine.markAsCleaning();
             given(machineRepository.findByIdForUpdate(1L)).willReturn(Optional.of(machine));
-            given(reservationRepository.countActiveReservationsByMachine(machine, ACTIVE_STATUSES)).willReturn(0L);
+            given(reservationRepository.existsCurrentlyActiveByMachine(machine)).willReturn(false);
 
             var released = machineGuard.releaseIfNoActiveReservation(1L);
 
             assertThat(released).isTrue();
             assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
+        }
+
+        @Test
+        @DisplayName("활성 예약이 남은 세탁기는 통세척 중 상태를 유지해야 한다")
+        void it_keeps_occupancy_when_active_reservation_exists() {
+            var machine = createMachine();
+            machine.markAsCleaning();
+            given(machineRepository.findByIdForUpdate(1L)).willReturn(Optional.of(machine));
+            given(reservationRepository.existsCurrentlyActiveByMachine(machine)).willReturn(true);
+
+            var released = machineGuard.releaseIfNoActiveReservation(1L);
+
+            assertThat(released).isFalse();
+            assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.CLEANING);
         }
     }
 }
