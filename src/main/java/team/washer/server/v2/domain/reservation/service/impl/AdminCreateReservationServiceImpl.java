@@ -37,7 +37,8 @@ public class AdminCreateReservationServiceImpl implements AdminCreateReservation
     @Override
     @Transactional
     public AdminReservationResDto execute(final AdminCreateReservationReqDto reqDto) {
-        final User targetUser = userRepository.findById(reqDto.userId())
+        // 사용자 삭제와 직렬화하기 위해 대상 사용자 행을 먼저 잠근다 (락 순서: 사용자 → 기기 → 예약)
+        final User targetUser = userRepository.findByIdForUpdate(reqDto.userId())
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final var adminId = currentUserProvider.getCurrentUserId();

@@ -76,7 +76,7 @@ class AdminCreateReservationServiceTest {
     }
 
     private AdminCreateReservationReqDto givenValidRequest() {
-        when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+        when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
         when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
         when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
         when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -145,7 +145,7 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowNotFound_WhenTargetUserNotFound() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.empty());
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.empty());
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
@@ -158,7 +158,7 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowNotFound_WhenMachineNotFound() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -175,7 +175,7 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowForbidden_WhenRoomIsBanned() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -192,7 +192,7 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowBadRequest_WhenMachineNotAvailable() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -210,7 +210,7 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowConflict_WhenMachineHasActiveReservation() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -229,7 +229,7 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowBadRequest_WhenTargetUserHasActiveReservation() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -247,7 +247,7 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowBadRequest_WhenRoomHasSameTypeReservation() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);

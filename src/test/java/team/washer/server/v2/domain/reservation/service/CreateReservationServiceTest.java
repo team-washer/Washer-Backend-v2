@@ -91,7 +91,7 @@ class CreateReservationServiceTest {
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L);
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findByIdForUpdate(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(penaltyRedisUtil.isInCooldown(eq(USER_ID), any())).thenReturn(false);
             when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(false);
@@ -127,7 +127,7 @@ class CreateReservationServiceTest {
             var machineWithExpiredReservation = Machine.builder().name("세탁기-1").type(MachineType.WASHER)
                     .status(MachineStatus.NORMAL).availability(MachineAvailability.RESERVED).build();
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findByIdForUpdate(reqDto.machineId()))
                     .thenReturn(Optional.of(machineWithExpiredReservation));
             when(penaltyRedisUtil.isInCooldown(eq(USER_ID), any())).thenReturn(false);
@@ -164,7 +164,7 @@ class CreateReservationServiceTest {
             var unavailableMachine = Machine.builder().name("세탁기 1").type(MachineType.WASHER)
                     .status(MachineStatus.MALFUNCTION).availability(MachineAvailability.UNAVAILABLE).build();
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findByIdForUpdate(reqDto.machineId())).thenReturn(Optional.of(unavailableMachine));
             when(penaltyRedisUtil.isInCooldown(eq(USER_ID), any())).thenReturn(false);
             when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(false);
@@ -187,7 +187,7 @@ class CreateReservationServiceTest {
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(2L);
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findByIdForUpdate(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(penaltyRedisUtil.isInCooldown(eq(USER_ID), any())).thenReturn(false);
             when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(false);
@@ -221,7 +221,7 @@ class CreateReservationServiceTest {
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L);
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(machineRepository.findByIdForUpdate(reqDto.machineId())).thenReturn(Optional.of(machine));
@@ -240,7 +240,7 @@ class CreateReservationServiceTest {
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L);
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(true);
 
@@ -256,7 +256,7 @@ class CreateReservationServiceTest {
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L);
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findByIdForUpdate(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(penaltyRedisUtil.isInCooldown(eq(USER_ID), any())).thenReturn(false);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -278,7 +278,7 @@ class CreateReservationServiceTest {
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L);
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findByIdForUpdate(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(penaltyRedisUtil.isInCooldown(eq(USER_ID), any())).thenReturn(false);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -301,7 +301,7 @@ class CreateReservationServiceTest {
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L);
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findByIdForUpdate(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(penaltyRedisUtil.isInCooldown(eq(USER_ID), any())).thenReturn(false);
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -323,7 +323,7 @@ class CreateReservationServiceTest {
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L);
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(washingBanRepository.existsByRoomNumber(ROOM_NUMBER)).thenReturn(true);
 
@@ -340,7 +340,7 @@ class CreateReservationServiceTest {
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L);
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
             doThrow(new ExpectedException("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.", HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS))
                     .when(user).validateFloorRestriction();
 
@@ -360,7 +360,7 @@ class CreateReservationServiceTest {
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L);
 
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
             when(machineRepository.findByIdForUpdate(reqDto.machineId())).thenReturn(Optional.of(machine));
             when(penaltyRedisUtil.isInCooldown(eq(USER_ID), any())).thenReturn(false);
             when(penaltyRedisUtil.isBlocked(ROOM_NUMBER)).thenReturn(false);
