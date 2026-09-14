@@ -13,7 +13,6 @@ import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
@@ -29,9 +28,6 @@ import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsTub
 @RequiredArgsConstructor
 @Slf4j
 public class RunWasherTubCleanServiceImpl implements RunWasherTubCleanService {
-
-    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
-            ReservationStatus.RUNNING);
 
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
@@ -90,7 +86,7 @@ public class RunWasherTubCleanServiceImpl implements RunWasherTubCleanService {
     }
 
     private List<Machine> findCandidates() {
-        var activeMachineIds = Set.copyOf(reservationRepository.findMachineIdsByStatusIn(ACTIVE_STATUSES));
+        var activeMachineIds = Set.copyOf(reservationRepository.findCurrentlyActiveMachineIds());
         return machineRepository
                 .findByTypeAndStatusAndAvailability(MachineType.WASHER,
                         MachineStatus.NORMAL,

@@ -36,9 +36,6 @@ public class CreateReservationServiceImpl implements CreateReservationService {
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ReservationResDto execute(final CreateReservationReqDto reqDto) {
         final var userId = currentUserProvider.getCurrentUserId();
-        reservationCreationSupport.lockReservationPolicyScope(userId);
-
-        final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final String roomNumber = reservationCreationSupport.validateRoomConstraints(user);

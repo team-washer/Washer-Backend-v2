@@ -38,9 +38,6 @@ public class AdminCreateReservationServiceImpl implements AdminCreateReservation
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public AdminReservationResDto execute(final AdminCreateReservationReqDto reqDto) {
-        reservationCreationSupport.lockReservationPolicyScope(reqDto.userId());
-
-        final User targetUser = userRepository.findById(reqDto.userId())
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final var adminId = currentUserProvider.getCurrentUserId();
