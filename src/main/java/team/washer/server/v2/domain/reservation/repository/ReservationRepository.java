@@ -30,6 +30,12 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
     @Query("SELECT r FROM Reservation r JOIN FETCH r.machine JOIN FETCH r.user WHERE r.id = :id")
     Optional<Reservation> findByIdForUpdate(@Param("id") Long id);
 
+    /**
+     * 예약 엔티티를 영속성 컨텍스트에 올리지 않고 예약된 기기 ID만 조회합니다. 기기 락을 예약 락보다 먼저 잡아야 할 때 사용합니다.
+     */
+    @Query("SELECT r.machine.id FROM Reservation r WHERE r.id = :id")
+    Optional<Long> findMachineIdById(@Param("id") Long id);
+
     @Query("SELECT r FROM Reservation r JOIN FETCH r.machine JOIN FETCH r.user WHERE r.status = :status")
     List<Reservation> findByStatusWithMachineAndUser(@Param("status") ReservationStatus status);
 

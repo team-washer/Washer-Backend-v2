@@ -74,16 +74,25 @@ public class OverdueReservationProcessor {
 
     /**
      * 만료된 예약을 기기 상태에 따라 자동 시작하거나 취소(패널티 부여)한다. 외부 API 호출 이후의 DB 갱신만 독립 트랜잭션으로 처리한다.
+     *
+     * <p>
+     * 통세척 점유({@code WasherTubCleanMachineGuard})는 만료된 RESERVED 예약을 무시하고 기기를 점유하므로,
+     * 기기 락을 먼저 잡아 그 상태 전이와 직렬화한다. 락 순서는 예약 생성·강제 종료와 같은 기기 → 예약 순서를 따른다. 기기가 통세척 점유
+     * 중이면 SmartThings 실행 상태는 통세척의 것이므로 예약 시작으로 판단하지 않는다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public OverdueResult processOverdue(Long reservationId, SmartThingsDeviceStatusResDto status) {
-        var reservation = reservationRepository.findByIdForUpdate(reservationId).orElse(null);
-        if (reservation == null || !reservation.isReserved()) {
+        var machineId = reservationRepository.findMachineIdById(reservationId).orElse(null);
+        if (machineId == null) {
             return OverdueResult.SKIPPED;
         }
-        var machine = reservation.getMachine();
+        var machine = machineRepository.findByIdForUpdate(machineId).orElse(null);
+        var reservation = reservationRepository.findByIdForUpdate(reservationId).orElse(null);
+        if (machine == null || reservation == null || !reservation.isReserved()) {
+            return OverdueResult.SKIPPED;
+        }
 
-        var startDecision = reservationStartDecisionSupport.decide(status, machine.isWasher());
+        var startDecision = resolveStartDecision(reservationId, machine, status);
         if (startDecision == StartDecision.STARTED) {
             var expectedCompletionTime = DateTimeUtil
                     .parseAndConvertToKoreaTime(status.getCompletionTime(machine.isWasher()));
@@ -121,6 +130,18 @@ public class OverdueReservationProcessor {
 
         applyTimeoutPenalty(reservation.getUser(), machine);
         return OverdueResult.CANCELLED;
+    }
+
+    private StartDecision resolveStartDecision(Long reservationId,
+            Machine machine,
+            SmartThingsDeviceStatusResDto status) {
+        if (machine.isCleaning()) {
+            log.info("reservation timeout ignored running state of tub clean reservationId={} machineId={}",
+                    reservationId,
+                    machine.getId());
+            return StartDecision.IDLE;
+        }
+        return reservationStartDecisionSupport.decide(status, machine.isWasher());
     }
 
     private boolean canCancelUnknownReservation(Reservation reservation) {

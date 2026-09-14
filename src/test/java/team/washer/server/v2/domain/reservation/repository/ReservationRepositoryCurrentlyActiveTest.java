@@ -223,6 +223,18 @@ class ReservationRepositoryCurrentlyActiveTest {
     }
 
     @Nested
+    @DisplayName("findMachineIdById 메서드는")
+    class FindMachineIdById {
+
+        @Test
+        @DisplayName("예약된 기기 ID를 반환하고 없는 예약이면 빈 값을 반환한다")
+        void 예약된_기기_ID를_반환한다() {
+            assertThat(reservationRepository.findMachineIdById(longExpiredReserved.getId())).contains(washer.getId());
+            assertThat(reservationRepository.findMachineIdById(Long.MAX_VALUE)).isEmpty();
+        }
+    }
+
+    @Nested
     @DisplayName("쿼리 조건과 엔티티 판정은")
     class QueryAndEntityRule {
 
