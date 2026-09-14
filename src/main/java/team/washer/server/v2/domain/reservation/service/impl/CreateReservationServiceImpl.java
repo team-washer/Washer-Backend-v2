@@ -35,7 +35,8 @@ public class CreateReservationServiceImpl implements CreateReservationService {
     @Transactional
     public ReservationResDto execute(final CreateReservationReqDto reqDto) {
         final var userId = currentUserProvider.getCurrentUserId();
-        final User user = userRepository.findById(userId)
+        // 사용자 삭제와 직렬화하기 위해 사용자 행을 먼저 잠근다 (락 순서: 사용자 → 기기 → 예약)
+        final User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final String roomNumber = reservationCreationSupport.validateRoomConstraints(user);

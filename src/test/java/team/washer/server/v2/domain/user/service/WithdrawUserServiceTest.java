@@ -108,7 +108,7 @@ class WithdrawUserServiceTest {
                 User user = createUser();
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of());
 
@@ -138,7 +138,7 @@ class WithdrawUserServiceTest {
                 Reservation reservation = createReservation(ReservationStatus.RESERVED, user, machine);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reservation));
 
@@ -148,7 +148,7 @@ class WithdrawUserServiceTest {
                 // Then
                 assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
                 assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
-                then(machineRepository).should(times(1)).saveAll(anyList());
+                then(machineRepository).should(times(1)).saveAll(anyIterable());
                 then(refreshTokenRedisRepository).should(times(1)).deleteById(userId);
                 then(withdrawnStudentRedisUtil).should(times(1)).markWithdrawn(user.getStudentId());
                 then(userRepository).should(times(1)).delete(user);
@@ -170,7 +170,7 @@ class WithdrawUserServiceTest {
                 Reservation reservation = createReservation(ReservationStatus.RESERVED, user, machine);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reservation));
 
@@ -199,7 +199,7 @@ class WithdrawUserServiceTest {
                 Reservation reservation = createReservation(ReservationStatus.RUNNING, user, machine);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reservation));
 
@@ -235,7 +235,7 @@ class WithdrawUserServiceTest {
                 Reservation running = createReservation(ReservationStatus.RUNNING, user, machine2);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reserved, running));
 
@@ -265,7 +265,7 @@ class WithdrawUserServiceTest {
                 Long userId = 999L;
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.empty());
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.empty());
 
                 // When & Then
                 assertThatThrownBy(() -> withdrawUserService.execute()).isInstanceOf(ExpectedException.class)

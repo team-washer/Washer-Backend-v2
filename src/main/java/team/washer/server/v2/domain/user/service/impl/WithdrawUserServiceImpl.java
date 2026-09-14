@@ -28,10 +28,10 @@ public class WithdrawUserServiceImpl implements WithdrawUserService {
     @Transactional
     public void execute() {
         final var userId = currentUserProvider.getCurrentUserId();
-        final var user = userRepository.findById(userId)
+        final var user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
-        final var activeReservations = userReservationCleanupSupport.findActiveReservationsForUpdate(user);
+        final var activeReservations = userReservationCleanupSupport.lockActiveReservations(user);
         if (activeReservations.stream().anyMatch(Reservation::isRunning)) {
             throw new ExpectedException("기기 사용 중에는 회원탈퇴를 할 수 없습니다. 사용 완료 후 다시 시도해주세요.", HttpStatus.CONFLICT);
         }
