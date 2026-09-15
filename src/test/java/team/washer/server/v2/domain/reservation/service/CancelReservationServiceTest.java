@@ -29,6 +29,7 @@ import team.washer.server.v2.domain.reservation.repository.ReservationRepository
 import team.washer.server.v2.domain.reservation.service.impl.CancelReservationServiceImpl;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,6 +55,9 @@ class CancelReservationServiceTest {
     private CurrentUserProvider currentUserProvider;
 
     @Mock
+    private UserRepository userRepository;
+
+    @Mock
     private User user;
 
     @Mock
@@ -70,8 +74,16 @@ class CancelReservationServiceTest {
         if (status == ReservationStatus.RUNNING) {
             machine.markAsInUse();
         }
-        given(user.getId()).willReturn(userId);
-        return Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now()).status(status).build();
+        lenient().when(user.getId()).thenReturn(userId);
+        final var reservation = Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now())
+                .status(status).build();
+        lenient().when(reservationRepository.findUserIdById(anyLong())).thenReturn(Optional.of(userId));
+        lenient().when(reservationRepository.findMachineIdById(anyLong())).thenReturn(Optional.of(1L));
+        lenient().when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(user));
+        lenient().when(machineRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(machine));
+        lenient().when(reservationRepository.findByIdForUpdateWithoutRelations(anyLong()))
+                .thenReturn(Optional.of(reservation));
+        return reservation;
     }
 
     @Nested
@@ -90,8 +102,7 @@ class CancelReservationServiceTest {
                 var reservationId = 10L;
                 var reservation = createReservation(ReservationStatus.RESERVED, userId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
                 given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(0L);
 
                 // When
@@ -121,12 +132,17 @@ class CancelReservationServiceTest {
                 var userId = 1L;
                 var reservationId = 10L;
                 var machine = createMachine();
-                given(user.getId()).willReturn(userId);
+                lenient().when(user.getId()).thenReturn(userId);
                 var reservation = Reservation.builder().user(user).machine(machine).createdBy(adminUser)
                         .reservedAt(LocalDateTime.now()).status(ReservationStatus.RESERVED).build();
+                lenient().when(reservationRepository.findUserIdById(anyLong())).thenReturn(Optional.of(userId));
+                lenient().when(reservationRepository.findMachineIdById(anyLong())).thenReturn(Optional.of(1L));
+                lenient().when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(user));
+                lenient().when(machineRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(machine));
+                lenient().when(reservationRepository.findByIdForUpdateWithoutRelations(anyLong()))
+                        .thenReturn(Optional.of(reservation));
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
 
                 // When
                 var result = cancelReservationService.execute(reservationId);
@@ -151,8 +167,7 @@ class CancelReservationServiceTest {
                 var reservationId = 10L;
                 var reservation = createReservation(ReservationStatus.RESERVED, userId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
                 given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(5L);
                 given(user.getRoomNumber()).willReturn("101");
                 given(penaltyRedisUtil.isBlocked("101")).willReturn(false);
@@ -174,8 +189,7 @@ class CancelReservationServiceTest {
                 var reservationId = 10L;
                 var reservation = createReservation(ReservationStatus.RESERVED, userId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
                 given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(6L);
                 given(user.getRoomNumber()).willReturn("101");
                 given(penaltyRedisUtil.isBlocked("101")).willReturn(true);
@@ -201,8 +215,7 @@ class CancelReservationServiceTest {
                 var reservationId = 10L;
                 var reservation = createReservation(ReservationStatus.RUNNING, userId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
@@ -232,8 +245,7 @@ class CancelReservationServiceTest {
                 var reservationId = 10L;
                 var reservation = createReservation(ReservationStatus.RESERVED, ownerUserId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(requestUserId);
-                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(requestUserId);
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
@@ -255,8 +267,7 @@ class CancelReservationServiceTest {
                 var reservationId = 10L;
                 var reservation = createReservation(ReservationStatus.COMPLETED, userId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
@@ -278,8 +289,7 @@ class CancelReservationServiceTest {
                 var reservationId = 10L;
                 var reservation = createReservation(ReservationStatus.CANCELLED, userId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
@@ -301,8 +311,7 @@ class CancelReservationServiceTest {
                 // Given
                 var userId = 1L;
                 var reservationId = 999L;
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findByIdForUpdate(reservationId)).willReturn(Optional.empty());
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))

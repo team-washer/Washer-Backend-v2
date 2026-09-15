@@ -37,6 +37,7 @@ import team.washer.server.v2.domain.reservation.support.ReservationStartDecision
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -64,6 +65,9 @@ class OverdueReservationProcessorTest {
 
     @Mock
     private ReservationStartDecisionSupport reservationStartDecisionSupport;
+
+    @Mock
+    private UserRepository userRepository;
 
     @Mock
     private Reservation reservation;
@@ -104,12 +108,15 @@ class OverdueReservationProcessorTest {
 
     private void givenLockedMachine() {
         when(reservationRepository.findMachineIdById(RESERVATION_ID)).thenReturn(Optional.of(MACHINE_ID));
+        when(reservationRepository.findUserIdById(RESERVATION_ID)).thenReturn(Optional.of(1L));
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(machineRepository.findByIdForUpdate(MACHINE_ID)).thenReturn(Optional.of(machine));
     }
 
     private void givenReservedReservation() {
         givenLockedMachine();
-        when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+        when(reservationRepository.findByIdForUpdateWithoutRelations(RESERVATION_ID))
+                .thenReturn(Optional.of(reservation));
         when(reservation.isReserved()).thenReturn(true);
     }
 
@@ -118,8 +125,8 @@ class OverdueReservationProcessorTest {
     class LockOrder {
 
         @Test
-        @DisplayName("통세척 점유와 직렬화되도록 기기 락을 예약 락보다 먼저 잡는다")
-        void shouldLockMachineBeforeReservation() {
+        @DisplayName("예약 생성과 같은 순서로 사용자와 기기, 예약을 잠근다")
+        void shouldLockUserMachineAndReservationInOrder() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
             givenReservedReservation();
@@ -131,9 +138,11 @@ class OverdueReservationProcessorTest {
             overdueReservationProcessor.processOverdue(RESERVATION_ID, deviceStatus);
 
             // Then
-            var inOrder = inOrder(machineRepository, reservationRepository);
+            var inOrder = inOrder(userRepository, machineRepository, reservationRepository);
+            inOrder.verify(userRepository).findRoomUserIdsByUserIdForUpdate(1L);
+            inOrder.verify(userRepository).findByIdForUpdate(1L);
             inOrder.verify(machineRepository).findByIdForUpdate(MACHINE_ID);
-            inOrder.verify(reservationRepository).findByIdForUpdate(RESERVATION_ID);
+            inOrder.verify(reservationRepository).findByIdForUpdateWithoutRelations(RESERVATION_ID);
         }
 
         @Test
@@ -163,7 +172,6 @@ class OverdueReservationProcessorTest {
             var deviceStatus = buildDeviceStatus("2026-09-14T10:00:00Z");
             givenReservedReservation();
             when(machine.isCleaning()).thenReturn(true);
-            when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(penaltyRedisUtil.hasWarning(1L)).thenReturn(false);
             when(penaltyRedisUtil.getCancellationCount(1L)).thenReturn(1L);
@@ -192,7 +200,6 @@ class OverdueReservationProcessorTest {
             // Given
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
             givenReservedReservation();
-            when(reservation.getUser()).thenReturn(user);
             when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(StartDecision.STARTED);
 
@@ -215,7 +222,6 @@ class OverdueReservationProcessorTest {
             // Given
             var deviceStatus = buildStatusWithMixedCompletionTime("2026-01-26T15:30:00Z", "2026-01-26T16:00:00Z");
             givenReservedReservation();
-            when(reservation.getUser()).thenReturn(user);
             when(machine.isWasher()).thenReturn(false);
             when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(StartDecision.STARTED);
@@ -236,7 +242,6 @@ class OverdueReservationProcessorTest {
             // Given
             var deviceStatus = buildDeviceStatus(null);
             givenReservedReservation();
-            when(reservation.getUser()).thenReturn(user);
             when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(StartDecision.STARTED);
 
@@ -267,7 +272,6 @@ class OverdueReservationProcessorTest {
             givenReservedReservation();
             when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(StartDecision.IDLE);
-            when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(penaltyRedisUtil.hasWarning(1L)).thenReturn(false);
             when(penaltyRedisUtil.getCancellationCount(1L)).thenReturn(1L);
@@ -317,7 +321,6 @@ class OverdueReservationProcessorTest {
             givenReservedReservation();
             when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(StartDecision.IDLE);
-            when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(penaltyRedisUtil.hasWarning(1L)).thenReturn(true);
             when(penaltyRedisUtil.getCancellationCount(1L)).thenReturn(2L);
@@ -341,7 +344,6 @@ class OverdueReservationProcessorTest {
             givenReservedReservation();
             when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(StartDecision.IDLE);
-            when(reservation.getUser()).thenReturn(user);
             when(user.getId()).thenReturn(1L);
             when(user.getRoomNumber()).thenReturn("101");
             when(penaltyRedisUtil.hasWarning(1L)).thenReturn(true);
@@ -423,7 +425,8 @@ class OverdueReservationProcessorTest {
             // Given
             var deviceStatus = buildDeviceStatus(null);
             givenLockedMachine();
-            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdateWithoutRelations(RESERVATION_ID))
+                    .thenReturn(Optional.of(reservation));
             when(reservation.isReserved()).thenReturn(false);
 
             // When

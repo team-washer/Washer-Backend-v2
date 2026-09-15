@@ -182,15 +182,10 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
     }
 
     @Override
-    public List<Reservation> findExpiredReservations(ReservationStatus status,
-            LocalDateTime threshold,
-            LocalDateTime recentCutoff) {
+    public List<Reservation> findExpiredReservations(ReservationStatus status, LocalDateTime threshold) {
 
         return jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.machine, machine).fetchJoin()
-                .where(reservation.status.eq(status),
-                        reservation.createdAt.goe(recentCutoff),
-                        reservation.reservedAt.lt(threshold))
-                .fetch();
+                .where(reservation.status.eq(status), reservation.reservedAt.lt(threshold)).fetch();
     }
 
     @Override

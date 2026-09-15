@@ -10,7 +10,6 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
-import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
@@ -36,6 +35,9 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 @Component
 @RequiredArgsConstructor
 public class ReservationCreationSupport {
+
+    private static final List<ReservationStatus> ACTIVE_RESERVATION_STATUSES = List.of(ReservationStatus.RESERVED,
+            ReservationStatus.RUNNING);
 
     private final ReservationRepository reservationRepository;
     private final MachineRepository machineRepository;
@@ -103,8 +105,7 @@ public class ReservationCreationSupport {
         final var machineReservations = reservationRepository.findCurrentlyActiveByMachine(machine);
 
         // 기기 가용성 검증
-        if (machine.getAvailability() != MachineAvailability.AVAILABLE
-                && !canReuseStaleReservedSlot(machine, machineReservations)) {
+        if (machine.getAvailability() != MachineAvailability.AVAILABLE) {
             throw new ExpectedException(String.format("해당 기기를 사용할 수 없습니다. 기기: %s", machine.getName()),
                     HttpStatus.BAD_REQUEST);
         }
@@ -116,33 +117,18 @@ public class ReservationCreationSupport {
         }
 
         // 개인 중복 예약 검증 (1인 1예약)
-        if (!reservationRepository.findCurrentlyActiveByUser(user).isEmpty()) {
+        if (!reservationRepository.findByUserAndStatusIn(user, ACTIVE_RESERVATION_STATUSES).isEmpty()) {
             throw new ExpectedException("이미 활성 예약이 존재합니다. 1인 1예약만 가능합니다.", HttpStatus.BAD_REQUEST);
         }
 
         // 동일 호실의 동일 유형 기기 중복 예약 검증
         final boolean hasDuplicateTypeReservation = reservationRepository
-                .findCurrentlyActiveByRoomNumber(user.getRoomNumber()).stream()
+                .findByRoomNumberAndStatusIn(user.getRoomNumber(), ACTIVE_RESERVATION_STATUSES).stream()
                 .anyMatch(reservation -> reservation.getMachine().getType() == machine.getType());
         if (hasDuplicateTypeReservation) {
             throw new ExpectedException(String.format("해당 호실에 이미 %s 예약이 존재합니다. 동일 유형의 기기는 동시에 두 개 이상 예약할 수 없습니다.",
                     machine.getType().getDescription()), HttpStatus.BAD_REQUEST);
         }
-    }
-
-    /**
-     * 만료된 예약만 남아 RESERVED로 굳어버린 기기를 재사용할 수 있는지 판정합니다.
-     *
-     * @param machine
-     *            락을 획득한 기기
-     * @param currentlyActiveReservations
-     *            해당 기기의 만료되지 않은 활성 예약 목록
-     * @return 재사용 가능 여부
-     */
-    private boolean canReuseStaleReservedSlot(final Machine machine,
-            final List<Reservation> currentlyActiveReservations) {
-        return machine.getStatus() == MachineStatus.NORMAL && machine.getAvailability() == MachineAvailability.RESERVED
-                && currentlyActiveReservations.isEmpty();
     }
 
     /**
