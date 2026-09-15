@@ -18,7 +18,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -41,6 +40,7 @@ import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.enums.Position;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
+import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.dto.request.AdminCreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -109,6 +109,9 @@ class ReservationCreationConcurrencyTest {
 
     @MockitoBean
     private ReservationStartDecisionSupport reservationStartDecisionSupport;
+
+    @MockitoBean
+    private ReservationNotificationSupport reservationNotificationSupport;
 
     private TransactionTemplate transactionTemplate;
 
@@ -254,6 +257,38 @@ class ReservationCreationConcurrencyTest {
                 assertThat(reservationRepository.count()).isEqualTo(1);
             });
         }
+
+        @Test
+        @DisplayName("다른 기기 예약도 만료 예약의 자동 시작과 함께 확정되지 않는다")
+        void 다른_기기_예약도_만료_예약의_자동_시작과_함께_확정되지_않는다() {
+            final var data = transactionTemplate.execute(status -> {
+                final var user = saveUser("2111", "308", UserRole.USER);
+                final var reservedMachine = saveMachine("washer-11", MachineType.WASHER, Position.LEFT, 11);
+                final var anotherMachine = saveMachine("washer-12", MachineType.WASHER, Position.RIGHT, 12);
+                reservedMachine.markAsReserved();
+                machineRepository.save(reservedMachine);
+                final var expiredReservation = reservationRepository
+                        .save(Reservation.builder().user(user).machine(reservedMachine)
+                                .reservedAt(DateTimeUtil.nowInKorea()
+                                        .minusMinutes(ReservationStatus.RESERVED.getTimeoutMinutes() + 1L))
+                                .status(ReservationStatus.RESERVED).build());
+                return new ExpiredReservationData(user.getId(), anotherMachine.getId(), expiredReservation.getId());
+            });
+            final var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of());
+            given(reservationStartDecisionSupport.decide(deviceStatus, true)).willReturn(StartDecision.STARTED);
+
+            final var results = runConcurrently(() -> reserveAsUser(data.userId(), data.machineId()),
+                    () -> processExpiredReservation(data.reservationId(), deviceStatus));
+
+            assertOneSuccessAndOneReservationFailure(results);
+            transactionTemplate.executeWithoutResult(status -> {
+                final var reservation = reservationRepository.findById(data.reservationId()).orElseThrow();
+                final var machine = machineRepository.findById(data.machineId()).orElseThrow();
+                assertThat(reservation.isRunning()).isTrue();
+                assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
+                assertThat(reservationRepository.count()).isEqualTo(1);
+            });
+        }
     }
 
     private ReservationAttemptResult reserveAsUser(final Long userId, final Long machineId) {
@@ -354,8 +389,7 @@ class ReservationCreationConcurrencyTest {
     private void assertOneSuccessAndOneReservationFailure(final List<ReservationAttemptResult> results) {
         assertThat(results).filteredOn(ReservationAttemptResult::isSuccess).hasSize(1);
         assertThat(results).filteredOn(result -> !result.isSuccess()).singleElement()
-                .satisfies(result -> assertThat(result.throwable()).isInstanceOfAny(ExpectedException.class,
-                        CannotAcquireLockException.class));
+                .satisfies(result -> assertThat(result.throwable()).isInstanceOf(ExpectedException.class));
     }
 
     private void assertReservationCount(final long expected) {

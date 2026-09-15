@@ -261,7 +261,8 @@ class AdminCreateReservationServiceTest {
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machineRepository.findByIdForUpdate(MACHINE_ID)).thenReturn(Optional.of(machine));
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
-            when(reservationRepository.findCurrentlyActiveByUser(targetUser)).thenReturn(List.of(activeReservation));
+            when(reservationRepository.findByUserAndStatusIn(eq(targetUser), anyList()))
+                    .thenReturn(List.of(activeReservation));
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
@@ -281,7 +282,7 @@ class AdminCreateReservationServiceTest {
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(machine.getType()).thenReturn(MachineType.WASHER);
             when(activeReservation.getMachine()).thenReturn(machine);
-            when(reservationRepository.findCurrentlyActiveByRoomNumber(ROOM_NUMBER))
+            when(reservationRepository.findByRoomNumberAndStatusIn(eq(ROOM_NUMBER), anyList()))
                     .thenReturn(List.of(activeReservation));
 
             // When & Then

@@ -101,8 +101,8 @@ class CreateReservationServiceTest {
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.WASHER);
             when(reservationRepository.findCurrentlyActiveByMachine(machine)).thenReturn(List.of());
-            when(reservationRepository.findCurrentlyActiveByUser(user)).thenReturn(List.of());
-            when(reservationRepository.findCurrentlyActiveByRoomNumber(ROOM_NUMBER)).thenReturn(List.of());
+            when(reservationRepository.findByUserAndStatusIn(eq(user), anyList())).thenReturn(List.of());
+            when(reservationRepository.findByRoomNumberAndStatusIn(eq(ROOM_NUMBER), anyList())).thenReturn(List.of());
             when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
 
             when(reservation.getId()).thenReturn(1L);
@@ -187,8 +187,8 @@ class CreateReservationServiceTest {
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.DRYER);
             when(reservationRepository.findCurrentlyActiveByMachine(machine)).thenReturn(List.of());
-            when(reservationRepository.findCurrentlyActiveByUser(user)).thenReturn(List.of());
-            when(reservationRepository.findCurrentlyActiveByRoomNumber(ROOM_NUMBER)).thenReturn(List.of());
+            when(reservationRepository.findByUserAndStatusIn(eq(user), anyList())).thenReturn(List.of());
+            when(reservationRepository.findByRoomNumberAndStatusIn(eq(ROOM_NUMBER), anyList())).thenReturn(List.of());
             when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
 
             when(reservation.getId()).thenReturn(2L);
@@ -300,7 +300,7 @@ class CreateReservationServiceTest {
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(reservationRepository.findCurrentlyActiveByMachine(machine)).thenReturn(List.of());
-            when(reservationRepository.findCurrentlyActiveByUser(user)).thenReturn(List.of(reservation));
+            when(reservationRepository.findByUserAndStatusIn(eq(user), anyList())).thenReturn(List.of(reservation));
 
             // When & Then
             assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
@@ -360,8 +360,9 @@ class CreateReservationServiceTest {
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machine.getType()).thenReturn(MachineType.WASHER);
             when(reservationRepository.findCurrentlyActiveByMachine(machine)).thenReturn(List.of());
-            when(reservationRepository.findCurrentlyActiveByUser(user)).thenReturn(List.of());
-            when(reservationRepository.findCurrentlyActiveByRoomNumber(ROOM_NUMBER)).thenReturn(List.of(reservation));
+            when(reservationRepository.findByUserAndStatusIn(eq(user), anyList())).thenReturn(List.of());
+            when(reservationRepository.findByRoomNumberAndStatusIn(eq(ROOM_NUMBER), anyList()))
+                    .thenReturn(List.of(reservation));
             when(reservation.getMachine()).thenReturn(machine);
 
             // When & Then

@@ -2,6 +2,8 @@ package team.washer.server.v2.domain.reservation.service;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -76,8 +78,8 @@ class CancelOverdueReservationServiceTest {
     }
 
     @Test
-    @DisplayName("기기 상태 조회가 실패하면 해당 예약은 건너뛰고 처리를 계속한다")
-    void execute_ShouldSkipReservation_WhenStatusQueryFails() {
+    @DisplayName("기기 상태 조회가 실패하면 UNKNOWN 상태로 유예 처리에 위임한다")
+    void execute_ShouldDelegateUnknownState_WhenStatusQueryFails() {
         // Given
         when(overdueReservationProcessor.findExpiredTargets()).thenReturn(List.of(new OverdueTarget(1L, "device-1")));
         when(deviceStatusQuerySupport.queryDeviceStatus("device-1")).thenThrow(new RuntimeException("api error"));
@@ -86,7 +88,6 @@ class CancelOverdueReservationServiceTest {
         cancelOverdueReservationService.execute();
 
         // Then
-        verify(overdueReservationProcessor, never()).processOverdue(anyLong(),
-                any(SmartThingsDeviceStatusResDto.class));
+        verify(overdueReservationProcessor).processOverdue(eq(1L), isNull());
     }
 }

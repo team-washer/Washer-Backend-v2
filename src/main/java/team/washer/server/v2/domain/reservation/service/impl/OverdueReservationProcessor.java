@@ -66,10 +66,7 @@ public class OverdueReservationProcessor {
         // reservedAt 기준 타임아웃 상수 초과
         var now = DateTimeUtil.nowInKorea();
         var threshold = now.minusMinutes(ReservationStatus.RESERVED.getTimeoutMinutes());
-        var recentCutoff = now.minusHours(24);
-
-        return reservationRepository.findExpiredReservations(ReservationStatus.RESERVED, threshold, recentCutoff)
-                .stream()
+        return reservationRepository.findExpiredReservations(ReservationStatus.RESERVED, threshold).stream()
                 .map(reservation -> new OverdueTarget(reservation.getId(), reservation.getMachine().getDeviceId()))
                 .toList();
     }
