@@ -120,8 +120,8 @@ class CreateReservationServiceTest {
         }
 
         @Test
-        @DisplayName("기기에 만료된 RESERVED 예약만 남아 있으면 정리 후 새 예약을 생성한다")
-        void execute_ShouldCreateReservation_WhenOnlyExpiredMachineReservationExists() {
+        @DisplayName("기기에 만료된 RESERVED 예약만 남아 있으면 만료 처리가 끝날 때까지 새 예약을 막는다")
+        void execute_ShouldRejectReservation_WhenOnlyExpiredMachineReservationExists() {
             // Given
             when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
             final var reqDto = new CreateReservationReqDto(1L);
@@ -138,22 +138,12 @@ class CreateReservationServiceTest {
             // 만료된 RESERVED 예약은 쿼리 단계에서 제외되므로 활성 예약이 없는 것으로 조회된다
             when(reservationRepository.findCurrentlyActiveByMachine(machineWithExpiredReservation))
                     .thenReturn(List.of());
-            when(reservationRepository.findCurrentlyActiveByUser(user)).thenReturn(List.of());
-            when(reservationRepository.findCurrentlyActiveByRoomNumber(ROOM_NUMBER)).thenReturn(List.of());
-            when(reservationRepository.save(any(Reservation.class))).thenReturn(reservation);
-            when(reservation.getId()).thenReturn(1L);
-            when(reservation.getUser()).thenReturn(user);
-            when(reservation.getMachine()).thenReturn(machineWithExpiredReservation);
-            when(user.getId()).thenReturn(USER_ID);
-
-            // When
-            final ReservationResDto result = createReservationService.execute(reqDto);
-
-            // Then
-            assertThat(result).isNotNull();
-            verify(reservationRepository, never()).saveAll(anyList());
-            verify(machineRepository, times(1)).save(machineWithExpiredReservation);
-            verify(reservationRepository).save(any(Reservation.class));
+            // When & Then
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+                    .hasMessageContaining("해당 기기를 사용할 수 없습니다").satisfies(
+                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+            verify(machineRepository, never()).save(machineWithExpiredReservation);
+            verify(reservationRepository, never()).save(any(Reservation.class));
         }
 
         @Test

@@ -19,6 +19,7 @@ import team.washer.server.v2.domain.reservation.support.ReservationStartDecision
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.PenaltyConstants;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
 import team.washer.server.v2.global.util.DateTimeUtil;
@@ -42,6 +43,7 @@ public class OverdueReservationProcessor {
     private final PenaltyRedisUtil penaltyRedisUtil;
     private final ReservationNotificationSupport reservationNotificationSupport;
     private final ReservationStartDecisionSupport reservationStartDecisionSupport;
+    private final UserRepository userRepository;
 
     /**
      * 외부 API 호출 대상이 되는 만료 예약의 식별자와 기기 ID 쌍.
@@ -83,11 +85,18 @@ public class OverdueReservationProcessor {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public OverdueResult processOverdue(Long reservationId, SmartThingsDeviceStatusResDto status) {
         var machineId = reservationRepository.findMachineIdById(reservationId).orElse(null);
-        if (machineId == null) {
+        var userId = reservationRepository.findUserIdById(reservationId).orElse(null);
+        if (machineId == null || userId == null) {
+            return OverdueResult.SKIPPED;
+        }
+
+        userRepository.findRoomUserIdsByUserIdForUpdate(userId);
+        var user = userRepository.findByIdForUpdate(userId).orElse(null);
+        if (user == null) {
             return OverdueResult.SKIPPED;
         }
         var machine = machineRepository.findByIdForUpdate(machineId).orElse(null);
-        var reservation = reservationRepository.findByIdForUpdate(reservationId).orElse(null);
+        var reservation = reservationRepository.findByIdForUpdateWithoutRelations(reservationId).orElse(null);
         if (machine == null || reservation == null || !reservation.isReserved()) {
             return OverdueResult.SKIPPED;
         }
@@ -100,7 +109,7 @@ public class OverdueReservationProcessor {
             machine.markAsInUse();
             reservationRepository.save(reservation);
             machineRepository.save(machine);
-            reservationNotificationSupport.sendStarted(reservation.getUser(), machine, expectedCompletionTime);
+            reservationNotificationSupport.sendStarted(user, machine, expectedCompletionTime);
             return OverdueResult.AUTO_STARTED;
         }
         if (startDecision == StartDecision.UNKNOWN) {
@@ -128,7 +137,7 @@ public class OverdueReservationProcessor {
             return OverdueResult.CANCELLED_WITHOUT_PENALTY;
         }
 
-        applyTimeoutPenalty(reservation.getUser(), machine);
+        applyTimeoutPenalty(user, machine);
         return OverdueResult.CANCELLED;
     }
 

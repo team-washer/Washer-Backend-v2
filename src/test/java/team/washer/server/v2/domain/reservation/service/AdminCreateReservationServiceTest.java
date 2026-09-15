@@ -22,6 +22,7 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
+import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.dto.request.AdminCreateReservationReqDto;
@@ -204,6 +205,30 @@ class AdminCreateReservationServiceTest {
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
                     .isInstanceOf(ExpectedException.class).hasMessageContaining("해당 기기를 사용할 수 없습니다").satisfies(
                             e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+        }
+
+        @Test
+        @DisplayName("만료 RESERVED 예약이 남은 기기는 만료 처리가 끝날 때까지 대리 예약을 막는다")
+        void execute_ShouldRejectProxyReservation_WhenOnlyExpiredMachineReservationExists() {
+            // Given
+            final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
+            final var machineWithExpiredReservation = Machine.builder().name("세탁기 1")
+                    .availability(MachineAvailability.RESERVED).status(MachineStatus.NORMAL).build();
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
+            when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+            when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(machineRepository.findByIdForUpdate(MACHINE_ID))
+                    .thenReturn(Optional.of(machineWithExpiredReservation));
+            when(reservationRepository.findCurrentlyActiveByMachine(machineWithExpiredReservation))
+                    .thenReturn(List.of());
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ExpectedException.class).hasMessageContaining("해당 기기를 사용할 수 없습니다").satisfies(
+                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+            verify(machineRepository, never()).save(machineWithExpiredReservation);
+            verify(reservationRepository, never()).save(any(Reservation.class));
         }
 
         @Test
