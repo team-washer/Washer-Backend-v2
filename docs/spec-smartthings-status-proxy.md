@@ -29,7 +29,7 @@
 ```json
 {
   "machineId": 1,
-  "operatingState": "RUN",
+  "operatingState": "run",
   "jobState": "wash",
   "switchStatus": "on",
   "expectedCompletionTime": "2026-01-26T15:30:00",
@@ -39,7 +39,7 @@
 
 | 앱이 읽던 SmartThings 필드 | 대행 API 필드 |
 |------|------|
-| `*OperatingState.machineState.value` | `operatingState` |
+| `*OperatingState.machineState.value` | `operatingState` (`run` \| `pause` \| `stop`, 확인 불가 시 `null`) |
 | `*OperatingState.*JobState.value` | `jobState` |
 | `switch.switch.value` | `switchStatus` |
 | `*OperatingState.completionTime.value` | `expectedCompletionTime` (KST), `remainingMinutes` |
