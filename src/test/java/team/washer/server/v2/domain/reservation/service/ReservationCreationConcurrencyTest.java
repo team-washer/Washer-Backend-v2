@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -35,16 +36,26 @@ import com.google.firebase.messaging.FirebaseMessaging;
 
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
+import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.enums.Position;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
+import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.dto.request.AdminCreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
+import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
+import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor;
+import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor.OverdueResult;
+import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
+import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport.StartDecision;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
+import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Testcontainers
 @SpringBootTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop",
@@ -79,6 +90,9 @@ class ReservationCreationConcurrencyTest {
     private AdminCreateReservationService adminCreateReservationService;
 
     @Autowired
+    private OverdueReservationProcessor overdueReservationProcessor;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -92,6 +106,12 @@ class ReservationCreationConcurrencyTest {
 
     @MockitoBean
     private FirebaseMessaging firebaseMessaging;
+
+    @MockitoBean
+    private ReservationStartDecisionSupport reservationStartDecisionSupport;
+
+    @MockitoBean
+    private ReservationNotificationSupport reservationNotificationSupport;
 
     private TransactionTemplate transactionTemplate;
 
@@ -203,6 +223,74 @@ class ReservationCreationConcurrencyTest {
         }
     }
 
+    @Nested
+    @DisplayName("만료 처리와 새 예약 생성이 경합하면")
+    class ExpiredReservationConcurrency {
+
+        @Test
+        @DisplayName("기존 예약 자동 시작과 만료 슬롯 재사용이 함께 확정되지 않는다")
+        void 기존_예약_자동_시작과_만료_슬롯_재사용이_함께_확정되지_않는다() {
+            final var data = transactionTemplate.execute(status -> {
+                final var user = saveUser("2110", "307", UserRole.USER);
+                final var machine = saveMachine("washer-10", MachineType.WASHER, Position.LEFT, 10);
+                machine.markAsReserved();
+                machineRepository.save(machine);
+                final var expiredReservation = reservationRepository
+                        .save(Reservation.builder().user(user).machine(machine)
+                                .reservedAt(DateTimeUtil.nowInKorea()
+                                        .minusMinutes(ReservationStatus.RESERVED.getTimeoutMinutes() + 1L))
+                                .status(ReservationStatus.RESERVED).build());
+                return new ExpiredReservationData(user.getId(), machine.getId(), expiredReservation.getId());
+            });
+            final var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of());
+            given(reservationStartDecisionSupport.decide(deviceStatus, true)).willReturn(StartDecision.STARTED);
+
+            final var results = runConcurrently(() -> reserveAsUser(data.userId(), data.machineId()),
+                    () -> processExpiredReservation(data.reservationId(), deviceStatus));
+
+            assertOneSuccessAndOneReservationFailure(results);
+            transactionTemplate.executeWithoutResult(status -> {
+                final var reservation = reservationRepository.findById(data.reservationId()).orElseThrow();
+                final var machine = machineRepository.findById(data.machineId()).orElseThrow();
+                assertThat(reservation.isRunning()).isTrue();
+                assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.IN_USE);
+                assertThat(reservationRepository.count()).isEqualTo(1);
+            });
+        }
+
+        @Test
+        @DisplayName("다른 기기 예약도 만료 예약의 자동 시작과 함께 확정되지 않는다")
+        void 다른_기기_예약도_만료_예약의_자동_시작과_함께_확정되지_않는다() {
+            final var data = transactionTemplate.execute(status -> {
+                final var user = saveUser("2111", "308", UserRole.USER);
+                final var reservedMachine = saveMachine("washer-11", MachineType.WASHER, Position.LEFT, 11);
+                final var anotherMachine = saveMachine("washer-12", MachineType.WASHER, Position.RIGHT, 12);
+                reservedMachine.markAsReserved();
+                machineRepository.save(reservedMachine);
+                final var expiredReservation = reservationRepository
+                        .save(Reservation.builder().user(user).machine(reservedMachine)
+                                .reservedAt(DateTimeUtil.nowInKorea()
+                                        .minusMinutes(ReservationStatus.RESERVED.getTimeoutMinutes() + 1L))
+                                .status(ReservationStatus.RESERVED).build());
+                return new ExpiredReservationData(user.getId(), anotherMachine.getId(), expiredReservation.getId());
+            });
+            final var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of());
+            given(reservationStartDecisionSupport.decide(deviceStatus, true)).willReturn(StartDecision.STARTED);
+
+            final var results = runConcurrently(() -> reserveAsUser(data.userId(), data.machineId()),
+                    () -> processExpiredReservation(data.reservationId(), deviceStatus));
+
+            assertOneSuccessAndOneReservationFailure(results);
+            transactionTemplate.executeWithoutResult(status -> {
+                final var reservation = reservationRepository.findById(data.reservationId()).orElseThrow();
+                final var machine = machineRepository.findById(data.machineId()).orElseThrow();
+                assertThat(reservation.isRunning()).isTrue();
+                assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
+                assertThat(reservationRepository.count()).isEqualTo(1);
+            });
+        }
+    }
+
     private ReservationAttemptResult reserveAsUser(final Long userId, final Long machineId) {
         authenticate(userId);
         try {
@@ -226,6 +314,17 @@ class ReservationCreationConcurrencyTest {
             return ReservationAttemptResult.failure(throwable);
         } finally {
             SecurityContextHolder.clearContext();
+        }
+    }
+
+    private ReservationAttemptResult processExpiredReservation(final Long reservationId,
+            final SmartThingsDeviceStatusResDto deviceStatus) {
+        try {
+            assertThat(overdueReservationProcessor.processOverdue(reservationId, deviceStatus))
+                    .isEqualTo(OverdueResult.AUTO_STARTED);
+            return ReservationAttemptResult.succeeded();
+        } catch (Throwable throwable) {
+            return ReservationAttemptResult.failure(throwable);
         }
     }
 
@@ -287,6 +386,12 @@ class ReservationCreationConcurrencyTest {
         });
     }
 
+    private void assertOneSuccessAndOneReservationFailure(final List<ReservationAttemptResult> results) {
+        assertThat(results).filteredOn(ReservationAttemptResult::isSuccess).hasSize(1);
+        assertThat(results).filteredOn(result -> !result.isSuccess()).singleElement()
+                .satisfies(result -> assertThat(result.throwable()).isInstanceOf(ExpectedException.class));
+    }
+
     private void assertReservationCount(final long expected) {
         final var count = transactionTemplate.execute(status -> reservationRepository.count());
         assertThat(count).isEqualTo(expected);
@@ -299,6 +404,9 @@ class ReservationCreationConcurrencyTest {
     }
 
     record AdminOverlapData(Long targetUserId, Long adminUserId, Long firstMachineId, Long secondMachineId) {
+    }
+
+    record ExpiredReservationData(Long userId, Long machineId, Long reservationId) {
     }
 
     record ReservationAttemptResult(boolean success, Throwable throwable) {

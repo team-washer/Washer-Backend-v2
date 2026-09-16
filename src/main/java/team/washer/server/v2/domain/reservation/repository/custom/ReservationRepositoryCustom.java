@@ -26,9 +26,7 @@ public interface ReservationRepositoryCustom {
             LocalDateTime endTime,
             Long excludeReservationId);
 
-    List<Reservation> findExpiredReservations(ReservationStatus status,
-            LocalDateTime threshold,
-            LocalDateTime recentCutoff);
+    List<Reservation> findExpiredReservations(ReservationStatus status, LocalDateTime threshold);
 
     /**
      * 관리자용 예약 목록 조회 (동적 필터링)

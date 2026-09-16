@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.reservation.service.CancelOverdueReservationService;
+import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 
 /**
@@ -36,8 +37,14 @@ public class CancelOverdueReservationServiceImpl implements CancelOverdueReserva
         var cancelled = new ArrayList<Long>();
 
         for (var target : targets) {
+            SmartThingsDeviceStatusResDto status = null;
             try {
-                var status = deviceStatusQuerySupport.queryDeviceStatus(target.deviceId());
+                status = deviceStatusQuerySupport.queryDeviceStatus(target.deviceId());
+            } catch (Exception e) {
+                log.warn("reservation timeout status query failed reservationId={}", target.reservationId(), e);
+            }
+
+            try {
                 var result = overdueReservationProcessor.processOverdue(target.reservationId(), status);
                 switch (result) {
                     case AUTO_STARTED -> autoStarted.add(target.reservationId());
