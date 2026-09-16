@@ -18,6 +18,8 @@ import lombok.extern.slf4j.Slf4j;
 import net.minidev.json.JSONObject;
 import team.themoment.sdk.exception.ExpectedException;
 import team.themoment.sdk.response.CommonApiResponse;
+import team.washer.server.v2.global.common.error.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 
 @Slf4j
@@ -32,6 +34,16 @@ public class GlobalExceptionHandler {
         log.warn("ExpectedException : {} ", ex.getMessage());
         log.trace("ExpectedException 세부사항 : ", ex);
         return CommonApiResponse.error(ex.getMessage(), ex.getStatusCode());
+    }
+
+    @ExceptionHandler(ErrorCodeException.class)
+    public CommonApiResponse<Map<String, String>> errorCodeException(ErrorCodeException ex) {
+        final ErrorCode errorCode = ex.getErrorCode();
+        log.warn("error code exception errorCode={} message={}", errorCode, ex.getMessage());
+        return new CommonApiResponse<>(errorCode.getStatus(),
+                errorCode.getStatus().value(),
+                errorCode.getMessage(),
+                Map.of("errorCode", errorCode.name()));
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
