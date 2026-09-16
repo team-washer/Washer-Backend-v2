@@ -13,6 +13,7 @@ import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
+import team.washer.server.v2.domain.reservation.enums.RestrictionStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
 import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport.StartDecision;
@@ -155,14 +156,17 @@ public class OverdueReservationProcessor {
         }
 
         if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
-            final boolean wasBlocked = penaltyRedisUtil.isBlocked(user.getRoomNumber());
-            penaltyRedisUtil.applyBlock(user.getRoomNumber());
-            if (!wasBlocked) {
-                reservationNotificationSupport.sendCancellationBlock(user, machine);
+            final RestrictionStatus previousBlockStatus = penaltyRedisUtil.checkBlock(user.getRoomNumber());
+            // 차단 저장 실패는 PenaltyRedisUtil이 운영 알림으로 보고하며, 타임아웃 취소 자체는 계속 진행한다
+            if (penaltyRedisUtil.applyBlock(user.getRoomNumber())) {
+                // 기존 차단 여부를 조회하지 못했다면 알림 누락보다 중복 발송이 낫다고 보고 발송한다
+                if (previousBlockStatus != RestrictionStatus.RESTRICTED) {
+                    reservationNotificationSupport.sendCancellationBlock(user, machine);
+                }
+                log.warn("48h block applied roomNumber={} exceeded max cancellations {}",
+                        user.getRoomNumber(),
+                        PenaltyConstants.MAX_CANCELLATIONS_IN_48H);
             }
-            log.warn("48h block applied roomNumber={} exceeded max cancellations {}",
-                    user.getRoomNumber(),
-                    PenaltyConstants.MAX_CANCELLATIONS_IN_48H);
         }
     }
 }
