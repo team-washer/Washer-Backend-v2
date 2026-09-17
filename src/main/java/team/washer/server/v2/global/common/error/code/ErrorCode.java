@@ -35,7 +35,9 @@ public enum ErrorCode {
                                                                                     HttpStatus.INTERNAL_SERVER_ERROR,
                                                                                     "서버 내부 오류가 발생했습니다."), RESERVATION_RESTRICTION_UNAVAILABLE(
                                                                                             HttpStatus.SERVICE_UNAVAILABLE,
-                                                                                            "예약 제한 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+                                                                                            "예약 제한 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요."), MACHINE_STATE_UNAVAILABLE(
+                                                                                                    HttpStatus.SERVICE_UNAVAILABLE,
+                                                                                                    "기기 상태를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
 
     private final HttpStatus status;
     private final String message;

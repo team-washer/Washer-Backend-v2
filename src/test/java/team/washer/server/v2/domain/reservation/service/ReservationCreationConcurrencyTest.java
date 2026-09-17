@@ -49,6 +49,7 @@ import team.washer.server.v2.domain.reservation.enums.RestrictionStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor;
 import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor.OverdueResult;
+import team.washer.server.v2.domain.reservation.support.ReservationDeviceStateVerifier;
 import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
 import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport.StartDecision;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
@@ -113,6 +114,10 @@ class ReservationCreationConcurrencyTest {
 
     @MockitoBean
     private ReservationNotificationSupport reservationNotificationSupport;
+
+    // DB 락 경합만 검증하기 위해 SmartThings 작동 상태 확인은 항상 통과시킨다
+    @MockitoBean
+    private ReservationDeviceStateVerifier reservationDeviceStateVerifier;
 
     private TransactionTemplate transactionTemplate;
 
