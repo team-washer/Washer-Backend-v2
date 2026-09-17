@@ -28,9 +28,12 @@ import team.washer.server.v2.global.util.DateTimeUtil;
  * 정책 검증은 각 서비스가 직접 수행한다.
  *
  * <p>
- * 호출 순서는 {@code validateRoomConstraints} → {@code lockMachine} →
- * {@code validateMachineAndReservations} → {@code create}를 전제로 한다. 특히 기기 비관적 락이
- * 중복 검증보다 먼저 수행되어야 동일 기기에 대한 동시 예약이 직렬화된다.
+ * 호출 순서는 두 단계를 전제로 한다. 먼저 락 없이 {@code validateRoomConstraints} →
+ * {@code findMachine} → {@code validateMachineAndReservations}로 사전 검증한 뒤 트랜잭션
+ * 밖에서 {@link ReservationDeviceStateVerifier}로 실제 기기 작동 상태를 확인한다. 이후 새 트랜잭션에서
+ * {@code validateRoomConstraints} → {@code lockMachine} →
+ * {@code validateMachineAndReservations} → {@code create}로 저장 직전 불변식을 다시 확인한다.
+ * 특히 기기 비관적 락이 중복 검증보다 먼저 수행되어야 동일 기기에 대한 동시 예약이 직렬화된다.
  */
 @Component
 @RequiredArgsConstructor
@@ -61,6 +64,18 @@ public class ReservationCreationSupport {
         }
 
         return roomNumber;
+    }
+
+    /**
+     * 외부 기기 상태 조회 전 사전 검증을 위해 락 없이 기기를 조회합니다.
+     *
+     * @param machineId
+     *            조회할 기기 ID
+     * @return 조회한 기기
+     */
+    public Machine findMachine(final Long machineId) {
+        return machineRepository.findById(machineId)
+                .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
     }
 
     /**
