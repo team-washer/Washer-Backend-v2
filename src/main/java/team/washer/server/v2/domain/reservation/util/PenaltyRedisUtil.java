@@ -380,12 +380,19 @@ public class PenaltyRedisUtil {
      * 자동 패널티 저장 실패를 구조화 로그와 운영 알림으로 보고합니다.
      * <p>
      * {@code event=penalty_apply_failed} 로그는 CloudWatch 메트릭 필터로 집계할 수 있도록 고정된 키를
-     * 사용합니다.
+     * 사용합니다. 알림 전송 실패가 호출자의 비예외 계약을 깨지 않도록 알림 호출은 별도로 격리합니다.
      * </p>
      */
     private void reportPenaltyApplyFailure(final String penaltyType, final String target, final Exception e) {
         log.error("penalty apply failed event=penalty_apply_failed penaltyType={} target={}", penaltyType, target, e);
-        discordErrorNotificationServiceProvider.ifAvailable(service -> service
-                .notifyError(e, "자동 패널티 저장 실패", Map.of("Penalty Type", penaltyType, "Target", target)));
+        try {
+            discordErrorNotificationServiceProvider.ifAvailable(service -> service
+                    .notifyError(e, "자동 패널티 저장 실패", Map.of("Penalty Type", penaltyType, "Target", target)));
+        } catch (Exception notifyException) {
+            log.error("penalty failure notification failed penaltyType={} target={}",
+                    penaltyType,
+                    target,
+                    notifyException);
+        }
     }
 }

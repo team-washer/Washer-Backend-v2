@@ -372,6 +372,22 @@ class PenaltyRedisUtilTest {
         }
 
         @Test
+        @DisplayName("운영 알림 전송까지 실패해도 applyBlock은 예외를 던지지 않고 false를 반환한다")
+        void it_returns_false_when_notification_also_fails() {
+            // Given
+            when(cancellationBlockRedisRepository.save(any(CancellationBlockEntity.class)))
+                    .thenThrow(new RuntimeException("redis down"));
+            doThrow(new RuntimeException("discord down")).when(discordErrorNotificationServiceProvider)
+                    .ifAvailable(any());
+
+            // When
+            boolean result = penaltyRedisUtil.applyBlock("101");
+
+            // Then
+            assertThat(result).isFalse();
+        }
+
+        @Test
         @DisplayName("관리자 경로의 applyBlockOrThrow는 예외를 호출자에게 전파한다")
         void it_propagates_when_block_apply_or_throw_fails() {
             // Given
