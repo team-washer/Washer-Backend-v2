@@ -1,9 +1,9 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import java.util.function.Function;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
@@ -37,22 +37,22 @@ public class AdminCreateReservationServiceImpl implements AdminCreateReservation
     private final CurrentUserProvider currentUserProvider;
     private final ReservationCreationSupport reservationCreationSupport;
     private final ReservationDeviceStateVerifier reservationDeviceStateVerifier;
-    private final TransactionTemplate transactionTemplate;
+    private final PlatformTransactionManager transactionManager;
 
     @Override
     public AdminReservationResDto execute(final AdminCreateReservationReqDto reqDto) {
         final var adminId = currentUserProvider.getCurrentUserId();
+        final TransactionTemplate transactionTemplate = readCommittedTransactionTemplate();
 
         // 실패할 요청이 외부 API를 호출하지 않도록 락 없이 먼저 검증한다
-        final Machine machine = transactionTemplate
-                .execute(status -> validate(reqDto, adminId, reservationCreationSupport::findMachine).machine());
+        final Machine machine = transactionTemplate.execute(status -> validate(reqDto, adminId, false).machine());
 
         // 관리자 대리 예약도 사용자 본인 예약과 같은 기기 작동 상태 정책을 적용한다
         reservationDeviceStateVerifier.verifyNotOperating(machine);
 
         return transactionTemplate.execute(status -> {
-            // 동일 기기 동시 예약 직렬화를 위해 비관적 쓰기 락으로 조회한 뒤 저장 직전 불변식을 다시 확인한다
-            final ValidatedTarget target = validate(reqDto, adminId, reservationCreationSupport::lockMachine);
+            // 락을 획득한 뒤 저장 직전 불변식을 다시 확인한다
+            final ValidatedTarget target = validate(reqDto, adminId, true);
 
             final Reservation saved = reservationCreationSupport
                     .create(target.targetUser(), target.machine(), target.adminUser());
@@ -66,10 +66,28 @@ public class AdminCreateReservationServiceImpl implements AdminCreateReservation
         });
     }
 
+    /**
+     * 대리 예약 불변식을 검증합니다.
+     *
+     * @param reqDto
+     *            대리 예약 요청
+     * @param adminId
+     *            요청한 관리자 ID
+     * @param forUpdate
+     *            {@code true}이면 정책 범위·대상 사용자·기기를 비관적 쓰기 락으로 조회한다
+     * @return 검증을 통과한 대상 사용자, 관리자, 기기
+     */
     private ValidatedTarget validate(final AdminCreateReservationReqDto reqDto,
             final Long adminId,
-            final Function<Long, Machine> machineLoader) {
-        final User targetUser = userRepository.findById(reqDto.userId())
+            final boolean forUpdate) {
+        if (forUpdate) {
+            reservationCreationSupport.lockReservationPolicyScope(reqDto.userId());
+        }
+
+        // 사용자 삭제와 직렬화하기 위해 대상 사용자 행을 먼저 잠근다 (락 순서: 사용자 → 기기 → 예약)
+        final User targetUser = (forUpdate
+                ? userRepository.findByIdForUpdate(reqDto.userId())
+                : userRepository.findById(reqDto.userId()))
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final User adminUser = userRepository.findById(adminId)
@@ -77,11 +95,20 @@ public class AdminCreateReservationServiceImpl implements AdminCreateReservation
 
         reservationCreationSupport.validateRoomConstraints(targetUser);
 
-        final Machine machine = machineLoader.apply(reqDto.machineId());
+        // 동일 기기 동시 예약 직렬화를 위해 비관적 쓰기 락으로 조회
+        final Machine machine = forUpdate
+                ? reservationCreationSupport.lockMachine(reqDto.machineId())
+                : reservationCreationSupport.findMachine(reqDto.machineId());
 
         reservationCreationSupport.validateMachineAndReservations(targetUser, machine);
 
         return new ValidatedTarget(targetUser, adminUser, machine);
+    }
+
+    private TransactionTemplate readCommittedTransactionTemplate() {
+        final var transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+        return transactionTemplate;
     }
 
     private AdminReservationResDto mapToAdminReservationResDto(final Reservation reservation, final User adminUser) {

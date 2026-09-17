@@ -7,11 +7,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -28,6 +28,7 @@ import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
+import team.washer.server.v2.domain.reservation.support.UserReservationCleanupSupport;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.impl.WithdrawUserServiceImpl;
@@ -40,7 +41,6 @@ class WithdrawUserServiceTest {
     private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
             ReservationStatus.RUNNING);
 
-    @InjectMocks
     private WithdrawUserServiceImpl withdrawUserService;
 
     @Mock
@@ -60,6 +60,18 @@ class WithdrawUserServiceTest {
 
     @Mock
     private CurrentUserProvider currentUserProvider;
+
+    // 예약 취소와 기기 해제가 실제로 일어나는지 검증하기 위해 Support는 실제 구현체를 사용한다
+    @BeforeEach
+    void setUp() {
+        final var userReservationCleanupSupport = new UserReservationCleanupSupport(reservationRepository,
+                machineRepository);
+        withdrawUserService = new WithdrawUserServiceImpl(userRepository,
+                refreshTokenRedisRepository,
+                withdrawnStudentRedisUtil,
+                currentUserProvider,
+                userReservationCleanupSupport);
+    }
 
     private User createUser() {
         return User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(3).floor(3).penaltyCount(0)
@@ -96,7 +108,7 @@ class WithdrawUserServiceTest {
                 User user = createUser();
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of());
 
@@ -126,7 +138,7 @@ class WithdrawUserServiceTest {
                 Reservation reservation = createReservation(ReservationStatus.RESERVED, user, machine);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reservation));
 
@@ -136,7 +148,7 @@ class WithdrawUserServiceTest {
                 // Then
                 assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
                 assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
-                then(machineRepository).should(times(1)).saveAll(anyList());
+                then(machineRepository).should(times(1)).saveAll(anyIterable());
                 then(refreshTokenRedisRepository).should(times(1)).deleteById(userId);
                 then(withdrawnStudentRedisUtil).should(times(1)).markWithdrawn(user.getStudentId());
                 then(userRepository).should(times(1)).delete(user);
@@ -158,7 +170,7 @@ class WithdrawUserServiceTest {
                 Reservation reservation = createReservation(ReservationStatus.RESERVED, user, machine);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reservation));
 
@@ -187,7 +199,7 @@ class WithdrawUserServiceTest {
                 Reservation reservation = createReservation(ReservationStatus.RUNNING, user, machine);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reservation));
 
@@ -223,7 +235,7 @@ class WithdrawUserServiceTest {
                 Reservation running = createReservation(ReservationStatus.RUNNING, user, machine2);
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
                 given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
                         .willReturn(List.of(reserved, running));
 
@@ -253,7 +265,7 @@ class WithdrawUserServiceTest {
                 Long userId = 999L;
 
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(userRepository.findById(userId)).willReturn(Optional.empty());
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.empty());
 
                 // When & Then
                 assertThatThrownBy(() -> withdrawUserService.execute()).isInstanceOf(ExpectedException.class)

@@ -138,6 +138,12 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                 .fetchFirst() != null;
     }
 
+    @Override
+    public boolean existsCurrentlyActiveByMachine(Machine targetMachine) {
+        return jpaQueryFactory.selectOne().from(reservation)
+                .where(reservation.machine.eq(targetMachine), currentlyActive()).fetchFirst() != null;
+    }
+
     /**
      * 만료되지 않은 활성 예약 조건을 반환합니다. {@link Reservation#isCurrentlyActive()}와 동일한 규칙을 쿼리
      * 조건으로 표현한 것으로, 전체를 로드한 뒤 메모리에서 거르지 않도록 합니다.
@@ -176,15 +182,10 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
     }
 
     @Override
-    public List<Reservation> findExpiredReservations(ReservationStatus status,
-            LocalDateTime threshold,
-            LocalDateTime recentCutoff) {
+    public List<Reservation> findExpiredReservations(ReservationStatus status, LocalDateTime threshold) {
 
         return jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.machine, machine).fetchJoin()
-                .where(reservation.status.eq(status),
-                        reservation.createdAt.goe(recentCutoff),
-                        reservation.reservedAt.lt(threshold))
-                .fetch();
+                .where(reservation.status.eq(status), reservation.reservedAt.lt(threshold)).fetch();
     }
 
     @Override

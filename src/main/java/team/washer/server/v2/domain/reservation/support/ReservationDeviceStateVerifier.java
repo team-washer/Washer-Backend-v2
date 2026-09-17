@@ -10,6 +10,8 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
 /**
  * 예약 생성 전에 SmartThings가 보고하는 실제 기기 작동 상태를 확인하는 컴포넌트.
@@ -28,8 +30,6 @@ import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport
 @RequiredArgsConstructor
 public class ReservationDeviceStateVerifier {
 
-    static final String DEVICE_STATE_UNAVAILABLE_MESSAGE = "기기 상태를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.";
-
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
 
     /**
@@ -38,8 +38,9 @@ public class ReservationDeviceStateVerifier {
      * @param machine
      *            예약 대상 기기
      * @throws ExpectedException
-     *             기기가 작동 중이면 {@code 409 CONFLICT}, 상태를 확인할 수 없으면
-     *             {@code 503 SERVICE_UNAVAILABLE}
+     *             기기가 작동 중이면 {@code 409 CONFLICT}
+     * @throws ErrorCodeException
+     *             상태를 확인할 수 없으면 {@link ErrorCode#MACHINE_STATE_UNAVAILABLE}
      */
     public void verifyNotOperating(final Machine machine) {
         final SmartThingsDeviceStatusResDto deviceStatus = queryDeviceStatus(machine);
@@ -47,7 +48,7 @@ public class ReservationDeviceStateVerifier {
             log.warn("reservation device state missing machineId={} deviceId={}",
                     machine.getId(),
                     machine.getDeviceId());
-            throw deviceStateUnavailable();
+            throw new ErrorCodeException(ErrorCode.MACHINE_STATE_UNAVAILABLE);
         }
 
         // 전원이 꺼진 기기는 사이클을 진행할 수 없으므로 정지 상태로 본다
@@ -75,7 +76,7 @@ public class ReservationDeviceStateVerifier {
                     machine.getId(),
                     machine.getDeviceId(),
                     operatingState);
-            throw deviceStateUnavailable();
+            throw new ErrorCodeException(ErrorCode.MACHINE_STATE_UNAVAILABLE);
         }
 
         // 확인 시점 이후 기기 락 획득 전까지의 상태 변화는 감지하지 못하므로 추적을 위해 상태 갱신 시각을 남긴다
@@ -94,11 +95,7 @@ public class ReservationDeviceStateVerifier {
                     machine.getId(),
                     machine.getDeviceId(),
                     e);
-            throw deviceStateUnavailable();
+            throw new ErrorCodeException(ErrorCode.MACHINE_STATE_UNAVAILABLE, e);
         }
-    }
-
-    private ExpectedException deviceStateUnavailable() {
-        return new ExpectedException(DEVICE_STATE_UNAVAILABLE_MESSAGE, HttpStatus.SERVICE_UNAVAILABLE);
     }
 }

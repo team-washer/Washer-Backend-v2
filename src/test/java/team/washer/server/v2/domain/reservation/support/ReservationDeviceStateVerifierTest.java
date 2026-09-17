@@ -30,12 +30,13 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.SwitchCapability;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.WasherOperatingState;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
 @ExtendWith(MockitoExtension.class)
 class ReservationDeviceStateVerifierTest {
 
     private static final String DEVICE_ID = "device-1";
-    private static final String UNAVAILABLE_MESSAGE = "기기 상태를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.";
 
     @Mock
     private DeviceStatusQuerySupport deviceStatusQuerySupport;
@@ -73,9 +74,13 @@ class ReservationDeviceStateVerifierTest {
     }
 
     private void assertServiceUnavailable(final Machine machine) {
-        assertThatThrownBy(() -> verifier.verifyNotOperating(machine)).isInstanceOf(ExpectedException.class)
-                .hasMessage(UNAVAILABLE_MESSAGE).satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                        .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));
+        assertThatThrownBy(() -> verifier.verifyNotOperating(machine)).isInstanceOf(ErrorCodeException.class)
+                .satisfies(e -> {
+                    final ErrorCode errorCode = ((ErrorCodeException) e).getErrorCode();
+                    assertThat(errorCode).isEqualTo(ErrorCode.MACHINE_STATE_UNAVAILABLE);
+                    assertThat(errorCode.getStatus()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    assertThat(e).hasMessage("기기 상태를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
+                });
     }
 
     @Nested
@@ -129,7 +134,7 @@ class ReservationDeviceStateVerifierTest {
 
         @Test
         @DisplayName("세탁기 capability만 보고하는 기기를 건조기로 조회하면 상태 불명으로 거부한다")
-        void verifyNotOperating_ShouldThrowServiceUnavailable_WhenCapabilityMismatch() {
+        void verifyNotOperating_ShouldThrowMachineStateUnavailable_WhenCapabilityMismatch() {
             // Given
             given(deviceStatusQuerySupport.queryDeviceStatus(DEVICE_ID)).willReturn(washerStatus("stop", "on"));
 
@@ -139,8 +144,8 @@ class ReservationDeviceStateVerifierTest {
 
         @ParameterizedTest
         @ValueSource(strings = {"unknown-state", " "})
-        @DisplayName("알 수 없는 machineState이면 SERVICE_UNAVAILABLE로 거부한다")
-        void verifyNotOperating_ShouldThrowServiceUnavailable_WhenStateUnknown(final String machineState) {
+        @DisplayName("알 수 없는 machineState이면 MACHINE_STATE_UNAVAILABLE로 거부한다")
+        void verifyNotOperating_ShouldThrowMachineStateUnavailable_WhenStateUnknown(final String machineState) {
             // Given
             given(deviceStatusQuerySupport.queryDeviceStatus(DEVICE_ID)).willReturn(washerStatus(machineState, "on"));
 
@@ -149,8 +154,8 @@ class ReservationDeviceStateVerifierTest {
         }
 
         @Test
-        @DisplayName("machineState 응답이 누락되면 SERVICE_UNAVAILABLE로 거부한다")
-        void verifyNotOperating_ShouldThrowServiceUnavailable_WhenStateMissing() {
+        @DisplayName("machineState 응답이 누락되면 MACHINE_STATE_UNAVAILABLE로 거부한다")
+        void verifyNotOperating_ShouldThrowMachineStateUnavailable_WhenStateMissing() {
             // Given
             given(deviceStatusQuerySupport.queryDeviceStatus(DEVICE_ID))
                     .willReturn(new SmartThingsDeviceStatusResDto(Map.of()));
@@ -160,8 +165,8 @@ class ReservationDeviceStateVerifierTest {
         }
 
         @Test
-        @DisplayName("상태 응답 자체가 없으면 SERVICE_UNAVAILABLE로 거부한다")
-        void verifyNotOperating_ShouldThrowServiceUnavailable_WhenResponseIsNull() {
+        @DisplayName("상태 응답 자체가 없으면 MACHINE_STATE_UNAVAILABLE로 거부한다")
+        void verifyNotOperating_ShouldThrowMachineStateUnavailable_WhenResponseIsNull() {
             // Given
             given(deviceStatusQuerySupport.queryDeviceStatus(DEVICE_ID)).willReturn(null);
 
@@ -170,8 +175,8 @@ class ReservationDeviceStateVerifierTest {
         }
 
         @Test
-        @DisplayName("외부 조회가 실패하거나 타임아웃되면 SERVICE_UNAVAILABLE로 거부한다")
-        void verifyNotOperating_ShouldThrowServiceUnavailable_WhenQueryFails() {
+        @DisplayName("외부 조회가 실패하거나 타임아웃되면 MACHINE_STATE_UNAVAILABLE로 거부한다")
+        void verifyNotOperating_ShouldThrowMachineStateUnavailable_WhenQueryFails() {
             // Given
             given(deviceStatusQuerySupport.queryDeviceStatus(DEVICE_ID))
                     .willThrow(new ExpectedException("기기 상태 조회에 실패했습니다: Read timed out", HttpStatus.BAD_GATEWAY));
@@ -181,8 +186,8 @@ class ReservationDeviceStateVerifierTest {
         }
 
         @Test
-        @DisplayName("SmartThings 토큰이 없어 조회할 수 없어도 SERVICE_UNAVAILABLE로 거부한다")
-        void verifyNotOperating_ShouldThrowServiceUnavailable_WhenTokenUnavailable() {
+        @DisplayName("SmartThings 토큰이 없어 조회할 수 없어도 MACHINE_STATE_UNAVAILABLE로 거부한다")
+        void verifyNotOperating_ShouldThrowMachineStateUnavailable_WhenTokenUnavailable() {
             // Given
             given(deviceStatusQuerySupport.queryDeviceStatus(DEVICE_ID))
                     .willThrow(new IllegalStateException("token missing"));
