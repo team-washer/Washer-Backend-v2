@@ -22,6 +22,7 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
+import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.dto.request.AdminCreateReservationReqDto;
@@ -69,14 +70,15 @@ class AdminCreateReservationServiceTest {
     void setUp() {
         final var reservationCreationSupport = new ReservationCreationSupport(reservationRepository,
                 machineRepository,
-                washingBanRepository);
+                washingBanRepository,
+                userRepository);
         adminCreateReservationService = new AdminCreateReservationServiceImpl(userRepository,
                 currentUserProvider,
                 reservationCreationSupport);
     }
 
     private AdminCreateReservationReqDto givenValidRequest() {
-        when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+        when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
         when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
         when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
         when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -145,7 +147,7 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowNotFound_WhenTargetUserNotFound() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.empty());
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.empty());
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
@@ -158,7 +160,7 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowNotFound_WhenMachineNotFound() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -175,7 +177,7 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowForbidden_WhenRoomIsBanned() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -192,7 +194,7 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowBadRequest_WhenMachineNotAvailable() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -206,11 +208,35 @@ class AdminCreateReservationServiceTest {
         }
 
         @Test
+        @DisplayName("만료 RESERVED 예약이 남은 기기는 만료 처리가 끝날 때까지 대리 예약을 막는다")
+        void execute_ShouldRejectProxyReservation_WhenOnlyExpiredMachineReservationExists() {
+            // Given
+            final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
+            final var machineWithExpiredReservation = Machine.builder().name("세탁기 1")
+                    .availability(MachineAvailability.RESERVED).status(MachineStatus.NORMAL).build();
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
+            when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+            when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(machineRepository.findByIdForUpdate(MACHINE_ID))
+                    .thenReturn(Optional.of(machineWithExpiredReservation));
+            when(reservationRepository.findCurrentlyActiveByMachine(machineWithExpiredReservation))
+                    .thenReturn(List.of());
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ExpectedException.class).hasMessageContaining("해당 기기를 사용할 수 없습니다").satisfies(
+                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+            verify(machineRepository, never()).save(machineWithExpiredReservation);
+            verify(reservationRepository, never()).save(any(Reservation.class));
+        }
+
+        @Test
         @DisplayName("기기에 이미 진행 중인 예약이 있으면 CONFLICT 예외를 발생시킨다")
         void execute_ShouldThrowConflict_WhenMachineHasActiveReservation() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -229,13 +255,14 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowBadRequest_WhenTargetUserHasActiveReservation() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machineRepository.findByIdForUpdate(MACHINE_ID)).thenReturn(Optional.of(machine));
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
-            when(reservationRepository.findCurrentlyActiveByUser(targetUser)).thenReturn(List.of(activeReservation));
+            when(reservationRepository.findByUserAndStatusIn(eq(targetUser), anyList()))
+                    .thenReturn(List.of(activeReservation));
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
@@ -247,7 +274,7 @@ class AdminCreateReservationServiceTest {
         void execute_ShouldThrowBadRequest_WhenRoomHasSameTypeReservation() {
             // Given
             final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
-            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
@@ -255,7 +282,7 @@ class AdminCreateReservationServiceTest {
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(machine.getType()).thenReturn(MachineType.WASHER);
             when(activeReservation.getMachine()).thenReturn(machine);
-            when(reservationRepository.findCurrentlyActiveByRoomNumber(ROOM_NUMBER))
+            when(reservationRepository.findByRoomNumberAndStatusIn(eq(ROOM_NUMBER), anyList()))
                     .thenReturn(List.of(activeReservation));
 
             // When & Then

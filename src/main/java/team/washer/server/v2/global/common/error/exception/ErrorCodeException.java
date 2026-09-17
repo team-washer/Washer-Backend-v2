@@ -1,7 +1,7 @@
 package team.washer.server.v2.global.common.error.exception;
 
 import lombok.Getter;
-import team.washer.server.v2.global.common.error.ErrorCode;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
 
 /**
  * 응답에 {@link ErrorCode}를 함께 내려야 하는 예외입니다.

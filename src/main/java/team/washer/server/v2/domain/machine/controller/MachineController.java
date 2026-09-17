@@ -12,8 +12,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import team.washer.server.v2.domain.machine.dto.response.MachineDeviceStatusResDto;
 import team.washer.server.v2.domain.machine.dto.response.MachineStatusListResDto;
 import team.washer.server.v2.domain.machine.service.QueryAllMachinesStatusService;
+import team.washer.server.v2.domain.machine.service.QueryMachineDeviceStatusService;
 import team.washer.server.v2.domain.reservation.dto.response.MachineReservationHistoryPageResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.QueryMachineReservationHistoryService;
@@ -26,6 +28,7 @@ import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 public class MachineController {
 
     private final QueryAllMachinesStatusService queryAllMachinesStatusService;
+    private final QueryMachineDeviceStatusService queryMachineDeviceStatusService;
     private final QueryMachineReservationHistoryService queryMachineReservationHistoryService;
     private final CurrentUserProvider currentUserProvider;
 
@@ -35,6 +38,13 @@ public class MachineController {
             @Parameter(description = "정렬 여부 (층 → 기기종류(세탁기 우선) → 위치(왼쪽 우선) → 번호)") @RequestParam(defaultValue = "true") boolean sorted) {
         var result = queryAllMachinesStatusService.execute(currentUserProvider.getCurrentUserId(), sorted);
         return new MachineStatusListResDto(result, result.size());
+    }
+
+    @GetMapping("/{id}/device-status")
+    @Operation(summary = "기기 실시간 상태 조회", description = "서버가 SmartThings API를 대행 호출하여 특정 기기의 작동 상태, 작업 상태, 전원 상태, 완료 예정 시간을 반환합니다. "
+            + "앱은 SmartThings 액세스 토큰 없이 이 API로 상태를 조회합니다. 5층(여학생) 기숙사생은 이용할 수 없습니다.")
+    public MachineDeviceStatusResDto getMachineDeviceStatus(@Parameter(description = "기기 ID") @PathVariable Long id) {
+        return queryMachineDeviceStatusService.execute(currentUserProvider.getCurrentUserId(), id);
     }
 
     @GetMapping("/{id}/history")

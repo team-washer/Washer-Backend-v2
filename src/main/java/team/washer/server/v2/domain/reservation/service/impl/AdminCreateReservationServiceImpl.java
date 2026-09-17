@@ -2,6 +2,7 @@ package team.washer.server.v2.domain.reservation.service.impl;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
@@ -35,9 +36,12 @@ public class AdminCreateReservationServiceImpl implements AdminCreateReservation
     private final ReservationCreationSupport reservationCreationSupport;
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public AdminReservationResDto execute(final AdminCreateReservationReqDto reqDto) {
-        final User targetUser = userRepository.findById(reqDto.userId())
+        reservationCreationSupport.lockReservationPolicyScope(reqDto.userId());
+
+        // 사용자 삭제와 직렬화하기 위해 대상 사용자 행을 먼저 잠근다 (락 순서: 사용자 → 기기 → 예약)
+        final User targetUser = userRepository.findByIdForUpdate(reqDto.userId())
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
         final var adminId = currentUserProvider.getCurrentUserId();

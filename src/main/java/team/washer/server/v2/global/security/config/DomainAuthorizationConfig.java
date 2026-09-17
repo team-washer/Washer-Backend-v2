@@ -32,15 +32,15 @@ public class DomainAuthorizationConfig {
                 // Swagger UI
                 .requestMatchers(swaggerUiResources, swaggerUiPath, apiDocsPath, apiDocsPath + "/**").permitAll()
                 // 헬스 체크
-                .requestMatchers("/api/v2/health",
-                        "/api/v2/admin/smartthings/**",
-                        "/api/v2/app-versions/status",
-                        "/api/v2/events/datagsm")
-                .permitAll()
+                .requestMatchers("/api/v2/health", "/api/v2/app-versions/status", "/api/v2/events/datagsm").permitAll()
+                // SmartThings OAuth 콜백은 외부 서비스의 리다이렉트를 위해 공개한다.
+                .requestMatchers("/api/v2/admin/smartthings/oauth/callback").permitAll()
                 // 인증 엔드포인트
                 .requestMatchers("/api/v2/auth/login", "/api/v2/auth/refresh", "/api/v2/auth/token/status").permitAll()
                 // 관리자 엔드포인트
                 .requestMatchers("/api/v2/admin/**").hasAnyAuthority("DORMITORY_COUNCIL", "ADMIN")
+                // SmartThings 액세스 토큰은 관리자급 권한이 필요하다.
+                .requestMatchers("/api/v2/smartthings/token").hasAnyAuthority("DORMITORY_COUNCIL", "ADMIN")
                 // 그 외 엔드포인트 - 인증 필요
                 .anyRequest().authenticated();
     }

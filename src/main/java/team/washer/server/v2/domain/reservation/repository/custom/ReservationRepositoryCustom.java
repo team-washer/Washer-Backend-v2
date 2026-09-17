@@ -26,9 +26,7 @@ public interface ReservationRepositoryCustom {
             LocalDateTime endTime,
             Long excludeReservationId);
 
-    List<Reservation> findExpiredReservations(ReservationStatus status,
-            LocalDateTime threshold,
-            LocalDateTime recentCutoff);
+    List<Reservation> findExpiredReservations(ReservationStatus status, LocalDateTime threshold);
 
     /**
      * 관리자용 예약 목록 조회 (동적 필터링)
@@ -115,6 +113,15 @@ public interface ReservationRepositoryCustom {
      * @return 만료되지 않은 활성 예약 존재 여부
      */
     boolean existsCurrentlyActiveByUser(User user);
+
+    /**
+     * 기기에 현재 활성 예약이 있는지 반환합니다. 타임아웃이 지난 RESERVED 예약만 남아 있으면 거짓입니다.
+     *
+     * @param machine
+     *            조회 대상 기기
+     * @return 만료되지 않은 활성 예약 존재 여부
+     */
+    boolean existsCurrentlyActiveByMachine(Machine machine);
 
     /**
      * 기기별 예약 히스토리 조회
