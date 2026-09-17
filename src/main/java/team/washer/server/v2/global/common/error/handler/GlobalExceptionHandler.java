@@ -44,6 +44,7 @@ import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.dto.response.ErrorDetailResDto;
 import team.washer.server.v2.global.common.error.dto.response.FieldErrorResDto;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.common.trace.TraceIdFilter;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 
@@ -88,6 +89,22 @@ public class GlobalExceptionHandler {
             log.trace("expected exception detail", ex);
         }
         return error(ex.getStatusCode(), ex.getStatusCode().name(), ex.getMessage(), null);
+    }
+
+    /**
+     * 서비스가 {@link ErrorCode}를 지정해 던진 예외. 5xx는 Redis 등 외부 시스템 장애로 판정을 거부한 경우이므로 운영
+     * 알림을 보낸다.
+     */
+    @ExceptionHandler(ErrorCodeException.class)
+    public ResponseEntity<CommonApiResponse<ErrorDetailResDto>> errorCodeException(ErrorCodeException ex,
+            HttpServletRequest request) {
+        final ErrorCode errorCode = ex.getErrorCode();
+        if (errorCode.getStatus().is5xxServerError()) {
+            log.error("error code server exception errorCode={} path={}", errorCode, request.getRequestURI(), ex);
+            notifyOperators(ex, request);
+            return error(errorCode);
+        }
+        return clientError(errorCode, ex, null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

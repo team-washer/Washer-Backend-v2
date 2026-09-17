@@ -47,7 +47,7 @@ public class ApplyUserPenaltyServiceImpl implements ApplyUserPenaltyService {
         }
 
         // 관리자에게 거짓 성공 응답이 나가면 제재가 집행되지 않은 채 종료되므로 저장 실패를 예외로 받는다.
-        // isBlocked로 판정하면 이미 차단 중인 호실에서 TTL 갱신 실패를 성공으로 오인한다.
+        // checkBlock으로 판정하면 이미 차단 중인 호실에서 TTL 갱신 실패를 성공으로 오인한다.
         try {
             penaltyRedisUtil.applyBlockOrThrow(roomNumber);
         } catch (Exception e) {

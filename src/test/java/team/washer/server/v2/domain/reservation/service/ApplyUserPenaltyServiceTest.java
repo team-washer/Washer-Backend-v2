@@ -243,8 +243,8 @@ class ApplyUserPenaltyServiceTest {
                 assertThatThrownBy(() -> applyUserPenaltyService.execute(TARGET_ID, REASON))
                         .isInstanceOf(ExpectedException.class);
 
-                // 이미 차단 중인 호실에서 isBlocked는 true를 반환하므로 성공 판정 근거로 쓰면 안 된다
-                then(penaltyRedisUtil).should(never()).isBlocked(anyString());
+                // 이미 차단 중인 호실에서 checkBlock은 RESTRICTED를 반환하므로 성공 판정 근거로 쓰면 안 된다
+                then(penaltyRedisUtil).should(never()).checkBlock(anyString());
                 then(reservationNotificationSupport).shouldHaveNoInteractions();
             }
         }

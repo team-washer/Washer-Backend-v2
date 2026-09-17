@@ -45,6 +45,7 @@ import team.washer.server.v2.domain.reservation.dto.request.AdminCreateReservati
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
+import team.washer.server.v2.domain.reservation.enums.RestrictionStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor;
 import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor.OverdueResult;
@@ -125,8 +126,8 @@ class ReservationCreationConcurrencyTest {
             userRepository.deleteAllInBatch();
         });
 
-        given(penaltyRedisUtil.isBlocked(anyString())).willReturn(false);
-        given(penaltyRedisUtil.isInCooldown(anyLong(), any(MachineType.class))).willReturn(false);
+        given(penaltyRedisUtil.checkBlock(anyString())).willReturn(RestrictionStatus.NONE);
+        given(penaltyRedisUtil.checkCooldown(anyLong(), any(MachineType.class))).willReturn(RestrictionStatus.NONE);
     }
 
     @Nested

@@ -18,6 +18,8 @@ import team.washer.server.v2.domain.reservation.support.ReservationCreationSuppo
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -44,9 +46,12 @@ public class CreateReservationServiceImpl implements CreateReservationService {
 
         final String roomNumber = reservationCreationSupport.validateRoomConstraints(user);
 
-        // 48시간 차단 검증 (호실 단위)
-        if (penaltyRedisUtil.isBlocked(roomNumber)) {
-            throw new ExpectedException("48시간 내 취소 횟수를 초과하여 예약이 제한됩니다", HttpStatus.BAD_REQUEST);
+        // 48시간 차단 검증 (호실 단위). 조회에 실패하면 제한을 우회하지 않도록 예약을 거부한다
+        switch (penaltyRedisUtil.checkBlock(roomNumber)) {
+            case RESTRICTED -> throw new ExpectedException("48시간 내 취소 횟수를 초과하여 예약이 제한됩니다", HttpStatus.BAD_REQUEST);
+            case UNAVAILABLE -> throw new ErrorCodeException(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE);
+            case NONE -> {
+            }
         }
 
         // 시간 제한 검증 (학년별 예약 시작 시각, 개발환경에서는 비활성화 가능)
@@ -57,10 +62,14 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         // 동일 기기 동시 예약 직렬화를 위해 비관적 쓰기 락으로 조회
         final Machine machine = reservationCreationSupport.lockMachine(reqDto.machineId());
 
-        // 쿨다운 검증 (취소 후 5분, 동일 기기 유형 한정)
-        if (penaltyRedisUtil.isInCooldown(userId, machine.getType())) {
-            throw new ExpectedException(String.format("예약 취소 후 5분간 %s 예약이 제한됩니다", machine.getType().getDescription()),
+        // 쿨다운 검증 (취소 후 5분, 동일 기기 유형 한정). 조회에 실패하면 예약을 거부한다
+        switch (penaltyRedisUtil.checkCooldown(userId, machine.getType())) {
+            case RESTRICTED -> throw new ExpectedException(
+                    String.format("예약 취소 후 5분간 %s 예약이 제한됩니다", machine.getType().getDescription()),
                     HttpStatus.BAD_REQUEST);
+            case UNAVAILABLE -> throw new ErrorCodeException(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE);
+            case NONE -> {
+            }
         }
 
         reservationCreationSupport.validateMachineAndReservations(user, machine);

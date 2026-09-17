@@ -29,6 +29,7 @@ import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
+import team.washer.server.v2.domain.reservation.enums.RestrictionStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor;
 import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor.OverdueResult;
@@ -354,6 +355,31 @@ class OverdueReservationProcessorTest {
 
             // Then
             verify(penaltyRedisUtil, times(1)).applyBlock("101");
+        }
+
+        @Test
+        @DisplayName("Redis 장애로 48시간 차단 저장에 실패해도 예약 취소는 완료하고 차단 알림은 보내지 않는다")
+        void shouldCompleteCancellation_WhenBlockApplyFails() {
+            // Given
+            var deviceStatus = buildDeviceStatus(null);
+            givenReservedReservation();
+            when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(StartDecision.IDLE);
+            when(user.getId()).thenReturn(1L);
+            when(user.getRoomNumber()).thenReturn("101");
+            when(penaltyRedisUtil.hasWarning(1L)).thenReturn(true);
+            when(penaltyRedisUtil.getCancellationCount(1L)).thenReturn(5L);
+            when(penaltyRedisUtil.checkBlock("101")).thenReturn(RestrictionStatus.UNAVAILABLE);
+            when(penaltyRedisUtil.applyBlock("101")).thenReturn(false);
+
+            // When
+            var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, deviceStatus);
+
+            // Then
+            assertThat(result).isEqualTo(OverdueResult.CANCELLED);
+            verify(reservation, times(1)).cancel();
+            verify(reservationRepository, times(1)).save(reservation);
+            verify(reservationNotificationSupport, never()).sendCancellationBlock(any(), any());
         }
     }
 
