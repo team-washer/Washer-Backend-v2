@@ -4,8 +4,6 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
-import java.util.Optional;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -13,10 +11,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.RedisConnectionFailureException;
 
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
-import team.washer.server.v2.domain.auth.entity.redis.RefreshTokenEntity;
-import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
+import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisStore;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.global.security.jwt.config.JwtEnvironment;
 import team.washer.server.v2.global.security.jwt.provider.JwtTokenProvider;
@@ -32,7 +30,7 @@ class TokenGenerationSupportTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @Mock
-    private RefreshTokenRedisRepository refreshTokenRedisRepository;
+    private RefreshTokenRedisStore refreshTokenRedisStore;
 
     @Mock
     private JwtEnvironment jwtEnvironment;
@@ -60,12 +58,6 @@ class TokenGenerationSupportTest {
                 given(jwtTokenProvider.generateRefreshToken(userId)).willReturn(refreshToken);
                 given(jwtEnvironment.accessTokenExpiration()).willReturn(accessTokenExpiration);
                 given(jwtEnvironment.refreshTokenExpiration()).willReturn(refreshTokenExpiration);
-                given(refreshTokenRedisRepository.findById(userId)).willReturn(Optional.empty());
-
-                RefreshTokenEntity savedEntity = RefreshTokenEntity.builder().userId(userId).token(refreshToken)
-                        .ttl(refreshTokenExpiration).build();
-                given(refreshTokenRedisRepository.save(any(RefreshTokenEntity.class))).willReturn(savedEntity);
-
                 // When
                 TokenResDto result = tokenGenerationSupport.generate(userId, role);
 
@@ -75,11 +67,7 @@ class TokenGenerationSupportTest {
                 assertThat(result.refreshToken()).isEqualTo(refreshToken);
                 assertThat(result.expiresIn()).isEqualTo(accessTokenExpiration);
 
-                then(refreshTokenRedisRepository).should(times(1)).findById(userId);
-                then(refreshTokenRedisRepository).should(never()).delete(any(RefreshTokenEntity.class));
-                then(refreshTokenRedisRepository).should(times(1)).save(
-                        argThat(entity -> entity.getUserId().equals(userId) && entity.getToken().equals(refreshToken)
-                                && entity.getTtl().equals(refreshTokenExpiration)));
+                then(refreshTokenRedisStore).should(times(1)).replace(userId, refreshToken, refreshTokenExpiration);
             }
         }
 
@@ -89,28 +77,19 @@ class TokenGenerationSupportTest {
 
             @Test
             @DisplayName("기존 RefreshToken을 먼저 삭제한 뒤 새로운 RefreshToken을 저장해야 한다")
-            void it_deletes_existing_then_saves_new_refresh_token() {
+            void it_atomically_replaces_existing_refresh_token() {
                 // Given
                 Long userId = 1L;
                 UserRole role = UserRole.USER;
-                String oldRefreshToken = "old.refresh.token";
                 String newRefreshToken = "new.refresh.token";
                 String accessToken = "new.access.token";
                 Long accessTokenExpiration = 3600L;
                 Long refreshTokenExpiration = 2592000L;
 
-                RefreshTokenEntity existingEntity = RefreshTokenEntity.builder().userId(userId).token(oldRefreshToken)
-                        .ttl(refreshTokenExpiration).build();
-
                 given(jwtTokenProvider.generateAccessToken(userId, role)).willReturn(accessToken);
                 given(jwtTokenProvider.generateRefreshToken(userId)).willReturn(newRefreshToken);
                 given(jwtEnvironment.accessTokenExpiration()).willReturn(accessTokenExpiration);
                 given(jwtEnvironment.refreshTokenExpiration()).willReturn(refreshTokenExpiration);
-                given(refreshTokenRedisRepository.findById(userId)).willReturn(Optional.of(existingEntity));
-
-                RefreshTokenEntity savedEntity = RefreshTokenEntity.builder().userId(userId).token(newRefreshToken)
-                        .ttl(refreshTokenExpiration).build();
-                given(refreshTokenRedisRepository.save(any(RefreshTokenEntity.class))).willReturn(savedEntity);
 
                 // When
                 TokenResDto result = tokenGenerationSupport.generate(userId, role);
@@ -121,9 +100,7 @@ class TokenGenerationSupportTest {
                 assertThat(result.refreshToken()).isEqualTo(newRefreshToken);
                 assertThat(result.expiresIn()).isEqualTo(accessTokenExpiration);
 
-                then(refreshTokenRedisRepository).should(times(1)).findById(userId);
-                then(refreshTokenRedisRepository).should(times(1)).delete(existingEntity);
-                then(refreshTokenRedisRepository).should(times(1)).save(any(RefreshTokenEntity.class));
+                then(refreshTokenRedisStore).should(times(1)).replace(userId, newRefreshToken, refreshTokenExpiration);
             }
         }
 
@@ -141,8 +118,6 @@ class TokenGenerationSupportTest {
                 given(jwtTokenProvider.generateRefreshToken(userId)).willReturn("user.refresh.token");
                 given(jwtEnvironment.accessTokenExpiration()).willReturn(3600L);
                 given(jwtEnvironment.refreshTokenExpiration()).willReturn(2592000L);
-                given(refreshTokenRedisRepository.save(any())).willReturn(null);
-
                 // When
                 TokenResDto result = tokenGenerationSupport.generate(userId, role);
 
@@ -161,8 +136,6 @@ class TokenGenerationSupportTest {
                 given(jwtTokenProvider.generateRefreshToken(userId)).willReturn("admin.refresh.token");
                 given(jwtEnvironment.accessTokenExpiration()).willReturn(3600L);
                 given(jwtEnvironment.refreshTokenExpiration()).willReturn(2592000L);
-                given(refreshTokenRedisRepository.save(any())).willReturn(null);
-
                 // When
                 TokenResDto result = tokenGenerationSupport.generate(userId, role);
 
@@ -170,6 +143,20 @@ class TokenGenerationSupportTest {
                 assertThat(result).isNotNull();
                 then(jwtTokenProvider).should(times(1)).generateAccessToken(userId, UserRole.ADMIN);
             }
+        }
+
+        @Test
+        void it_does_not_return_tokens_when_redis_replace_fails() {
+            final var userId = 1L;
+            final var role = UserRole.USER;
+            given(jwtTokenProvider.generateAccessToken(userId, role)).willReturn("access.token");
+            given(jwtTokenProvider.generateRefreshToken(userId)).willReturn("refresh.token");
+            given(jwtEnvironment.refreshTokenExpiration()).willReturn(2592000L);
+            willThrow(new RedisConnectionFailureException("Redis connection failed")).given(refreshTokenRedisStore)
+                    .replace(userId, "refresh.token", 2592000L);
+
+            assertThatThrownBy(() -> tokenGenerationSupport.generate(userId, role))
+                    .isInstanceOf(RedisConnectionFailureException.class);
         }
     }
 }
