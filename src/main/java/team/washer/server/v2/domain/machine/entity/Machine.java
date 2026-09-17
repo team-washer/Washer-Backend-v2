@@ -150,6 +150,15 @@ public class Machine extends BaseEntity {
     }
 
     /**
+     * 통세척 점유 중인지 반환합니다.
+     *
+     * @return 통세척 점유 여부
+     */
+    public boolean isCleaning() {
+        return this.availability == MachineAvailability.CLEANING;
+    }
+
+    /**
      * 통세척 중인 기기를 정상 상태에 맞게 해제합니다.
      */
     public void finishCleaning() {

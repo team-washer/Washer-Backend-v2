@@ -50,7 +50,7 @@ public class AdminSmartThingsOAuthController {
     public String getAuthorizationUrl() {
         var state = UUID.randomUUID().toString();
         stateStore.save(state);
-        log.info("[OAuth 인증] state 생성 및 저장. state={}", state);
+        log.info("OAuth authorization state created");
         return UriComponentsBuilder.fromUriString(smartThingsEnvironment.authorizeUrl())
                 .queryParam("response_type", "code").queryParam("client_id", smartThingsEnvironment.clientId())
                 .queryParam("redirect_uri", smartThingsEnvironment.redirectUri()).queryParam("scope", SCOPE)
@@ -72,14 +72,14 @@ public class AdminSmartThingsOAuthController {
     public CommonApiResponse handleCallback(
             @Parameter(description = "SmartThings 인증 코드", required = true) @RequestParam String code,
             @Parameter(description = "CSRF 방지 state 값", required = true) @RequestParam String state) {
-        log.info("[OAuth 콜백] 요청 수신. state={}", state);
+        log.info("OAuth callback request received");
         if (!stateStore.validateAndRemove(state)) {
-            log.warn("[OAuth 콜백] state 검증 실패. 저장된 state 없음. state={}", state);
+            log.warn("OAuth callback state validation failed");
             throw new ExpectedException("유효하지 않은 state 값입니다. CSRF 공격이 의심됩니다.", HttpStatus.UNAUTHORIZED);
         }
-        log.info("[OAuth 콜백] state 검증 성공. 토큰 교환 시작.");
+        log.info("OAuth callback state validation succeeded");
         exchangeSmartThingsTokenService.execute(code, smartThingsEnvironment.redirectUri());
-        log.info("[OAuth 콜백] 토큰 교환 완료.");
+        log.info("OAuth token exchange completed");
         return CommonApiResponse.success("SmartThings 토큰 교환에 성공했습니다.");
     }
 }

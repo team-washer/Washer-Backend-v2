@@ -13,12 +13,14 @@ import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
+import team.washer.server.v2.domain.reservation.enums.RestrictionStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
 import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport.StartDecision;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.PenaltyConstants;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
 import team.washer.server.v2.global.util.DateTimeUtil;
@@ -42,6 +44,7 @@ public class OverdueReservationProcessor {
     private final PenaltyRedisUtil penaltyRedisUtil;
     private final ReservationNotificationSupport reservationNotificationSupport;
     private final ReservationStartDecisionSupport reservationStartDecisionSupport;
+    private final UserRepository userRepository;
 
     /**
      * 외부 API 호출 대상이 되는 만료 예약의 식별자와 기기 ID 쌍.
@@ -64,26 +67,39 @@ public class OverdueReservationProcessor {
         // reservedAt 기준 타임아웃 상수 초과
         var now = DateTimeUtil.nowInKorea();
         var threshold = now.minusMinutes(ReservationStatus.RESERVED.getTimeoutMinutes());
-        var recentCutoff = now.minusHours(24);
-
-        return reservationRepository.findExpiredReservations(ReservationStatus.RESERVED, threshold, recentCutoff)
-                .stream()
+        return reservationRepository.findExpiredReservations(ReservationStatus.RESERVED, threshold).stream()
                 .map(reservation -> new OverdueTarget(reservation.getId(), reservation.getMachine().getDeviceId()))
                 .toList();
     }
 
     /**
      * 만료된 예약을 기기 상태에 따라 자동 시작하거나 취소(패널티 부여)한다. 외부 API 호출 이후의 DB 갱신만 독립 트랜잭션으로 처리한다.
+     *
+     * <p>
+     * 통세척 점유({@code WasherTubCleanMachineGuard})는 만료된 RESERVED 예약을 무시하고 기기를 점유하므로,
+     * 기기 락을 먼저 잡아 그 상태 전이와 직렬화한다. 락 순서는 예약 생성·강제 종료와 같은 기기 → 예약 순서를 따른다. 기기가 통세척 점유
+     * 중이면 SmartThings 실행 상태는 통세척의 것이므로 예약 시작으로 판단하지 않는다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public OverdueResult processOverdue(Long reservationId, SmartThingsDeviceStatusResDto status) {
-        var reservation = reservationRepository.findByIdForUpdate(reservationId).orElse(null);
-        if (reservation == null || !reservation.isReserved()) {
+        var machineId = reservationRepository.findMachineIdById(reservationId).orElse(null);
+        var userId = reservationRepository.findUserIdById(reservationId).orElse(null);
+        if (machineId == null || userId == null) {
             return OverdueResult.SKIPPED;
         }
-        var machine = reservation.getMachine();
 
-        var startDecision = reservationStartDecisionSupport.decide(status, machine.isWasher());
+        userRepository.findRoomUserIdsByUserIdForUpdate(userId);
+        var user = userRepository.findByIdForUpdate(userId).orElse(null);
+        if (user == null) {
+            return OverdueResult.SKIPPED;
+        }
+        var machine = machineRepository.findByIdForUpdate(machineId).orElse(null);
+        var reservation = reservationRepository.findByIdForUpdateWithoutRelations(reservationId).orElse(null);
+        if (machine == null || reservation == null || !reservation.isReserved()) {
+            return OverdueResult.SKIPPED;
+        }
+
+        var startDecision = resolveStartDecision(reservationId, machine, status);
         if (startDecision == StartDecision.STARTED) {
             var expectedCompletionTime = DateTimeUtil
                     .parseAndConvertToKoreaTime(status.getCompletionTime(machine.isWasher()));
@@ -91,7 +107,7 @@ public class OverdueReservationProcessor {
             machine.markAsInUse();
             reservationRepository.save(reservation);
             machineRepository.save(machine);
-            reservationNotificationSupport.sendStarted(reservation.getUser(), machine, expectedCompletionTime);
+            reservationNotificationSupport.sendStarted(user, machine, expectedCompletionTime);
             return OverdueResult.AUTO_STARTED;
         }
         if (startDecision == StartDecision.UNKNOWN) {
@@ -119,8 +135,20 @@ public class OverdueReservationProcessor {
             return OverdueResult.CANCELLED_WITHOUT_PENALTY;
         }
 
-        applyTimeoutPenalty(reservation.getUser(), machine);
+        applyTimeoutPenalty(user, machine);
         return OverdueResult.CANCELLED;
+    }
+
+    private StartDecision resolveStartDecision(Long reservationId,
+            Machine machine,
+            SmartThingsDeviceStatusResDto status) {
+        if (machine.isCleaning()) {
+            log.info("reservation timeout ignored running state of tub clean reservationId={} machineId={}",
+                    reservationId,
+                    machine.getId());
+            return StartDecision.IDLE;
+        }
+        return reservationStartDecisionSupport.decide(status, machine.isWasher());
     }
 
     private boolean canCancelUnknownReservation(Reservation reservation) {
@@ -155,14 +183,17 @@ public class OverdueReservationProcessor {
         }
 
         if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
-            final boolean wasBlocked = penaltyRedisUtil.isBlocked(user.getRoomNumber());
-            penaltyRedisUtil.applyBlock(user.getRoomNumber());
-            if (!wasBlocked) {
-                reservationNotificationSupport.sendCancellationBlock(user, machine);
+            final RestrictionStatus previousBlockStatus = penaltyRedisUtil.checkBlock(user.getRoomNumber());
+            // 차단 저장 실패는 PenaltyRedisUtil이 운영 알림으로 보고하며, 타임아웃 취소 자체는 계속 진행한다
+            if (penaltyRedisUtil.applyBlock(user.getRoomNumber())) {
+                // 기존 차단 여부를 조회하지 못했다면 알림 누락보다 중복 발송이 낫다고 보고 발송한다
+                if (previousBlockStatus != RestrictionStatus.RESTRICTED) {
+                    reservationNotificationSupport.sendCancellationBlock(user, machine);
+                }
+                log.warn("48h block applied roomNumber={} exceeded max cancellations {}",
+                        user.getRoomNumber(),
+                        PenaltyConstants.MAX_CANCELLATIONS_IN_48H);
             }
-            log.warn("48h block applied roomNumber={} exceeded max cancellations {}",
-                    user.getRoomNumber(),
-                    PenaltyConstants.MAX_CANCELLATIONS_IN_48H);
         }
     }
 }

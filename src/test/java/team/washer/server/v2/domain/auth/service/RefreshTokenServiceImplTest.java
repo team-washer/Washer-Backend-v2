@@ -17,8 +17,6 @@ import org.springframework.http.HttpStatus;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.RefreshTokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
-import team.washer.server.v2.domain.auth.entity.redis.RefreshTokenEntity;
-import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
 import team.washer.server.v2.domain.auth.service.impl.RefreshTokenServiceImpl;
 import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.user.entity.User;
@@ -38,9 +36,6 @@ class RefreshTokenServiceImplTest {
     private JwtTokenProvider jwtTokenProvider;
 
     @Mock
-    private RefreshTokenRedisRepository refreshTokenRedisRepository;
-
-    @Mock
     private UserRepository userRepository;
 
     @Mock
@@ -49,10 +44,6 @@ class RefreshTokenServiceImplTest {
     private User createUser(final Long userId, final UserRole role) {
         return User.builder().name("김철수").studentId("2021000" + userId).roomNumber("30" + userId).grade(3).floor(3)
                 .penaltyCount(0).role(role).build();
-    }
-
-    private RefreshTokenEntity createRefreshTokenEntity(final Long userId, final String token) {
-        return RefreshTokenEntity.builder().userId(userId).token(token).ttl(2592000L).build();
     }
 
     private RefreshTokenReqDto createRefreshTokenReqDto(final String token) {
@@ -82,14 +73,11 @@ class RefreshTokenServiceImplTest {
                 RefreshTokenReqDto reqDto = createRefreshTokenReqDto(oldRefreshToken);
                 JwtPayload payload = createJwtPayload(userId, role);
                 User user = createUser(userId, role);
-                RefreshTokenEntity refreshTokenEntity = createRefreshTokenEntity(userId, oldRefreshToken);
                 TokenResDto newTokens = new TokenResDto("new.access.token", 3600L, "new.refresh.token");
 
                 given(jwtTokenProvider.parseRefreshToken(oldRefreshToken)).willReturn(payload);
-                given(refreshTokenRedisRepository.findByToken(oldRefreshToken))
-                        .willReturn(Optional.of(refreshTokenEntity));
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(tokenGenerationSupport.generate(userId, role)).willReturn(newTokens);
+                given(tokenGenerationSupport.rotate(userId, role, oldRefreshToken)).willReturn(newTokens);
 
                 // When
                 TokenResDto result = refreshTokenService.execute(reqDto);
@@ -101,9 +89,8 @@ class RefreshTokenServiceImplTest {
                 assertThat(result.expiresIn()).isEqualTo(3600L);
 
                 then(jwtTokenProvider).should(times(1)).parseRefreshToken(oldRefreshToken);
-                then(refreshTokenRedisRepository).should(times(1)).findByToken(oldRefreshToken);
                 then(userRepository).should(times(1)).findById(userId);
-                then(tokenGenerationSupport).should(times(1)).generate(userId, role);
+                then(tokenGenerationSupport).should(times(1)).rotate(userId, role, oldRefreshToken);
             }
         }
 
@@ -129,7 +116,6 @@ class RefreshTokenServiceImplTest {
                         });
 
                 then(jwtTokenProvider).should(times(1)).parseRefreshToken(expiredToken);
-                then(refreshTokenRedisRepository).shouldHaveNoInteractions();
                 then(userRepository).shouldHaveNoInteractions();
                 then(tokenGenerationSupport).shouldHaveNoInteractions();
             }
@@ -147,9 +133,12 @@ class RefreshTokenServiceImplTest {
                 Long userId = 1L;
                 RefreshTokenReqDto reqDto = createRefreshTokenReqDto(unknownToken);
                 JwtPayload payload = createJwtPayload(userId, UserRole.USER);
+                User user = createUser(userId, UserRole.USER);
 
                 given(jwtTokenProvider.parseRefreshToken(unknownToken)).willReturn(payload);
-                given(refreshTokenRedisRepository.findByToken(unknownToken)).willReturn(Optional.empty());
+                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(tokenGenerationSupport.rotate(userId, UserRole.USER, unknownToken))
+                        .willThrow(new ExpectedException("유효하지 않은 Refresh Token입니다.", HttpStatus.UNAUTHORIZED));
 
                 // When & Then
                 assertThatThrownBy(() -> refreshTokenService.execute(reqDto)).isInstanceOf(ExpectedException.class)
@@ -159,9 +148,8 @@ class RefreshTokenServiceImplTest {
                         });
 
                 then(jwtTokenProvider).should(times(1)).parseRefreshToken(unknownToken);
-                then(refreshTokenRedisRepository).should(times(1)).findByToken(unknownToken);
-                then(userRepository).shouldHaveNoInteractions();
-                then(tokenGenerationSupport).shouldHaveNoInteractions();
+                then(userRepository).should(times(1)).findById(userId);
+                then(tokenGenerationSupport).should(times(1)).rotate(userId, UserRole.USER, unknownToken);
             }
         }
 
@@ -177,10 +165,8 @@ class RefreshTokenServiceImplTest {
                 Long deletedUserId = 999L;
                 RefreshTokenReqDto reqDto = createRefreshTokenReqDto(validToken);
                 JwtPayload payload = createJwtPayload(deletedUserId, UserRole.USER);
-                RefreshTokenEntity refreshTokenEntity = createRefreshTokenEntity(deletedUserId, validToken);
 
                 given(jwtTokenProvider.parseRefreshToken(validToken)).willReturn(payload);
-                given(refreshTokenRedisRepository.findByToken(validToken)).willReturn(Optional.of(refreshTokenEntity));
                 given(userRepository.findById(deletedUserId)).willReturn(Optional.empty());
 
                 // When & Then
@@ -191,7 +177,6 @@ class RefreshTokenServiceImplTest {
                         });
 
                 then(jwtTokenProvider).should(times(1)).parseRefreshToken(validToken);
-                then(refreshTokenRedisRepository).should(times(1)).findByToken(validToken);
                 then(userRepository).should(times(1)).findById(deletedUserId);
                 then(tokenGenerationSupport).shouldHaveNoInteractions();
             }
