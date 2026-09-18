@@ -1,150 +1,150 @@
 package team.washer.server.v2.domain.reservation.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Map;
-import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.support.MachineCompletionSignal;
+import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.AttributeState;
+import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.ComponentStatus;
+import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.DryerOperatingState;
+import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.WasherOperatingState;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
-@ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationCompletionDecisionSupport 완료 판정")
 class ReservationCompletionDecisionSupportTest {
 
     private static final ZoneId KOREA_ZONE = ZoneId.of("Asia/Seoul");
+    private static final boolean WASHER = true;
+    private static final boolean DRYER = false;
 
-    @InjectMocks
-    private ReservationCompletionDecisionSupport completionDecisionSupport;
+    private final ReservationCompletionDecisionSupport completionDecisionSupport = new ReservationCompletionDecisionSupport(
+            new MachineStateDetectionSupport());
 
-    @Mock
-    private MachineStateDetectionSupport machineStateDetectionSupport;
-
-    @Mock
-    private Reservation reservation;
-
-    private SmartThingsDeviceStatusResDto buildWasherStatus(String machineState,
-            String jobState,
-            String completionTime) {
-        return buildWasherStatus(machineState, null, jobState, null, completionTime);
-    }
-
-    private SmartThingsDeviceStatusResDto buildWasherStatus(String machineState,
-            String machineStateTimestamp,
-            String jobState,
-            String jobStateTimestamp,
-            String completionTime) {
-        var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState(machineState,
-                machineStateTimestamp,
-                null);
-        var jobStateAttr = new SmartThingsDeviceStatusResDto.AttributeState(jobState, jobStateTimestamp, null);
-        var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
-        var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(machineStateAttr,
-                jobStateAttr,
-                completionTimeAttr);
-        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
-        return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
-    }
-
-    private SmartThingsDeviceStatusResDto buildDryerStatus(String machineState,
-            String jobState,
-            String completionTime) {
-        var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState(machineState, null, null);
-        var jobStateAttr = new SmartThingsDeviceStatusResDto.AttributeState(jobState, null, null);
-        var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
-        var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(machineStateAttr,
-                jobStateAttr,
-                completionTimeAttr);
-        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null, dryerOpState, null, null);
-        return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
-    }
-
-    private String isoUtc(LocalDateTime koreaTime) {
+    private static String isoUtc(LocalDateTime koreaTime) {
         return koreaTime.atZone(KOREA_ZONE).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime().toString() + "Z";
     }
 
-    /**
-     * 기기 상태 해석은 {@code MachineStateDetectionSupportTest}가 담당하므로, 여기서는 감지 결과인
-     * {@link MachineCompletionSignal}만 주입하여 판정 로직에 집중한다.
-     */
-    private void givenDetectedCompletion(LocalDateTime completionTime) {
-        when(machineStateDetectionSupport.detectCompletion(any(), anyBoolean()))
-                .thenReturn(MachineCompletionSignal.completed(completionTime));
+    private static AttributeState attr(String value, LocalDateTime timestamp) {
+        return new AttributeState(value, timestamp == null ? null : isoUtc(timestamp), null);
     }
 
-    private void givenNoDetectedCompletion() {
-        when(machineStateDetectionSupport.detectCompletion(any(), anyBoolean()))
-                .thenReturn(MachineCompletionSignal.none());
+    private static SmartThingsDeviceStatusResDto washerStatus(String machineState,
+            LocalDateTime machineStateUpdatedAt,
+            String jobState,
+            LocalDateTime jobStateUpdatedAt) {
+        var washerOpState = new WasherOperatingState(attr(machineState, machineStateUpdatedAt),
+                attr(jobState, jobStateUpdatedAt),
+                null);
+        return new SmartThingsDeviceStatusResDto(Map.of("main", new ComponentStatus(washerOpState, null, null, null)));
     }
 
-    private void givenJobResetWithFutureCompletion(LocalDateTime completionTime) {
-        when(machineStateDetectionSupport.detectCompletion(any(), anyBoolean()))
-                .thenReturn(MachineCompletionSignal.jobResetWithFutureCompletion(completionTime));
+    private static SmartThingsDeviceStatusResDto dryerStatus(String machineState,
+            LocalDateTime machineStateUpdatedAt,
+            String jobState,
+            LocalDateTime jobStateUpdatedAt) {
+        var dryerOpState = new DryerOperatingState(attr(machineState, machineStateUpdatedAt),
+                attr(jobState, jobStateUpdatedAt),
+                null);
+        return new SmartThingsDeviceStatusResDto(Map.of("main", new ComponentStatus(null, dryerOpState, null, null)));
     }
 
-    /**
-     * 기기가 정지 상태이고 지정한 완료 예정 시각을 보고하는 상황을 만든다.
-     */
-    private void givenStoppedAt(LocalDateTime completionTime) {
-        when(machineStateDetectionSupport.isStopped(any(), anyBoolean())).thenReturn(true);
-        when(machineStateDetectionSupport.resolveCompletionTime(any(), anyBoolean()))
-                .thenReturn(Optional.of(completionTime));
-    }
-
-    private void givenNotStopped() {
-        when(machineStateDetectionSupport.isStopped(any(), anyBoolean())).thenReturn(false);
+    private static Reservation runningReservation(LocalDateTime startTime, LocalDateTime expectedCompletionTime) {
+        return Reservation.builder().status(ReservationStatus.RUNNING).startTime(startTime)
+                .expectedCompletionTime(expectedCompletionTime).build();
     }
 
     @Nested
-    @DisplayName("SmartThings 완료 보고 경로")
-    class SmartThingsCompletedPathTest {
+    @DisplayName("완료 신호가 있을 때")
+    class WithCompletionSignal {
 
         @Test
-        @DisplayName("가드를 모두 통과하면 완료로 판정한다")
-        void shouldReturnCompleted_WhenAllGuardsPassed() {
+        @DisplayName("세탁기 jobState=finish 이면 예상 완료 시각보다 이르더라도 즉시 완료로 판정한다")
+        void shouldComplete_WhenWasherFinishedEarly() {
             // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var status = buildWasherStatus("stop", "finish", isoUtc(nowKst));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(60));
-            when(reservation.getExpectedCompletionTime()).thenReturn(nowKst);
-            givenDetectedCompletion(nowKst);
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(40), now.plusMinutes(10));
+            var status = washerStatus("run", now.minusMinutes(40), "finish", now.minusSeconds(10));
 
             // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
 
             // Then
             assertThat(decision.isCompleted()).isTrue();
-            assertThat(decision.reason()).isEqualTo("smartthings_completed");
-            assertThat(decision.completionTime()).isEqualTo(nowKst);
+            assertThat(decision.reason()).isEqualTo("job_finished");
         }
 
         @Test
-        @DisplayName("완료 시각이 예약 시작 시각보다 이전이면 이전 사이클의 잔재로 보고 보류한다")
-        void shouldDefer_WhenCompletionTimeBeforeStartTime() {
+        @DisplayName("건조기가 구김방지로 machineState=run 이어도 jobState=finished 이면 완료로 판정한다")
+        void shouldComplete_WhenDryerFinishedDuringWrinklePrevent() {
             // Given
-            var startTime = LocalDateTime.now(KOREA_ZONE);
-            var staleCompletionTime = startTime.minusMinutes(5);
-            var status = buildWasherStatus("stop", "finish", isoUtc(staleCompletionTime));
-            when(reservation.getStartTime()).thenReturn(startTime);
-            givenDetectedCompletion(staleCompletionTime);
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(60), now.plusMinutes(3));
+            var status = dryerStatus("run", now.minusMinutes(61), "finished", now.minusMinutes(1));
 
             // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
+            var decision = completionDecisionSupport.decide(reservation, status, DRYER);
+
+            // Then
+            assertThat(decision.isCompleted()).isTrue();
+            assertThat(decision.reason()).isEqualTo("job_finished");
+        }
+
+        @Test
+        @DisplayName("정지 후 jobState=none 으로 리셋된 경우 완료로 판정한다")
+        void shouldComplete_WhenStoppedWithJobReset() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(60), null);
+            var status = washerStatus("stop", now.minusMinutes(1), "none", now.minusMinutes(1));
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
+
+            // Then
+            assertThat(decision.isCompleted()).isTrue();
+            assertThat(decision.reason()).isEqualTo("stopped_idle");
+        }
+
+        @Test
+        @DisplayName("갱신 시각이 없으면 이전 사이클 여부를 알 수 없으므로 완료로 판정한다")
+        void shouldComplete_WhenTimestampMissing() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(60), null);
+            var status = washerStatus("stop", null, "finish", null);
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
+
+            // Then
+            assertThat(decision.isCompleted()).isTrue();
+        }
+    }
+
+    @Nested
+    @DisplayName("이전 사이클 신호일 때")
+    class WithStaleSignal {
+
+        @Test
+        @DisplayName("jobState=finish 갱신 시각이 예약 시작 전이면 보류한다")
+        void shouldDefer_WhenFinishedBeforeStart() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(1), null);
+            var status = washerStatus("stop", now.minusMinutes(30), "finish", now.minusMinutes(30));
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
 
             // Then
             assertThat(decision.isDeferred()).isTrue();
@@ -152,53 +152,30 @@ class ReservationCompletionDecisionSupportTest {
         }
 
         @Test
-        @DisplayName("완료 신호의 갱신 시각이 예약 시작 전이면 이전 사이클의 잔재로 보고 보류한다")
-        void shouldDefer_WhenCompletionSignalTimestampBeforeStartTime() {
+        @DisplayName("정지 신호의 machineState 갱신 시각이 예약 시작 전이면 보류한다")
+        void shouldDefer_WhenStoppedBeforeStart() {
             // Given
-            var startTime = LocalDateTime.now(KOREA_ZONE);
-            var staleTimestamp = isoUtc(startTime.minusMinutes(1));
-            var status = buildWasherStatus("stop", staleTimestamp, "finish", staleTimestamp, isoUtc(startTime));
-            when(reservation.getStartTime()).thenReturn(startTime);
-            givenDetectedCompletion(startTime.plusMinutes(1));
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(1), null);
+            var status = washerStatus("stop", now.minusMinutes(30), "none", now.minusSeconds(10));
 
             // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
 
             // Then
             assertThat(decision.isDeferred()).isTrue();
-            assertThat(decision.reason()).isEqualTo("stale_completion");
         }
 
         @Test
-        @DisplayName("예상 완료 시각보다 지나치게 이른 완료 신호는 보류한다")
-        void shouldDefer_WhenCompletionDetectedTooEarly() {
+        @DisplayName("jobState 완료 신호는 machineState 갱신 시각이 예약 시작 전이어도 이번 사이클 신호로 본다")
+        void shouldComplete_WhenOnlyMachineStateIsOld() {
             // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var status = buildWasherStatus("stop", "finish", isoUtc(nowKst));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(1));
-            when(reservation.getExpectedCompletionTime()).thenReturn(nowKst.plusMinutes(10));
-            givenDetectedCompletion(nowKst);
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(50), null);
+            var status = dryerStatus("run", now.minusMinutes(51), "finished", now.minusSeconds(30));
 
             // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
-
-            // Then
-            assertThat(decision.isDeferred()).isTrue();
-            assertThat(decision.reason()).isEqualTo("too_early_completion");
-        }
-
-        @Test
-        @DisplayName("예상 완료 시각이 없으면 조기 완료 판정을 적용하지 않는다")
-        void shouldReturnCompleted_WhenExpectedCompletionTimeIsNull() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var status = buildWasherStatus("stop", "finish", isoUtc(nowKst));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(30));
-            when(reservation.getExpectedCompletionTime()).thenReturn(null);
-            givenDetectedCompletion(nowKst);
-
-            // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
+            var decision = completionDecisionSupport.decide(reservation, status, DRYER);
 
             // Then
             assertThat(decision.isCompleted()).isTrue();
@@ -206,81 +183,19 @@ class ReservationCompletionDecisionSupportTest {
     }
 
     @Nested
-    @DisplayName("완료 예정 시각 근처 정지 경로")
-    class StoppedNearCompletionPathTest {
+    @DisplayName("완료 신호가 없을 때")
+    class WithoutCompletionSignal {
 
         @Test
-        @DisplayName("완료 예정 시각이 지난 정지 상태는 완료로 판정한다")
-        void shouldReturnCompleted_WhenStoppedAndCompletionTimePassed() {
+        @DisplayName("진행 중이면 미완료로 판정한다")
+        void shouldNotComplete_WhenRunning() {
             // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var completionTime = nowKst.minusMinutes(1);
-            var status = buildWasherStatus("stop", "spin", isoUtc(completionTime));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(40));
-            when(reservation.getExpectedCompletionTime()).thenReturn(completionTime);
-            givenNoDetectedCompletion();
-            givenStoppedAt(completionTime);
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(30), now.minusMinutes(1));
+            var status = washerStatus("run", now.minusMinutes(30), "rinse", now.minusMinutes(5));
 
             // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
-
-            // Then
-            assertThat(decision.isCompleted()).isTrue();
-            assertThat(decision.reason()).isEqualTo("stopped_near_completion");
-        }
-
-        @Test
-        @DisplayName("건조기도 완료 예정 시각이 지난 정지 상태는 완료로 판정한다")
-        void shouldReturnCompletedForDryer_WhenStoppedAndCompletionTimePassed() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var completionTime = nowKst.minusMinutes(1);
-            var status = buildDryerStatus("stop", "drying", isoUtc(completionTime));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(40));
-            when(reservation.getExpectedCompletionTime()).thenReturn(completionTime);
-            givenNoDetectedCompletion();
-            givenStoppedAt(completionTime);
-
-            // When
-            var decision = completionDecisionSupport.decide(reservation, status, false);
-
-            // Then
-            assertThat(decision.isCompleted()).isTrue();
-            assertThat(decision.reason()).isEqualTo("stopped_near_completion");
-        }
-
-        @Test
-        @DisplayName("사이클 도중 잠깐 과거로 보고된 완료 시각은 조기 완료 가드에 걸려 보류한다")
-        void shouldDefer_WhenStoppedMidCycleWithPastCompletionTime() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var reportedCompletionTime = nowKst.minusMinutes(1);
-            var status = buildWasherStatus("stop", "wash", isoUtc(reportedCompletionTime));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(10));
-            when(reservation.getExpectedCompletionTime()).thenReturn(nowKst.plusMinutes(50));
-            givenNoDetectedCompletion();
-            givenStoppedAt(reportedCompletionTime);
-
-            // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
-
-            // Then
-            assertThat(decision.isDeferred()).isTrue();
-            assertThat(decision.reason()).isEqualTo("too_early_completion");
-        }
-
-        @Test
-        @DisplayName("완료 예정 시각이 아직 오지 않았으면 완료 후보로 보지 않는다")
-        void shouldReturnNotCompleted_WhenCompletionTimeStillInFuture() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var status = buildWasherStatus("stop", "spin", isoUtc(nowKst.plusMinutes(3)));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(40));
-            givenNoDetectedCompletion();
-            givenStoppedAt(nowKst.plusMinutes(3));
-
-            // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
 
             // Then
             assertThat(decision.isCompleted()).isFalse();
@@ -288,198 +203,18 @@ class ReservationCompletionDecisionSupportTest {
         }
 
         @Test
-        @DisplayName("완료 예정 시각이 유예 범위를 벗어난 정지는 완료 후보로 보지 않는다")
-        void shouldReturnNotCompleted_WhenCompletionTimeOutsideGracePeriod() {
+        @DisplayName("완료 예정 시각이 지난 정지라도 진행 단계 jobState면 완료로 보지 않는다")
+        void shouldNotComplete_WhenStoppedMidCycleAfterExpectedTime() {
             // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var status = buildWasherStatus("stop", "wash", isoUtc(nowKst.plusMinutes(30)));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(10));
-            givenNoDetectedCompletion();
-            givenStoppedAt(nowKst.plusMinutes(30));
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(60), now.minusMinutes(1));
+            var status = washerStatus("stop", now.minusSeconds(30), "spin", now.minusMinutes(3));
 
             // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
 
             // Then
             assertThat(decision.isCompleted()).isFalse();
-            assertThat(decision.isDeferred()).isFalse();
-        }
-    }
-
-    @Nested
-    @DisplayName("완료 예정 시각 근처 정지 여부 판정")
-    class IsStoppedNearCompletionTest {
-
-        @Test
-        @DisplayName("완료 예정 시각이 유예 범위 안이면 근처 정지로 판정한다")
-        void shouldReturnTrue_WhenCompletionTimeWithinGracePeriod() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var status = buildWasherStatus("stop", "spin", isoUtc(nowKst.plusMinutes(3)));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(40));
-            givenStoppedAt(nowKst.plusMinutes(3));
-
-            // When
-            var result = completionDecisionSupport.isStoppedNearCompletion(reservation, status, true);
-
-            // Then
-            assertThat(result).isTrue();
-        }
-
-        @Test
-        @DisplayName("기기가 정지 상태가 아니면 근처 정지가 아니다")
-        void shouldReturnFalse_WhenMachineNotStopped() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var status = buildWasherStatus("run", "spin", isoUtc(nowKst.plusMinutes(3)));
-            givenNotStopped();
-
-            // When
-            var result = completionDecisionSupport.isStoppedNearCompletion(reservation, status, true);
-
-            // Then
-            assertThat(result).isFalse();
-        }
-
-        @Test
-        @DisplayName("완료 예정 시각이 유예 범위를 벗어나면 근처 정지가 아니다")
-        void shouldReturnFalse_WhenCompletionTimeOutsideGracePeriod() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var status = buildWasherStatus("stop", "wash", isoUtc(nowKst.plusMinutes(30)));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(10));
-            givenStoppedAt(nowKst.plusMinutes(30));
-
-            // When
-            var result = completionDecisionSupport.isStoppedNearCompletion(reservation, status, true);
-
-            // Then
-            assertThat(result).isFalse();
-        }
-    }
-
-    @Nested
-    @DisplayName("jobState 리셋 정지 경로")
-    class StoppedResetCompletionPathTest {
-
-        @Test
-        @DisplayName("jobState 리셋 정지 신호가 오면 현재 시각으로 완료 판정한다")
-        void shouldReturnCompleted_WhenStoppedWithJobResetAndFutureCompletionTime() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var startTime = nowKst.minusMinutes(60);
-            var futureCompletionTime = nowKst.plusHours(1);
-            var status = buildWasherStatus("stop",
-                    isoUtc(nowKst),
-                    "none",
-                    isoUtc(nowKst),
-                    isoUtc(futureCompletionTime));
-            when(reservation.getStartTime()).thenReturn(startTime);
-            when(reservation.getExpectedCompletionTime()).thenReturn(nowKst.minusMinutes(1));
-            givenJobResetWithFutureCompletion(futureCompletionTime);
-            givenStoppedAt(futureCompletionTime);
-
-            // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
-
-            // Then
-            assertThat(decision.isCompleted()).isTrue();
-            assertThat(decision.reason()).isEqualTo("stopped_reset_completion");
-            assertThat(decision.completionTime()).isBetween(nowKst, nowKst.plusMinutes(1));
-        }
-
-        @Test
-        @DisplayName("전원이 꺼진 정지는 완료가 아니라 중단이므로 완료 후보로 보지 않는다")
-        void shouldReturnNotCompleted_WhenPoweredOff() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var futureCompletionTime = nowKst.plusHours(1);
-            var status = buildWasherStatus("stop",
-                    isoUtc(nowKst),
-                    "none",
-                    isoUtc(nowKst),
-                    isoUtc(futureCompletionTime));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(60));
-            when(machineStateDetectionSupport.isPoweredOff(status)).thenReturn(true);
-            givenJobResetWithFutureCompletion(futureCompletionTime);
-            givenStoppedAt(futureCompletionTime);
-
-            // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
-
-            // Then
-            assertThat(decision.isCompleted()).isFalse();
-            assertThat(decision.isDeferred()).isFalse();
-        }
-
-        @Test
-        @DisplayName("상태 갱신 시각이 모두 예약 시작 전이면 이전 사이클의 잔재로 보고 완료 후보로 보지 않는다")
-        void shouldReturnNotCompleted_WhenAllTimestampsBeforeStartTime() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var startTime = nowKst.minusMinutes(10);
-            var staleTimestamp = isoUtc(startTime.minusMinutes(5));
-            var futureCompletionTime = nowKst.plusHours(1);
-            var status = buildWasherStatus("stop",
-                    staleTimestamp,
-                    "none",
-                    staleTimestamp,
-                    isoUtc(futureCompletionTime));
-            when(reservation.getStartTime()).thenReturn(startTime);
-            givenJobResetWithFutureCompletion(futureCompletionTime);
-            givenStoppedAt(futureCompletionTime);
-
-            // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
-
-            // Then
-            assertThat(decision.isCompleted()).isFalse();
-            assertThat(decision.isDeferred()).isFalse();
-        }
-
-        @Test
-        @DisplayName("완료 신호가 없으면 정지 상태여도 완료 후보로 보지 않는다")
-        void shouldReturnNotCompleted_WhenNoCompletionSignal() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var futureCompletionTime = nowKst.plusHours(1);
-            var status = buildWasherStatus("stop",
-                    isoUtc(nowKst),
-                    "spin",
-                    isoUtc(nowKst),
-                    isoUtc(futureCompletionTime));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(10));
-            givenNoDetectedCompletion();
-            givenStoppedAt(futureCompletionTime);
-
-            // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
-
-            // Then
-            assertThat(decision.isCompleted()).isFalse();
-            assertThat(decision.isDeferred()).isFalse();
-        }
-
-        @Test
-        @DisplayName("완료 예정 시각이 이미 지난 리셋 정지는 이 경로가 아니라 SmartThings 완료 보고 경로가 처리한다")
-        void shouldUseSmartThingsPath_WhenCompletionTimeAlreadyPassed() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var passedCompletionTime = nowKst.minusMinutes(30);
-            var status = buildWasherStatus("stop",
-                    isoUtc(nowKst),
-                    "none",
-                    isoUtc(nowKst),
-                    isoUtc(passedCompletionTime));
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(60));
-            givenDetectedCompletion(passedCompletionTime);
-
-            // When
-            var decision = completionDecisionSupport.decide(reservation, status, true);
-
-            // Then
-            assertThat(decision.isCompleted()).isTrue();
-            assertThat(decision.reason()).isEqualTo("smartthings_completed");
         }
     }
 }

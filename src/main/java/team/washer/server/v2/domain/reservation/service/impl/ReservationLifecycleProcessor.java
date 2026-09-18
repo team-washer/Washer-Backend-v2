@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.reservation.service.impl;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -16,7 +17,6 @@ import team.washer.server.v2.domain.notification.support.ReservationNotification
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
-import team.washer.server.v2.domain.reservation.support.CompletionDecision;
 import team.washer.server.v2.domain.reservation.support.ReservationCompletionDecisionSupport;
 import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
@@ -35,7 +35,7 @@ import team.washer.server.v2.global.util.DateTimeUtil;
  *
  * <p>
  * 완료 여부 판정 자체는 {@link ReservationCompletionDecisionSupport}가 전담하고, 이 컴포넌트는 그
- * 결과에 디바운스를 적용하여 상태 전이를 확정한다.
+ * 결과로 상태 전이를 확정한다. 완료 후 기기 전원 차단은 외부 API 호출이므로 호출 측이 트랜잭션 밖에서 수행한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -53,6 +53,12 @@ public class ReservationLifecycleProcessor {
      * 외부 API 호출 대상이 되는 예약의 식별자와 기기 ID 쌍.
      */
     public record LifecycleTarget(Long reservationId, String deviceId) {
+    }
+
+    /**
+     * 예약이 완료되어 전원 차단 대상이 된 기기의 식별 정보. 트랜잭션 밖에서 SmartThings 명령에 사용한다.
+     */
+    public record CompletedMachine(String machineName, String deviceId, boolean isWasher) {
     }
 
     /**
@@ -108,66 +114,40 @@ public class ReservationLifecycleProcessor {
      * 처리한다.
      *
      * <p>
-     * 판정 순서는 완료 → 전원 차단 → 완료 예정 시각 근처 정지 → 비정상 중단 → 일시정지 → 진행이다. 전원 차단은 사이클 종료 직전의
-     * 정지 보류보다 앞에 두어, 유예 범위 안에서 중단이 영영 확정되지 않는 상황을 막는다.
+     * 판정 순서는 완료 → 완료 보류 → 비정상 중단(전원 차단 포함) → 일시정지 → 진행이다.
+     *
+     * @return 예약이 완료된 경우 전원 차단 대상 기기 정보, 그 외에는 빈 값
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void processRunningToCompleted(Long reservationId, SmartThingsDeviceStatusResDto status) {
+    public Optional<CompletedMachine> processRunningToCompleted(Long reservationId,
+            SmartThingsDeviceStatusResDto status) {
         var reservation = reservationRepository.findByIdForUpdate(reservationId).orElse(null);
         if (reservation == null || !reservation.isRunning()) {
-            return;
+            return Optional.empty();
         }
         var machine = reservation.getMachine();
         var isWasher = machine.isWasher();
 
         var decision = completionDecisionSupport.decide(reservation, status, isWasher);
         if (decision.isCompleted()) {
-            processCompletionCandidate(reservation, machine, decision);
-            return;
+            completeReservation(reservation, machine, decision.completionTime(), decision.reason());
+            return Optional.of(new CompletedMachine(machine.getName(), machine.getDeviceId(), isWasher));
         }
-
-        clearCompletionCount(reservation);
         if (decision.isDeferred()) {
             logCompletionDeferred(reservation, decision.reason(), decision.completionTime());
-            return;
+            return Optional.empty();
         }
 
-        if (machineStateDetectionSupport.isPoweredOff(status)) {
-            processInterruption(reservation, machine);
-            return;
-        }
-        if (completionDecisionSupport.isStoppedNearCompletion(reservation, status, isWasher)) {
-            logCompletionDeferred(reservation, "stopped_near_completion", reservation.getExpectedCompletionTime());
-            return;
-        }
         if (machineStateDetectionSupport.isInterrupted(status, isWasher)) {
             processInterruption(reservation, machine);
-            return;
+            return Optional.empty();
         }
         if (machineStateDetectionSupport.isPaused(status, isWasher)) {
             processPaused(reservation, machine);
-            return;
+            return Optional.empty();
         }
         processRunning(reservation, status, isWasher);
-    }
-
-    /**
-     * 완료 후보를 디바운스한다. 연속으로 {@code COMPLETION_CONFIRM_THRESHOLD}회 완료로 판정된 경우에만 완료를
-     * 확정하여, 사이클 도중 한 번 보고된 순간 정지가 곧바로 완료로 굳어지는 것을 막는다.
-     */
-    private void processCompletionCandidate(Reservation reservation, Machine machine, CompletionDecision decision) {
-        reservation.incrementCompletionCount();
-        if (reservation.getCompletionCount() < ReservationConstants.COMPLETION_CONFIRM_THRESHOLD) {
-            reservationRepository.save(reservation);
-            log.info("completion suspected reservationId={} reason={} count={} threshold={} completionTime={}",
-                    reservation.getId(),
-                    decision.reason(),
-                    reservation.getCompletionCount(),
-                    ReservationConstants.COMPLETION_CONFIRM_THRESHOLD,
-                    decision.completionTime());
-            return;
-        }
-        completeReservation(reservation, machine, decision.completionTime(), decision.reason());
+        return Optional.empty();
     }
 
     private void processInterruption(Reservation reservation, Machine machine) {
@@ -226,8 +206,8 @@ public class ReservationLifecycleProcessor {
     }
 
     /**
-     * 기기가 정상 진행 중일 때 디바운스 카운터와 일시정지 추적을 정리하고, 기기가 보고한 완료 예정 시각을 반영한다. 상한을 벗어난 이상치는
-     * 엔티티가 거부하므로 조기 완료 판정의 기준선이 오염되지 않는다.
+     * 기기가 정상 진행 중일 때 디바운스 카운터와 일시정지 추적을 정리하고, 기기가 보고한 완료 예정 시각을 반영한다. 저장된 완료 예정 시각은
+     * 완료 후 세탁기 배수 유예의 기준이 되며, 상한을 벗어난 이상치는 엔티티가 거부한다.
      */
     private void processRunning(Reservation reservation, SmartThingsDeviceStatusResDto status, boolean isWasher) {
         var changed = false;
@@ -273,7 +253,6 @@ public class ReservationLifecycleProcessor {
             LocalDateTime completionTime,
             String reason) {
         reservation.complete();
-        reservation.clearCompletionCount();
         reservation.clearInterruptionCount();
         reservation.clearPausedAt();
         machine.releaseIfHeld();
@@ -291,13 +270,6 @@ public class ReservationLifecycleProcessor {
                 machine.getName(),
                 completionTime,
                 reservation.getExpectedCompletionTime());
-    }
-
-    private void clearCompletionCount(Reservation reservation) {
-        if (reservation.getCompletionCount() > 0) {
-            reservation.clearCompletionCount();
-            reservationRepository.save(reservation);
-        }
     }
 
     private void logCompletionDeferred(Reservation reservation, String reason, LocalDateTime completionTime) {

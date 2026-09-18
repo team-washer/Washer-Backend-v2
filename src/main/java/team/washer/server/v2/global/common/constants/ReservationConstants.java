@@ -20,15 +20,16 @@ public final class ReservationConstants {
     public static final int INTERRUPTION_CONFIRM_THRESHOLD = 3;
 
     /**
-     * 사이클 완료를 확정하기 전까지 연속으로 완료가 감지되어야 하는 폴링 횟수. SmartThings가 사이클 도중 단 한 번 순간적으로 보고한
-     * 정지·완료 신호를 곧바로 확정 처리하지 않도록 디바운스하는 데 사용한다. 라이프사이클 폴링 주기(30초) 기준 완료 반영이 최대 30초
-     * 지연된다.
-     */
-    public static final int COMPLETION_CONFIRM_THRESHOLD = 2;
-
-    /**
      * 하나의 세탁·건조 사이클이 가질 수 있는 최대 길이(분). 기기가 보고한 완료 예정 시각이 이 범위를 벗어나면 이상치로 보고 저장하지
-     * 않는다. 조기 완료 판정({@code isTooEarlyCompletion})이 오염된 기준선 위에서 동작하는 것을 막기 위한 상한이다.
+     * 않는다. 완료 후 세탁기 배수 유예({@link #WASHER_DRAIN_GRACE_MINUTES})의 기준 시각이 오염되는 것을 막기
+     * 위한 상한이다.
      */
     public static final int MAX_REASONABLE_CYCLE_MINUTES = 240;
+
+    /**
+     * 예약 완료 후에도 작동 중인 세탁기의 전원 차단을 미루는 시간(분). 세탁기는 배수·탈수가 끝나기 전에 완료를 보고할 수 있으므로, 마지막
+     * 완료 예약의 완료 예정 시각(없으면 실제 완료 시각)에 이 시간을 더한 시각까지는 작동 중인 세탁기의 전원을 끄지 않는다. 기기가 먼저
+     * 정지하면 유예와 무관하게 전원을 차단한다.
+     */
+    public static final int WASHER_DRAIN_GRACE_MINUTES = 5;
 }

@@ -78,6 +78,10 @@ public class Reservation extends BaseEntity {
     @Builder.Default
     private int interruptionCount = 0;
 
+    /**
+     * 더 이상 사용하지 않는 완료 디바운스 카운터입니다. 운영 DB의 NOT NULL 컬럼과 맞추기 위해 남겨 두며, 컬럼 삭제 후 함께
+     * 제거합니다.
+     */
     @Column(name = "completion_count", nullable = false)
     @Builder.Default
     private int completionCount = 0;
@@ -109,20 +113,6 @@ public class Reservation extends BaseEntity {
      */
     public void clearInterruptionCount() {
         this.interruptionCount = 0;
-    }
-
-    /**
-     * 사이클 완료 감지 횟수를 1 증가시킵니다. 기기가 순간적으로 보고한 완료 신호를 진짜 완료와 구분하기 위한 디바운스 카운터입니다.
-     */
-    public void incrementCompletionCount() {
-        this.completionCount++;
-    }
-
-    /**
-     * 사이클 완료 감지 추적을 초기화합니다. 완료 신호가 사라지거나 가드에 의해 보류되면 호출합니다.
-     */
-    public void clearCompletionCount() {
-        this.completionCount = 0;
     }
 
     /**

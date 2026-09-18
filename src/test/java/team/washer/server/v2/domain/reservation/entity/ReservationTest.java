@@ -146,31 +146,6 @@ class ReservationTest {
     }
 
     @Nested
-    @DisplayName("완료 디바운스 카운터")
-    class CompletionCountTest {
-
-        @Test
-        @DisplayName("감지될 때마다 1씩 증가하고 초기화하면 0으로 돌아간다")
-        void shouldIncrementAndClear() {
-            // Given
-            var reservation = buildReservedReservation();
-
-            // When
-            reservation.incrementCompletionCount();
-            reservation.incrementCompletionCount();
-
-            // Then
-            assertThat(reservation.getCompletionCount()).isEqualTo(2);
-
-            // When
-            reservation.clearCompletionCount();
-
-            // Then
-            assertThat(reservation.getCompletionCount()).isZero();
-        }
-    }
-
-    @Nested
     @DisplayName("현재 활성 예약 판정")
     class IsCurrentlyActiveTest {
 
