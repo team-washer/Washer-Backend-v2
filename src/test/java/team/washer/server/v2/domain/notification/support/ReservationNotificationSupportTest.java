@@ -154,7 +154,7 @@ class ReservationNotificationSupportTest {
             final String expectedBody = machine.getName() + "의 " + machineType.getActionNoun()
                     + " 시작되었습니다.\n예상 완료 시간: 14:30";
             then(fcmNotificationSupport).should(times(1))
-                    .send(user, machineType.getDescription() + " 시작 알림", expectedBody);
+                    .sendAfterCommit(user, machineType.getDescription() + " 시작 알림", expectedBody);
         }
     }
 
@@ -180,7 +180,7 @@ class ReservationNotificationSupportTest {
             final String expectedBody = "관리자에 의해 " + machine.getName() + "의 " + machineType.getActionNoun()
                     + " 정지되어 예약이 패널티 없이 취소되었습니다.";
             then(fcmNotificationSupport).should(times(1))
-                    .send(user, machineType.getDescription() + " 강제 정지 알림", expectedBody);
+                    .sendAfterCommit(user, machineType.getDescription() + " 강제 정지 알림", expectedBody);
         }
     }
 
@@ -204,13 +204,13 @@ class ReservationNotificationSupportTest {
             reservationNotificationSupport.sendCompletion(user, machine);
 
             // Then
-            then(fcmNotificationSupport).should(never()).send(any(), anyString(), anyString());
+            then(fcmNotificationSupport).should(never()).sendAfterCommit(any(), anyString(), anyString());
             final var synchronizations = TransactionSynchronizationManager.getSynchronizations();
             assertThat(synchronizations).hasSize(1);
 
             synchronizations.getFirst().afterCommit();
 
-            then(fcmNotificationSupport).should(times(1)).send(eq(user), anyString(), anyString());
+            then(fcmNotificationSupport).should(times(1)).sendAfterCommit(eq(user), anyString(), anyString());
         }
     }
 
@@ -228,7 +228,7 @@ class ReservationNotificationSupportTest {
                     .willAnswer(invocation -> invocation.getArgument(0));
             given(notificationRepository.countByUser(user)).willReturn(1L);
             willThrow(new RuntimeException("fcm down")).given(fcmNotificationSupport)
-                    .send(any(), anyString(), anyString());
+                    .sendAfterCommit(any(), anyString(), anyString());
 
             // When & Then
             assertThatCode(() -> reservationNotificationSupport.sendCompletion(user, machine))

@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.notification.service.impl;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
@@ -16,7 +17,7 @@ public class DeleteFcmTokenIfMatchesServiceImpl implements DeleteFcmTokenIfMatch
     private final UserRepository userRepository;
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void execute(final Long userId, final String token) {
         if (token == null || token.isBlank()) {
             return;
