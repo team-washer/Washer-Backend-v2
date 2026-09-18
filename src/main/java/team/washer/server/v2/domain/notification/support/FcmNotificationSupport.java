@@ -17,7 +17,7 @@ import com.google.firebase.messaging.WebpushNotification;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.washer.server.v2.domain.notification.service.DeleteFcmTokenService;
+import team.washer.server.v2.domain.notification.service.DeleteFcmTokenIfMatchesService;
 import team.washer.server.v2.domain.user.entity.User;
 
 /**
@@ -29,7 +29,7 @@ import team.washer.server.v2.domain.user.entity.User;
 public class FcmNotificationSupport {
 
     private final FirebaseMessaging firebaseMessaging;
-    private final DeleteFcmTokenService deleteFcmTokenService;
+    private final DeleteFcmTokenIfMatchesService deleteFcmTokenIfMatchesService;
 
     /**
      * FCM 푸시 알림을 전송한다.
@@ -60,8 +60,11 @@ public class FcmNotificationSupport {
             log.error("Failed to send FCM notification userId={} errorCode={}", user.getId(), errorCode, e);
             if (errorCode == MessagingErrorCode.UNREGISTERED || errorCode == MessagingErrorCode.INVALID_ARGUMENT) {
                 log.warn("Removing invalid FCM token userId={} errorCode={}", user.getId(), errorCode);
-                user.clearFcmToken();
-                deleteFcmTokenService.execute(user.getId());
+                try {
+                    deleteFcmTokenIfMatchesService.execute(user.getId(), token);
+                } catch (RuntimeException cleanupException) {
+                    log.error("Failed to remove invalid FCM token userId={}", user.getId(), cleanupException);
+                }
             }
         }
     }
