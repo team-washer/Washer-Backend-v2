@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.reservation.service;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -10,6 +11,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,8 +23,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.impl.ProcessReservationLifecycleServiceImpl;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor;
+import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.CompletedMachine;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.LifecycleTarget;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,6 +41,9 @@ class ProcessReservationLifecycleServiceTest {
 
     @Mock
     private DeviceStatusQuerySupport deviceStatusQuerySupport;
+
+    @Mock
+    private DeviceShutdownSupport deviceShutdownSupport;
 
     private SmartThingsDeviceStatusResDto buildDeviceStatus(String completionTime) {
         var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
@@ -64,6 +71,49 @@ class ProcessReservationLifecycleServiceTest {
         // Then
         verify(reservationLifecycleProcessor, times(1)).processReservedToRunning(1L, reservedStatus);
         verify(reservationLifecycleProcessor, times(1)).processRunningToCompleted(2L, runningStatus);
+        verify(deviceShutdownSupport, never()).shutdownAfterCompletion(any(), any(), anyBoolean(), any());
+    }
+
+    @Test
+    @DisplayName("예약이 완료되면 트랜잭션 밖에서 완료 판정에 쓴 상태로 기기 전원 차단을 요청한다")
+    void execute_ShouldShutdownMachine_WhenReservationCompleted() {
+        // Given
+        var runningStatus = buildDeviceStatus("2026-01-26T16:00:00Z");
+        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED)).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING))
+                .thenReturn(List.of(new LifecycleTarget(2L, "device-2")));
+        when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenReturn(runningStatus);
+        when(reservationLifecycleProcessor.processRunningToCompleted(2L, runningStatus))
+                .thenReturn(Optional.of(new CompletedMachine("D-2F-L1", "device-2", false)));
+
+        // When
+        processReservationLifecycleService.execute();
+
+        // Then
+        verify(deviceShutdownSupport, times(1)).shutdownAfterCompletion("D-2F-L1", "device-2", false, runningStatus);
+    }
+
+    @Test
+    @DisplayName("완료 후 전원 차단이 실패해도 다음 예약 처리를 계속한다")
+    void execute_ShouldContinue_WhenShutdownAfterCompletionFails() {
+        // Given
+        var firstStatus = buildDeviceStatus("2026-01-26T16:00:00Z");
+        var secondStatus = buildDeviceStatus("2026-01-26T16:10:00Z");
+        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED)).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING))
+                .thenReturn(List.of(new LifecycleTarget(2L, "device-2"), new LifecycleTarget(3L, "device-3")));
+        when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenReturn(firstStatus);
+        when(deviceStatusQuerySupport.queryDeviceStatus("device-3")).thenReturn(secondStatus);
+        when(reservationLifecycleProcessor.processRunningToCompleted(2L, firstStatus))
+                .thenReturn(Optional.of(new CompletedMachine("D-2F-L1", "device-2", false)));
+        when(deviceShutdownSupport.shutdownAfterCompletion("D-2F-L1", "device-2", false, firstStatus))
+                .thenThrow(new RuntimeException("api error"));
+
+        // When
+        processReservationLifecycleService.execute();
+
+        // Then
+        verify(reservationLifecycleProcessor, times(1)).processRunningToCompleted(3L, secondStatus);
     }
 
     @Test
