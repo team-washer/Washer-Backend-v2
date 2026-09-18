@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -26,6 +27,10 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     Optional<User> findByIdForUpdate(@Param("id") Long id);
 
     Optional<User> findByStudentId(String studentId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("UPDATE User u SET u.fcmToken = null WHERE u.id = :userId AND u.fcmToken = :token")
+    int clearFcmTokenIfMatches(@Param("userId") Long userId, @Param("token") String token);
 
     boolean existsByStudentId(String studentId);
 
