@@ -19,6 +19,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.impl.ProcessReservationLifecycleServiceImpl;
@@ -26,8 +27,10 @@ import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycl
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.CompletedMachine;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.LifecycleTarget;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ProcessReservationLifecycleService 조율")
@@ -44,6 +47,9 @@ class ProcessReservationLifecycleServiceTest {
 
     @Mock
     private DeviceShutdownSupport deviceShutdownSupport;
+
+    @Mock
+    private DiscordErrorNotificationService discordErrorNotificationService;
 
     private SmartThingsDeviceStatusResDto buildDeviceStatus(String completionTime) {
         var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
@@ -91,6 +97,33 @@ class ProcessReservationLifecycleServiceTest {
 
         // Then
         verify(deviceShutdownSupport, times(1)).shutdownAfterCompletion("D-2F-L1", "device-2", false, runningStatus);
+    }
+
+    @Test
+    @DisplayName("완료 후 전원 차단이 SmartThings 권한 오류로 실패하면 Discord로 알리고 남은 예약 처리를 중단한다")
+    void execute_ShouldNotifyAndStop_WhenShutdownRejectedByPermission() {
+        // Given
+        var firstStatus = buildDeviceStatus("2026-01-26T16:00:00Z");
+        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED)).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING))
+                .thenReturn(List.of(new LifecycleTarget(2L, "device-2"), new LifecycleTarget(3L, "device-3")));
+        when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenReturn(firstStatus);
+        when(reservationLifecycleProcessor.processRunningToCompleted(2L, firstStatus))
+                .thenReturn(Optional.of(new CompletedMachine("D-2F-L1", "device-2", false)));
+        when(deviceShutdownSupport.shutdownAfterCompletion("D-2F-L1", "device-2", false, firstStatus))
+                .thenThrow(new SmartThingsPermissionException("권한 없음"));
+        ReflectionTestUtils.setField(processReservationLifecycleService,
+                "discordErrorNotificationService",
+                discordErrorNotificationService);
+
+        // When
+        processReservationLifecycleService.execute();
+
+        // Then
+        verify(discordErrorNotificationService, times(1))
+                .notifyError(any(SmartThingsPermissionException.class), eq("예약 완료 기기 종료 - SmartThings 권한 오류"), any());
+        verify(deviceStatusQuerySupport, never()).queryDeviceStatus("device-3");
+        verify(reservationLifecycleProcessor, never()).processRunningToCompleted(eq(3L), any());
     }
 
     @Test
