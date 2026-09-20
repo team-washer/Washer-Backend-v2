@@ -52,12 +52,17 @@ class UserRepositoryFcmTokenTest {
         @Test
         @DisplayName("저장된 토큰과 일치할 때만 토큰을 삭제해야 한다")
         void it_clears_matching_token() {
+            // Given
+            final Long versionBeforeDeletion = entityManager.find(User.class, userId).getVersion();
+
             // When
             final int deletedCount = userRepository.clearFcmTokenIfMatches(userId, OLD_TOKEN);
 
             // Then
             assertThat(deletedCount).isOne();
-            assertThat(entityManager.find(User.class, userId).getFcmToken()).isNull();
+            final User user = entityManager.find(User.class, userId);
+            assertThat(user.getFcmToken()).isNull();
+            assertThat(user.getVersion()).isEqualTo(versionBeforeDeletion + 1);
         }
 
         @Test

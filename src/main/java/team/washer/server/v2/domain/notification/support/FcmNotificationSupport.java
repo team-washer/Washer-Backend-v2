@@ -59,13 +59,6 @@ public class FcmNotificationSupport {
         sendNow(userId, token, title, body);
     }
 
-    /**
-     * 이미 등록된 트랜잭션 커밋 콜백에서 FCM 알림을 전송한다.
-     */
-    void sendAfterCommit(final User user, final String title, final String body) {
-        sendNow(user.getId(), user.getFcmToken(), title, body);
-    }
-
     private void sendNow(final Long userId, final String token, final String title, final String body) {
         if (token == null || token.isBlank()) {
             log.info("FCM token not found skipping notification userId={}", userId);
@@ -97,6 +90,8 @@ public class FcmNotificationSupport {
                     log.error("Failed to remove invalid FCM token userId={}", userId, cleanupException);
                 }
             }
+        } catch (RuntimeException e) {
+            log.error("Failed to prepare or send FCM notification userId={}", userId, e);
         }
     }
 

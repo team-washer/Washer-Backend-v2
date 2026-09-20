@@ -29,7 +29,8 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     Optional<User> findByStudentId(String studentId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query("UPDATE User u SET u.fcmToken = null WHERE u.id = :userId AND u.fcmToken = :token")
+    @Query("UPDATE VERSIONED User u SET u.fcmToken = null, u.updatedAt = CURRENT_TIMESTAMP "
+            + "WHERE u.id = :userId AND u.fcmToken = :token")
     int clearFcmTokenIfMatches(@Param("userId") Long userId, @Param("token") String token);
 
     boolean existsByStudentId(String studentId);

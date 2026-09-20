@@ -142,7 +142,7 @@ public class ReservationNotificationSupport {
 
     private void sendFcm(final User user, final Notification notification, final String fcmTitle) {
         try {
-            fcmNotificationSupport.sendAfterCommit(user, fcmTitle, notification.getMessage());
+            fcmNotificationSupport.send(user, fcmTitle, notification.getMessage());
         } catch (RuntimeException e) {
             log.error("FCM notification send failed userId={} type={}", user.getId(), notification.getType(), e);
         }

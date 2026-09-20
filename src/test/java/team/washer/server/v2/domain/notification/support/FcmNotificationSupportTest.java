@@ -144,5 +144,23 @@ class FcmNotificationSupportTest {
 
             then(firebaseMessaging).should(times(1)).send(any(Message.class));
         }
+
+        @Test
+        @DisplayName("커밋 이후 전송에서 런타임 예외가 발생해도 호출자에게 전파하지 않아야 한다")
+        void it_does_not_propagate_runtime_exception_after_transaction_commit() throws Exception {
+            // Given
+            final User user = createUserWithToken();
+            willThrow(new IllegalStateException("Firebase unavailable")).given(firebaseMessaging)
+                    .send(any(Message.class));
+            TransactionSynchronizationManager.setActualTransactionActive(true);
+            TransactionSynchronizationManager.initSynchronization();
+
+            // When
+            fcmNotificationSupport.send(user, "제목", "본문");
+
+            // Then
+            final var synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            assertThatCode(() -> synchronizations.getFirst().afterCommit()).doesNotThrowAnyException();
+        }
     }
 }
