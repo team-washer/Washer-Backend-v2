@@ -36,6 +36,7 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
@@ -213,6 +214,42 @@ class QueryAllMachinesStatusServiceTest {
 
             // Then
             assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.UNAVAILABLE);
+        }
+
+        @Test
+        @DisplayName("외부 조회 후 기기 연결이 바뀌면 이전 기기 상태를 최신 기기에 적용하지 않는다")
+        void execute_ShouldIgnoreExternalStatus_WhenMachineDeviceChangesDuringExternalQuery() {
+            // Given
+            givenUserMocked();
+            final var initialMachine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1")
+                    .floor(3).position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.AVAILABLE).build();
+            final var latestMachine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-2")
+                    .floor(3).position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.IN_USE).build();
+            ReflectionTestUtils.setField(initialMachine, "id", 1L);
+            ReflectionTestUtils.setField(latestMachine, "id", 1L);
+            final var runningState = new SmartThingsDeviceStatusResDto.AttributeState("run",
+                    "2026-01-26T14:00:00Z",
+                    null);
+            final var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main",
+                    new SmartThingsDeviceStatusResDto.ComponentStatus(
+                            new SmartThingsDeviceStatusResDto.WasherOperatingState(runningState, null, null),
+                            null,
+                            null,
+                            null)));
+            when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(initialMachine));
+            when(machineRepository.findAllById(List.of(1L))).thenReturn(List.of(latestMachine));
+            when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
+                    .thenReturn(Map.of("device-1", deviceStatus));
+            when(reservationRepository.findCurrentlyActiveReservationByMachineId(1L)).thenReturn(Optional.empty());
+
+            // When
+            final var result = queryAllMachinesStatusService.execute(USER_ID, true);
+
+            // Then
+            assertThat(result.getFirst().operatingState()).isEqualTo(MachineOperatingState.UNKNOWN);
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.IN_USE);
         }
 
         @Test

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -59,11 +60,12 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
         final var currentStates = loadCurrentStates(machineSnapshots);
 
         final var results = machineSnapshots.stream().map(machine -> currentStates.get(machine.id()))
-                .filter(currentState -> currentState != null)
-                .map(currentState -> mapToStatusDto(currentState.machine(),
-                        deviceStatusMap.get(currentState.machine().deviceId()),
-                        currentState.reservation()))
-                .toList();
+                .filter(currentState -> currentState != null).map(currentState -> {
+                    final var deviceStatus = currentState.externalStatusApplicable()
+                            ? deviceStatusMap.get(currentState.queriedDeviceId())
+                            : null;
+                    return mapToStatusDto(currentState.machine(), deviceStatus, currentState.reservation());
+                }).toList();
 
         log.info("Successfully queried status for {} machines", results.size());
 
@@ -95,8 +97,13 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
                 }
                 final var reservation = reservationRepository.findCurrentlyActiveReservationByMachineId(machine.id())
                         .orElse(null);
+                final var currentSnapshot = MachineSnapshot.from(currentMachine);
                 currentStates.put(machine.id(),
-                        new CurrentMachineState(MachineSnapshot.from(currentMachine), reservation));
+                        new CurrentMachineState(currentSnapshot,
+                                reservation,
+                                machine.deviceId(),
+                                Objects.equals(machine.deviceId(), currentSnapshot.deviceId())
+                                        && machine.washer() == currentSnapshot.washer()));
             }
             return currentStates;
         });
@@ -165,6 +172,11 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
             return machine.availability();
         }
         if (reservation == null) {
+            if (deviceStatus == null) {
+                return machine.availability() == MachineAvailability.RESERVED
+                        ? MachineAvailability.AVAILABLE
+                        : machine.availability();
+            }
             return isOperating(machine, deviceStatus) ? MachineAvailability.IN_USE : MachineAvailability.AVAILABLE;
         }
         return switch (reservation.getStatus()) {
@@ -201,6 +213,7 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
         }
     }
 
-    private record CurrentMachineState(MachineSnapshot machine, Reservation reservation) {
+    private record CurrentMachineState(MachineSnapshot machine, Reservation reservation, String queriedDeviceId,
+            boolean externalStatusApplicable) {
     }
 }
