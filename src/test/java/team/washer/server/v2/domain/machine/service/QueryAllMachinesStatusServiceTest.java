@@ -191,6 +191,51 @@ class QueryAllMachinesStatusServiceTest {
         }
 
         @Test
+        @DisplayName("외부 조회 중 기기 상태가 바뀌면 최신 DB 상태를 우선한다")
+        void execute_ShouldUseLatestMachineState_WhenMachineChangesDuringExternalQuery() {
+            // Given
+            givenUserMocked();
+            final var initialMachine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1")
+                    .floor(3).position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.AVAILABLE).build();
+            final var latestMachine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1")
+                    .floor(3).position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.UNAVAILABLE).build();
+            ReflectionTestUtils.setField(initialMachine, "id", 1L);
+            ReflectionTestUtils.setField(latestMachine, "id", 1L);
+            when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(initialMachine));
+            when(machineRepository.findAllById(List.of(1L))).thenReturn(List.of(latestMachine));
+            when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1"))).thenReturn(Map.of());
+            when(reservationRepository.findCurrentlyActiveReservationByMachineId(1L)).thenReturn(Optional.empty());
+
+            // When
+            final var result = queryAllMachinesStatusService.execute(USER_ID, true);
+
+            // Then
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.UNAVAILABLE);
+        }
+
+        @Test
+        @DisplayName("외부 상태 조회가 실패하면 최신 DB 상태 재조회 없이 예외를 전달한다")
+        void execute_ShouldPreserveDatabaseState_WhenExternalQueryFails() {
+            // Given
+            givenUserMocked();
+            final var machine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
+                    .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.AVAILABLE).build();
+            ReflectionTestUtils.setField(machine, "id", 1L);
+            when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
+            when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
+                    .thenThrow(new IllegalStateException("external status unavailable"));
+
+            // When & Then
+            assertThatThrownBy(() -> queryAllMachinesStatusService.execute(USER_ID, true))
+                    .isInstanceOf(IllegalStateException.class);
+            verify(machineRepository, never()).findAllById(any());
+            verify(reservationRepository, never()).findCurrentlyActiveReservationByMachineId(any());
+        }
+
+        @Test
         @DisplayName("건조기 상태 조회 시 건조기 완료 예정 시간을 사용해야 한다")
         void execute_ShouldUseDryerCompletionTime_WhenDryerStatusContainsWasherAndDryerCapabilities() {
             // Given
