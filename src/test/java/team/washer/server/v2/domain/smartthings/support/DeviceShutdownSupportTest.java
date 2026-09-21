@@ -135,6 +135,20 @@ class DeviceShutdownSupportTest {
         }
 
         @Test
+        @DisplayName("machineState를 읽을 수 없으면 종료하지 않고 SKIPPED_UNKNOWN을 반환한다")
+        void shouldSkip_WhenMachineStateUnknown() {
+            // Given
+            var machine = machine(MachineType.WASHER);
+
+            // When
+            var result = deviceShutdownSupport.shutdown(machine, washerStatus(null, "on"));
+
+            // Then
+            assertThat(result).isEqualTo(ShutdownResult.SKIPPED_UNKNOWN);
+            then(sendDeviceCommandService).should(never()).execute(any(), any());
+        }
+
+        @Test
         @DisplayName("상태가 null이면 안전을 위해 종료하지 않고 SKIPPED_UNKNOWN을 반환한다")
         void shouldSkip_WhenStatusNull() {
             // Given

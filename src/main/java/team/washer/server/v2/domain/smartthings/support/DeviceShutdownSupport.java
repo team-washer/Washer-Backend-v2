@@ -95,6 +95,16 @@ public class DeviceShutdownSupport {
             return ShutdownResult.POWERED_OFF;
         }
 
+        // machineState를 읽을 수 없으면 사용 중인지 판단할 근거가 없다. 만료된 RESERVED 예약도 같은 이유로
+        // 시작 여부 판정이 보류되므로(OverdueReservationProcessor), 여기서도 전원을 차단하지 않는다.
+        if (status.getOperatingState(isWasher) == MachineOperatingState.UNKNOWN) {
+            log.warn("device machine state unknown, skip shutdown machine={} deviceId={} switchStatus={}",
+                    machineName,
+                    deviceId,
+                    status.getSwitchStatus());
+            return ShutdownResult.SKIPPED_UNKNOWN;
+        }
+
         sendDeviceCommandService.execute(deviceId, SmartThingsCommandReqDto.powerOff());
         log.info("device powered off machine={} deviceId={} machineState={}",
                 machineName,
