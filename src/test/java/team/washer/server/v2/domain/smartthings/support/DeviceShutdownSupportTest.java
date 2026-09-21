@@ -192,6 +192,18 @@ class DeviceShutdownSupportTest {
         }
 
         @Test
+        @DisplayName("machineState를 읽을 수 없어도 사이클 종료가 확인된 기기이므로 전원을 차단한다")
+        void shouldPowerOff_WhenMachineStateUnknown() {
+            // When
+            var result = deviceShutdownSupport
+                    .shutdownAfterCompletion("D-2F-L1", "device-1", false, dryerStatus(null, "on"));
+
+            // Then
+            assertThat(result).isEqualTo(ShutdownResult.POWERED_OFF);
+            assertPowerOffSent();
+        }
+
+        @Test
         @DisplayName("세탁기가 작동 중이면 배수 중일 수 있으므로 전원을 차단하지 않는다")
         void shouldSkipWasher_WhenRunning() {
             // When

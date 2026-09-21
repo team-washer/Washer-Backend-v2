@@ -47,12 +47,16 @@ public class DeviceShutdownSupport {
      * @return 종료 처리 결과
      */
     public ShutdownResult shutdown(Machine machine, SmartThingsDeviceStatusResDto status) {
-        return powerOff(machine.getName(), machine.getDeviceId(), machine.isWasher(), status);
+        return powerOff(machine.getName(), machine.getDeviceId(), machine.isWasher(), status, true);
     }
 
     /**
      * 예약 완료 후 기기 전원을 차단한다. 건조기는 작동 중이어도 즉시 차단해 구김방지 단계 진입을 막고, 세탁기는 작동 중이면 배수 중일 수
      * 있으므로 차단하지 않는다.
+     *
+     * <p>
+     * 사이클이 끝났다는 것이 이미 확인된 기기이므로, machineState를 읽지 못하더라도 전원을 차단한다. 여기서 건너뛰면 유휴 기기 종료
+     * 스케줄러도 같은 이유로 건너뛰어 기기가 켜진 채 남는다.
      *
      * @return 종료 처리 결과
      */
@@ -67,7 +71,7 @@ public class DeviceShutdownSupport {
                     status.getOperatingState(true));
             return ShutdownResult.SKIPPED_WASHER_DRAINING;
         }
-        return powerOff(machineName, deviceId, isWasher, status);
+        return powerOff(machineName, deviceId, isWasher, status, false);
     }
 
     /**
@@ -81,10 +85,18 @@ public class DeviceShutdownSupport {
         return machineState == MachineOperatingState.RUN || machineState == MachineOperatingState.PAUSE;
     }
 
+    /**
+     * 기기 전원을 차단한다.
+     *
+     * @param requireKnownState
+     *            machineState를 읽을 수 있을 때만 차단할지 여부. 사용 중인지 판단할 근거가 필요한 유휴 기기 종료에서는
+     *            {@code true}, 사이클 종료가 확인된 완료 처리에서는 {@code false}를 사용한다
+     */
     private ShutdownResult powerOff(String machineName,
             String deviceId,
             boolean isWasher,
-            SmartThingsDeviceStatusResDto status) {
+            SmartThingsDeviceStatusResDto status,
+            boolean requireKnownState) {
         if (status == null) {
             log.warn("device status unknown, skip shutdown machine={} deviceId={}", machineName, deviceId);
             return ShutdownResult.SKIPPED_UNKNOWN;
@@ -97,7 +109,7 @@ public class DeviceShutdownSupport {
 
         // machineState를 읽을 수 없으면 사용 중인지 판단할 근거가 없다. 만료된 RESERVED 예약도 같은 이유로
         // 시작 여부 판정이 보류되므로(OverdueReservationProcessor), 여기서도 전원을 차단하지 않는다.
-        if (status.getOperatingState(isWasher) == MachineOperatingState.UNKNOWN) {
+        if (requireKnownState && status.getOperatingState(isWasher) == MachineOperatingState.UNKNOWN) {
             log.warn("device machine state unknown, skip shutdown machine={} deviceId={} switchStatus={}",
                     machineName,
                     deviceId,
