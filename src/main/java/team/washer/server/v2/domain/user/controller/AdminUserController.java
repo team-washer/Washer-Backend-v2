@@ -24,12 +24,14 @@ import team.washer.server.v2.domain.user.service.DeleteUserService;
 import team.washer.server.v2.domain.user.service.QueryUserByIdService;
 import team.washer.server.v2.domain.user.service.SearchUserService;
 import team.washer.server.v2.domain.user.service.UpdateUserInfoService;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 @RestController
 @RequestMapping("/api/v2/admin/users")
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Admin User Management", description = "사용자 관리 API (관리자용)")
+@CommonErrorResponses
 public class AdminUserController {
 
     private final SearchUserService searchUserService;

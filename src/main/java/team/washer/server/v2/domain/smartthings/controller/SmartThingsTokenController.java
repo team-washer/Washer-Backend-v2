@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsAccessTokenResDto;
 import team.washer.server.v2.domain.smartthings.service.QuerySmartThingsAccessTokenService;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 /**
  * SmartThings 토큰 조회 컨트롤러
@@ -20,6 +21,7 @@ import team.washer.server.v2.domain.smartthings.service.QuerySmartThingsAccessTo
 @RequestMapping("/api/v2/smartthings/token")
 @RequiredArgsConstructor
 @Tag(name = "SmartThings Token", description = "SmartThings 토큰 API")
+@CommonErrorResponses
 public class SmartThingsTokenController {
 
     private final QuerySmartThingsAccessTokenService querySmartThingsAccessTokenService;

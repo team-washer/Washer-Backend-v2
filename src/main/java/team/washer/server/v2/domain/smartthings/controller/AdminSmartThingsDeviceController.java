@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.smartthings.dto.request.TriggerDeviceSyncReqDto;
 import team.washer.server.v2.domain.smartthings.dto.response.DeviceSyncTriggerResDto;
 import team.washer.server.v2.domain.smartthings.service.TriggerManualDeviceSyncService;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 /**
  * SmartThings 기기 관리 컨트롤러 (관리자용)
@@ -23,6 +24,7 @@ import team.washer.server.v2.domain.smartthings.service.TriggerManualDeviceSyncS
 @RequestMapping("/api/v2/admin/smartthings/devices")
 @RequiredArgsConstructor
 @Tag(name = "Admin SmartThings Device", description = "SmartThings 기기 관리 API (관리자용)")
+@CommonErrorResponses
 public class AdminSmartThingsDeviceController {
 
     private final TriggerManualDeviceSyncService triggerManualDeviceSyncService;

@@ -14,11 +14,13 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.datagsm.service.HandleDataGsmEventService;
 import team.washer.server.v2.domain.datagsm.support.DataGsmEventSignatureVerifier;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v2/events/datagsm")
 @Tag(name = "DataGSM Event", description = "DataGSM 이벤트 수신 API")
+@CommonErrorResponses
 public class DataGsmEventController {
 
     private static final String SIGNATURE_HEADER = "X-DataGSM-Signature";
