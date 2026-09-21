@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.reservation.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.never;
@@ -26,6 +27,7 @@ import team.washer.server.v2.domain.notification.support.ReservationNotification
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor;
+import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.CompletedMachine;
 import team.washer.server.v2.domain.reservation.support.CompletionDecision;
 import team.washer.server.v2.domain.reservation.support.ReservationCompletionDecisionSupport;
 import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
@@ -239,115 +241,48 @@ class ReservationLifecycleProcessorTest {
         }
 
         @Test
-        @DisplayName("완료 판정이 확정 임계치까지 연속되면 COMPLETED로 전환하고 완료 알림을 전송한다")
-        void shouldCompleteReservation_WhenCompletionConfirmed() {
+        @DisplayName("완료로 판정되면 즉시 COMPLETED로 전환하고 완료 알림을 전송한 뒤 전원 차단 대상 기기를 반환한다")
+        void shouldCompleteReservation_WhenCompleted() {
             // Given
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
             givenRunningReservation();
-            givenCompletionDecision(
-                    CompletionDecision.completed(LocalDateTime.now(KOREA_ZONE), "smartthings_completed"));
-            when(reservation.getCompletionCount()).thenReturn(ReservationConstants.COMPLETION_CONFIRM_THRESHOLD);
+            givenCompletionDecision(CompletionDecision.completed(LocalDateTime.now(KOREA_ZONE), "job_finished"));
             when(reservation.getUser()).thenReturn(user);
+            when(machine.getName()).thenReturn("W-2F-L1");
+            when(machine.getDeviceId()).thenReturn("device-1");
+            when(machine.isWasher()).thenReturn(true);
 
             // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+            var result = reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
 
             // Then
-            verify(reservation, times(1)).incrementCompletionCount();
             verify(reservation, times(1)).complete();
-            verify(reservation, times(1)).clearCompletionCount();
             verify(reservation, times(1)).clearInterruptionCount();
             verify(reservation, times(1)).clearPausedAt();
             verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
             verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
+            assertThat(result).contains(new CompletedMachine("W-2F-L1", "device-1", true));
         }
 
         @Test
-        @DisplayName("완료가 처음 감지되면 카운트만 증가시키고 완료 처리하지 않는다")
-        void shouldOnlyIncrementCount_WhenCompletionBelowThreshold() {
+        @DisplayName("이전 사이클 신호로 보류되면 완료하지 않고 중단 판정으로 넘어가지 않는다")
+        void shouldDefer_WhenStaleCompletion() {
             // Given
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
             givenRunningReservation();
-            givenCompletionDecision(
-                    CompletionDecision.completed(LocalDateTime.now(KOREA_ZONE), "stopped_near_completion"));
-            when(reservation.getCompletionCount()).thenReturn(ReservationConstants.COMPLETION_CONFIRM_THRESHOLD - 1);
+            givenCompletionDecision(CompletionDecision.deferred(LocalDateTime.now(KOREA_ZONE), "stale_completion"));
 
             // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+            var result = reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
 
             // Then
-            verify(reservation, times(1)).incrementCompletionCount();
-            verify(reservation, never()).complete();
-            verify(machine, never()).releaseIfHeld();
-            verify(reservationRepository, times(1)).save(reservation);
-            verify(machineRepository, never()).save(machine);
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
-        }
-
-        @Test
-        @DisplayName("완료 신호가 가드에 걸려 보류되면 완료 카운트를 초기화하고 중단 판정으로 넘어가지 않는다")
-        void shouldClearCompletionCountAndDefer_WhenCompletionDeferredByGuard() {
-            // Given
-            var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
-            givenRunningReservation();
-            givenCompletionDecision(CompletionDecision.deferred(LocalDateTime.now(KOREA_ZONE), "too_early_completion"));
-            when(reservation.getCompletionCount()).thenReturn(1);
-
-            // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
-
-            // Then
-            verify(reservation, times(1)).clearCompletionCount();
-            verify(reservation, never()).complete();
-            verify(reservation, never()).incrementCompletionCount();
-            verify(reservationRepository, times(1)).save(reservation);
-            verify(machineStateDetectionSupport, never()).isInterrupted(any(), anyBoolean());
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
-        }
-
-        @Test
-        @DisplayName("전원이 꺼지면 완료 예정 시각 근처여도 중단 카운트를 증가시킨다")
-        void shouldCountInterruption_WhenPoweredOffEvenNearCompletionTime() {
-            // Given
-            var deviceStatus = buildDeviceStatus(null);
-            givenRunningReservation();
-            givenCompletionDecision(CompletionDecision.notCompleted());
-            when(machineStateDetectionSupport.isPoweredOff(any(SmartThingsDeviceStatusResDto.class))).thenReturn(true);
-            when(reservation.getInterruptionCount()).thenReturn(1);
-
-            // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
-
-            // Then
-            verify(reservation, times(1)).incrementInterruptionCount();
-            verify(reservation, never()).clearInterruptionCount();
-            verify(reservation, never()).cancel();
-            verify(reservationRepository, times(1)).save(reservation);
-            verify(completionDecisionSupport, never()).isStoppedNearCompletion(any(), any(), anyBoolean());
-        }
-
-        @Test
-        @DisplayName("완료 예정 시각 근처 정지는 중단 카운트를 건드리지 않고 판정을 보류한다")
-        void shouldHoldWithoutTouchingInterruptionCount_WhenStoppedNearCompletionTime() {
-            // Given
-            var deviceStatus = buildDeviceStatus(null);
-            givenRunningReservation();
-            givenCompletionDecision(CompletionDecision.notCompleted());
-            when(machineStateDetectionSupport.isPoweredOff(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
-            when(completionDecisionSupport.isStoppedNearCompletion(any(), any(), anyBoolean())).thenReturn(true);
-
-            // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
-
-            // Then
-            verify(reservation, never()).incrementInterruptionCount();
-            verify(reservation, never()).clearInterruptionCount();
-            verify(reservation, never()).cancel();
             verify(reservation, never()).complete();
             verify(reservationRepository, never()).save(reservation);
             verify(machineStateDetectionSupport, never()).isInterrupted(any(), anyBoolean());
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            assertThat(result).isEmpty();
         }
 
         @Test
@@ -357,8 +292,6 @@ class ReservationLifecycleProcessorTest {
             var deviceStatus = buildDeviceStatus(null);
             givenRunningReservation();
             givenCompletionDecision(CompletionDecision.notCompleted());
-            when(machineStateDetectionSupport.isPoweredOff(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
-            when(completionDecisionSupport.isStoppedNearCompletion(any(), any(), anyBoolean())).thenReturn(false);
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
             when(reservation.getInterruptionCount()).thenReturn(1);
@@ -383,8 +316,6 @@ class ReservationLifecycleProcessorTest {
             givenRunningReservation();
             givenCompletionDecision(CompletionDecision.notCompleted());
             when(reservation.getUser()).thenReturn(user);
-            when(machineStateDetectionSupport.isPoweredOff(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
-            when(completionDecisionSupport.isStoppedNearCompletion(any(), any(), anyBoolean())).thenReturn(false);
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
             when(reservation.getInterruptionCount()).thenReturn(ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD);
@@ -411,8 +342,6 @@ class ReservationLifecycleProcessorTest {
             var deviceStatus = buildDeviceStatus(null);
             givenRunningReservation();
             givenCompletionDecision(CompletionDecision.notCompleted());
-            when(machineStateDetectionSupport.isPoweredOff(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
-            when(completionDecisionSupport.isStoppedNearCompletion(any(), any(), anyBoolean())).thenReturn(false);
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
@@ -437,8 +366,6 @@ class ReservationLifecycleProcessorTest {
             givenRunningReservation();
             givenCompletionDecision(CompletionDecision.notCompleted());
             when(reservation.getUser()).thenReturn(user);
-            when(machineStateDetectionSupport.isPoweredOff(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
-            when(completionDecisionSupport.isStoppedNearCompletion(any(), any(), anyBoolean())).thenReturn(false);
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
@@ -466,8 +393,6 @@ class ReservationLifecycleProcessorTest {
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
             givenRunningReservation();
             givenCompletionDecision(CompletionDecision.notCompleted());
-            when(machineStateDetectionSupport.isPoweredOff(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
-            when(completionDecisionSupport.isStoppedNearCompletion(any(), any(), anyBoolean())).thenReturn(false);
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
@@ -494,8 +419,6 @@ class ReservationLifecycleProcessorTest {
             givenRunningReservation();
             givenCompletionDecision(CompletionDecision.notCompleted());
             when(machine.isWasher()).thenReturn(false);
-            when(machineStateDetectionSupport.isPoweredOff(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
-            when(completionDecisionSupport.isStoppedNearCompletion(any(), any(), anyBoolean())).thenReturn(false);
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
@@ -518,8 +441,6 @@ class ReservationLifecycleProcessorTest {
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
             givenRunningReservation();
             givenCompletionDecision(CompletionDecision.notCompleted());
-            when(machineStateDetectionSupport.isPoweredOff(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
-            when(completionDecisionSupport.isStoppedNearCompletion(any(), any(), anyBoolean())).thenReturn(false);
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
@@ -542,8 +463,6 @@ class ReservationLifecycleProcessorTest {
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
             givenRunningReservation();
             givenCompletionDecision(CompletionDecision.notCompleted());
-            when(machineStateDetectionSupport.isPoweredOff(any(SmartThingsDeviceStatusResDto.class))).thenReturn(false);
-            when(completionDecisionSupport.isStoppedNearCompletion(any(), any(), anyBoolean())).thenReturn(false);
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))

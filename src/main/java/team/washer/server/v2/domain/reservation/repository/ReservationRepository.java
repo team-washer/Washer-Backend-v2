@@ -104,6 +104,12 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
         return ActiveReservationSelector.selectPrimary(findCurrentlyActiveByMachineId(machineId));
     }
 
+    /**
+     * 기기의 가장 최근 완료 예약을 조회합니다. 완료 후 세탁기 배수 유예의 기준 시각을 구할 때 사용합니다.
+     */
+    Optional<Reservation> findFirstByMachineIdAndStatusOrderByActualCompletionTimeDesc(Long machineId,
+            ReservationStatus status);
+
     @Query("SELECT r FROM Reservation r WHERE r.user = :user ORDER BY r.createdAt DESC")
     List<Reservation> findReservationHistoryByUser(@Param("user") User user);
 
