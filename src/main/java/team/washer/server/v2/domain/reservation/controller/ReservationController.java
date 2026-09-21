@@ -22,10 +22,12 @@ import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
+import team.washer.server.v2.domain.reservation.dto.response.ActiveReservationApiResponseResDto;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationAvailabilityResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryPageResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
+import team.washer.server.v2.domain.reservation.dto.response.RoomActiveReservationsApiResponseResDto;
 import team.washer.server.v2.domain.reservation.dto.response.RoomActiveReservationsResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.CancelReservationService;
@@ -77,14 +79,14 @@ public class ReservationController {
 
     @GetMapping("/active")
     @Operation(summary = "내 활성 예약 조회", description = "현재 활성 상태인 나의 예약을 조회합니다.")
-    @ApiResponses(@ApiResponse(responseCode = "200", description = "활성 예약이 없으면 공통 응답의 data가 null입니다.", content = @Content(schema = @Schema(implementation = ReservationResDto.class, nullable = true))))
+    @ApiResponses(@ApiResponse(responseCode = "200", description = "활성 예약이 없으면 공통 응답의 data가 null입니다.", content = @Content(schema = @Schema(implementation = ActiveReservationApiResponseResDto.class))))
     public ReservationResDto getActiveReservation() {
         return queryActiveReservationService.execute();
     }
 
     @GetMapping("/active/room")
     @Operation(summary = "내 호실 활성 예약 목록 조회", description = "현재 로그인된 사용자의 호실에 있는 모든 활성 예약 목록을 조회합니다.")
-    @ApiResponses(@ApiResponse(responseCode = "200", description = "활성 예약이 없으면 reservations는 빈 배열([])입니다.", content = @Content(schema = @Schema(implementation = RoomActiveReservationsResDto.class))))
+    @ApiResponses(@ApiResponse(responseCode = "200", description = "활성 예약이 없으면 reservations는 빈 배열([])입니다.", content = @Content(schema = @Schema(implementation = RoomActiveReservationsApiResponseResDto.class))))
     public RoomActiveReservationsResDto getRoomActiveReservations() {
         return queryRoomActiveReservationsService.execute();
     }

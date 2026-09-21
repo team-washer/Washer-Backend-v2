@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import team.washer.server.v2.domain.reservation.controller.ReservationController;
+import team.washer.server.v2.domain.reservation.dto.response.ActiveReservationApiResponseResDto;
+import team.washer.server.v2.domain.reservation.dto.response.RoomActiveReservationsApiResponseResDto;
 import team.washer.server.v2.global.common.error.dto.response.CommonErrorResponseResDto;
 
 @DisplayName("API 계약 문서화 검증")
@@ -34,7 +36,7 @@ class ApiContractDocumentationTest {
         final var response = responseOf(ReservationController.class.getMethod("getActiveReservation"), "200");
 
         assertThat(response.description()).contains("data가 null");
-        assertThat(response.content()[0].schema().nullable()).isTrue();
+        assertThat(response.content()[0].schema().implementation()).isEqualTo(ActiveReservationApiResponseResDto.class);
     }
 
     @Test
@@ -43,6 +45,8 @@ class ApiContractDocumentationTest {
         final var response = responseOf(ReservationController.class.getMethod("getRoomActiveReservations"), "200");
 
         assertThat(response.description()).contains("빈 배열([])");
+        assertThat(response.content()[0].schema().implementation())
+                .isEqualTo(RoomActiveReservationsApiResponseResDto.class);
     }
 
     @Test
