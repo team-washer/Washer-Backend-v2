@@ -2,13 +2,19 @@ package team.washer.server.v2.domain.machine.service.impl;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.data.domain.Sort.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,6 +22,8 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.dto.response.MachineStatusResDto;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
+import team.washer.server.v2.domain.machine.enums.MachineStatus;
+import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.machine.service.QueryAllMachinesStatusService;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -38,34 +46,69 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
     private final ReservationRepository reservationRepository;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
     private final UserRepository userRepository;
+    private final PlatformTransactionManager transactionManager;
 
     @Override
-    @Transactional(readOnly = true)
     public List<MachineStatusResDto> execute(Long userId, boolean sorted) {
-        final var user = userRepository.findById(userId)
-                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
-
-        user.validateFloorRestriction();
+        final var machineSnapshots = loadMachineSnapshots(userId, sorted);
 
         log.info("Querying all machines status");
 
-        var machines = sorted ? machineRepository.findAll(DEFAULT_SORT) : machineRepository.findAll();
-        var deviceIds = machines.stream().map(Machine::getDeviceId).toList();
+        final var deviceIds = machineSnapshots.stream().map(MachineSnapshot::deviceId).toList();
+        final var deviceStatusMap = deviceStatusQuerySupport.queryAllDevicesStatus(deviceIds);
+        final var currentStates = loadCurrentStates(machineSnapshots);
 
-        var deviceStatusMap = deviceStatusQuerySupport.queryAllDevicesStatus(deviceIds);
-
-        var results = machines.stream().map(machine -> {
-            var reservation = reservationRepository.findCurrentlyActiveReservationByMachineId(machine.getId())
-                    .orElse(null);
-            return mapToStatusDto(machine, deviceStatusMap.get(machine.getDeviceId()), reservation);
-        }).toList();
+        final var results = machineSnapshots.stream().map(machine -> currentStates.get(machine.id()))
+                .filter(currentState -> currentState != null)
+                .map(currentState -> mapToStatusDto(currentState.machine(),
+                        deviceStatusMap.get(currentState.machine().deviceId()),
+                        currentState.reservation()))
+                .toList();
 
         log.info("Successfully queried status for {} machines", results.size());
 
         return results;
     }
 
-    private MachineStatusResDto mapToStatusDto(Machine machine,
+    private List<MachineSnapshot> loadMachineSnapshots(Long userId, boolean sorted) {
+        return executeReadOnly(status -> {
+            final var user = userRepository.findById(userId)
+                    .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+
+            user.validateFloorRestriction();
+
+            final var machines = sorted ? machineRepository.findAll(DEFAULT_SORT) : machineRepository.findAll();
+            return machines.stream().map(MachineSnapshot::from).toList();
+        });
+    }
+
+    private Map<Long, CurrentMachineState> loadCurrentStates(List<MachineSnapshot> machineSnapshots) {
+        return executeReadOnly(status -> {
+            final var machineIds = machineSnapshots.stream().map(MachineSnapshot::id).toList();
+            final var machinesById = machineRepository.findAllById(machineIds).stream()
+                    .collect(Collectors.toMap(Machine::getId, Function.identity()));
+            final var currentStates = new HashMap<Long, CurrentMachineState>();
+            for (final var machine : machineSnapshots) {
+                final var currentMachine = machinesById.get(machine.id());
+                if (currentMachine == null) {
+                    continue;
+                }
+                final var reservation = reservationRepository.findCurrentlyActiveReservationByMachineId(machine.id())
+                        .orElse(null);
+                currentStates.put(machine.id(),
+                        new CurrentMachineState(MachineSnapshot.from(currentMachine), reservation));
+            }
+            return currentStates;
+        });
+    }
+
+    private <T> T executeReadOnly(Function<TransactionStatus, T> callback) {
+        final var transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setReadOnly(true);
+        return transactionTemplate.execute(callback::apply);
+    }
+
+    private MachineStatusResDto mapToStatusDto(MachineSnapshot machine,
             SmartThingsDeviceStatusResDto deviceStatus,
             Reservation reservation) {
         MachineOperatingState operatingState = MachineOperatingState.UNKNOWN;
@@ -75,12 +118,12 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
         Long remainingMinutes = null;
 
         if (deviceStatus != null) {
-            operatingState = deviceStatus.getOperatingState(machine.isWasher());
-            jobState = deviceStatus.getJobState(machine.isWasher());
+            operatingState = deviceStatus.getOperatingState(machine.washer());
+            jobState = deviceStatus.getJobState(machine.washer());
             switchStatus = deviceStatus.getSwitchStatus();
 
             if (reservation != null) {
-                var completionTimeStr = deviceStatus.getCompletionTime(machine.isWasher());
+                var completionTimeStr = deviceStatus.getCompletionTime(machine.washer());
                 if (completionTimeStr != null && !completionTimeStr.isBlank()) {
                     expectedCompletionTime = DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr);
                     if (expectedCompletionTime != null) {
@@ -90,10 +133,10 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
             }
         }
 
-        return new MachineStatusResDto(machine.getId(),
-                machine.getName(),
-                machine.getType(),
-                machine.getStatus(),
+        return new MachineStatusResDto(machine.id(),
+                machine.name(),
+                machine.type(),
+                machine.status(),
                 computeAvailability(machine, reservation, deviceStatus),
                 operatingState,
                 jobState,
@@ -114,12 +157,12 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
      * 완료 여부를 이 API에서 따로 예측하지 않는다. 완료 확정은 라이프사이클 스케줄러가 디바운스와 가드를 거쳐 DB에 반영하며, 목록은 그
      * 결과만 그대로 보여준다. 화면에 표시된 상태와 DB에 저장된 상태가 갈라지지 않게 하기 위함이다.
      */
-    private MachineAvailability computeAvailability(Machine machine,
+    private MachineAvailability computeAvailability(MachineSnapshot machine,
             Reservation reservation,
             SmartThingsDeviceStatusResDto deviceStatus) {
-        if (machine.getAvailability() == MachineAvailability.UNAVAILABLE
-                || machine.getAvailability() == MachineAvailability.CLEANING) {
-            return machine.getAvailability();
+        if (machine.availability() == MachineAvailability.UNAVAILABLE
+                || machine.availability() == MachineAvailability.CLEANING) {
+            return machine.availability();
         }
         if (reservation == null) {
             return isOperating(machine, deviceStatus) ? MachineAvailability.IN_USE : MachineAvailability.AVAILABLE;
@@ -134,13 +177,30 @@ public class QueryAllMachinesStatusServiceImpl implements QueryAllMachinesStatus
     /**
      * 기기가 물리적으로 작동 중(run 또는 pause)인지 판정한다. 세탁기/건조기는 타입에 맞는 machineState를 본다.
      */
-    private boolean isOperating(Machine machine, SmartThingsDeviceStatusResDto deviceStatus) {
-        return deviceStatus != null && deviceStatus.getOperatingState(machine.isWasher()).isOperating();
+    private boolean isOperating(MachineSnapshot machine, SmartThingsDeviceStatusResDto deviceStatus) {
+        return deviceStatus != null && deviceStatus.getOperatingState(machine.washer()).isOperating();
     }
 
     private Long calculateRemainingMinutes(LocalDateTime completionTime) {
         var now = DateTimeUtil.nowInKorea();
         var duration = Duration.between(now, completionTime);
         return Math.max(0, duration.toMinutes());
+    }
+
+    private record MachineSnapshot(Long id, String name, MachineType type, MachineStatus status,
+            MachineAvailability availability, String deviceId, boolean washer) {
+
+        private static MachineSnapshot from(Machine machine) {
+            return new MachineSnapshot(machine.getId(),
+                    machine.getName(),
+                    machine.getType(),
+                    machine.getStatus(),
+                    machine.getAvailability(),
+                    machine.getDeviceId(),
+                    machine.isWasher());
+        }
+    }
+
+    private record CurrentMachineState(MachineSnapshot machine, Reservation reservation) {
     }
 }
