@@ -25,18 +25,22 @@ class ApiContractDocumentationTest {
 
         assertThat(responses).isNotNull();
         assertThat(Arrays.stream(responses.value()).map(ApiResponse::responseCode).toList())
-                .contains("400", "401", "403", "404", "405", "409", "413", "415", "500", "503");
+                .containsExactly("400", "401", "403", "404", "405", "413", "415", "500");
         assertThat(CommonErrorResponseResDto.class.getRecordComponents()).extracting(component -> component.getName())
                 .containsExactly("status", "code", "message", "data");
     }
 
     @Test
-    @DisplayName("내 활성 예약이 없으면 data가 null임을 문서화해야 한다")
+    @DisplayName("내 활성 예약이 없으면 204와 빈 본문을 문서화해야 한다")
     void activeReservation_ShouldDocumentNullableData() throws NoSuchMethodException {
         final var response = responseOf(ReservationController.class.getMethod("getActiveReservation"), "200");
 
-        assertThat(response.description()).contains("data가 null");
+        assertThat(response.description()).contains("활성 예약 조회 성공");
         assertThat(response.content()[0].schema().implementation()).isEqualTo(ActiveReservationApiResponseResDto.class);
+
+        final var noContentResponse = responseOf(ReservationController.class.getMethod("getActiveReservation"), "204");
+        assertThat(noContentResponse.description()).contains("응답 본문이 없습니다");
+        assertThat(noContentResponse.content()).isEmpty();
     }
 
     @Test

@@ -79,7 +79,9 @@ public class ReservationController {
 
     @GetMapping("/active")
     @Operation(summary = "내 활성 예약 조회", description = "현재 활성 상태인 나의 예약을 조회합니다.")
-    @ApiResponses(@ApiResponse(responseCode = "200", description = "활성 예약이 없으면 공통 응답의 data가 null입니다.", content = @Content(schema = @Schema(implementation = ActiveReservationApiResponseResDto.class))))
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "활성 예약 조회 성공", content = @Content(schema = @Schema(implementation = ActiveReservationApiResponseResDto.class))),
+            @ApiResponse(responseCode = "204", description = "활성 예약이 없어 응답 본문이 없습니다.")})
     public ReservationResDto getActiveReservation() {
         return queryActiveReservationService.execute();
     }

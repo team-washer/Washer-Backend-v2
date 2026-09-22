@@ -8,6 +8,6 @@ import io.swagger.v3.oas.annotations.media.Schema;
 @Schema(name = "RoomActiveReservationsApiResponse", description = "호실 활성 예약 조회 공통 응답")
 public record RoomActiveReservationsApiResponseResDto(@Schema(description = "HTTP 상태 이름", example = "OK") String status,
         @Schema(description = "HTTP 상태 코드", example = "200") Integer code,
-        @Schema(description = "응답 메시지", example = "요청이 성공했습니다.") String message,
+        @Schema(description = "응답 메시지", example = "OK") String message,
         @Schema(description = "호실 활성 예약 목록. reservations는 비어 있을 수 있습니다.") RoomActiveReservationsResDto data) {
 }
