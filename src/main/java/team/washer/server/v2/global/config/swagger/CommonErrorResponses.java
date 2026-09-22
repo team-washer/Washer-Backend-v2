@@ -15,8 +15,8 @@ import team.washer.server.v2.global.common.error.dto.response.CommonErrorRespons
  * Controller에서 공통으로 반환하는 오류 상태와 응답 wrapper를 OpenAPI에 표시합니다.
  *
  * <p>
- * 409와 503은 엔드포인트별 원인이 달라 공통 응답에 포함하지 않습니다. 해당 상태를 반환하는 API는 작업별
- * {@link ApiResponse}로 의미를 명시해야 합니다.
+ * 409와 503은 전역 예외 처리기에서도 발생할 수 있으므로 {@code OperationCustomizer}가 공통 응답으로 추가합니다.
+ * 엔드포인트에 같은 상태 코드의 전용 응답이 있으면 해당 설명을 우선합니다.
  * </p>
  */
 @Target({ElementType.TYPE, ElementType.METHOD})
