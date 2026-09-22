@@ -74,6 +74,30 @@ public class ReservationLifecycleProcessor {
     }
 
     /**
+     * 장기 실행으로 식별된 RUNNING 예약의 운영 확인용 정보.
+     */
+    public record LongRunningReservation(Long reservationId, String machineName, String deviceId,
+            LocalDateTime startTime, LocalDateTime expectedCompletionTime) {
+    }
+
+    /**
+     * 장기 실행 기준({@link Reservation#isLongRunning})을 넘긴 RUNNING 예약을 조회한다. 식별만 하며 상태를
+     * 바꾸지 않는다.
+     */
+    @Transactional(readOnly = true)
+    public List<LongRunningReservation> findLongRunningReservations() {
+        var now = DateTimeUtil.nowInKorea();
+        return reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING).stream()
+                .filter(reservation -> reservation.isLongRunning(now))
+                .map(reservation -> new LongRunningReservation(reservation.getId(),
+                        reservation.getMachine().getName(),
+                        reservation.getMachine().getDeviceId(),
+                        reservation.getStartTime(),
+                        reservation.getExpectedCompletionTime()))
+                .toList();
+    }
+
+    /**
      * RESERVED 예약을 기기 상태에 따라 RUNNING으로 전환한다. 외부 API 호출 이후의 DB 갱신만 독립 트랜잭션으로 처리한다.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)

@@ -10,11 +10,14 @@ import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.ProcessReservationLifecycleService;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.CompletedMachine;
+import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.LifecycleTarget;
+import team.washer.server.v2.domain.reservation.support.LongRunningReservationMonitor;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 /**
  * 예약 라이프사이클 스케줄링 진입점.
@@ -28,6 +31,11 @@ import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotif
  * 예약이 완료되면 트랜잭션이 끝난 뒤 완료 판정에 사용한 기기 상태로 전원을 차단한다. 서버는 전원을 켜지 않으므로 다음 예약자가 직접
  * 기기를 켜야만 동작한다. 전원 차단이 SmartThings 권한 오류로 실패하면 남은 예약도 같은 이유로 실패하므로, 유휴 기기 종료
  * 스케줄러와 마찬가지로 Discord로 한 번만 알리고 이번 주기를 중단한다.
+ *
+ * <p>
+ * RUNNING 예약의 기기 상태 조회 실패는 연속 실패 횟수와 함께 기록하고, 매 주기 끝에 장기 실행 예약을
+ * {@link LongRunningReservationMonitor}로 보고한다. 장기 실행 예약도 자동으로 완료하지 않고 완료 신호를 받을
+ * 때까지 기존 판정을 따른다.
  */
 @Service
 @RequiredArgsConstructor
@@ -37,6 +45,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     private final ReservationLifecycleProcessor reservationLifecycleProcessor;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
     private final DeviceShutdownSupport deviceShutdownSupport;
+    private final LongRunningReservationMonitor longRunningReservationMonitor;
 
     @Autowired(required = false)
     private DiscordErrorNotificationService discordErrorNotificationService;
@@ -45,6 +54,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     public void execute() {
         processReservedToRunning();
         processRunningToCompleted();
+        reportLongRunningReservations();
     }
 
     private void processReservedToRunning() {
@@ -59,9 +69,20 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     }
 
     private void processRunningToCompleted() {
-        for (var target : reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING)) {
+        var targets = reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING);
+        longRunningReservationMonitor.retainOnly(targets.stream().map(LifecycleTarget::reservationId).toList());
+        for (var target : targets) {
+            SmartThingsDeviceStatusResDto status;
             try {
-                var status = deviceStatusQuerySupport.queryDeviceStatus(target.deviceId());
+                status = deviceStatusQuerySupport.queryDeviceStatus(target.deviceId());
+                longRunningReservationMonitor.recordQuerySuccess(target.reservationId());
+            } catch (Exception e) {
+                var failures = longRunningReservationMonitor.recordQueryFailure(target.reservationId());
+                log.warn("running reservation status query failed reservationId={} deviceId={} consecutiveFailures={} "
+                        + "reason={}", target.reservationId(), target.deviceId(), failures, e.getMessage());
+                continue;
+            }
+            try {
                 var completedMachine = reservationLifecycleProcessor.processRunningToCompleted(target.reservationId(),
                         status);
                 if (completedMachine.isPresent() && !shutdownCompletedMachine(completedMachine.get(), status)) {
@@ -70,6 +91,18 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
             } catch (Exception e) {
                 log.error("Failed to process RUNNING reservation: {}", target.reservationId(), e);
             }
+        }
+    }
+
+    /**
+     * 장기 실행 기준을 넘긴 RUNNING 예약을 운영 로그로 보고한다. 식별만 하며 예약 상태를 바꾸지 않는다.
+     */
+    private void reportLongRunningReservations() {
+        try {
+            longRunningReservationMonitor.report(reservationLifecycleProcessor.findLongRunningReservations(),
+                    DateTimeUtil.nowInKorea());
+        } catch (Exception e) {
+            log.error("long running reservation report failed", e);
         }
     }
 
