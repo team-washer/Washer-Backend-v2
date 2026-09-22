@@ -9,6 +9,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -26,6 +27,8 @@ import team.washer.server.v2.domain.reservation.service.impl.ProcessReservationL
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.CompletedMachine;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.LifecycleTarget;
+import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.LongRunningReservation;
+import team.washer.server.v2.domain.reservation.support.LongRunningReservationMonitor;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
@@ -50,6 +53,9 @@ class ProcessReservationLifecycleServiceTest {
 
     @Mock
     private DiscordErrorNotificationService discordErrorNotificationService;
+
+    @Mock
+    private LongRunningReservationMonitor longRunningReservationMonitor;
 
     private SmartThingsDeviceStatusResDto buildDeviceStatus(String completionTime) {
         var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
@@ -182,5 +188,48 @@ class ProcessReservationLifecycleServiceTest {
                 any(SmartThingsDeviceStatusResDto.class));
         verify(reservationLifecycleProcessor, never()).processRunningToCompleted(anyLong(),
                 any(SmartThingsDeviceStatusResDto.class));
+    }
+
+    @Test
+    @DisplayName("RUNNING 예약의 기기 상태 조회가 실패하면 연속 실패를 기록하고 다음 예약 처리를 계속한다")
+    void execute_ShouldRecordFailureAndContinue_WhenRunningStatusQueryFails() {
+        // Given
+        var secondStatus = buildDeviceStatus("2026-01-26T16:10:00Z");
+        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED)).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING))
+                .thenReturn(List.of(new LifecycleTarget(2L, "device-2"), new LifecycleTarget(3L, "device-3")));
+        when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenThrow(new RuntimeException("timeout"));
+        when(deviceStatusQuerySupport.queryDeviceStatus("device-3")).thenReturn(secondStatus);
+
+        // When
+        processReservationLifecycleService.execute();
+
+        // Then
+        verify(longRunningReservationMonitor, times(1)).retainOnly(List.of(2L, 3L));
+        verify(longRunningReservationMonitor, times(1)).recordQueryFailure(2L);
+        verify(longRunningReservationMonitor, times(1)).recordQuerySuccess(3L);
+        verify(reservationLifecycleProcessor, never()).processRunningToCompleted(eq(2L), any());
+        verify(reservationLifecycleProcessor, times(1)).processRunningToCompleted(3L, secondStatus);
+    }
+
+    @Test
+    @DisplayName("주기 끝에 장기 실행 예약을 조회해 보고하며 예약 상태는 바꾸지 않는다")
+    void execute_ShouldReportLongRunningReservations() {
+        // Given
+        var longRunning = new LongRunningReservation(2L,
+                "W-2F-L1",
+                "device-2",
+                LocalDateTime.of(2026, 9, 22, 9, 0),
+                LocalDateTime.of(2026, 9, 22, 10, 0));
+        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED)).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING)).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findLongRunningReservations()).thenReturn(List.of(longRunning));
+
+        // When
+        processReservationLifecycleService.execute();
+
+        // Then
+        verify(longRunningReservationMonitor, times(1)).report(eq(List.of(longRunning)), any(LocalDateTime.class));
+        verify(reservationLifecycleProcessor, never()).processRunningToCompleted(anyLong(), any());
     }
 }
