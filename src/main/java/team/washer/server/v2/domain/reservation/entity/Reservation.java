@@ -205,6 +205,28 @@ public class Reservation extends BaseEntity {
     }
 
     /**
+     * 실행 중인 예약이 장기 실행 상태인지 판정합니다.
+     *
+     * <p>
+     * 기준 시각은 예상 완료 시각에 {@code LONG_RUNNING_GRACE_MINUTES}분을 더한 시각이며, 예상 완료 시각이 없으면
+     * 시작 시각에 최대 사이클 길이({@code MAX_REASONABLE_CYCLE_MINUTES}분)를 더한 시각입니다. 운영 확인 대상을
+     * 식별하는 용도이며 예약 상태를 바꾸지 않습니다.
+     *
+     * @param now
+     *            판정 기준 현재 시각
+     * @return RUNNING이고 기준 시각이 지났으면 {@code true}
+     */
+    public boolean isLongRunning(LocalDateTime now) {
+        if (this.status != ReservationStatus.RUNNING || this.startTime == null) {
+            return false;
+        }
+        var threshold = this.expectedCompletionTime != null
+                ? this.expectedCompletionTime.plusMinutes(ReservationConstants.LONG_RUNNING_GRACE_MINUTES)
+                : this.startTime.plusMinutes(ReservationConstants.MAX_REASONABLE_CYCLE_MINUTES);
+        return now.isAfter(threshold);
+    }
+
+    /**
      * 예약을 완료 상태(COMPLETED)로 전환합니다. RUNNING 상태가 아니면 예외를 발생시킵니다.
      */
     public void complete() {

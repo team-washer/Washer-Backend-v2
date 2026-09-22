@@ -32,4 +32,15 @@ public final class ReservationConstants {
      * 정지하면 유예와 무관하게 전원을 차단한다.
      */
     public static final int WASHER_DRAIN_GRACE_MINUTES = 5;
+
+    /**
+     * 완료 예정 시각이 지난 뒤에도 RUNNING인 예약을 장기 실행으로 식별하기까지의 유예 시간(분). 완료 신호를 받으면 즉시 완료되므로 이
+     * 시간이 지나도 RUNNING이면 SmartThings 조회 실패나 완료 신호 누락을 의심한다. 식별만 하며 자동으로 완료하지 않는다.
+     */
+    public static final int LONG_RUNNING_GRACE_MINUTES = 30;
+
+    /**
+     * 같은 장기 실행 예약을 다시 보고하기까지의 최소 간격(분). 라이프사이클 폴링(30초)마다 같은 경고가 반복되지 않도록 한다.
+     */
+    public static final int LONG_RUNNING_REPORT_INTERVAL_MINUTES = 30;
 }
