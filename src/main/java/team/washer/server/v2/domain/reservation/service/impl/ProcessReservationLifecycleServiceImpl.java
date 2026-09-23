@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
+import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,10 +8,9 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.ProcessReservationLifecycleService;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.CompletedMachine;
-import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.LifecycleTarget;
+import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.RunningTarget;
 import team.washer.server.v2.domain.reservation.support.LongRunningReservationMonitor;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
@@ -53,12 +53,15 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     @Override
     public void execute() {
         processReservedToRunning();
-        processRunningToCompleted();
-        reportLongRunningReservations();
+
+        var runningTargets = reservationLifecycleProcessor.findRunningTargets();
+        longRunningReservationMonitor.retainOnly(runningTargets.stream().map(RunningTarget::reservationId).toList());
+        processRunningToCompleted(runningTargets);
+        reportLongRunningReservations(runningTargets);
     }
 
     private void processReservedToRunning() {
-        for (var target : reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED)) {
+        for (var target : reservationLifecycleProcessor.findReservedTargets()) {
             try {
                 var status = deviceStatusQuerySupport.queryDeviceStatus(target.deviceId());
                 reservationLifecycleProcessor.processReservedToRunning(target.reservationId(), status);
@@ -68,9 +71,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         }
     }
 
-    private void processRunningToCompleted() {
-        var targets = reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING);
-        longRunningReservationMonitor.retainOnly(targets.stream().map(LifecycleTarget::reservationId).toList());
+    private void processRunningToCompleted(List<RunningTarget> targets) {
         for (var target : targets) {
             SmartThingsDeviceStatusResDto status;
             try {
@@ -95,12 +96,16 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     }
 
     /**
-     * 장기 실행 기준을 넘긴 RUNNING 예약을 운영 로그로 보고한다. 식별만 하며 예약 상태를 바꾸지 않는다.
+     * 장기 실행 기준을 넘긴 RUNNING 예약을 운영 로그로 보고한다. 상태 전이 처리와 같은 조회 결과를 사용하며, 식별만 하고 예약 상태를
+     * 바꾸지 않는다.
      */
-    private void reportLongRunningReservations() {
+    private void reportLongRunningReservations(List<RunningTarget> targets) {
+        var longRunningTargets = targets.stream().filter(RunningTarget::longRunning).toList();
+        if (longRunningTargets.isEmpty()) {
+            return;
+        }
         try {
-            longRunningReservationMonitor.report(reservationLifecycleProcessor.findLongRunningReservations(),
-                    DateTimeUtil.nowInKorea());
+            longRunningReservationMonitor.report(longRunningTargets, DateTimeUtil.nowInKorea());
         } catch (Exception e) {
             log.error("long running reservation report failed", e);
         }

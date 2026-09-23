@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
-import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.LongRunningReservation;
+import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.RunningTarget;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
 
 /**
@@ -67,7 +67,7 @@ public class LongRunningReservationMonitor {
      * @param now
      *            판정 기준 현재 시각
      */
-    public void report(List<LongRunningReservation> reservations, LocalDateTime now) {
+    public void report(List<RunningTarget> reservations, LocalDateTime now) {
         for (var reservation : reservations) {
             var reportedAt = lastReportedAt.get(reservation.reservationId());
             if (reportedAt != null && Duration.between(reportedAt, now)

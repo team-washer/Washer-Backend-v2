@@ -22,12 +22,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.impl.ProcessReservationLifecycleServiceImpl;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.CompletedMachine;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.LifecycleTarget;
-import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.LongRunningReservation;
+import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.RunningTarget;
 import team.washer.server.v2.domain.reservation.support.LongRunningReservationMonitor;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
@@ -57,6 +56,15 @@ class ProcessReservationLifecycleServiceTest {
     @Mock
     private LongRunningReservationMonitor longRunningReservationMonitor;
 
+    private RunningTarget buildRunningTarget(Long reservationId, String deviceId, boolean longRunning) {
+        return new RunningTarget(reservationId,
+                deviceId,
+                "W-2F-L1",
+                LocalDateTime.of(2026, 9, 22, 9, 0),
+                LocalDateTime.of(2026, 9, 22, 10, 0),
+                longRunning);
+    }
+
     private SmartThingsDeviceStatusResDto buildDeviceStatus(String completionTime) {
         var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
         var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
@@ -70,10 +78,10 @@ class ProcessReservationLifecycleServiceTest {
         // Given
         var reservedStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
         var runningStatus = buildDeviceStatus("2026-01-26T16:00:00Z");
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED))
+        when(reservationLifecycleProcessor.findReservedTargets())
                 .thenReturn(List.of(new LifecycleTarget(1L, "device-1")));
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING))
-                .thenReturn(List.of(new LifecycleTarget(2L, "device-2")));
+        when(reservationLifecycleProcessor.findRunningTargets())
+                .thenReturn(List.of(buildRunningTarget(2L, "device-2", false)));
         when(deviceStatusQuerySupport.queryDeviceStatus("device-1")).thenReturn(reservedStatus);
         when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenReturn(runningStatus);
 
@@ -91,9 +99,9 @@ class ProcessReservationLifecycleServiceTest {
     void execute_ShouldShutdownMachine_WhenReservationCompleted() {
         // Given
         var runningStatus = buildDeviceStatus("2026-01-26T16:00:00Z");
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED)).thenReturn(List.of());
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING))
-                .thenReturn(List.of(new LifecycleTarget(2L, "device-2")));
+        when(reservationLifecycleProcessor.findReservedTargets()).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findRunningTargets())
+                .thenReturn(List.of(buildRunningTarget(2L, "device-2", false)));
         when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenReturn(runningStatus);
         when(reservationLifecycleProcessor.processRunningToCompleted(2L, runningStatus))
                 .thenReturn(Optional.of(new CompletedMachine("D-2F-L1", "device-2", false)));
@@ -110,9 +118,9 @@ class ProcessReservationLifecycleServiceTest {
     void execute_ShouldNotifyAndStop_WhenShutdownRejectedByPermission() {
         // Given
         var firstStatus = buildDeviceStatus("2026-01-26T16:00:00Z");
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED)).thenReturn(List.of());
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING))
-                .thenReturn(List.of(new LifecycleTarget(2L, "device-2"), new LifecycleTarget(3L, "device-3")));
+        when(reservationLifecycleProcessor.findReservedTargets()).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findRunningTargets()).thenReturn(
+                List.of(buildRunningTarget(2L, "device-2", false), buildRunningTarget(3L, "device-3", false)));
         when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenReturn(firstStatus);
         when(reservationLifecycleProcessor.processRunningToCompleted(2L, firstStatus))
                 .thenReturn(Optional.of(new CompletedMachine("D-2F-L1", "device-2", false)));
@@ -138,9 +146,9 @@ class ProcessReservationLifecycleServiceTest {
         // Given
         var firstStatus = buildDeviceStatus("2026-01-26T16:00:00Z");
         var secondStatus = buildDeviceStatus("2026-01-26T16:10:00Z");
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED)).thenReturn(List.of());
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING))
-                .thenReturn(List.of(new LifecycleTarget(2L, "device-2"), new LifecycleTarget(3L, "device-3")));
+        when(reservationLifecycleProcessor.findReservedTargets()).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findRunningTargets()).thenReturn(
+                List.of(buildRunningTarget(2L, "device-2", false), buildRunningTarget(3L, "device-3", false)));
         when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenReturn(firstStatus);
         when(deviceStatusQuerySupport.queryDeviceStatus("device-3")).thenReturn(secondStatus);
         when(reservationLifecycleProcessor.processRunningToCompleted(2L, firstStatus))
@@ -159,9 +167,9 @@ class ProcessReservationLifecycleServiceTest {
     @DisplayName("기기 상태 조회가 실패하면 해당 예약은 건너뛰고 처리를 계속한다")
     void execute_ShouldSkipReservation_WhenStatusQueryFails() {
         // Given
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED))
+        when(reservationLifecycleProcessor.findReservedTargets())
                 .thenReturn(List.of(new LifecycleTarget(1L, "device-1")));
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING)).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findRunningTargets()).thenReturn(List.of());
         when(deviceStatusQuerySupport.queryDeviceStatus("device-1")).thenThrow(new RuntimeException("api error"));
 
         // When
@@ -176,8 +184,8 @@ class ProcessReservationLifecycleServiceTest {
     @DisplayName("처리 대상이 없으면 기기 상태를 조회하지 않는다")
     void execute_ShouldNotQueryStatus_WhenNoTargets() {
         // Given
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED)).thenReturn(List.of());
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING)).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findReservedTargets()).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findRunningTargets()).thenReturn(List.of());
 
         // When
         processReservationLifecycleService.execute();
@@ -195,9 +203,9 @@ class ProcessReservationLifecycleServiceTest {
     void execute_ShouldRecordFailureAndContinue_WhenRunningStatusQueryFails() {
         // Given
         var secondStatus = buildDeviceStatus("2026-01-26T16:10:00Z");
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED)).thenReturn(List.of());
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING))
-                .thenReturn(List.of(new LifecycleTarget(2L, "device-2"), new LifecycleTarget(3L, "device-3")));
+        when(reservationLifecycleProcessor.findReservedTargets()).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findRunningTargets()).thenReturn(
+                List.of(buildRunningTarget(2L, "device-2", false), buildRunningTarget(3L, "device-3", false)));
         when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenThrow(new RuntimeException("timeout"));
         when(deviceStatusQuerySupport.queryDeviceStatus("device-3")).thenReturn(secondStatus);
 
@@ -216,20 +224,18 @@ class ProcessReservationLifecycleServiceTest {
     @DisplayName("주기 끝에 장기 실행 예약을 조회해 보고하며 예약 상태는 바꾸지 않는다")
     void execute_ShouldReportLongRunningReservations() {
         // Given
-        var longRunning = new LongRunningReservation(2L,
-                "W-2F-L1",
-                "device-2",
-                LocalDateTime.of(2026, 9, 22, 9, 0),
-                LocalDateTime.of(2026, 9, 22, 10, 0));
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RESERVED)).thenReturn(List.of());
-        when(reservationLifecycleProcessor.findTargets(ReservationStatus.RUNNING)).thenReturn(List.of());
-        when(reservationLifecycleProcessor.findLongRunningReservations()).thenReturn(List.of(longRunning));
+        var longRunning = buildRunningTarget(2L, "device-2", true);
+        var normal = buildRunningTarget(3L, "device-3", false);
+        var status = buildDeviceStatus("2026-01-26T16:00:00Z");
+        when(reservationLifecycleProcessor.findReservedTargets()).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findRunningTargets()).thenReturn(List.of(longRunning, normal));
+        when(deviceStatusQuerySupport.queryDeviceStatus(any())).thenReturn(status);
 
         // When
         processReservationLifecycleService.execute();
 
         // Then
         verify(longRunningReservationMonitor, times(1)).report(eq(List.of(longRunning)), any(LocalDateTime.class));
-        verify(reservationLifecycleProcessor, never()).processRunningToCompleted(anyLong(), any());
+        verify(reservationLifecycleProcessor, times(1)).findRunningTargets();
     }
 }

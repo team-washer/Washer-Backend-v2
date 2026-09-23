@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.LongRunningReservation;
+import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.RunningTarget;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
 
 @DisplayName("LongRunningReservationMonitor 장기 실행 식별")
@@ -27,8 +27,8 @@ class LongRunningReservationMonitorTest {
         monitor = new LongRunningReservationMonitor();
     }
 
-    private LongRunningReservation buildLongRunning(Long reservationId) {
-        return new LongRunningReservation(reservationId, "W-2F-L1", "device-1", NOW.minusHours(3), NOW.minusHours(1));
+    private RunningTarget buildLongRunning(Long reservationId) {
+        return new RunningTarget(reservationId, "device-1", "W-2F-L1", NOW.minusHours(3), NOW.minusHours(1), true);
     }
 
     @SuppressWarnings("unchecked")

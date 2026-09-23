@@ -62,38 +62,38 @@ public class ReservationLifecycleProcessor {
     }
 
     /**
-     * 지정한 상태의 예약 목록을 조회하여 처리 대상(예약 ID, 기기 ID)을 반환한다. 짧은 읽기 전용 트랜잭션으로 수행되며, 반환 후에는
+     * 외부 API 호출 대상이 되는 RUNNING 예약의 스냅샷. 장기 실행 판정({@link Reservation#isLongRunning})
+     * 결과와 운영 로그에 필요한 값을 함께 담아, 같은 주기에 RUNNING 예약을 다시 조회하지 않도록 한다.
+     */
+    public record RunningTarget(Long reservationId, String deviceId, String machineName, LocalDateTime startTime,
+            LocalDateTime expectedCompletionTime, boolean longRunning) {
+    }
+
+    /**
+     * 만료되지 않은 RESERVED 예약의 처리 대상(예약 ID, 기기 ID)을 반환한다. 짧은 읽기 전용 트랜잭션으로 수행되며, 반환 후에는
      * 영속성 컨텍스트와 분리된 값만 남는다.
      */
     @Transactional(readOnly = true)
-    public List<LifecycleTarget> findTargets(ReservationStatus status) {
-        return reservationRepository.findByStatusWithMachineAndUser(status).stream()
-                .filter(reservation -> status != ReservationStatus.RESERVED || !reservation.isExpired())
+    public List<LifecycleTarget> findReservedTargets() {
+        return reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RESERVED).stream()
+                .filter(reservation -> !reservation.isExpired())
                 .map(reservation -> new LifecycleTarget(reservation.getId(), reservation.getMachine().getDeviceId()))
                 .toList();
     }
 
     /**
-     * 장기 실행으로 식별된 RUNNING 예약의 운영 확인용 정보.
-     */
-    public record LongRunningReservation(Long reservationId, String machineName, String deviceId,
-            LocalDateTime startTime, LocalDateTime expectedCompletionTime) {
-    }
-
-    /**
-     * 장기 실행 기준({@link Reservation#isLongRunning})을 넘긴 RUNNING 예약을 조회한다. 식별만 하며 상태를
-     * 바꾸지 않는다.
+     * RUNNING 예약의 처리 대상을 장기 실행 판정과 함께 반환한다. 상태 전이 처리와 장기 실행 보고가 이 한 번의 조회 결과를 공유한다.
      */
     @Transactional(readOnly = true)
-    public List<LongRunningReservation> findLongRunningReservations() {
+    public List<RunningTarget> findRunningTargets() {
         var now = DateTimeUtil.nowInKorea();
         return reservationRepository.findByStatusWithMachineAndUser(ReservationStatus.RUNNING).stream()
-                .filter(reservation -> reservation.isLongRunning(now))
-                .map(reservation -> new LongRunningReservation(reservation.getId(),
-                        reservation.getMachine().getName(),
+                .map(reservation -> new RunningTarget(reservation.getId(),
                         reservation.getMachine().getDeviceId(),
+                        reservation.getMachine().getName(),
                         reservation.getStartTime(),
-                        reservation.getExpectedCompletionTime()))
+                        reservation.getExpectedCompletionTime(),
+                        reservation.isLongRunning(now)))
                 .toList();
     }
 
