@@ -279,6 +279,28 @@ RESERVED("예약됨", 3), RUNNING("실행 중", 0), COMPLETED("완료", 0), CANC
 세탁기가 사이클 단계 전환 중 순간적으로 "정지"로 보고하는 것을 진짜 중단과 구분하기 위한 장치입니다.
 완료 쪽 디바운스(`completionCount`)는 `#170` 에서 제거했고, 컬럼만 남아 있습니다.
 
+### 장기 RUNNING 식별
+
+완료 신호를 받으면 즉시 완료되므로, 오래 RUNNING 으로 남은 예약은 SmartThings 조회 실패나 완료 신호 누락을 의심합니다(`#169`).
+서버는 이런 예약을 **식별만 하고 자동 완료하지 않습니다.**
+
+- 기준: `expectedCompletionTime + 30분`(`LONG_RUNNING_GRACE_MINUTES`) 경과.
+  `expectedCompletionTime` 이 없으면 `startTime + 240분`(`MAX_REASONABLE_CYCLE_MINUTES`) 경과. (`Reservation.isLongRunning`)
+- RUNNING 예약의 기기 상태 조회가 실패하면 `running reservation status query failed ... consecutiveFailures=` 로그를 남깁니다.
+- 라이프사이클 주기 끝에 기준을 넘긴 예약을 `long running reservation detected ... consecutiveQueryFailures=` 경고 로그로 남깁니다.
+  같은 예약은 30분(`LONG_RUNNING_REPORT_INTERVAL_MINUTES`) 간격으로만 다시 남깁니다.
+- 연속 실패 횟수와 보고 시각은 메모리에만 두므로 서버 재시작 시 초기화됩니다.
+
+DB에서 직접 확인할 때의 기준은 다음과 같습니다. 시각 컬럼은 한국 시간으로 저장되므로 DB 세션 시간대가 KST가 아니면 `NOW()` 대신 한국 시간을 넣어야 합니다.
+
+```sql
+SELECT id, machine_id, start_time, expected_completion_time
+FROM reservations
+WHERE status = 'RUNNING'
+  AND ((expected_completion_time IS NOT NULL AND expected_completion_time < NOW() - INTERVAL 30 MINUTE)
+    OR (expected_completion_time IS NULL AND start_time < NOW() - INTERVAL 240 MINUTE));
+```
+
 ---
 
 ## 6. 흐름 ④ — 취소와 패널티 (Redis 활용)
