@@ -17,12 +17,14 @@ import team.washer.server.v2.domain.auth.dto.response.TokenStatusResDto;
 import team.washer.server.v2.domain.auth.service.CheckTokenStatusService;
 import team.washer.server.v2.domain.auth.service.RefreshTokenService;
 import team.washer.server.v2.domain.auth.service.SignInService;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 @RestController
 @AllArgsConstructor
 @RequestMapping("/api/v2/auth")
 @Tag(name = "Auth", description = "인증 API")
 @Validated
+@CommonErrorResponses
 public class AuthController {
     private final SignInService signInService;
     private final RefreshTokenService refreshTokenService;

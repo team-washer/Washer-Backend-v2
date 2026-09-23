@@ -18,7 +18,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
  */
 @JsonInclude(JsonInclude.Include.NON_EMPTY)
 @Schema(description = "오류 응답 부가 정보")
-public record ErrorDetailResDto(@Schema(description = "오류 코드", example = "VALIDATION_FAILED") String errorCode,
-        @Schema(description = "입력값별 오류 목록") List<FieldErrorResDto> fieldErrors,
-        @Schema(description = "추적 ID", example = "3f2c9a1e-8b7d-4c21-9f0e-2a6b5d4c3e1f") String traceId) {
+public record ErrorDetailResDto(
+        @Schema(description = "오류 코드", example = "VALIDATION_FAILED", requiredMode = Schema.RequiredMode.REQUIRED) String errorCode,
+        @Schema(description = "입력값별 오류 목록. 입력 검증 오류가 아니면 생략될 수 있습니다.", requiredMode = Schema.RequiredMode.NOT_REQUIRED) List<FieldErrorResDto> fieldErrors,
+        @Schema(description = "추적 ID. 로그 추적이 필요할 때 포함됩니다.", example = "3f2c9a1e-8b7d-4c21-9f0e-2a6b5d4c3e1f", requiredMode = Schema.RequiredMode.NOT_REQUIRED) String traceId) {
 }

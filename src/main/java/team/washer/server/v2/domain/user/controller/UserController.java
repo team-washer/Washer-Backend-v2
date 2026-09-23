@@ -12,11 +12,13 @@ import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.user.dto.response.MyInfoResDto;
 import team.washer.server.v2.domain.user.service.QueryMyInfoService;
 import team.washer.server.v2.domain.user.service.WithdrawUserService;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 @RestController
 @RequestMapping("/api/v2/users")
 @RequiredArgsConstructor
 @Tag(name = "User", description = "사용자 API")
+@CommonErrorResponses
 public class UserController {
 
     private final QueryMyInfoService queryMyInfoService;

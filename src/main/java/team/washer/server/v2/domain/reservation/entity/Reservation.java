@@ -78,6 +78,10 @@ public class Reservation extends BaseEntity {
     @Builder.Default
     private int interruptionCount = 0;
 
+    /**
+     * 더 이상 사용하지 않는 완료 디바운스 카운터입니다. 운영 DB의 NOT NULL 컬럼과 맞추기 위해 남겨 두며, 컬럼 삭제 후 함께
+     * 제거합니다.
+     */
     @Column(name = "completion_count", nullable = false)
     @Builder.Default
     private int completionCount = 0;
@@ -109,20 +113,6 @@ public class Reservation extends BaseEntity {
      */
     public void clearInterruptionCount() {
         this.interruptionCount = 0;
-    }
-
-    /**
-     * 사이클 완료 감지 횟수를 1 증가시킵니다. 기기가 순간적으로 보고한 완료 신호를 진짜 완료와 구분하기 위한 디바운스 카운터입니다.
-     */
-    public void incrementCompletionCount() {
-        this.completionCount++;
-    }
-
-    /**
-     * 사이클 완료 감지 추적을 초기화합니다. 완료 신호가 사라지거나 가드에 의해 보류되면 호출합니다.
-     */
-    public void clearCompletionCount() {
-        this.completionCount = 0;
     }
 
     /**
@@ -212,6 +202,28 @@ public class Reservation extends BaseEntity {
             return false;
         }
         return Duration.between(baseTime, candidate).toMinutes() <= ReservationConstants.MAX_REASONABLE_CYCLE_MINUTES;
+    }
+
+    /**
+     * 실행 중인 예약이 장기 실행 상태인지 판정합니다.
+     *
+     * <p>
+     * 기준 시각은 예상 완료 시각에 {@code LONG_RUNNING_GRACE_MINUTES}분을 더한 시각이며, 예상 완료 시각이 없으면
+     * 시작 시각에 최대 사이클 길이({@code MAX_REASONABLE_CYCLE_MINUTES}분)를 더한 시각입니다. 운영 확인 대상을
+     * 식별하는 용도이며 예약 상태를 바꾸지 않습니다.
+     *
+     * @param now
+     *            판정 기준 현재 시각
+     * @return RUNNING이고 기준 시각이 지났으면 {@code true}
+     */
+    public boolean isLongRunning(LocalDateTime now) {
+        if (this.status != ReservationStatus.RUNNING || this.startTime == null) {
+            return false;
+        }
+        var threshold = this.expectedCompletionTime != null
+                ? this.expectedCompletionTime.plusMinutes(ReservationConstants.LONG_RUNNING_GRACE_MINUTES)
+                : this.startTime.plusMinutes(ReservationConstants.MAX_REASONABLE_CYCLE_MINUTES);
+        return now.isAfter(threshold);
     }
 
     /**

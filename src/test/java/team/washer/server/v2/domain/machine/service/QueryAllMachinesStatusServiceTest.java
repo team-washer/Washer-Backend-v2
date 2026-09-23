@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
 
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
@@ -31,6 +36,7 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
@@ -54,12 +60,20 @@ class QueryAllMachinesStatusServiceTest {
     private UserRepository userRepository;
 
     @Mock
+    private PlatformTransactionManager transactionManager;
+
+    @Mock
     private Reservation reservation;
 
     @Mock
     private User user;
 
     private static final Long USER_ID = 1L;
+
+    @BeforeEach
+    void setUpTransactionManager() {
+        when(transactionManager.getTransaction(any())).thenReturn(mock(TransactionStatus.class));
+    }
 
     private void givenUserMocked() {
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
@@ -82,8 +96,11 @@ class QueryAllMachinesStatusServiceTest {
             var machine2 = Machine.builder().name("D-3F-R1").type(MachineType.DRYER).deviceId("device-2").floor(3)
                     .position(Position.RIGHT).number(1).status(MachineStatus.NORMAL)
                     .availability(MachineAvailability.IN_USE).build();
+            ReflectionTestUtils.setField(machine1, "id", 1L);
+            ReflectionTestUtils.setField(machine2, "id", 2L);
 
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine1, machine2));
+            when(machineRepository.findAllById(any())).thenReturn(List.of(machine1, machine2));
 
             var washerJobAttr = new SmartThingsDeviceStatusResDto.AttributeState("run", "2026-01-26T14:00:00Z", null);
             var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
@@ -119,8 +136,10 @@ class QueryAllMachinesStatusServiceTest {
             var machine1 = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
                     .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
                     .availability(MachineAvailability.AVAILABLE).build();
+            ReflectionTestUtils.setField(machine1, "id", 1L);
 
             when(machineRepository.findAll()).thenReturn(List.of(machine1));
+            when(machineRepository.findAllById(any())).thenReturn(List.of(machine1));
             when(deviceStatusQuerySupport.queryAllDevicesStatus(any())).thenReturn(Map.of());
             when(reservationRepository.findCurrentlyActiveReservationByMachineId(any())).thenReturn(Optional.empty());
 
@@ -137,12 +156,120 @@ class QueryAllMachinesStatusServiceTest {
             // Given
             givenUserMocked();
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of());
+            when(machineRepository.findAllById(any())).thenReturn(List.of());
 
             // When
             var result = queryAllMachinesStatusService.execute(USER_ID, true);
 
             // Then
             assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("외부 기기 상태 조회는 DB 읽기 트랜잭션이 끝난 뒤 수행한다")
+        void execute_ShouldQueryExternalStatusBetweenReadTransactions() {
+            // Given
+            givenUserMocked();
+            final var machine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
+                    .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.AVAILABLE).build();
+            ReflectionTestUtils.setField(machine, "id", 1L);
+            when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
+            when(machineRepository.findAllById(any())).thenReturn(List.of(machine));
+            when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1"))).thenReturn(Map.of());
+            when(reservationRepository.findCurrentlyActiveReservationByMachineId(1L)).thenReturn(Optional.empty());
+
+            // When
+            queryAllMachinesStatusService.execute(USER_ID, true);
+
+            // Then
+            var inOrder = inOrder(transactionManager, deviceStatusQuerySupport);
+            inOrder.verify(transactionManager).getTransaction(argThat(TransactionDefinition::isReadOnly));
+            inOrder.verify(transactionManager).commit(any(TransactionStatus.class));
+            inOrder.verify(deviceStatusQuerySupport).queryAllDevicesStatus(List.of("device-1"));
+            inOrder.verify(transactionManager).getTransaction(argThat(TransactionDefinition::isReadOnly));
+            inOrder.verify(transactionManager).commit(any(TransactionStatus.class));
+        }
+
+        @Test
+        @DisplayName("외부 조회 중 기기 상태가 바뀌면 최신 DB 상태를 우선한다")
+        void execute_ShouldUseLatestMachineState_WhenMachineChangesDuringExternalQuery() {
+            // Given
+            givenUserMocked();
+            final var initialMachine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1")
+                    .floor(3).position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.AVAILABLE).build();
+            final var latestMachine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1")
+                    .floor(3).position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.UNAVAILABLE).build();
+            ReflectionTestUtils.setField(initialMachine, "id", 1L);
+            ReflectionTestUtils.setField(latestMachine, "id", 1L);
+            when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(initialMachine));
+            when(machineRepository.findAllById(List.of(1L))).thenReturn(List.of(latestMachine));
+            when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1"))).thenReturn(Map.of());
+            when(reservationRepository.findCurrentlyActiveReservationByMachineId(1L)).thenReturn(Optional.empty());
+
+            // When
+            final var result = queryAllMachinesStatusService.execute(USER_ID, true);
+
+            // Then
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.UNAVAILABLE);
+        }
+
+        @Test
+        @DisplayName("외부 조회 후 기기 연결이 바뀌면 이전 기기 상태를 최신 기기에 적용하지 않는다")
+        void execute_ShouldIgnoreExternalStatus_WhenMachineDeviceChangesDuringExternalQuery() {
+            // Given
+            givenUserMocked();
+            final var initialMachine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1")
+                    .floor(3).position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.AVAILABLE).build();
+            final var latestMachine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-2")
+                    .floor(3).position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.IN_USE).build();
+            ReflectionTestUtils.setField(initialMachine, "id", 1L);
+            ReflectionTestUtils.setField(latestMachine, "id", 1L);
+            final var runningState = new SmartThingsDeviceStatusResDto.AttributeState("run",
+                    "2026-01-26T14:00:00Z",
+                    null);
+            final var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main",
+                    new SmartThingsDeviceStatusResDto.ComponentStatus(
+                            new SmartThingsDeviceStatusResDto.WasherOperatingState(runningState, null, null),
+                            null,
+                            null,
+                            null)));
+            when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(initialMachine));
+            when(machineRepository.findAllById(List.of(1L))).thenReturn(List.of(latestMachine));
+            when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
+                    .thenReturn(Map.of("device-1", deviceStatus));
+            when(reservationRepository.findCurrentlyActiveReservationByMachineId(1L)).thenReturn(Optional.empty());
+
+            // When
+            final var result = queryAllMachinesStatusService.execute(USER_ID, true);
+
+            // Then
+            assertThat(result.getFirst().operatingState()).isEqualTo(MachineOperatingState.UNKNOWN);
+            assertThat(result.getFirst().availability()).isEqualTo(MachineAvailability.IN_USE);
+        }
+
+        @Test
+        @DisplayName("외부 상태 조회가 실패하면 최신 DB 상태 재조회 없이 예외를 전달한다")
+        void execute_ShouldPreserveDatabaseState_WhenExternalQueryFails() {
+            // Given
+            givenUserMocked();
+            final var machine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
+                    .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
+                    .availability(MachineAvailability.AVAILABLE).build();
+            ReflectionTestUtils.setField(machine, "id", 1L);
+            when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
+            when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
+                    .thenThrow(new IllegalStateException("external status unavailable"));
+
+            // When & Then
+            assertThatThrownBy(() -> queryAllMachinesStatusService.execute(USER_ID, true))
+                    .isInstanceOf(IllegalStateException.class);
+            verify(machineRepository, never()).findAllById(any());
+            verify(reservationRepository, never()).findCurrentlyActiveReservationByMachineId(any());
         }
 
         @Test
@@ -154,6 +281,7 @@ class QueryAllMachinesStatusServiceTest {
             var machine = Machine.builder().name("D-3F-R1").type(MachineType.DRYER).deviceId("device-1").floor(3)
                     .position(Position.RIGHT).number(1).status(MachineStatus.NORMAL)
                     .availability(MachineAvailability.AVAILABLE).build();
+            ReflectionTestUtils.setField(machine, "id", 1L);
 
             var washerCompletionTime = new SmartThingsDeviceStatusResDto.AttributeState("2026-01-26T15:30:00Z",
                     "2026-01-26T14:30:00Z",
@@ -172,6 +300,7 @@ class QueryAllMachinesStatusServiceTest {
             var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
 
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
+            when(machineRepository.findAllById(any())).thenReturn(List.of(machine));
             when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
                     .thenReturn(Map.of("device-1", deviceStatus));
             when(reservationRepository.findCurrentlyActiveReservationByMachineId(any()))
@@ -195,6 +324,7 @@ class QueryAllMachinesStatusServiceTest {
             var machine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
                     .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
                     .availability(MachineAvailability.IN_USE).build();
+            ReflectionTestUtils.setField(machine, "id", 1L);
 
             var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("stop",
                     "2026-01-26T15:30:00Z",
@@ -210,6 +340,7 @@ class QueryAllMachinesStatusServiceTest {
                     Map.of("main", new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null)));
 
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
+            when(machineRepository.findAllById(any())).thenReturn(List.of(machine));
             when(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
                     .thenReturn(Map.of("device-1", deviceStatus));
             when(reservationRepository.findCurrentlyActiveReservationByMachineId(any()))
@@ -256,6 +387,7 @@ class QueryAllMachinesStatusServiceTest {
         void execute_ShouldSucceed_WhenUserIsOnFloor1To4() {
             givenUserMocked();
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of());
+            when(machineRepository.findAllById(any())).thenReturn(List.of());
 
             assertThatNoException().isThrownBy(() -> queryAllMachinesStatusService.execute(USER_ID, true));
         }
@@ -266,13 +398,16 @@ class QueryAllMachinesStatusServiceTest {
     class ComputeAvailabilityTest {
 
         private Machine buildMachine(MachineAvailability availability) {
-            return Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
+            final var machine = Machine.builder().name("W-3F-L1").type(MachineType.WASHER).deviceId("device-1").floor(3)
                     .position(Position.LEFT).number(1).status(MachineStatus.NORMAL).availability(availability).build();
+            ReflectionTestUtils.setField(machine, "id", 1L);
+            return machine;
         }
 
         private void givenMachineWithReservation(Machine machine, Reservation reservationOrNull) {
             givenUserMocked();
             when(machineRepository.findAll(any(Sort.class))).thenReturn(List.of(machine));
+            when(machineRepository.findAllById(any())).thenReturn(List.of(machine));
             when(deviceStatusQuerySupport.queryAllDevicesStatus(any())).thenReturn(Map.of());
             when(reservationRepository.findCurrentlyActiveReservationByMachineId(any()))
                     .thenReturn(Optional.ofNullable(reservationOrNull));

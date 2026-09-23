@@ -19,7 +19,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 
 /**
- * [임시 검증 코드] 실기기 대상 "전원 ON → 안전 종료" 1회성 사이클 테스트 실행기.
+ * [임시 검증 코드] 실기기 대상 "전원 ON → 전원 차단" 1회성 사이클 테스트 실행기.
  *
  * <p>
  * 애플리케이션 부팅이 완료되면 백그라운드 스레드에서 자동으로 1회 실행됩니다. 원격 제어(Smart Control) 활성화 여부와
@@ -110,9 +110,9 @@ public class TestDeviceCycleRunner implements ApplicationRunner {
 
             var statusBeforeShutdown = logCurrentState(machine, "2️⃣ 작동 시도 후 상태");
 
-            log.info("🛑 [{}] 안전 종료를 시도합니다 (작동 중이면 setMachineState stop, 유휴면 switch off)...", name);
+            log.info("🛑 [{}] 전원 차단을 시도합니다 (작동 여부와 관계없이 switch off)...", name);
             var result = deviceShutdownSupport.shutdown(machine, statusBeforeShutdown);
-            log.info("🛑 [{}] 안전 종료 결과: {}", name, describeResult(result));
+            log.info("🛑 [{}] 전원 차단 결과: {}", name, describeResult(result));
             sleep(AFTER_SHUTDOWN_WAIT_MS);
 
             logCurrentState(machine, "3️⃣ 종료 후 상태");
@@ -143,9 +143,8 @@ public class TestDeviceCycleRunner implements ApplicationRunner {
 
     private String describeResult(DeviceShutdownSupport.ShutdownResult result) {
         return switch (result) {
-            case STOPPED -> "작동 중 → 안전 정지 명령 전송됨 (STOPPED)";
-            case POWERED_OFF -> "유휴 상태 → 전원 차단됨 (POWERED_OFF)";
-            case SKIPPED_OPERATING -> "작동 중 → 종료하지 않음 (SKIPPED_OPERATING)";
+            case POWERED_OFF -> "전원 차단됨 (POWERED_OFF)";
+            case SKIPPED_WASHER_DRAINING -> "작동 중 세탁기 → 종료하지 않음 (SKIPPED_WASHER_DRAINING)";
             case SKIPPED_UNKNOWN -> "상태 불명 → 종료하지 않음 (SKIPPED_UNKNOWN)";
         };
     }

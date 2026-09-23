@@ -146,31 +146,6 @@ class ReservationTest {
     }
 
     @Nested
-    @DisplayName("완료 디바운스 카운터")
-    class CompletionCountTest {
-
-        @Test
-        @DisplayName("감지될 때마다 1씩 증가하고 초기화하면 0으로 돌아간다")
-        void shouldIncrementAndClear() {
-            // Given
-            var reservation = buildReservedReservation();
-
-            // When
-            reservation.incrementCompletionCount();
-            reservation.incrementCompletionCount();
-
-            // Then
-            assertThat(reservation.getCompletionCount()).isEqualTo(2);
-
-            // When
-            reservation.clearCompletionCount();
-
-            // Then
-            assertThat(reservation.getCompletionCount()).isZero();
-        }
-    }
-
-    @Nested
     @DisplayName("현재 활성 예약 판정")
     class IsCurrentlyActiveTest {
 
@@ -220,6 +195,61 @@ class ReservationTest {
             // When & Then
             assertThat(completed.isCurrentlyActive()).isFalse();
             assertThat(cancelled.isCurrentlyActive()).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("장기 실행 판정")
+    class IsLongRunningTest {
+
+        @Test
+        @DisplayName("예상 완료 시각에 유예 시간을 더한 시각이 지나면 장기 실행으로 판정한다")
+        void shouldReturnTrue_WhenExpectedCompletionPlusGracePassed() {
+            // Given
+            var expectedCompletionTime = LocalDateTime.now(KOREA_ZONE).plusMinutes(60);
+            var reservation = buildRunningReservation(expectedCompletionTime);
+            var now = expectedCompletionTime.plusMinutes(ReservationConstants.LONG_RUNNING_GRACE_MINUTES + 1);
+
+            // When & Then
+            assertThat(reservation.isLongRunning(now)).isTrue();
+        }
+
+        @Test
+        @DisplayName("예상 완료 시각이 지났어도 유예 시간 안이면 장기 실행으로 판정하지 않는다")
+        void shouldReturnFalse_WhenWithinGrace() {
+            // Given
+            var expectedCompletionTime = LocalDateTime.now(KOREA_ZONE).plusMinutes(60);
+            var reservation = buildRunningReservation(expectedCompletionTime);
+            var now = expectedCompletionTime.plusMinutes(ReservationConstants.LONG_RUNNING_GRACE_MINUTES - 1);
+
+            // When & Then
+            assertThat(reservation.isLongRunning(now)).isFalse();
+        }
+
+        @Test
+        @DisplayName("예상 완료 시각이 없으면 시작 시각에 최대 사이클 길이를 더한 시각을 기준으로 판정한다")
+        void shouldUseMaxCycle_WhenExpectedCompletionTimeMissing() {
+            // Given
+            var reservation = buildRunningReservation(null);
+            var startTime = reservation.getStartTime();
+
+            // When & Then
+            assertThat(reservation
+                    .isLongRunning(startTime.plusMinutes(ReservationConstants.MAX_REASONABLE_CYCLE_MINUTES - 1)))
+                    .isFalse();
+            assertThat(reservation
+                    .isLongRunning(startTime.plusMinutes(ReservationConstants.MAX_REASONABLE_CYCLE_MINUTES + 1)))
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("RUNNING이 아닌 예약은 장기 실행으로 판정하지 않는다")
+        void shouldReturnFalse_WhenNotRunning() {
+            // Given
+            var reservation = buildReservedReservation();
+
+            // When & Then
+            assertThat(reservation.isLongRunning(LocalDateTime.now(KOREA_ZONE).plusDays(1))).isFalse();
         }
     }
 }

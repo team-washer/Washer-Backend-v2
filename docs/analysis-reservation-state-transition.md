@@ -132,6 +132,7 @@ PR #102는 `isCompleted`가 `present`를 반환하는 조건을 넓히므로 이
 ### 2-5. [Medium] `ReservationTimeoutScheduler`만 운영시간 체크가 없다
 
 - 위치: `ReservationTimeoutScheduler.java:20`
+- 현황: `#170`(PR #172)에서 `ReservationTimeoutScheduler`를 제거하고, 타임아웃 정리를 운영시간을 확인하는 `IdleMachineShutdownScheduler` 안으로 옮겨 해소되었다.
 
 | 스케줄러 | 주기 | `operationTimePolicy` 확인 |
 |---|---|---|

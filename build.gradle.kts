@@ -151,6 +151,7 @@ sourceSets {
 }
 
 tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
     options.generatedSourceOutputDirectory.set(generatedDir)
 }
 

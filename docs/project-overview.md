@@ -225,16 +225,19 @@ RESERVED("예약됨", 3), RUNNING("실행 중", 0), COMPLETED("완료", 0), CANC
 4-C. 일시정지   → 10분 넘으면 자동 취소
 ```
 
-`ReservationTimeoutScheduler` 는 별도로 돕니다:
-**예약해놓고 3분 안에 안 돌리면 자동 취소** (`RESERVED("예약됨", 3)` 의 그 3분).
+`IdleMachineShutdownScheduler` 는 한 주기 안에서 두 가지를 순서대로 합니다:
+1. **예약해놓고 5분 안에 안 돌리면 자동 취소** (`RESERVED("예약됨", 5)` 의 그 5분).
+   이때 기기가 이미 돌고 있으면 취소 대신 RUNNING 으로 살려줍니다.
+2. **활성 예약이 없는 기기의 전원 차단.**
+
+순서가 중요합니다. 타임아웃 정리를 먼저 해야, 늦게 시작한 예약이 살아난 뒤에 전원 차단 대상을 고릅니다.
 
 ### 등록된 스케줄러 전체
 
 | 클래스 | 주기 | 하는 일 |
 |--------|------|---------|
 | `ReservationLifecycleScheduler` | fixedDelay | RESERVED→RUNNING→COMPLETED 전환 |
-| `ReservationTimeoutScheduler` | fixedDelay | 3분 미시작 예약 자동 취소 |
-| `IdleMachineShutdownScheduler` | fixedDelay | 유휴 기기 전원 차단 |
+| `IdleMachineShutdownScheduler` | fixedDelay | 미시작 예약 타임아웃 정리 → 유휴 기기 전원 차단 |
 | `SmartThingsDeviceSyncScheduler` | cron `10 45 8 * * *` | 매일 08:45:10 기기 목록 동기화 |
 | `SmartThingsTokenRefreshScheduler` | fixedRate | SmartThings 토큰 갱신 |
 
@@ -258,18 +261,45 @@ RESERVED("예약됨", 3), RUNNING("실행 중", 0), COMPLETED("완료", 0), CANC
 - `ProcessReservationLifecycleServiceImpl` — 외부 API 호출 + 조율 (트랜잭션 없음)
 - `ReservationLifecycleProcessor` — DB 갱신만 담당 (트랜잭션 경계)
 
-### 완료 판정의 방어 로직
+### 완료 판정과 전원 차단
 
-`ReservationLifecycleProcessor` 에는 오탐을 막는 장치가 여럿 있습니다:
+완료 판정은 `#170` 이후 단순합니다. `jobState` 가 `finish`(세탁기) / `finished`(건조기) 이거나,
+기기가 정지하고 `jobState` 가 `none`/공백이면 즉시 완료입니다.
+완료 신호의 갱신 시각이 예약 시작보다 앞서면 이전 사이클의 잔재로 보고 보류합니다.
+
+완료가 실제 종료보다 2~4분 이르게 표시되는 것은 감수하고, 대신 **완료 시 기기 전원을 차단**합니다.
+서버가 전원을 켜는 경로는 없으므로, 다음 예약자가 직접 켜야 기기가 동작합니다.
 
 | 상수 | 값 | 목적 |
 |------|-----|------|
-| `COMPLETION_EARLY_LOG_TOLERANCE_MINUTES` | 2 | 너무 이른 완료 보고 허용 오차 |
-| `COMPLETION_BOUNDARY_GRACE_MINUTES` | 5 | 경계 시각 유예 |
 | `MAX_REASONABLE_CYCLE_MINUTES` | 240 | 비정상적으로 긴 사이클 차단 |
+| `WASHER_DRAIN_GRACE_MINUTES` | 5 | 완료 후 작동 중인 세탁기의 배수 유예 |
 
-또 `Reservation.interruptionCount` 는 **디바운스 카운터**입니다.
+`Reservation.interruptionCount` 는 **디바운스 카운터**입니다.
 세탁기가 사이클 단계 전환 중 순간적으로 "정지"로 보고하는 것을 진짜 중단과 구분하기 위한 장치입니다.
+완료 쪽 디바운스(`completionCount`)는 `#170` 에서 제거했고, 컬럼만 남아 있습니다.
+
+### 장기 RUNNING 식별
+
+완료 신호를 받으면 즉시 완료되므로, 오래 RUNNING 으로 남은 예약은 SmartThings 조회 실패나 완료 신호 누락을 의심합니다(`#169`).
+서버는 이런 예약을 **식별만 하고 자동 완료하지 않습니다.**
+
+- 기준: `expectedCompletionTime + 30분`(`LONG_RUNNING_GRACE_MINUTES`) 경과.
+  `expectedCompletionTime` 이 없으면 `startTime + 240분`(`MAX_REASONABLE_CYCLE_MINUTES`) 경과. (`Reservation.isLongRunning`)
+- RUNNING 예약의 기기 상태 조회가 실패하면 `running reservation status query failed ... consecutiveFailures=` 로그를 남깁니다.
+- 라이프사이클 주기 끝에 기준을 넘긴 예약을 `long running reservation detected ... consecutiveQueryFailures=` 경고 로그로 남깁니다.
+  같은 예약은 30분(`LONG_RUNNING_REPORT_INTERVAL_MINUTES`) 간격으로만 다시 남깁니다.
+- 연속 실패 횟수와 보고 시각은 메모리에만 두므로 서버 재시작 시 초기화됩니다.
+
+DB에서 직접 확인할 때의 기준은 다음과 같습니다. 시각 컬럼은 한국 시간으로 저장되므로 DB 세션 시간대가 KST가 아니면 `NOW()` 대신 한국 시간을 넣어야 합니다.
+
+```sql
+SELECT id, machine_id, start_time, expected_completion_time
+FROM reservations
+WHERE status = 'RUNNING'
+  AND ((expected_completion_time IS NOT NULL AND expected_completion_time < NOW() - INTERVAL 30 MINUTE)
+    OR (expected_completion_time IS NULL AND start_time < NOW() - INTERVAL 240 MINUTE));
+```
 
 ---
 
