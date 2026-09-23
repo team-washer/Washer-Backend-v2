@@ -11,12 +11,14 @@ import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.malfunction.dto.request.CreateMalfunctionReportReqDto;
 import team.washer.server.v2.domain.malfunction.dto.response.MalfunctionReportResDto;
 import team.washer.server.v2.domain.malfunction.service.CreateMalfunctionReportService;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 @RestController
 @RequestMapping("/api/v2/malfunction-reports")
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Malfunction Report", description = "고장 신고 API")
+@CommonErrorResponses
 public class MalfunctionReportController {
 
     private final CreateMalfunctionReportService createMalfunctionReportService;

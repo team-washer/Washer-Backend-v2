@@ -24,12 +24,14 @@ import team.washer.server.v2.domain.reservation.dto.response.AdminReservationRes
 import team.washer.server.v2.domain.reservation.dto.response.PenaltyStatusResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.*;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 @RestController
 @RequestMapping("/api/v2/admin/reservations")
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Admin Reservation", description = "예약 관리 API (관리자용)")
+@CommonErrorResponses
 public class AdminReservationController {
 
     private final QueryPenaltyStatusService queryPenaltyStatusService;

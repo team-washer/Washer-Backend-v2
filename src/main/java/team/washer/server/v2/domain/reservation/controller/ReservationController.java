@@ -11,16 +11,23 @@ import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
+import team.washer.server.v2.domain.reservation.dto.response.ActiveReservationApiResponseResDto;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationAvailabilityResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationHistoryPageResDto;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
+import team.washer.server.v2.domain.reservation.dto.response.RoomActiveReservationsApiResponseResDto;
 import team.washer.server.v2.domain.reservation.dto.response.RoomActiveReservationsResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.CancelReservationService;
@@ -30,12 +37,15 @@ import team.washer.server.v2.domain.reservation.service.QueryReservationAvailabi
 import team.washer.server.v2.domain.reservation.service.QueryReservationHistoryService;
 import team.washer.server.v2.domain.reservation.service.QueryReservationService;
 import team.washer.server.v2.domain.reservation.service.QueryRoomActiveReservationsService;
+import team.washer.server.v2.global.common.error.dto.response.CommonErrorResponseResDto;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 @RestController
 @RequestMapping("/api/v2/reservations")
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Reservation", description = "예약 API")
+@CommonErrorResponses
 public class ReservationController {
 
     private final CreateReservationService createReservationService;
@@ -62,18 +72,23 @@ public class ReservationController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "예약 취소", description = "RESERVED 상태의 예약을 취소합니다. 취소 시 5분간 동일 종류 기기 재예약이 제한됩니다. 이미 기기 사용이 시작된 RUNNING 예약은 취소할 수 없으며 409를 반환합니다.")
+    @ApiResponses(@ApiResponse(responseCode = "409", description = "기기 사용이 이미 시작되어 예약을 취소할 수 없음", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class), examples = @ExampleObject(value = "{\"status\":\"CONFLICT\",\"code\":409,\"message\":\"이미 기기 사용이 시작되어 예약을 취소할 수 없습니다.\",\"data\":{\"errorCode\":\"CONFLICT\",\"traceId\":\"...\"}}"))))
     public CancellationResDto cancelReservation(@Parameter(description = "예약 ID") @PathVariable @NotNull Long id) {
         return cancelReservationService.execute(id);
     }
 
     @GetMapping("/active")
     @Operation(summary = "내 활성 예약 조회", description = "현재 활성 상태인 나의 예약을 조회합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "활성 예약 조회 성공", content = @Content(schema = @Schema(implementation = ActiveReservationApiResponseResDto.class))),
+            @ApiResponse(responseCode = "204", description = "활성 예약이 없어 응답 본문이 없습니다.")})
     public ReservationResDto getActiveReservation() {
         return queryActiveReservationService.execute();
     }
 
     @GetMapping("/active/room")
     @Operation(summary = "내 호실 활성 예약 목록 조회", description = "현재 로그인된 사용자의 호실에 있는 모든 활성 예약 목록을 조회합니다.")
+    @ApiResponses(@ApiResponse(responseCode = "200", description = "활성 예약이 없으면 reservations는 빈 배열([])입니다.", content = @Content(schema = @Schema(implementation = RoomActiveReservationsApiResponseResDto.class))))
     public RoomActiveReservationsResDto getRoomActiveReservations() {
         return queryRoomActiveReservationsService.execute();
     }

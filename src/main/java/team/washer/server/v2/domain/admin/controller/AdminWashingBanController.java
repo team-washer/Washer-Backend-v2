@@ -14,11 +14,13 @@ import team.washer.server.v2.domain.admin.dto.response.WashingBanResDto;
 import team.washer.server.v2.domain.admin.service.CreateWashingBanService;
 import team.washer.server.v2.domain.admin.service.DeleteWashingBanService;
 import team.washer.server.v2.domain.admin.service.QueryAllWashingBansService;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 @RestController
 @RequestMapping("/api/v2/admin/washing-bans")
 @RequiredArgsConstructor
 @Tag(name = "Admin Washing Ban", description = "관리자 세탁 강제 금지 API")
+@CommonErrorResponses
 public class AdminWashingBanController {
 
     private final CreateWashingBanService createWashingBanService;

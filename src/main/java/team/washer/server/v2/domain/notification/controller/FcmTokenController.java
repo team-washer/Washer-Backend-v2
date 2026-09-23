@@ -18,6 +18,7 @@ import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.notification.dto.request.FcmTokenReqDto;
 import team.washer.server.v2.domain.notification.service.DeleteFcmTokenService;
 import team.washer.server.v2.domain.notification.service.RegisterFcmTokenService;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @RestController
@@ -26,6 +27,7 @@ import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 @Validated
 @Tag(name = "FCM Token", description = "FCM 토큰 관리 API")
 @SecurityRequirement(name = "bearerAuth")
+@CommonErrorResponses
 public class FcmTokenController {
 
     private final RegisterFcmTokenService registerFcmTokenService;

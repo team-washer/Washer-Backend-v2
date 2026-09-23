@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import team.themoment.sdk.exception.ExpectedException;
 import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.smartthings.service.ExchangeSmartThingsTokenService;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 import team.washer.server.v2.global.thirdparty.smartthings.SmartThingsOAuthStateStore;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnvironment;
 
@@ -31,6 +32,7 @@ import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnv
 @RequiredArgsConstructor
 @Slf4j
 @Tag(name = "Admin SmartThings OAuth", description = "SmartThings OAuth 인증 API (관리자용)")
+@CommonErrorResponses
 public class AdminSmartThingsOAuthController {
 
     private static final String SCOPE = "r:devices:* w:devices:* x:devices:*";
