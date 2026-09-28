@@ -1,10 +1,14 @@
 package team.washer.server.v2.global.config.swagger;
 
+import org.springdoc.core.customizers.GlobalOpenApiCustomizer;
 import org.springdoc.core.customizers.OperationCustomizer;
 import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 
+import io.swagger.v3.core.converter.ModelConverters;
+import io.swagger.v3.oas.models.Components;
+import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
@@ -17,10 +21,21 @@ import team.washer.server.v2.global.common.error.dto.response.CommonErrorRespons
  * 공통 오류 응답 중 전역 예외 처리기에서 발생할 수 있는 상태를 OpenAPI operation에 추가합니다.
  */
 @Component
-public class CommonErrorResponsesCustomizer implements OperationCustomizer {
+public class CommonErrorResponsesCustomizer implements OperationCustomizer, GlobalOpenApiCustomizer {
 
-    private static final String COMMON_ERROR_SCHEMA_REF = "#/components/schemas/"
+    private static final String COMMON_ERROR_SCHEMA_REF = Components.COMPONENTS_SCHEMAS_REF
             + CommonErrorResponseResDto.OPENAPI_SCHEMA_NAME;
+
+    @Override
+    public void customise(final OpenAPI openAPI) {
+        final var components = openAPI.getComponents() == null ? new Components() : openAPI.getComponents();
+        final var schemas = components.getSchemas() == null
+                ? new java.util.LinkedHashMap<String, Schema>()
+                : components.getSchemas();
+        ModelConverters.getInstance().read(CommonErrorResponseResDto.class).forEach(schemas::putIfAbsent);
+        components.setSchemas(schemas);
+        openAPI.setComponents(components);
+    }
 
     @Override
     public Operation customize(final Operation operation, final HandlerMethod handlerMethod) {

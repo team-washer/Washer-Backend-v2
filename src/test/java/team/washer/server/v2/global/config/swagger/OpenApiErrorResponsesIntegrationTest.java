@@ -1,5 +1,6 @@
 package team.washer.server.v2.global.config.swagger;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -11,9 +12,13 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -34,12 +39,17 @@ class OpenApiErrorResponsesIntegrationTest {
     @Resource
     private MockMvc mockMvc;
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @MockitoBean
     private JwtTokenProvider jwtTokenProvider;
 
     @Test
     @DisplayName("전역 409·503을 추가하고 엔드포인트 전용 설명은 유지한다")
     void preservesEndpointSpecificResponsesAndAddsGlobalResponses() throws Exception {
+        final MvcResult result = mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn();
+        final var document = objectMapper.readTree(result.getResponse().getContentAsString());
+
         mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
                 .andExpect(jsonPath("$.components.schemas.CommonErrorResponse").exists())
                 .andExpect(
@@ -56,6 +66,29 @@ class OpenApiErrorResponsesIntegrationTest {
                 .andExpect(jsonPath(
                         "$.paths['/test/generic'].get.responses['503'].content['application/json'].schema.$ref")
                         .value("#/components/schemas/CommonErrorResponse"));
+
+        assertEveryReferenceResolves(document);
+    }
+
+    private void assertEveryReferenceResolves(final JsonNode node) {
+        final var schemas = node.path("components").path("schemas");
+        assertEveryReferenceResolves(node, schemas);
+    }
+
+    private void assertEveryReferenceResolves(final JsonNode node, final JsonNode schemas) {
+        if (node.isObject()) {
+            node.fields().forEachRemaining(field -> {
+                if ("$ref".equals(field.getKey())) {
+                    final var reference = field.getValue().asText();
+                    if (reference.startsWith("#/components/schemas/")) {
+                        assertThat(schemas.has(reference.substring("#/components/schemas/".length()))).isTrue();
+                    }
+                }
+                assertEveryReferenceResolves(field.getValue(), schemas);
+            });
+        } else if (node.isArray()) {
+            node.elements().forEachRemaining(child -> assertEveryReferenceResolves(child, schemas));
+        }
     }
 
     @RestController
