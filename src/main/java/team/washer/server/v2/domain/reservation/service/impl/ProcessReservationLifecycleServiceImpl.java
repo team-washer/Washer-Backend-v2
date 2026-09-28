@@ -120,7 +120,15 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
      *         {@code false}
      */
     private boolean shutdownCompletedMachine(CompletedMachine completedMachine, SmartThingsDeviceStatusResDto status) {
+        final var claim = new MachineShutdownClaimSupport.ShutdownClaim(completedMachine.machineId(),
+                completedMachine.shutdownClaimToken());
         try {
+            if (!machineShutdownClaimSupport.isActive(claim)) {
+                log.warn("power off after completion skipped because shutdown claim is inactive machine={} deviceId={}",
+                        completedMachine.machineName(),
+                        completedMachine.deviceId());
+                return true;
+            }
             deviceShutdownSupport.shutdownAfterCompletion(completedMachine.machineName(),
                     completedMachine.deviceId(),
                     completedMachine.isWasher(),
@@ -141,9 +149,15 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     e.getMessage());
             return true;
         } finally {
-            machineShutdownClaimSupport
-                    .release(new MachineShutdownClaimSupport.ShutdownClaim(completedMachine.machineId(),
-                            completedMachine.shutdownClaimToken()));
+            try {
+                machineShutdownClaimSupport.release(claim);
+            } catch (Exception e) {
+                log.error("failed to release shutdown claim machine={} deviceId={} reason={}",
+                        completedMachine.machineName(),
+                        completedMachine.deviceId(),
+                        e.getMessage(),
+                        e);
+            }
         }
     }
 

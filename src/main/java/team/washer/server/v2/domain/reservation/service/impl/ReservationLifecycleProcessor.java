@@ -22,6 +22,7 @@ import team.washer.server.v2.domain.reservation.support.ReservationStartDecision
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -50,6 +51,7 @@ public class ReservationLifecycleProcessor {
     private final ReservationStartDecisionSupport reservationStartDecisionSupport;
     private final ReservationNotificationSupport reservationNotificationSupport;
     private final MachineShutdownClaimSupport machineShutdownClaimSupport;
+    private final UserRepository userRepository;
 
     /**
      * 외부 API 호출 대상이 되는 예약의 식별자와 기기 ID 쌍.
@@ -148,15 +150,20 @@ public class ReservationLifecycleProcessor {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Optional<CompletedMachine> processRunningToCompleted(Long reservationId,
             SmartThingsDeviceStatusResDto status) {
+        final var userId = reservationRepository.findUserIdById(reservationId).orElse(null);
         final var machineId = reservationRepository.findMachineIdById(reservationId).orElse(null);
-        if (machineId == null) {
+        if (userId == null || machineId == null) {
+            return Optional.empty();
+        }
+        userRepository.findRoomUserIdsByUserIdForUpdate(userId);
+        if (userRepository.findByIdForUpdate(userId).isEmpty()) {
             return Optional.empty();
         }
         final var machine = machineRepository.findByIdForUpdate(machineId).orElse(null);
         if (machine == null) {
             return Optional.empty();
         }
-        var reservation = reservationRepository.findByIdForUpdate(reservationId).orElse(null);
+        var reservation = reservationRepository.findByIdForUpdateWithoutRelations(reservationId).orElse(null);
         if (reservation == null || !reservation.isRunning()) {
             return Optional.empty();
         }

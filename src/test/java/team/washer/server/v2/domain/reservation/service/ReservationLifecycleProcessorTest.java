@@ -3,7 +3,6 @@ package team.washer.server.v2.domain.reservation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.BDDMockito.willAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -14,9 +13,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -40,6 +36,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
 
 @ExtendWith(MockitoExtension.class)
@@ -81,6 +78,9 @@ class ReservationLifecycleProcessorTest {
 
     @Mock
     private User user;
+
+    @Mock
+    private UserRepository userRepository;
 
     private SmartThingsDeviceStatusResDto buildDeviceStatus(String completionTime) {
         var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
@@ -240,9 +240,12 @@ class ReservationLifecycleProcessorTest {
     class ProcessRunningToCompletedTest {
 
         private void givenRunningReservation() {
+            when(reservationRepository.findUserIdById(RESERVATION_ID)).thenReturn(Optional.of(3L));
             when(reservationRepository.findMachineIdById(RESERVATION_ID)).thenReturn(Optional.of(2L));
             when(machineRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(machine));
-            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(userRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(user));
+            when(reservationRepository.findByIdForUpdateWithoutRelations(RESERVATION_ID))
+                    .thenReturn(Optional.of(reservation));
             when(reservation.isRunning()).thenReturn(true);
             lenient().when(machineShutdownClaimSupport.claimLockedMachine(machine))
                     .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(2L, "claim-token")));
@@ -498,9 +501,12 @@ class ReservationLifecycleProcessorTest {
         void shouldSkip_WhenNoLongerRunning() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
+            when(reservationRepository.findUserIdById(RESERVATION_ID)).thenReturn(Optional.of(3L));
             when(reservationRepository.findMachineIdById(RESERVATION_ID)).thenReturn(Optional.of(2L));
             when(machineRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(machine));
-            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(userRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(user));
+            when(reservationRepository.findByIdForUpdateWithoutRelations(RESERVATION_ID))
+                    .thenReturn(Optional.of(reservation));
             when(reservation.isRunning()).thenReturn(false);
 
             // When
@@ -513,36 +519,21 @@ class ReservationLifecycleProcessorTest {
         }
 
         @Test
-        @DisplayName("완료 처리 중 신규 예약이 기기 종료 선점을 확보하면 이전 종료 작업을 진행하지 않는다")
-        void shouldNotComplete_WhenNewReservationWinsShutdownClaim() throws Exception {
+        @DisplayName("전원 차단 선점을 확보하지 못하면 완료 처리하지 않는다")
+        void shouldNotComplete_WhenShutdownClaimIsUnavailable() {
             // Given
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
             givenRunningReservation();
             givenCompletionDecision(CompletionDecision.completed(LocalDateTime.now(KOREA_ZONE), "job_finished"));
-            var claimStarted = new CountDownLatch(1);
-            var reservationCreated = new CountDownLatch(1);
-            willAnswer(invocation -> {
-                claimStarted.countDown();
-                assertThat(reservationCreated.await(5, TimeUnit.SECONDS)).isTrue();
-                return Optional.empty();
-            }).given(machineShutdownClaimSupport).claimLockedMachine(machine);
+            when(machineShutdownClaimSupport.claimLockedMachine(machine)).thenReturn(Optional.empty());
 
-            var executor = Executors.newSingleThreadExecutor();
-            try {
-                // When
-                var future = executor.submit(
-                        () -> reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus));
-                assertThat(claimStarted.await(5, TimeUnit.SECONDS)).isTrue();
-                reservationCreated.countDown();
+            // When
+            var result = reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
 
-                // Then
-                assertThat(future.get(5, TimeUnit.SECONDS)).isEmpty();
-                verify(reservation, never()).complete();
-                verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
-            } finally {
-                reservationCreated.countDown();
-                executor.shutdownNow();
-            }
+            // Then
+            assertThat(result).isEmpty();
+            verify(reservation, never()).complete();
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
         }
     }
 }

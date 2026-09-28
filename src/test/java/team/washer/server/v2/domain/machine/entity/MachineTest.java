@@ -2,8 +2,6 @@ package team.washer.server.v2.domain.machine.entity;
 
 import static org.assertj.core.api.Assertions.*;
 
-import java.time.LocalDateTime;
-
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -13,6 +11,7 @@ import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.enums.Position;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @DisplayName("Machine 클래스의")
 class MachineTest {
@@ -208,7 +207,7 @@ class MachineTest {
             var staleToken = machine.claimShutdown().orElseThrow();
             ReflectionTestUtils.setField(machine,
                     "shutdownClaimedAt",
-                    LocalDateTime.now().minus(Machine.SHUTDOWN_CLAIM_TIMEOUT).minusSeconds(1));
+                    DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_CLAIM_TIMEOUT).minusSeconds(1));
 
             // When
             machine.recoverExpiredShutdownClaim();

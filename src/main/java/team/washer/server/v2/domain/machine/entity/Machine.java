@@ -219,8 +219,24 @@ public class Machine extends BaseEntity {
      * @return 사용 가능 여부
      */
     public boolean isAvailable() {
+        recoverExpiredShutdownClaim();
         return this.status == MachineStatus.NORMAL && this.availability == MachineAvailability.AVAILABLE
                 && !this.shutdownInProgress;
+    }
+
+    /** 현재 유효한 전원 차단 선점이 있는지 상태를 변경하지 않고 판정합니다. */
+    public boolean hasActiveShutdownClaim() {
+        if (!this.shutdownInProgress) {
+            return false;
+        }
+        return this.shutdownClaimedAt == null
+                || DateTimeUtil.nowInKorea().isBefore(this.shutdownClaimedAt.plus(SHUTDOWN_CLAIM_TIMEOUT));
+    }
+
+    /** 주어진 토큰이 현재 유효한 전원 차단 선점의 소유자인지 판정합니다. */
+    public boolean ownsActiveShutdownClaim(final String claimToken) {
+        return hasActiveShutdownClaim() && this.shutdownClaimToken != null
+                && this.shutdownClaimToken.equals(claimToken);
     }
 
     /** 외부 전원 차단 작업을 예약합니다. 유효한 기존 작업이 있으면 새 세대를 만들지 않습니다. */
@@ -237,11 +253,7 @@ public class Machine extends BaseEntity {
 
     /** SmartThings 호출의 최대 시간보다 긴 보호 구간이 지난 작업을 복구합니다. */
     public void recoverExpiredShutdownClaim() {
-        if (!this.shutdownInProgress) {
-            return;
-        }
-        if (this.shutdownClaimedAt == null
-                || !DateTimeUtil.nowInKorea().isBefore(this.shutdownClaimedAt.plus(SHUTDOWN_CLAIM_TIMEOUT))) {
+        if (this.shutdownInProgress && !hasActiveShutdownClaim()) {
             clearShutdownClaim();
         }
     }

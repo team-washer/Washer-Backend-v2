@@ -10,9 +10,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -93,6 +90,7 @@ class ShutdownIdleMachinesServiceTest {
                 .willReturn(Map.of(machine.getDeviceId(), EMPTY_STATUS));
         lenient().when(machineShutdownClaimSupport.claimIdleMachine(machine.getId()))
                 .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(machine.getId(), "claim-token")));
+        lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
     }
 
     @Nested
@@ -133,6 +131,7 @@ class ShutdownIdleMachinesServiceTest {
                         .willReturn(Map.of("device-1", EMPTY_STATUS));
                 lenient().when(machineShutdownClaimSupport.claimIdleMachine(1L))
                         .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token")));
+                lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
                 given(deviceShutdownSupport.shutdown(eq(machine), any())).willReturn(ShutdownResult.POWERED_OFF);
 
                 // When
@@ -143,36 +142,21 @@ class ShutdownIdleMachinesServiceTest {
             }
 
             @Test
-            @DisplayName("유휴 기기 조회 후 신규 예약이 생성되면 이전 종료 작업은 전원 차단을 건너뛴다")
-            void it_skips_shutdown_when_reservation_is_created_during_claim() throws Exception {
+            @DisplayName("전원 차단 선점을 확보하지 못하면 이전 종료 작업을 건너뛴다")
+            void it_skips_shutdown_when_claim_is_unavailable() {
                 // Given
                 var machine = createMachine(1L, "W-2F-L1", "device-1");
                 given(machineRepository.findAll()).willReturn(List.of(machine));
                 given(reservationRepository.findCurrentlyActiveMachineIds()).willReturn(List.of());
                 given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of("device-1")))
                         .willReturn(Map.of("device-1", EMPTY_STATUS));
-                var claimStarted = new CountDownLatch(1);
-                var reservationCreated = new CountDownLatch(1);
-                willAnswer(invocation -> {
-                    claimStarted.countDown();
-                    assertThat(reservationCreated.await(5, TimeUnit.SECONDS)).isTrue();
-                    return Optional.empty();
-                }).given(machineShutdownClaimSupport).claimIdleMachine(1L);
+                given(machineShutdownClaimSupport.claimIdleMachine(1L)).willReturn(Optional.empty());
 
-                var executor = Executors.newSingleThreadExecutor();
-                try {
-                    // When
-                    var future = executor.submit(shutdownIdleMachinesService::execute);
-                    assertThat(claimStarted.await(5, TimeUnit.SECONDS)).isTrue();
-                    reservationCreated.countDown();
+                // When
+                shutdownIdleMachinesService.execute();
 
-                    // Then
-                    future.get(5, TimeUnit.SECONDS);
-                    then(deviceShutdownSupport).should(never()).shutdown(any(), any());
-                } finally {
-                    reservationCreated.countDown();
-                    executor.shutdownNow();
-                }
+                // Then
+                then(deviceShutdownSupport).should(never()).shutdown(any(), any());
             }
         }
 
@@ -347,6 +331,7 @@ class ShutdownIdleMachinesServiceTest {
                         .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token-1")));
                 lenient().when(machineShutdownClaimSupport.claimIdleMachine(2L))
                         .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(2L, "claim-token-2")));
+                lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
                 willThrow(new SmartThingsPermissionException("권한 없음")).given(deviceShutdownSupport)
                         .shutdown(eq(machine1), any());
 
@@ -377,6 +362,7 @@ class ShutdownIdleMachinesServiceTest {
                         .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token-1")));
                 lenient().when(machineShutdownClaimSupport.claimIdleMachine(2L))
                         .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(2L, "claim-token-2")));
+                lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
                 willThrow(new RuntimeException("일시적 오류")).given(deviceShutdownSupport).shutdown(eq(machine1), any());
                 given(deviceShutdownSupport.shutdown(eq(machine2), any())).willReturn(ShutdownResult.POWERED_OFF);
 

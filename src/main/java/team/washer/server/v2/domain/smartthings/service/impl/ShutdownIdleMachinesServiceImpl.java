@@ -83,6 +83,10 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                     continue;
                 }
                 try {
+                    if (!machineShutdownClaimSupport.isActive(claim.get())) {
+                        skippedCount++;
+                        continue;
+                    }
                     var result = deviceShutdownSupport.shutdown(machine, status);
                     if (result != DeviceShutdownSupport.ShutdownResult.POWERED_OFF) {
                         continue;
@@ -96,7 +100,15 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                         poweredOff.add(machine.getName());
                     }
                 } finally {
-                    machineShutdownClaimSupport.release(claim.get());
+                    try {
+                        machineShutdownClaimSupport.release(claim.get());
+                    } catch (Exception e) {
+                        log.error("failed to release idle shutdown claim machine={} deviceId={} reason={}",
+                                machine.getName(),
+                                machine.getDeviceId(),
+                                e.getMessage(),
+                                e);
+                    }
                 }
             } catch (SmartThingsPermissionException e) {
                 log.warn("idle shutdown SmartThings permission error detected, stopping batch. machine={} reason={}",

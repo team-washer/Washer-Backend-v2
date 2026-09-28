@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,6 +61,11 @@ class ProcessReservationLifecycleServiceTest {
 
     @Mock
     private LongRunningReservationMonitor longRunningReservationMonitor;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
+    }
 
     private RunningTarget buildRunningTarget(Long reservationId, String deviceId, boolean longRunning) {
         return new RunningTarget(reservationId,
@@ -140,6 +147,7 @@ class ProcessReservationLifecycleServiceTest {
         // Then
         verify(discordErrorNotificationService, times(1))
                 .notifyError(any(SmartThingsPermissionException.class), eq("예약 완료 기기 종료 - SmartThings 권한 오류"), any());
+        verify(machineShutdownClaimSupport, times(1)).release(any());
         verify(deviceStatusQuerySupport, never()).queryDeviceStatus("device-3");
         verify(reservationLifecycleProcessor, never()).processRunningToCompleted(eq(3L), any());
     }
@@ -165,6 +173,7 @@ class ProcessReservationLifecycleServiceTest {
 
         // Then
         verify(reservationLifecycleProcessor, times(1)).processRunningToCompleted(3L, secondStatus);
+        verify(machineShutdownClaimSupport, times(1)).release(any());
     }
 
     @Test

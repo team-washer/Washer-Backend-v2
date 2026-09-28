@@ -40,9 +40,7 @@ public class MachineShutdownClaimSupport {
             return Optional.empty();
         }
 
-        machine.recoverExpiredShutdownClaim();
-        if (machine.isShutdownInProgress()
-                || !reservationRepository.findCurrentlyActiveByMachineId(machineId).isEmpty()) {
+        if (reservationRepository.existsCurrentlyActiveByMachine(machine)) {
             return Optional.empty();
         }
 
@@ -57,19 +55,21 @@ public class MachineShutdownClaimSupport {
      * @return 획득한 세대 토큰
      */
     public Optional<ShutdownClaim> claimLockedMachine(final Machine machine) {
-        return machine.claimShutdown().map(token -> {
-            machineRepository.save(machine);
-            return new ShutdownClaim(machine.getId(), token);
-        });
+        return machine.claimShutdown().map(token -> new ShutdownClaim(machine.getId(), token));
+    }
+
+    /** 외부 명령 직전에 선점 토큰이 아직 유효한지 짧게 확인합니다. */
+    @Transactional(readOnly = true)
+    public boolean isActive(final ShutdownClaim claim) {
+        return machineRepository.findById(claim.machineId())
+                .map(machine -> machine.ownsActiveShutdownClaim(claim.token())).orElse(false);
     }
 
     /** 외부 호출이 끝난 뒤 같은 세대의 claim만 해제합니다. */
     @Transactional
     public void release(final ShutdownClaim claim) {
         machineRepository.findByIdForUpdate(claim.machineId()).ifPresent(machine -> {
-            if (machine.releaseShutdown(claim.token())) {
-                machineRepository.save(machine);
-            }
+            machine.releaseShutdown(claim.token());
         });
     }
 }

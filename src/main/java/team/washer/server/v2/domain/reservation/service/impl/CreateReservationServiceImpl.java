@@ -120,7 +120,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
             }
         }
 
-        reservationCreationSupport.validateMachineAndReservations(user, machine);
+        reservationCreationSupport.validateMachineAndReservations(user, machine, forUpdate);
 
         return new ValidatedTarget(user, machine);
     }

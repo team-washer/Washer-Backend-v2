@@ -117,9 +117,11 @@ public class ReservationCreationSupport {
      * @param machine
      *            락을 획득한 기기
      */
-    public void validateMachineAndReservations(final User user, final Machine machine) {
-        machine.recoverExpiredShutdownClaim();
-        if (machine.isShutdownInProgress()) {
+    public void validateMachineAndReservations(final User user, final Machine machine, final boolean forUpdate) {
+        if (forUpdate) {
+            machine.recoverExpiredShutdownClaim();
+        }
+        if (machine.hasActiveShutdownClaim()) {
             throw new ExpectedException("기기 종료 처리 중입니다. 잠시 후 다시 시도해 주세요", HttpStatus.CONFLICT);
         }
 
