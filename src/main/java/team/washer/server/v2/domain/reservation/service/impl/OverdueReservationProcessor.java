@@ -99,6 +99,23 @@ public class OverdueReservationProcessor {
             return OverdueResult.SKIPPED;
         }
 
+        final boolean hasNewerUserReservation = reservationRepository.existsCurrentlyActiveByUser(user);
+        final boolean hasNewerMachineReservation = reservationRepository.existsCurrentlyActiveByMachine(machine);
+        if (hasNewerUserReservation || hasNewerMachineReservation) {
+            reservation.cancel();
+            if (!hasNewerMachineReservation) {
+                machine.releaseIfHeld();
+                machineRepository.save(machine);
+            }
+            reservationRepository.save(reservation);
+            log.info(
+                    "expired reservation cancelled because a newer active reservation exists reservationId={} userConflict={} machineConflict={}",
+                    reservationId,
+                    hasNewerUserReservation,
+                    hasNewerMachineReservation);
+            return OverdueResult.CANCELLED_WITHOUT_PENALTY;
+        }
+
         var startDecision = resolveStartDecision(reservationId, machine, status);
         if (startDecision == StartDecision.STARTED) {
             var expectedCompletionTime = DateTimeUtil

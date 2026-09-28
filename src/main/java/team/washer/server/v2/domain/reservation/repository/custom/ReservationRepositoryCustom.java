@@ -123,6 +123,8 @@ public interface ReservationRepositoryCustom {
      */
     boolean existsCurrentlyActiveByMachine(Machine machine);
 
+    boolean existsCurrentlyActiveByRoomNumberAndMachineType(String roomNumber, MachineType machineType);
+
     /**
      * 기기별 예약 히스토리 조회
      *

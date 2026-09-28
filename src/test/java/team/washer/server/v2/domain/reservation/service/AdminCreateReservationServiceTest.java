@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -85,6 +84,10 @@ class AdminCreateReservationServiceTest {
                 reservationCreationSupport,
                 reservationDeviceStateVerifier,
                 transactionManager);
+        lenient().when(reservationRepository.existsCurrentlyActiveByMachine(any())).thenReturn(false);
+        lenient().when(reservationRepository.existsCurrentlyActiveByUser(any())).thenReturn(false);
+        lenient().when(reservationRepository.existsCurrentlyActiveByRoomNumberAndMachineType(any(), any()))
+                .thenReturn(false);
     }
 
     private AdminCreateReservationReqDto givenValidRequest() {
@@ -231,8 +234,6 @@ class AdminCreateReservationServiceTest {
             when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.of(machineWithExpiredReservation));
-            when(reservationRepository.findCurrentlyActiveByMachine(machineWithExpiredReservation))
-                    .thenReturn(List.of());
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
@@ -253,7 +254,7 @@ class AdminCreateReservationServiceTest {
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.of(machine));
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
-            when(reservationRepository.findCurrentlyActiveByMachine(machine)).thenReturn(List.of(activeReservation));
+            when(reservationRepository.existsCurrentlyActiveByMachine(machine)).thenReturn(true);
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
@@ -272,7 +273,7 @@ class AdminCreateReservationServiceTest {
             when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.of(machine));
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
-            when(reservationRepository.findCurrentlyActiveByUser(targetUser)).thenReturn(List.of(activeReservation));
+            when(reservationRepository.existsCurrentlyActiveByUser(targetUser)).thenReturn(true);
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
@@ -291,9 +292,8 @@ class AdminCreateReservationServiceTest {
             when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.of(machine));
             when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
             when(machine.getType()).thenReturn(MachineType.WASHER);
-            when(activeReservation.getMachine()).thenReturn(machine);
-            when(reservationRepository.findCurrentlyActiveByRoomNumber(ROOM_NUMBER))
-                    .thenReturn(List.of(activeReservation));
+            when(reservationRepository.existsCurrentlyActiveByRoomNumberAndMachineType(ROOM_NUMBER, machine.getType()))
+                    .thenReturn(true);
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
@@ -356,8 +356,7 @@ class AdminCreateReservationServiceTest {
             when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
             when(machineRepository.findByIdForUpdate(MACHINE_ID)).thenReturn(Optional.of(machine));
             // 사전 검증 시에는 비어 있었지만 외부 조회 중 다른 요청이 먼저 예약을 저장한 상황
-            when(reservationRepository.findCurrentlyActiveByMachine(machine)).thenReturn(List.of())
-                    .thenReturn(List.of(activeReservation));
+            when(reservationRepository.existsCurrentlyActiveByMachine(machine)).thenReturn(false).thenReturn(true);
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
