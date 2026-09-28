@@ -41,14 +41,21 @@ class OpenApiErrorResponsesIntegrationTest {
     @DisplayName("전역 409·503을 추가하고 엔드포인트 전용 설명은 유지한다")
     void preservesEndpointSpecificResponsesAndAddsGlobalResponses() throws Exception {
         mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.CommonErrorResponse").exists())
                 .andExpect(
                         jsonPath("$.paths['/test/explicit'].get.responses['409'].description").value("엔드포인트 전용 충돌 설명"))
                 .andExpect(jsonPath("$.paths['/test/explicit'].get.responses['503'].description")
                         .value("Redis 또는 외부 서비스 일시 장애"))
                 .andExpect(jsonPath("$.paths['/test/generic'].get.responses['409'].description")
                         .value("동시성 충돌 또는 현재 상태와 충돌하는 요청"))
+                .andExpect(jsonPath(
+                        "$.paths['/test/generic'].get.responses['409'].content['application/json'].schema.$ref")
+                        .value("#/components/schemas/CommonErrorResponse"))
                 .andExpect(jsonPath("$.paths['/test/generic'].get.responses['503'].description")
-                        .value("Redis 또는 외부 서비스 일시 장애"));
+                        .value("Redis 또는 외부 서비스 일시 장애"))
+                .andExpect(jsonPath(
+                        "$.paths['/test/generic'].get.responses['503'].content['application/json'].schema.$ref")
+                        .value("#/components/schemas/CommonErrorResponse"));
     }
 
     @RestController

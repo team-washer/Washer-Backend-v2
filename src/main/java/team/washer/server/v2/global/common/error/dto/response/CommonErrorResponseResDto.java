@@ -11,4 +11,6 @@ public record CommonErrorResponseResDto(@Schema(description = "HTTP 상태 이�
         @Schema(description = "HTTP 상태 코드", example = "400") Integer code,
         @Schema(description = "사용자에게 표시할 오류 메시지", example = "입력값이 올바르지 않습니다.") String message,
         @Schema(description = "오류 상세 정보") ErrorDetailResDto data) {
+
+    public static final String OPENAPI_SCHEMA_NAME = "CommonErrorResponse";
 }

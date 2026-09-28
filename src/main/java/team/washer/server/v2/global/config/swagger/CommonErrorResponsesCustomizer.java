@@ -11,6 +11,7 @@ import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
 import io.swagger.v3.oas.models.responses.ApiResponse;
 import io.swagger.v3.oas.models.responses.ApiResponses;
+import team.washer.server.v2.global.common.error.dto.response.CommonErrorResponseResDto;
 
 /**
  * 공통 오류 응답 중 전역 예외 처리기에서 발생할 수 있는 상태를 OpenAPI operation에 추가합니다.
@@ -18,7 +19,8 @@ import io.swagger.v3.oas.models.responses.ApiResponses;
 @Component
 public class CommonErrorResponsesCustomizer implements OperationCustomizer {
 
-    private static final String COMMON_ERROR_SCHEMA_REF = "#/components/schemas/CommonErrorResponseResDto";
+    private static final String COMMON_ERROR_SCHEMA_REF = "#/components/schemas/"
+            + CommonErrorResponseResDto.OPENAPI_SCHEMA_NAME;
 
     @Override
     public Operation customize(final Operation operation, final HandlerMethod handlerMethod) {
