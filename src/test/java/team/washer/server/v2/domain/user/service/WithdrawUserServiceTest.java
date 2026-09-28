@@ -20,6 +20,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.domain.auth.repository.WithdrawnStudentRepository;
 import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.machine.entity.Machine;
@@ -50,6 +51,9 @@ class WithdrawUserServiceTest {
     private UserRepository userRepository;
 
     @Mock
+    private WithdrawnStudentRepository withdrawnStudentRepository;
+
+    @Mock
     private ReservationRepository reservationRepository;
 
     @Mock
@@ -70,6 +74,7 @@ class WithdrawUserServiceTest {
         final var userReservationCleanupSupport = new UserReservationCleanupSupport(reservationRepository,
                 machineRepository);
         withdrawUserService = new WithdrawUserServiceImpl(userRepository,
+                withdrawnStudentRepository,
                 refreshTokenRedisRepository,
                 withdrawnStudentRedisUtil,
                 currentUserProvider,
@@ -145,6 +150,7 @@ class WithdrawUserServiceTest {
 
                     then(withdrawnStudentRedisUtil).shouldHaveNoInteractions();
                     then(refreshTokenRedisRepository).shouldHaveNoInteractions();
+                    then(withdrawnStudentRepository).should().flush();
                 } finally {
                     TransactionSynchronizationManager.clearSynchronization();
                 }

@@ -22,6 +22,7 @@ import team.themoment.datagsm.sdk.oauth.model.UserInfo;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.TokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
+import team.washer.server.v2.domain.auth.repository.WithdrawnStudentRepository;
 import team.washer.server.v2.domain.auth.service.impl.SignInServiceImpl;
 import team.washer.server.v2.domain.auth.support.ExistingUserSignInSupport;
 import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
@@ -50,6 +51,9 @@ class SignInServiceImplTest {
 
     @Mock
     private WithdrawnStudentRedisUtil withdrawnStudentRedisUtil;
+
+    @Mock
+    private WithdrawnStudentRepository withdrawnStudentRepository;
 
     @Mock
     private TokenResponse tokenResponse;
@@ -188,6 +192,30 @@ class SignInServiceImplTest {
                                 .isEqualTo(HttpStatus.FORBIDDEN));
 
                 then(existingUserSignInSupport).should().generateIfExistingUser("20210001");
+            }
+
+            @Test
+            @DisplayName("DB 탈퇴 기록이 있으면 Redis 기록이 없어도 재가입을 차단한다")
+            void it_blocks_when_database_withdrawal_record_exists() {
+                // Given
+                var reqDto = createReqDto();
+
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
+                given(userInfoResponse.getStudent()).willReturn(student);
+                given(student.getStudentNumber()).willReturn(20210001);
+                given(existingUserSignInSupport.generateIfExistingUser("20210001")).willReturn(Optional.empty());
+                given(withdrawnStudentRepository.existsByStudentIdAndExpiresAtAfter(eq("20210001"), any()))
+                        .willReturn(true);
+
+                // When & Then
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.FORBIDDEN);
+
+                then(withdrawnStudentRedisUtil).shouldHaveNoInteractions();
+                then(userRegistrationSupport).shouldHaveNoInteractions();
             }
         }
 

@@ -9,6 +9,8 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.domain.auth.entity.WithdrawnStudent;
+import team.washer.server.v2.domain.auth.repository.WithdrawnStudentRepository;
 import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -16,6 +18,7 @@ import team.washer.server.v2.domain.reservation.support.UserReservationCleanupSu
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.WithdrawUserService;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Slf4j
 @Service
@@ -23,6 +26,7 @@ import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 public class WithdrawUserServiceImpl implements WithdrawUserService {
 
     private final UserRepository userRepository;
+    private final WithdrawnStudentRepository withdrawnStudentRepository;
     private final RefreshTokenRedisRepository refreshTokenRedisRepository;
     private final WithdrawnStudentRedisUtil withdrawnStudentRedisUtil;
     private final CurrentUserProvider currentUserProvider;
@@ -42,7 +46,14 @@ public class WithdrawUserServiceImpl implements WithdrawUserService {
 
         userReservationCleanupSupport.cancelAndReleaseMachines(activeReservations);
 
-        // DB 삭제를 먼저 flush하여 Redis 변경은 DB 커밋 이후에만 수행한다.
+        final var withdrawnExpiresAt = DateTimeUtil.nowInKorea().plusDays(30);
+        withdrawnStudentRepository.findByStudentId(user.getStudentId()).ifPresentOrElse(
+                withdrawnStudent -> withdrawnStudent.renew(withdrawnExpiresAt),
+                () -> withdrawnStudentRepository.save(WithdrawnStudent.builder().studentId(user.getStudentId())
+                        .expiresAt(withdrawnExpiresAt).build()));
+        withdrawnStudentRepository.flush();
+
+        // DB 탈퇴 기록과 사용자 삭제를 같은 트랜잭션에 포함하고 Redis 변경은 DB 커밋 이후에 수행한다.
         userRepository.delete(user);
         userRepository.flush();
 

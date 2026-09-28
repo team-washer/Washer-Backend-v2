@@ -10,12 +10,14 @@ import team.themoment.datagsm.sdk.oauth.model.Student;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.TokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
+import team.washer.server.v2.domain.auth.repository.WithdrawnStudentRepository;
 import team.washer.server.v2.domain.auth.service.SignInService;
 import team.washer.server.v2.domain.auth.support.ExistingUserSignInSupport;
 import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.support.UserRegistrationSupport;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Service
 @AllArgsConstructor
@@ -24,6 +26,7 @@ public class SignInServiceImpl implements SignInService {
     private final UserRegistrationSupport userRegistrationSupport;
     private final ExistingUserSignInSupport existingUserSignInSupport;
     private final TokenGenerationSupport tokenGenerationSupport;
+    private final WithdrawnStudentRepository withdrawnStudentRepository;
     private final WithdrawnStudentRedisUtil withdrawnStudentRedisUtil;
 
     @Override
@@ -40,7 +43,9 @@ public class SignInServiceImpl implements SignInService {
             return existingUserTokens.get();
         }
 
-        if (withdrawnStudentRedisUtil.isWithdrawnRecently(studentId)) {
+        final boolean withdrawnInDatabase = withdrawnStudentRepository.existsByStudentIdAndExpiresAtAfter(studentId,
+                DateTimeUtil.nowInKorea());
+        if (withdrawnInDatabase || withdrawnStudentRedisUtil.isWithdrawnRecently(studentId)) {
             throw new ExpectedException("탈퇴 후 30일이 지나지 않아 재가입할 수 없습니다.", HttpStatus.FORBIDDEN);
         }
         User user;
