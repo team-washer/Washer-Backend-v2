@@ -7,22 +7,27 @@ import java.util.regex.Pattern;
 public final class SensitiveLogSanitizer {
 
     private static final Pattern WEBHOOK_URL_PATTERN = Pattern
-            .compile("(?i)(https?://[^\\s/]+/api/webhooks/\\d+/)[^\\s,;}\\]]+");
+            .compile("(?i)(https?://[^\\s/]+/api(?:/v\\d+)?/webhooks/\\d+/)[^\\s,;}\\]]+");
+    private static final String ESCAPED_QUOTE = Pattern.quote("\\\"");
+    private static final Pattern ESCAPED_SENSITIVE_VALUE_PATTERN = Pattern
+            .compile("(?i)(" + ESCAPED_QUOTE + "(?:access_token|refresh_token|smartthings_token|password|token)"
+                    + ESCAPED_QUOTE + "\\s*[:=]\\s*" + ESCAPED_QUOTE + ")(.*?)(" + ESCAPED_QUOTE + ")");
     private static final Pattern DUPLICATE_ENTRY_PATTERN = Pattern.compile("(?i)(Duplicate entry\\s+)(['\"])(.*?)\\2");
     private static final Pattern BEARER_TOKEN_PATTERN = Pattern.compile("(?i)Bearer\\s+[^\\r\\n,;}\\]]+");
     private static final Pattern AUTHORIZATION_VALUE_PATTERN = Pattern
             .compile("(?i)([\\\"']?authorization[\\\"']?\\s*[:=]\\s*)(\\\"[^\\\"]*\\\"|'[^']*'|[^\\r\\n,;}\\]]+)");
     private static final Pattern SENSITIVE_VALUE_PATTERN = Pattern.compile(
-            "(?i)([\\\"']?(?:access_token|refresh_token|smartthings_token|password|token)[\\\"']?)(\\s*[:=]\\s*)(?!\\[REDACTED\\])(\\\"[^\\\"]*\\\"|'[^']*'|[^\\s,;}\\]]+)");
+            "(?i)((?<![A-Za-z0-9_])[\\\"']?(?:access_token|refresh_token|smartthings_token|password|token)[\\\"']?)(\\s*[:=]\\s*)(?!\\[REDACTED\\])(\\\"[^\\\"]*\\\"|'[^']*'|[^\\s,;}\\]]+)");
     private static final Pattern SENSITIVE_UNQUOTED_VALUE_PATTERN = Pattern.compile(
-            "(?i)([\\\"']?(?:access_token|refresh_token|smartthings_token|password|token)[\\\"']?\\s*[:=]\\s*)(?![\\\"'])([^\\r\\n,;}\\]]+?)(?=\\s+(?:[A-Za-z_][A-Za-z0-9_-]*\\s*[:=]|[\\{\\[])|[\\r\\n,;}\\]]|$)");
+            "(?i)((?<![A-Za-z0-9_])[\\\"']?(?:access_token|refresh_token|smartthings_token|password|token)[\\\"']?\\s*[:=]\\s*)(?![\\\"'])([^\\r\\n,;}\\]]+?)(?=\\s+(?:[A-Za-z_][A-Za-z0-9_-]*\\s*[:=]|[\\{\\[])|[\\r\\n,;}\\]]|$)");
 
     private SensitiveLogSanitizer() {
     }
 
     public static String sanitize(final String value) {
-        var sanitized = WEBHOOK_URL_PATTERN.matcher(value.replace("\\\"", "\"")).replaceAll("$1[REDACTED]");
+        var sanitized = WEBHOOK_URL_PATTERN.matcher(value).replaceAll("$1[REDACTED]");
         sanitized = replaceDuplicateEntry(sanitized);
+        sanitized = replaceEscapedSensitiveValues(sanitized);
         sanitized = replaceSensitiveValues(sanitized, AUTHORIZATION_VALUE_PATTERN, false);
         sanitized = BEARER_TOKEN_PATTERN.matcher(sanitized).replaceAll("Bearer [REDACTED]");
         sanitized = replaceSensitiveValues(sanitized, SENSITIVE_UNQUOTED_VALUE_PATTERN, false);
@@ -31,6 +36,17 @@ public final class SensitiveLogSanitizer {
 
     private static String replaceDuplicateEntry(final String value) {
         return DUPLICATE_ENTRY_PATTERN.matcher(value).replaceAll("$1$2[REDACTED]$2");
+    }
+
+    private static String replaceEscapedSensitiveValues(final String value) {
+        final var matcher = ESCAPED_SENSITIVE_VALUE_PATTERN.matcher(value);
+        final var result = new StringBuffer();
+        while (matcher.find()) {
+            matcher.appendReplacement(result,
+                    Matcher.quoteReplacement(matcher.group(1) + "[REDACTED]" + matcher.group(3)));
+        }
+        matcher.appendTail(result);
+        return result.toString();
     }
 
     private static String replaceSensitiveValues(final String value,

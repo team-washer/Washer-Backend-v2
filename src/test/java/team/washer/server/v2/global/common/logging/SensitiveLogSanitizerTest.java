@@ -39,8 +39,34 @@ class SensitiveLogSanitizerTest {
             final var sanitized = SensitiveLogSanitizer.sanitize(value);
 
             // Then
-            assertThat(sanitized).contains("password=[REDACTED] next=value").contains("refresh_token\":\"[REDACTED]")
-                    .doesNotContain("correct horse battery").doesNotContain("refresh-secret");
+            assertThat(sanitized).contains("password=[REDACTED] next=value")
+                    .contains("refresh_token\\\":\\\"[REDACTED]").doesNotContain("correct horse battery")
+                    .doesNotContain("refresh-secret");
+        }
+
+        @Test
+        @DisplayName("민감정보가 아닌 escape 문자열은 원문을 유지한다")
+        void preservesUnrelatedEscapedJson() {
+            final var value = "payload={\\\"title\\\":\\\"서버 오류\\\",\\\"count\\\":3}";
+
+            assertThat(SensitiveLogSanitizer.sanitize(value)).isEqualTo(value);
+        }
+
+        @Test
+        @DisplayName("버전이 포함된 Discord 웹훅 URL의 토큰도 마스킹한다")
+        void masksVersionedWebhook() {
+            final var value = "POST https://discord.com/api/v10/webhooks/123456/webhook-secret";
+
+            assertThat(SensitiveLogSanitizer.sanitize(value))
+                    .isEqualTo("POST https://discord.com/api/v10/webhooks/123456/[REDACTED]");
+        }
+
+        @Test
+        @DisplayName("다른 식별자에 포함된 token 부분은 마스킹 키로 취급하지 않는다")
+        void preservesNonSensitiveIdentifier() {
+            final var value = "mytoken=diagnostic-value";
+
+            assertThat(SensitiveLogSanitizer.sanitize(value)).isEqualTo(value);
         }
     }
 }
