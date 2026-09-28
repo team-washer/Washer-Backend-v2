@@ -68,8 +68,8 @@ class GlobalExceptionHandlerTest {
                 // Then
                 var event = appender.list.stream().filter(item -> item.getLevel().toString().equals("ERROR"))
                         .findFirst().orElseThrow();
-                assertThat(event.getFormattedMessage()).contains("method=POST").contains("status=500")
-                        .contains("path=/api/v2/reservations").contains("traceId=trace-unexpected");
+                assertThat(event.getFormattedMessage()).contains("status=500");
+                assertThat(event.getMDCPropertyMap()).containsEntry("traceId", "trace-unexpected");
                 assertThat(event.getThrowableProxy()).isNotNull();
                 assertThat(event.getThrowableProxy().getClassName()).isEqualTo(IllegalStateException.class.getName());
                 assertThat(event.getThrowableProxy().getMessage()).isEqualTo("root cause");
@@ -98,8 +98,8 @@ class GlobalExceptionHandlerTest {
                 // Then
                 var event = appender.list.stream().filter(item -> item.getLevel().toString().equals("WARN")).findFirst()
                         .orElseThrow();
-                assertThat(event.getFormattedMessage()).contains("method=POST").contains("status=409")
-                        .contains("path=/api/v2/reservations").contains("traceId=trace-expected");
+                assertThat(event.getFormattedMessage()).contains("status=409");
+                assertThat(event.getMDCPropertyMap()).containsEntry("traceId", "trace-expected");
                 assertThat(event.getThrowableProxy()).isNull();
             } finally {
                 MDC.remove("traceId");

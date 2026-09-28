@@ -1,15 +1,15 @@
 package team.washer.server.v2.global.thirdparty.aws.cloudwatch.appender;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.UnsynchronizedAppenderBase;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -23,6 +23,7 @@ import software.amazon.awssdk.services.cloudwatchlogs.model.PutLogEventsRequest;
 import software.amazon.awssdk.services.cloudwatchlogs.model.PutRetentionPolicyRequest;
 import software.amazon.awssdk.services.cloudwatchlogs.model.ResourceAlreadyExistsException;
 import software.amazon.awssdk.services.cloudwatchlogs.model.ResourceNotFoundException;
+import team.washer.server.v2.global.common.logging.SensitiveLogSanitizer;
 import team.washer.server.v2.global.common.trace.TraceIdFilter;
 
 /**
@@ -34,11 +35,8 @@ import team.washer.server.v2.global.common.trace.TraceIdFilter;
  */
 public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
 
-    private static final Pattern BEARER_TOKEN_PATTERN = Pattern.compile("(?i)Bearer\\s+[^\\r\\n,;}\\]]+");
-    private static final Pattern AUTHORIZATION_VALUE_PATTERN = Pattern
-            .compile("(?i)([\\\"']?authorization[\\\"']?\\s*[:=]\\s*)(\\\"[^\\\"]*\\\"|'[^']*'|[^\\r\\n,;}\\]]+)");
-    private static final Pattern SENSITIVE_VALUE_PATTERN = Pattern.compile(
-            "(?i)([\\\"']?(?:access_token|refresh_token|smartthings_token|password|token)[\\\"']?)(\\s*[:=]\\s*)(\\\"[^\\\"]*\\\"|'[^']*'|[^\\s,;}\\]]+)");
+    private static final int CLOUDWATCH_MAX_BATCH_BYTES = 1_048_576;
+    private static final int CLOUDWATCH_EVENT_OVERHEAD_BYTES = 26;
 
     private String logGroupName;
     private String logStreamNamePrefix;
@@ -243,21 +241,35 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
 
         final var mdcPropertyMap = event.getMDCPropertyMap();
         final var traceId = mdcPropertyMap == null ? null : mdcPropertyMap.get(TraceIdFilter.MDC_KEY);
-        if (traceId == null) {
-            appendField(builder, "message", event.getFormattedMessage(), maxMessageLength);
-        } else {
-            appendField(builder, TraceIdFilter.MDC_KEY, traceId);
-            appendField(builder, "message", event.getFormattedMessage(), maxMessageLength);
-        }
+        final var method = mdcPropertyMap == null ? null : mdcPropertyMap.get(TraceIdFilter.HTTP_METHOD_MDC_KEY);
+        final var path = mdcPropertyMap == null ? null : mdcPropertyMap.get(TraceIdFilter.REQUEST_PATH_MDC_KEY);
+        appendField(builder, TraceIdFilter.MDC_KEY, traceId);
+        appendField(builder, TraceIdFilter.HTTP_METHOD_MDC_KEY, method);
+        appendField(builder, TraceIdFilter.REQUEST_PATH_MDC_KEY, path);
+        appendField(builder, "message", event.getFormattedMessage(), maxMessageLength);
 
         if (event.getThrowableProxy() != null) {
             appendField(builder, "exceptionType", event.getThrowableProxy().getClassName());
-            appendField(builder,
-                    "exception",
-                    ThrowableProxyUtil.asString(event.getThrowableProxy()),
-                    maxThrowableLength);
+            appendField(builder, "exception", formatThrowable(event.getThrowableProxy()), maxThrowableLength);
         }
         return builder.toString();
+    }
+
+    private String formatThrowable(final IThrowableProxy throwable) {
+        final var causes = new ArrayList<String>();
+        var current = throwable;
+        while (current != null) {
+            causes.add(current.getClassName() + ": " + current.getMessage());
+            current = current.getCause();
+        }
+        final var causeChain = new StringBuilder();
+        for (var index = causes.size() - 1; index >= 0; index--) {
+            if (causeChain.length() > 0) {
+                causeChain.append(" <- ");
+            }
+            causeChain.append(causes.get(index));
+        }
+        return "causeChain=" + causeChain + "\n" + ThrowableProxyUtil.asString(throwable);
     }
 
     private void appendField(final StringBuilder builder, final String name, final String value) {
@@ -275,7 +287,7 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
     }
 
     private String escapeAndTruncate(final String value, final int maxLength) {
-        final var sanitized = sanitize(value);
+        final var sanitized = SensitiveLogSanitizer.sanitize(value);
         final var normalized = sanitized.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n").replace("\"",
                 "\\\"");
         if (normalized.length() <= maxLength) {
@@ -284,49 +296,43 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
         return normalized.substring(0, Math.max(0, maxLength - 15)) + "...[truncated]";
     }
 
-    private String sanitize(final String value) {
-        var sanitized = replaceSensitiveValues(value, AUTHORIZATION_VALUE_PATTERN);
-        sanitized = BEARER_TOKEN_PATTERN.matcher(sanitized).replaceAll("Bearer [REDACTED]");
-        return replaceSensitiveValues(sanitized, SENSITIVE_VALUE_PATTERN);
-    }
-
-    private String replaceSensitiveValues(final String value, final Pattern pattern) {
-        final var matcher = pattern.matcher(value);
-        final var result = new StringBuffer();
-        while (matcher.find()) {
-            final var prefix = new StringBuilder();
-            for (var group = 1; group < matcher.groupCount(); group++) {
-                prefix.append(matcher.group(group));
-            }
-            final var matchedValue = matcher.group(matcher.groupCount());
-            final var replacement = isQuoted(matchedValue)
-                    ? prefix + matchedValue.substring(0, 1) + "[REDACTED]"
-                            + matchedValue.substring(matchedValue.length() - 1)
-                    : prefix + "[REDACTED]";
-            matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
-        }
-        matcher.appendTail(result);
-        return result.toString();
-    }
-
-    private boolean isQuoted(final String value) {
-        if (value.length() < 2) {
-            return false;
-        }
-        final var first = value.charAt(0);
-        final var last = value.charAt(value.length() - 1);
-        return (first == '"' && last == '"') || (first == '\'' && last == '\'');
-    }
-
     private void flushBatch(final List<ILoggingEvent> batch) {
         if (batch.isEmpty()) {
             return;
         }
 
-        var logEvents = batch.stream().map(
+        final var logEvents = batch.stream().map(
                 event -> InputLogEvent.builder().timestamp(event.getTimeStamp()).message(formatMessage(event)).build())
                 .sorted((a, b) -> Long.compare(a.timestamp(), b.timestamp())).toList();
 
+        for (final var logBatch : splitByByteLimit(logEvents)) {
+            sendBatch(logBatch);
+        }
+    }
+
+    private List<List<InputLogEvent>> splitByByteLimit(final List<InputLogEvent> logEvents) {
+        final var batches = new ArrayList<List<InputLogEvent>>();
+        var currentBatch = new ArrayList<InputLogEvent>();
+        var currentBytes = 0;
+        for (final var event : logEvents) {
+            final var eventBytes = event.message().getBytes(StandardCharsets.UTF_8).length
+                    + CLOUDWATCH_EVENT_OVERHEAD_BYTES;
+            if (!currentBatch.isEmpty() && (currentBytes + eventBytes > CLOUDWATCH_MAX_BATCH_BYTES
+                    || currentBatch.size() >= maxBatchSize)) {
+                batches.add(currentBatch);
+                currentBatch = new ArrayList<>();
+                currentBytes = 0;
+            }
+            currentBatch.add(event);
+            currentBytes += eventBytes;
+        }
+        if (!currentBatch.isEmpty()) {
+            batches.add(currentBatch);
+        }
+        return batches;
+    }
+
+    private void sendBatch(final List<InputLogEvent> logEvents) {
         for (int attempt = 0; attempt < maxRetries; attempt++) {
             try {
                 cloudWatchClient.putLogEvents(PutLogEventsRequest.builder().logGroupName(logGroupName)
@@ -341,7 +347,7 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
                     addError("Failed to recreate log group/stream", recreateEx);
                 }
                 if (attempt >= maxRetries - 1) {
-                    addError("Max retries exceeded, dropping batch size=" + batch.size());
+                    addError("Max retries exceeded, dropping batch size=" + logEvents.size());
                 }
             } catch (Exception e) {
                 addError("Failed to send log events to CloudWatch attempt=" + (attempt + 1), e);
