@@ -11,6 +11,7 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.TokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
 import team.washer.server.v2.domain.auth.service.SignInService;
+import team.washer.server.v2.domain.auth.support.ExistingUserSignInSupport;
 import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
@@ -23,6 +24,7 @@ public class SignInServiceImpl implements SignInService {
     private final DataGsmOAuthClient oauthClient;
     private final UserRepository userRepository;
     private final UserRegistrationSupport userRegistrationSupport;
+    private final ExistingUserSignInSupport existingUserSignInSupport;
     private final TokenGenerationSupport tokenGenerationSupport;
     private final WithdrawnStudentRedisUtil withdrawnStudentRedisUtil;
 
@@ -35,10 +37,9 @@ public class SignInServiceImpl implements SignInService {
         }
 
         final String studentId = oauthUser.getStudentNumber().toString();
-        final var existingUser = userRepository.findByStudentId(studentId);
-        if (existingUser.isPresent()) {
-            final var user = existingUser.get();
-            return tokenGenerationSupport.generate(user.getId(), user.getRole());
+        final var existingUserTokens = existingUserSignInSupport.generateIfExistingUser(studentId);
+        if (existingUserTokens.isPresent()) {
+            return existingUserTokens.get();
         }
 
         if (withdrawnStudentRedisUtil.isWithdrawnRecently(studentId)) {

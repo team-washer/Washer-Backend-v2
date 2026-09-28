@@ -23,6 +23,7 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.TokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
 import team.washer.server.v2.domain.auth.service.impl.SignInServiceImpl;
+import team.washer.server.v2.domain.auth.support.ExistingUserSignInSupport;
 import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
@@ -44,6 +45,9 @@ class SignInServiceImplTest {
 
     @Mock
     private UserRegistrationSupport userRegistrationSupport;
+
+    @Mock
+    private ExistingUserSignInSupport existingUserSignInSupport;
 
     @Mock
     private TokenGenerationSupport tokenGenerationSupport;
@@ -90,8 +94,8 @@ class SignInServiceImplTest {
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
                 given(userInfoResponse.getStudent()).willReturn(student);
                 given(student.getStudentNumber()).willReturn(20210001);
-                given(userRepository.findByStudentId("20210001")).willReturn(Optional.of(user));
-                given(tokenGenerationSupport.generate(user.getId(), user.getRole())).willReturn(expectedTokens);
+                given(existingUserSignInSupport.generateIfExistingUser("20210001"))
+                        .willReturn(Optional.of(expectedTokens));
 
                 // When
                 var result = signInService.execute(reqDto);
@@ -123,8 +127,8 @@ class SignInServiceImplTest {
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
                 given(userInfoResponse.getStudent()).willReturn(student);
                 given(student.getStudentNumber()).willReturn(20210001);
+                given(existingUserSignInSupport.generateIfExistingUser("20210001")).willReturn(Optional.empty());
                 given(withdrawnStudentRedisUtil.isWithdrawnRecently("20210001")).willReturn(false);
-                given(userRepository.findByStudentId("20210001")).willReturn(Optional.empty());
                 given(userRegistrationSupport.register(student)).willReturn(newUser);
                 given(tokenGenerationSupport.generate(newUser.getId(), newUser.getRole())).willReturn(expectedTokens);
 
@@ -179,7 +183,7 @@ class SignInServiceImplTest {
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
                 given(userInfoResponse.getStudent()).willReturn(student);
                 given(student.getStudentNumber()).willReturn(20210001);
-                given(userRepository.findByStudentId("20210001")).willReturn(Optional.empty());
+                given(existingUserSignInSupport.generateIfExistingUser("20210001")).willReturn(Optional.empty());
                 given(withdrawnStudentRedisUtil.isWithdrawnRecently("20210001")).willReturn(true);
 
                 // When & Then
@@ -188,7 +192,7 @@ class SignInServiceImplTest {
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.FORBIDDEN));
 
-                then(userRepository).should().findByStudentId("20210001");
+                then(existingUserSignInSupport).should().generateIfExistingUser("20210001");
             }
         }
 
@@ -210,9 +214,9 @@ class SignInServiceImplTest {
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
                 given(userInfoResponse.getStudent()).willReturn(student);
                 given(student.getStudentNumber()).willReturn(20210001);
+                given(existingUserSignInSupport.generateIfExistingUser("20210001")).willReturn(Optional.empty());
                 given(withdrawnStudentRedisUtil.isWithdrawnRecently("20210001")).willReturn(false);
-                given(userRepository.findByStudentId("20210001")).willReturn(Optional.empty())
-                        .willReturn(Optional.of(user));
+                given(userRepository.findByStudentId("20210001")).willReturn(Optional.of(user));
                 given(userRegistrationSupport.register(student)).willThrow(new DataIntegrityViolationException("중복"));
                 given(tokenGenerationSupport.generate(user.getId(), user.getRole())).willReturn(expectedTokens);
 
@@ -221,7 +225,7 @@ class SignInServiceImplTest {
 
                 // Then
                 assertThat(result).isNotNull();
-                then(userRepository).should(times(2)).findByStudentId("20210001");
+                then(userRepository).should().findByStudentId("20210001");
             }
         }
 
@@ -236,7 +240,7 @@ class SignInServiceImplTest {
             given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
             given(userInfoResponse.getStudent()).willReturn(student);
             given(student.getStudentNumber()).willReturn(20210001);
-            given(userRepository.findByStudentId("20210001")).willReturn(Optional.empty());
+            given(existingUserSignInSupport.generateIfExistingUser("20210001")).willReturn(Optional.empty());
             given(withdrawnStudentRedisUtil.isWithdrawnRecently("20210001"))
                     .willThrow(new org.springframework.data.redis.RedisConnectionFailureException("Redis unavailable"));
 
