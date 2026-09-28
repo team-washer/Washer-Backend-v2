@@ -229,18 +229,38 @@ class ReservationRepositoryCurrentlyActiveTest {
         @Test
         @DisplayName("기준 예약보다 나중에 생성된 예약만 반환한다")
         void returnsOnlyReservationsCreatedAfterTheTarget() {
-            assertThat(reservationRepository
-                    .existsCurrentlyActiveByUserAfter(owner, freshReserved.getCreatedAt(), freshReserved.getId()))
-                    .isTrue();
-            assertThat(reservationRepository
-                    .existsCurrentlyActiveByUserAfter(owner, longRunning.getCreatedAt(), longRunning.getId()))
-                    .isFalse();
-            assertThat(reservationRepository
-                    .existsCurrentlyActiveByMachineAfter(washer, freshReserved.getCreatedAt(), freshReserved.getId()))
-                    .isTrue();
-            assertThat(reservationRepository
-                    .existsCurrentlyActiveByMachineAfter(washer, longRunning.getCreatedAt(), longRunning.getId()))
-                    .isFalse();
+            final var isolatedOwner = persist(
+                    User.builder().name("isolated").studentId("2103").roomNumber("303").grade(1).floor(3).build());
+            final var isolatedMachine = persist(Machine.builder().name("W3R2").type(MachineType.WASHER)
+                    .deviceId("device-w3r2").floor(3).position(Position.RIGHT).number(2).build());
+            final var older = persist(Reservation.builder().user(isolatedOwner).machine(isolatedMachine)
+                    .status(ReservationStatus.RUNNING).reservedAt(DateTimeUtil.nowInKorea().minusHours(1)).build());
+            entityManager.flush();
+            final var target = persist(Reservation.builder().user(isolatedOwner).machine(isolatedMachine)
+                    .status(ReservationStatus.RESERVED).reservedAt(DateTimeUtil.nowInKorea().minusMinutes(1)).build());
+            entityManager.flush();
+            entityManager.clear();
+            final var persistedTarget = reservationRepository.findById(target.getId()).orElseThrow();
+
+            assertThat(reservationRepository.existsCurrentlyActiveByUserAfter(isolatedOwner,
+                    persistedTarget.getCreatedAt(),
+                    persistedTarget.getId())).isFalse();
+            assertThat(reservationRepository.existsCurrentlyActiveByMachineAfter(isolatedMachine,
+                    persistedTarget.getCreatedAt(),
+                    persistedTarget.getId())).isFalse();
+
+            final var newer = persist(Reservation.builder().user(isolatedOwner).machine(isolatedMachine)
+                    .status(ReservationStatus.RUNNING).reservedAt(DateTimeUtil.nowInKorea()).build());
+            entityManager.flush();
+
+            assertThat(reservationRepository.existsCurrentlyActiveByUserAfter(isolatedOwner,
+                    persistedTarget.getCreatedAt(),
+                    persistedTarget.getId())).isTrue();
+            assertThat(reservationRepository.existsCurrentlyActiveByMachineAfter(isolatedMachine,
+                    persistedTarget.getCreatedAt(),
+                    persistedTarget.getId())).isTrue();
+            assertThat(older.getId()).isLessThan(target.getId());
+            assertThat(target.getId()).isLessThan(newer.getId());
         }
     }
 
