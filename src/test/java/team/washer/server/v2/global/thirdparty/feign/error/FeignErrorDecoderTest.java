@@ -72,6 +72,9 @@ class FeignErrorDecoderTest {
         assertThat(SensitiveLogSanitizer
                 .sanitizeEndpoint("https://smartthings.example:8443/oauth?client_secret=secret#token"))
                 .isEqualTo("https://smartthings.example:8443/oauth");
+        assertThat(SensitiveLogSanitizer
+                .sanitizeEndpoint("https://discord.example/api/v10/webhooks/123456/webhook-secret"))
+                .isEqualTo("https://discord.example/api/v10/webhooks/123456/[REDACTED]");
         assertThat(SensitiveLogSanitizer.sanitizeEndpoint("/oauth?access_token=secret#fragment")).isEqualTo("/oauth");
         assertThat(SensitiveLogSanitizer.sanitizeEndpoint("https://smartthings.example/oauth?client_secret=secret"))
                 .isEqualTo("https://smartthings.example/oauth");

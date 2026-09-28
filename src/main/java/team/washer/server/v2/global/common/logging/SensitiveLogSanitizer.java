@@ -10,6 +10,8 @@ public final class SensitiveLogSanitizer {
 
     private static final Pattern WEBHOOK_URL_PATTERN = Pattern
             .compile("(?i)(https?://[^\\s/]+/api(?:/v\\d+)?/webhooks/\\d+/)[^\\s,;}\\]]+");
+    private static final Pattern WEBHOOK_PATH_PATTERN = Pattern
+            .compile("(?i)(/api(?:/v\\d+)?/webhooks/\\d+/)[^\\s/?#]+");
     private static final String ESCAPED_QUOTE = Pattern.quote("\\\"");
     private static final Pattern ESCAPED_SENSITIVE_VALUE_PATTERN = Pattern.compile("(?i)(" + ESCAPED_QUOTE
             + "(?:access_token|refresh_token|smartthings_token|password|token|authorization_code|code|client_secret|client_id|fcm_token|webhook_url)"
@@ -43,7 +45,7 @@ public final class SensitiveLogSanitizer {
 
         final String withoutQuery = stripQueryAndFragment(rawUrl);
         if (withoutQuery.startsWith("/")) {
-            return sanitize(withoutQuery);
+            return sanitizeWebhookPath(withoutQuery);
         }
 
         try {
@@ -57,7 +59,8 @@ public final class SensitiveLogSanitizer {
                     ? authority.substring(userInfoSeparator + 1)
                     : authority;
             final String path = uri.getRawPath();
-            return sanitize(uri.getScheme() + "://" + safeAuthority + (path == null || path.isBlank() ? "/" : path));
+            return sanitizeWebhookPath(
+                    uri.getScheme() + "://" + safeAuthority + (path == null || path.isBlank() ? "/" : path));
         } catch (URISyntaxException e) {
             return "unknown";
         }
@@ -74,6 +77,10 @@ public final class SensitiveLogSanitizer {
             endIndex = Math.min(endIndex, fragmentIndex);
         }
         return value.substring(0, endIndex);
+    }
+
+    private static String sanitizeWebhookPath(final String value) {
+        return WEBHOOK_PATH_PATTERN.matcher(value).replaceAll("$1[REDACTED]");
     }
 
     private static String replaceDuplicateEntry(final String value) {
