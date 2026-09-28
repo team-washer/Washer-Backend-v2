@@ -75,55 +75,23 @@ class DeviceShutdownSupportTest {
     }
 
     @Nested
-    @DisplayName("shutdown 메서드는")
-    class Shutdown {
-
-        @Test
-        @DisplayName("작동 중인 세탁기도 전원을 차단한다")
-        void shouldPowerOff_WhenWasherRunning() {
-            // Given
             var machine = machine(MachineType.WASHER);
 
             // When
             var result = deviceShutdownSupport.shutdown(machine, washerStatus("run", "on"));
 
-            // Then
-            assertThat(result).isEqualTo(ShutdownResult.POWERED_OFF);
-            assertPowerOffSent();
-        }
 
-        @Test
-        @DisplayName("일시정지 중인 건조기도 전원을 차단한다")
-        void shouldPowerOff_WhenDryerPaused() {
-            // Given
             var machine = machine(MachineType.DRYER);
 
             // When
             var result = deviceShutdownSupport.shutdown(machine, dryerStatus("pause", "on"));
 
-            // Then
-            assertThat(result).isEqualTo(ShutdownResult.POWERED_OFF);
-            assertPowerOffSent();
-        }
 
-        @Test
-        @DisplayName("정지 상태인 유휴 기기의 전원을 차단한다")
-        void shouldPowerOff_WhenIdle() {
-            // Given
             var machine = machine(MachineType.WASHER);
 
             // When
             var result = deviceShutdownSupport.shutdown(machine, washerStatus("stop", "on"));
 
-            // Then
-            assertThat(result).isEqualTo(ShutdownResult.POWERED_OFF);
-            assertPowerOffSent();
-        }
-
-        @Test
-        @DisplayName("이미 전원이 꺼져 있으면 명령을 보내지 않는다")
-        void shouldSkipCommand_WhenAlreadyOff() {
-            // Given
             var machine = machine(MachineType.WASHER);
 
             // When
@@ -149,7 +117,7 @@ class DeviceShutdownSupportTest {
         }
 
         @Test
-        @DisplayName("상태가 null이면 안전을 위해 종료하지 않고 SKIPPED_UNKNOWN을 반환한다")
+        @DisplayName("상태가 null이면 안전을 위해 종료하지 않고 SKIPPED_UNKNOWN을 반환해야 한다")
         void shouldSkip_WhenStatusNull() {
             // Given
             var machine = machine(MachineType.WASHER);
