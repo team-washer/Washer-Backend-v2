@@ -28,10 +28,6 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
 
     Optional<User> findByStudentId(String studentId);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT u FROM User u WHERE u.studentId = :studentId")
-    Optional<User> findByStudentIdForUpdate(@Param("studentId") String studentId);
-
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE VERSIONED User u SET u.fcmToken = null, u.updatedAt = CURRENT_TIMESTAMP "
             + "WHERE u.id = :userId AND u.fcmToken = :token")

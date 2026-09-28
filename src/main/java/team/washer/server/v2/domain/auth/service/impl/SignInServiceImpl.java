@@ -15,14 +15,12 @@ import team.washer.server.v2.domain.auth.support.ExistingUserSignInSupport;
 import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
-import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.support.UserRegistrationSupport;
 
 @Service
 @AllArgsConstructor
 public class SignInServiceImpl implements SignInService {
     private final DataGsmOAuthClient oauthClient;
-    private final UserRepository userRepository;
     private final UserRegistrationSupport userRegistrationSupport;
     private final ExistingUserSignInSupport existingUserSignInSupport;
     private final TokenGenerationSupport tokenGenerationSupport;
@@ -49,7 +47,7 @@ public class SignInServiceImpl implements SignInService {
         try {
             user = userRegistrationSupport.register(oauthUser);
         } catch (DataIntegrityViolationException e) {
-            user = userRepository.findByStudentId(studentId).orElseThrow(
+            return existingUserSignInSupport.generateIfExistingUser(studentId).orElseThrow(
                     () -> new ExpectedException("회원가입 과정에서 오류가 발생했습니다. 다시 시도해주세요.", HttpStatus.INTERNAL_SERVER_ERROR));
         }
 

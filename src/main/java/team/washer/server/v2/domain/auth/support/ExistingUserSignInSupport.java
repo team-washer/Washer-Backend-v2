@@ -18,7 +18,7 @@ public class ExistingUserSignInSupport {
 
     @Transactional
     public Optional<TokenResDto> generateIfExistingUser(final String studentId) {
-        return userRepository.findByStudentIdForUpdate(studentId)
+        return userRepository.findByStudentId(studentId).flatMap(user -> userRepository.findByIdForUpdate(user.getId()))
                 .map(user -> tokenGenerationSupport.generate(user.getId(), user.getRole()));
     }
 }

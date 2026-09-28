@@ -27,7 +27,6 @@ import team.washer.server.v2.domain.auth.support.ExistingUserSignInSupport;
 import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
-import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.support.UserRegistrationSupport;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,9 +38,6 @@ class SignInServiceImplTest {
 
     @Mock
     private DataGsmOAuthClient oauthClient;
-
-    @Mock
-    private UserRepository userRepository;
 
     @Mock
     private UserRegistrationSupport userRegistrationSupport;
@@ -85,7 +81,6 @@ class SignInServiceImplTest {
             void it_returns_tokens() {
                 // Given
                 var reqDto = createReqDto();
-                var user = createUser();
                 var expectedTokens = new TokenResDto("access.token", 3600L, "refresh.token");
 
                 given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
@@ -163,7 +158,7 @@ class SignInServiceImplTest {
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));
 
-                then(userRepository).shouldHaveNoInteractions();
+                then(existingUserSignInSupport).shouldHaveNoInteractions();
             }
         }
 
@@ -214,18 +209,17 @@ class SignInServiceImplTest {
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
                 given(userInfoResponse.getStudent()).willReturn(student);
                 given(student.getStudentNumber()).willReturn(20210001);
-                given(existingUserSignInSupport.generateIfExistingUser("20210001")).willReturn(Optional.empty());
+                given(existingUserSignInSupport.generateIfExistingUser("20210001")).willReturn(Optional.empty(),
+                        Optional.of(expectedTokens));
                 given(withdrawnStudentRedisUtil.isWithdrawnRecently("20210001")).willReturn(false);
-                given(userRepository.findByStudentId("20210001")).willReturn(Optional.of(user));
                 given(userRegistrationSupport.register(student)).willThrow(new DataIntegrityViolationException("중복"));
-                given(tokenGenerationSupport.generate(user.getId(), user.getRole())).willReturn(expectedTokens);
 
                 // When
                 var result = signInService.execute(reqDto);
 
                 // Then
                 assertThat(result).isNotNull();
-                then(userRepository).should().findByStudentId("20210001");
+                then(existingUserSignInSupport).should(times(2)).generateIfExistingUser("20210001");
             }
         }
 

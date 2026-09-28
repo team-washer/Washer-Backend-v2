@@ -16,6 +16,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
@@ -123,6 +125,29 @@ class WithdrawUserServiceTest {
                 then(withdrawnStudentRedisUtil).should(times(1)).markWithdrawn(user.getStudentId());
                 then(userRepository).should(times(1)).delete(user);
             }
+
+            @Test
+            @DisplayName("DB 트랜잭션이 롤백되면 탈퇴 제한 기록을 보상 삭제해야 한다")
+            void it_removes_withdrawal_record_when_transaction_rolls_back() {
+                final Long userId = 1L;
+                final User user = createUser();
+
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
+                        .willReturn(List.of());
+
+                TransactionSynchronizationManager.initSynchronization();
+                try {
+                    withdrawUserService.execute();
+                    TransactionSynchronizationManager.getSynchronizations().forEach(synchronization -> synchronization
+                            .afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+
+                    then(withdrawnStudentRedisUtil).should().removeWithdrawn(user.getStudentId());
+                } finally {
+                    TransactionSynchronizationManager.clearSynchronization();
+                }
+            }
         }
 
         @Test
@@ -140,7 +165,7 @@ class WithdrawUserServiceTest {
             assertThatThrownBy(() -> withdrawUserService.execute()).isInstanceOf(RedisConnectionFailureException.class);
 
             then(withdrawnStudentRedisUtil).shouldHaveNoInteractions();
-            then(userRepository).should(never()).delete(any(User.class));
+            then(userRepository).should(times(1)).delete(user);
         }
 
         @Test
@@ -157,7 +182,7 @@ class WithdrawUserServiceTest {
 
             assertThatThrownBy(() -> withdrawUserService.execute()).isInstanceOf(RedisConnectionFailureException.class);
 
-            then(userRepository).should(never()).delete(any(User.class));
+            then(userRepository).should(times(1)).delete(user);
         }
 
         @Nested

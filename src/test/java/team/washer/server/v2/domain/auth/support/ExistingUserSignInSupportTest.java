@@ -37,13 +37,15 @@ class ExistingUserSignInSupportTest {
         final var user = mock(User.class);
         final var expectedTokens = new TokenResDto("access.token", 3600L, "refresh.token");
 
-        given(userRepository.findByStudentIdForUpdate("20210001")).willReturn(Optional.of(user));
+        given(userRepository.findByStudentId("20210001")).willReturn(Optional.of(user));
+        given(userRepository.findByIdForUpdate(1L)).willReturn(Optional.of(user));
         given(user.getId()).willReturn(1L);
         given(tokenGenerationSupport.generate(1L, user.getRole())).willReturn(expectedTokens);
 
         assertThat(support.generateIfExistingUser("20210001")).contains(expectedTokens);
 
-        verify(userRepository).findByStudentIdForUpdate("20210001");
+        verify(userRepository).findByStudentId("20210001");
+        verify(userRepository).findByIdForUpdate(1L);
         verify(tokenGenerationSupport).generate(1L, user.getRole());
     }
 }

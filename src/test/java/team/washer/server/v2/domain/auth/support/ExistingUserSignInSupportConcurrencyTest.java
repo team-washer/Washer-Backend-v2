@@ -1,9 +1,8 @@
 package team.washer.server.v2.domain.auth.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
 import java.util.Optional;
@@ -12,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,7 +60,7 @@ class ExistingUserSignInSupportConcurrencyTest {
 
     @Test
     @DisplayName("탈퇴가 사용자 잠금을 보유한 동안 기존 사용자 로그인은 토큰을 발급하지 않아야 한다")
-    void waitsForWithdrawalLockBeforeGeneratingToken() throws Exception {
+    void doesNotGenerateTokenAfterWithdrawalCommits() throws Exception {
         final TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
         final Long userId = transactionTemplate.execute(status -> {
             final User user = entityManager.persist(User.builder().name("테스트 사용자").studentId("20210001")
@@ -72,12 +72,11 @@ class ExistingUserSignInSupportConcurrencyTest {
         final CountDownLatch allowWithdrawalCommit = new CountDownLatch(1);
         final CountDownLatch signInStarted = new CountDownLatch(1);
         final ExecutorService executor = Executors.newFixedThreadPool(2);
-        final var expectedTokens = new TokenResDto("access.token", 3600L, "refresh.token");
-        given(tokenGenerationSupport.generate(anyLong(), any(UserRole.class))).willReturn(expectedTokens);
-
         try {
             final Future<?> withdrawal = executor.submit(() -> transactionTemplate.executeWithoutResult(status -> {
-                userRepository.findByIdForUpdate(userId).orElseThrow();
+                final User user = userRepository.findByIdForUpdate(userId).orElseThrow();
+                userRepository.delete(user);
+                entityManager.flush();
                 withdrawalLockAcquired.countDown();
                 await(allowWithdrawalCommit);
             }));
@@ -89,13 +88,13 @@ class ExistingUserSignInSupportConcurrencyTest {
             });
 
             assertThat(signInStarted.await(5, TimeUnit.SECONDS)).isTrue();
-            assertThat(signIn).isNotDone();
+            assertThatThrownBy(() -> signIn.get(200, TimeUnit.MILLISECONDS)).isInstanceOf(TimeoutException.class);
 
             allowWithdrawalCommit.countDown();
 
-            assertThat(signIn.get(5, TimeUnit.SECONDS)).contains(expectedTokens);
+            assertThat(signIn.get(5, TimeUnit.SECONDS)).isEmpty();
             withdrawal.get(5, TimeUnit.SECONDS);
-            verify(tokenGenerationSupport).generate(1L, UserRole.USER);
+            verify(tokenGenerationSupport, org.mockito.Mockito.never()).generate(any(Long.class), any(UserRole.class));
         } finally {
             allowWithdrawalCommit.countDown();
             executor.shutdownNow();

@@ -1,11 +1,15 @@
 package team.washer.server.v2.domain.user.service.impl;
 
-import org.springframework.data.redis.RedisConnectionFailureException;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
@@ -15,6 +19,7 @@ import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.domain.user.service.WithdrawUserService;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WithdrawUserServiceImpl implements WithdrawUserService {
@@ -39,15 +44,28 @@ public class WithdrawUserServiceImpl implements WithdrawUserService {
 
         userReservationCleanupSupport.cancelAndReleaseMachines(activeReservations);
 
-        try {
-            refreshTokenRedisRepository.deleteById(userId);
-        } catch (Exception e) {
-            throw new RedisConnectionFailureException("리프레시 토큰을 폐기할 수 없습니다.", e);
+        // DB 삭제를 먼저 flush하여 DB 롤백이 Redis 기록보다 앞서 실패하도록 한다.
+        userRepository.delete(user);
+        userRepository.flush();
+
+        final AtomicBoolean withdrawnRecordMayExist = new AtomicBoolean();
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(final int status) {
+                    if (status == STATUS_ROLLED_BACK && withdrawnRecordMayExist.get()) {
+                        try {
+                            withdrawnStudentRedisUtil.removeWithdrawn(user.getStudentId());
+                        } catch (Exception exception) {
+                            log.error("withdrawn record rollback cleanup failed", exception);
+                        }
+                    }
+                }
+            });
         }
 
-        // Redis 기록이 모두 성공한 뒤 DB 삭제를 시도한다. DB가 롤백되어 기록이 남아도 로그인은 기존 사용자를 먼저 확인한다.
+        refreshTokenRedisRepository.deleteById(userId);
+        withdrawnRecordMayExist.set(true);
         withdrawnStudentRedisUtil.markWithdrawn(user.getStudentId());
-
-        userRepository.delete(user);
     }
 }

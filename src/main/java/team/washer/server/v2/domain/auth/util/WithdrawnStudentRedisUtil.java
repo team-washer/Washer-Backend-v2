@@ -1,6 +1,5 @@
 package team.washer.server.v2.domain.auth.util;
 
-import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
@@ -17,29 +16,18 @@ public class WithdrawnStudentRedisUtil {
 
     private final WithdrawnStudentRedisRepository withdrawnStudentRedisRepository;
 
-    /**
-     * 탈퇴한 학번을 30일간 Redis에 기록합니다.
-     */
     public void markWithdrawn(final String studentId) {
-        try {
-            withdrawnStudentRedisRepository
-                    .save(WithdrawnStudentEntity.builder().studentId(studentId).ttl(THIRTY_DAYS_IN_SECONDS).build());
-            log.info("withdrawn student record saved");
-        } catch (Exception e) {
-            log.error("failed to save withdrawn student record", e);
-            throw new RedisConnectionFailureException("탈퇴 제한 기록을 저장할 수 없습니다.", e);
-        }
+        withdrawnStudentRedisRepository
+                .save(WithdrawnStudentEntity.builder().studentId(studentId).ttl(THIRTY_DAYS_IN_SECONDS).build());
+        log.info("withdrawn student record saved");
     }
 
-    /**
-     * 해당 학번이 탈퇴 후 30일 이내인지 여부를 반환합니다.
-     */
     public boolean isWithdrawnRecently(final String studentId) {
-        try {
-            return withdrawnStudentRedisRepository.existsById(studentId);
-        } catch (Exception e) {
-            log.warn("failed to check withdrawn student record", e);
-            throw new RedisConnectionFailureException("탈퇴 제한 기록을 확인할 수 없습니다.", e);
-        }
+        return withdrawnStudentRedisRepository.existsById(studentId);
+    }
+
+    public void removeWithdrawn(final String studentId) {
+        withdrawnStudentRedisRepository.deleteById(studentId);
+        log.info("withdrawn student record removed after transaction rollback");
     }
 }
