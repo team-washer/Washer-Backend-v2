@@ -28,6 +28,8 @@ public class TraceIdFilter extends OncePerRequestFilter {
 
     public static final String TRACE_ID_HEADER = "X-Trace-Id";
     public static final String MDC_KEY = "traceId";
+    public static final String HTTP_METHOD_MDC_KEY = "httpMethod";
+    public static final String REQUEST_PATH_MDC_KEY = "requestPath";
     private static final String TRACE_ID_ATTRIBUTE = TraceIdFilter.class.getName() + ".traceId";
 
     /**
@@ -50,11 +52,15 @@ public class TraceIdFilter extends OncePerRequestFilter {
             final @NonNull FilterChain filterChain) throws ServletException, IOException {
         final var traceId = resolveTraceId(request);
         MDC.put(MDC_KEY, traceId);
+        MDC.put(HTTP_METHOD_MDC_KEY, request.getMethod());
+        MDC.put(REQUEST_PATH_MDC_KEY, request.getRequestURI());
         response.setHeader(TRACE_ID_HEADER, traceId);
         try {
             filterChain.doFilter(request, response);
         } finally {
             MDC.remove(MDC_KEY);
+            MDC.remove(HTTP_METHOD_MDC_KEY);
+            MDC.remove(REQUEST_PATH_MDC_KEY);
         }
     }
 
