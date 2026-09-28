@@ -114,6 +114,8 @@ public interface ReservationRepositoryCustom {
      */
     boolean existsCurrentlyActiveByUser(User user);
 
+    boolean existsCurrentlyActiveByUser(User user, Long excludeReservationId);
+
     /**
      * 기기에 현재 활성 예약이 있는지 반환합니다. 타임아웃이 지난 RESERVED 예약만 남아 있으면 거짓입니다.
      *
@@ -122,6 +124,8 @@ public interface ReservationRepositoryCustom {
      * @return 만료되지 않은 활성 예약 존재 여부
      */
     boolean existsCurrentlyActiveByMachine(Machine machine);
+
+    boolean existsCurrentlyActiveByMachine(Machine machine, Long excludeReservationId);
 
     boolean existsCurrentlyActiveByRoomNumberAndMachineType(String roomNumber, MachineType machineType);
 

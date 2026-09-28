@@ -134,14 +134,30 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     @Override
     public boolean existsCurrentlyActiveByUser(User targetUser) {
-        return jpaQueryFactory.selectOne().from(reservation).where(reservation.user.eq(targetUser), currentlyActive())
+        return existsCurrentlyActiveByUser(targetUser, null);
+    }
+
+    @Override
+    public boolean existsCurrentlyActiveByUser(User targetUser, Long excludeReservationId) {
+        return jpaQueryFactory.selectOne().from(reservation)
+                .where(reservation.user.eq(targetUser),
+                        currentlyActive(),
+                        excludeReservationId != null ? reservation.id.ne(excludeReservationId) : null)
                 .fetchFirst() != null;
     }
 
     @Override
     public boolean existsCurrentlyActiveByMachine(Machine targetMachine) {
+        return existsCurrentlyActiveByMachine(targetMachine, null);
+    }
+
+    @Override
+    public boolean existsCurrentlyActiveByMachine(Machine targetMachine, Long excludeReservationId) {
         return jpaQueryFactory.selectOne().from(reservation)
-                .where(reservation.machine.eq(targetMachine), currentlyActive()).fetchFirst() != null;
+                .where(reservation.machine.eq(targetMachine),
+                        currentlyActive(),
+                        excludeReservationId != null ? reservation.id.ne(excludeReservationId) : null)
+                .fetchFirst() != null;
     }
 
     @Override

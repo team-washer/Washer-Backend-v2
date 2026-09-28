@@ -99,8 +99,9 @@ public class OverdueReservationProcessor {
             return OverdueResult.SKIPPED;
         }
 
-        final boolean hasNewerUserReservation = reservationRepository.existsCurrentlyActiveByUser(user);
-        final boolean hasNewerMachineReservation = reservationRepository.existsCurrentlyActiveByMachine(machine);
+        final boolean hasNewerUserReservation = reservationRepository.existsCurrentlyActiveByUser(user, reservationId);
+        final boolean hasNewerMachineReservation = reservationRepository.existsCurrentlyActiveByMachine(machine,
+                reservationId);
         if (hasNewerUserReservation || hasNewerMachineReservation) {
             reservation.cancel();
             if (!hasNewerMachineReservation) {

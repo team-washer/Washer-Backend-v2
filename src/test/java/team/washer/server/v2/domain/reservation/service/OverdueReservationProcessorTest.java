@@ -200,8 +200,8 @@ class OverdueReservationProcessorTest {
         void shouldCancelStaleReservation_WhenNewerMachineReservationExists() {
             // Given
             givenReservedReservation();
-            when(reservationRepository.existsCurrentlyActiveByUser(user)).thenReturn(false);
-            when(reservationRepository.existsCurrentlyActiveByMachine(machine)).thenReturn(true);
+            when(reservationRepository.existsCurrentlyActiveByUser(user, RESERVATION_ID)).thenReturn(false);
+            when(reservationRepository.existsCurrentlyActiveByMachine(machine, RESERVATION_ID)).thenReturn(true);
 
             // When
             final var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, buildDeviceStatus(null));
