@@ -223,6 +223,28 @@ class ReservationRepositoryCurrentlyActiveTest {
     }
 
     @Nested
+    @DisplayName("더 최신 활성 예약 조회 메서드는")
+    class ExistsCurrentlyActiveAfter {
+
+        @Test
+        @DisplayName("기준 예약보다 나중에 생성된 예약만 반환한다")
+        void returnsOnlyReservationsCreatedAfterTheTarget() {
+            assertThat(reservationRepository
+                    .existsCurrentlyActiveByUserAfter(owner, freshReserved.getCreatedAt(), freshReserved.getId()))
+                    .isTrue();
+            assertThat(reservationRepository
+                    .existsCurrentlyActiveByUserAfter(owner, longRunning.getCreatedAt(), longRunning.getId()))
+                    .isFalse();
+            assertThat(reservationRepository
+                    .existsCurrentlyActiveByMachineAfter(washer, freshReserved.getCreatedAt(), freshReserved.getId()))
+                    .isTrue();
+            assertThat(reservationRepository
+                    .existsCurrentlyActiveByMachineAfter(washer, longRunning.getCreatedAt(), longRunning.getId()))
+                    .isFalse();
+        }
+    }
+
+    @Nested
     @DisplayName("findMachineIdById 메서드는")
     class FindMachineIdById {
 

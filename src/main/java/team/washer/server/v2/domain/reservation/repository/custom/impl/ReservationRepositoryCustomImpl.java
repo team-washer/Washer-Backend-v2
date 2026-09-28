@@ -147,6 +147,13 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
     }
 
     @Override
+    public boolean existsCurrentlyActiveByUserAfter(User targetUser, LocalDateTime createdAt, Long reservationId) {
+        return jpaQueryFactory.selectOne().from(reservation)
+                .where(reservation.user.eq(targetUser), currentlyActive(), newerThan(createdAt, reservationId))
+                .fetchFirst() != null;
+    }
+
+    @Override
     public boolean existsCurrentlyActiveByMachine(Machine targetMachine) {
         return existsCurrentlyActiveByMachine(targetMachine, null);
     }
@@ -157,6 +164,15 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                 .where(reservation.machine.eq(targetMachine),
                         currentlyActive(),
                         excludeReservationId != null ? reservation.id.ne(excludeReservationId) : null)
+                .fetchFirst() != null;
+    }
+
+    @Override
+    public boolean existsCurrentlyActiveByMachineAfter(Machine targetMachine,
+            LocalDateTime createdAt,
+            Long reservationId) {
+        return jpaQueryFactory.selectOne().from(reservation)
+                .where(reservation.machine.eq(targetMachine), currentlyActive(), newerThan(createdAt, reservationId))
                 .fetchFirst() != null;
     }
 
@@ -184,6 +200,17 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
         return ACTIVE_STATUSES.stream().map(status -> notExpired(status, now)).reduce(BooleanExpression::or)
                 .orElseThrow();
+    }
+
+    private BooleanExpression newerThan(final LocalDateTime createdAt, final Long reservationId) {
+        if (createdAt == null) {
+            return reservationId == null ? null : reservation.id.ne(reservationId);
+        }
+        final BooleanExpression createdAtIsNewer = reservation.createdAt.gt(createdAt);
+        if (reservationId == null) {
+            return createdAtIsNewer;
+        }
+        return createdAtIsNewer.or(reservation.createdAt.eq(createdAt).and(reservation.id.gt(reservationId)));
     }
 
     /**
