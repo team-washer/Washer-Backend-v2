@@ -143,7 +143,33 @@ class WithdrawUserServiceTest {
                     TransactionSynchronizationManager.getSynchronizations().forEach(synchronization -> synchronization
                             .afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
 
-                    then(withdrawnStudentRedisUtil).should().removeWithdrawn(user.getStudentId());
+                    then(withdrawnStudentRedisUtil).shouldHaveNoInteractions();
+                    then(refreshTokenRedisRepository).shouldHaveNoInteractions();
+                } finally {
+                    TransactionSynchronizationManager.clearSynchronization();
+                }
+            }
+
+            @Test
+            @DisplayName("DB 커밋 이후에만 Redis 탈퇴 기록과 리프레시 토큰을 처리한다")
+            void it_applies_redis_side_effects_after_transaction_commit() {
+                final Long userId = 1L;
+                final User user = createUser();
+
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
+                        .willReturn(List.of());
+
+                TransactionSynchronizationManager.initSynchronization();
+                try {
+                    withdrawUserService.execute();
+
+                    TransactionSynchronizationManager.getSynchronizations().forEach(synchronization -> synchronization
+                            .afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
+
+                    then(withdrawnStudentRedisUtil).should().markWithdrawn(user.getStudentId());
+                    then(refreshTokenRedisRepository).should().deleteById(userId);
                 } finally {
                     TransactionSynchronizationManager.clearSynchronization();
                 }
@@ -151,8 +177,8 @@ class WithdrawUserServiceTest {
         }
 
         @Test
-        @DisplayName("리프레시 토큰 삭제가 실패하면 사용자 삭제를 진행하지 않아야 한다")
-        void it_does_not_delete_user_when_refresh_token_deletion_fails() {
+        @DisplayName("리프레시 토큰 삭제가 실패해도 탈퇴 기록 처리를 계속하고 오류를 기록한다")
+        void it_logs_and_continues_when_refresh_token_deletion_fails() {
             final Long userId = 1L;
             final User user = createUser();
 
@@ -162,15 +188,15 @@ class WithdrawUserServiceTest {
             willThrow(new RedisConnectionFailureException("Redis unavailable")).given(refreshTokenRedisRepository)
                     .deleteById(userId);
 
-            assertThatThrownBy(() -> withdrawUserService.execute()).isInstanceOf(RedisConnectionFailureException.class);
+            assertThatCode(() -> withdrawUserService.execute()).doesNotThrowAnyException();
 
-            then(withdrawnStudentRedisUtil).shouldHaveNoInteractions();
+            then(withdrawnStudentRedisUtil).should().markWithdrawn(user.getStudentId());
             then(userRepository).should(times(1)).delete(user);
         }
 
         @Test
-        @DisplayName("탈퇴 기록 저장이 실패하면 사용자 삭제를 진행하지 않아야 한다")
-        void it_does_not_delete_user_when_withdrawal_record_fails() {
+        @DisplayName("탈퇴 기록 저장이 실패해도 리프레시 토큰 처리를 계속하고 오류를 기록한다")
+        void it_logs_and_continues_when_withdrawal_record_fails() {
             final Long userId = 1L;
             final User user = createUser();
 
@@ -180,8 +206,9 @@ class WithdrawUserServiceTest {
             willThrow(new RedisConnectionFailureException("Redis unavailable")).given(withdrawnStudentRedisUtil)
                     .markWithdrawn(user.getStudentId());
 
-            assertThatThrownBy(() -> withdrawUserService.execute()).isInstanceOf(RedisConnectionFailureException.class);
+            assertThatCode(() -> withdrawUserService.execute()).doesNotThrowAnyException();
 
+            then(refreshTokenRedisRepository).should().deleteById(userId);
             then(userRepository).should(times(1)).delete(user);
         }
 

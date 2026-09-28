@@ -26,8 +26,4 @@ public class WithdrawnStudentRedisUtil {
         return withdrawnStudentRedisRepository.existsById(studentId);
     }
 
-    public void removeWithdrawn(final String studentId) {
-        withdrawnStudentRedisRepository.deleteById(studentId);
-        log.info("withdrawn student record removed after transaction rollback");
-    }
 }

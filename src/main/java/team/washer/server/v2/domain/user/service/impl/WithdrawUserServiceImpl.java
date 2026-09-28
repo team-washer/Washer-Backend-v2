@@ -1,7 +1,5 @@
 package team.washer.server.v2.domain.user.service.impl;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,28 +42,36 @@ public class WithdrawUserServiceImpl implements WithdrawUserService {
 
         userReservationCleanupSupport.cancelAndReleaseMachines(activeReservations);
 
-        // DB 삭제를 먼저 flush하여 DB 롤백이 Redis 기록보다 앞서 실패하도록 한다.
+        // DB 삭제를 먼저 flush하여 Redis 변경은 DB 커밋 이후에만 수행한다.
         userRepository.delete(user);
         userRepository.flush();
 
-        final AtomicBoolean withdrawnRecordMayExist = new AtomicBoolean();
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCompletion(final int status) {
-                    if (status == STATUS_ROLLED_BACK && withdrawnRecordMayExist.get()) {
-                        try {
-                            withdrawnStudentRedisUtil.removeWithdrawn(user.getStudentId());
-                        } catch (Exception exception) {
-                            log.error("withdrawn record rollback cleanup failed", exception);
-                        }
+                    if (status == STATUS_COMMITTED) {
+                        applyRedisSideEffects(userId, user.getStudentId());
                     }
                 }
             });
+            return;
         }
 
-        refreshTokenRedisRepository.deleteById(userId);
-        withdrawnRecordMayExist.set(true);
-        withdrawnStudentRedisUtil.markWithdrawn(user.getStudentId());
+        applyRedisSideEffects(userId, user.getStudentId());
+    }
+
+    private void applyRedisSideEffects(final Long userId, final String studentId) {
+        try {
+            withdrawnStudentRedisUtil.markWithdrawn(studentId);
+        } catch (Exception exception) {
+            log.error("withdrawn student record synchronization failed", exception);
+        }
+
+        try {
+            refreshTokenRedisRepository.deleteById(userId);
+        } catch (Exception exception) {
+            log.error("refresh token synchronization failed", exception);
+        }
     }
 }
