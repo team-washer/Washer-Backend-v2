@@ -1,7 +1,5 @@
 package team.washer.server.v2.domain.reservation.support;
 
-import java.util.List;
-
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
@@ -39,9 +37,6 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 @Component
 @RequiredArgsConstructor
 public class ReservationCreationSupport {
-
-    private static final List<ReservationStatus> ACTIVE_RESERVATION_STATUSES = List.of(ReservationStatus.RESERVED,
-            ReservationStatus.RUNNING);
 
     private final ReservationRepository reservationRepository;
     private final MachineRepository machineRepository;
@@ -125,8 +120,6 @@ public class ReservationCreationSupport {
             throw new ExpectedException("기기 종료 처리 중입니다. 잠시 후 다시 시도해 주세요", HttpStatus.CONFLICT);
         }
 
-        final var machineReservations = reservationRepository.findCurrentlyActiveByMachine(machine);
-
         // 기기 가용성 검증
         if (machine.getAvailability() != MachineAvailability.AVAILABLE) {
             throw new ExpectedException(String.format("해당 기기를 사용할 수 없습니다. 기기: %s", machine.getName()),
@@ -134,21 +127,19 @@ public class ReservationCreationSupport {
         }
 
         // 기기 단위 중복 예약 검증 (가용성 플래그 드리프트에 대한 방어 심화)
-        if (!machineReservations.isEmpty()) {
+        if (reservationRepository.existsCurrentlyActiveByMachine(machine)) {
             throw new ExpectedException(String.format("해당 기기에 이미 진행 중인 예약이 있습니다. 기기: %s", machine.getName()),
                     HttpStatus.CONFLICT);
         }
 
         // 개인 중복 예약 검증 (1인 1예약)
-        if (!reservationRepository.findByUserAndStatusIn(user, ACTIVE_RESERVATION_STATUSES).isEmpty()) {
+        if (reservationRepository.existsCurrentlyActiveByUser(user)) {
             throw new ExpectedException("이미 활성 예약이 존재합니다. 1인 1예약만 가능합니다.", HttpStatus.BAD_REQUEST);
         }
 
         // 동일 호실의 동일 유형 기기 중복 예약 검증
-        final boolean hasDuplicateTypeReservation = reservationRepository
-                .findByRoomNumberAndStatusIn(user.getRoomNumber(), ACTIVE_RESERVATION_STATUSES).stream()
-                .anyMatch(reservation -> reservation.getMachine().getType() == machine.getType());
-        if (hasDuplicateTypeReservation) {
+        if (reservationRepository.existsCurrentlyActiveByRoomNumberAndMachineType(user.getRoomNumber(),
+                machine.getType())) {
             throw new ExpectedException(String.format("해당 호실에 이미 %s 예약이 존재합니다. 동일 유형의 기기는 동시에 두 개 이상 예약할 수 없습니다.",
                     machine.getType().getDescription()), HttpStatus.BAD_REQUEST);
         }
