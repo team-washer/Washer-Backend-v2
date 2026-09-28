@@ -204,7 +204,7 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
 
     private BooleanExpression newerThan(final LocalDateTime createdAt, final Long reservationId) {
         if (createdAt == null) {
-            return reservationId == null ? null : reservation.id.ne(reservationId);
+            return reservationId == null ? null : reservation.id.gt(reservationId);
         }
         final BooleanExpression createdAtIsNewer = reservation.createdAt.gt(createdAt);
         if (reservationId == null) {
