@@ -19,7 +19,6 @@ import team.washer.server.v2.global.thirdparty.discord.data.DiscordField;
 import team.washer.server.v2.global.thirdparty.discord.data.DiscordWebhookPayload;
 import team.washer.server.v2.global.thirdparty.discord.data.EmbedColor;
 import team.washer.server.v2.global.thirdparty.feign.client.DiscordWebhookClient;
-import team.washer.server.v2.global.thirdparty.feign.error.FeignErrorDecoder;
 
 @Slf4j
 @Service
@@ -43,9 +42,10 @@ public class DiscordErrorNotificationService {
                     exception.getClass().getSimpleName(),
                     embed.getFields().size());
         } catch (Exception sendException) {
-            log.error("discord error notification failed exceptionType={} sendExceptionType={}",
+            log.error("discord error notification failed exceptionType={} sendExceptionType={} reason={}",
                     exception.getClass().getSimpleName(),
-                    sendException.getClass().getSimpleName());
+                    sendException.getClass().getSimpleName(),
+                    sanitizeAndTruncate(sendException.getMessage()));
         }
     }
 
@@ -60,9 +60,13 @@ public class DiscordErrorNotificationService {
         final List<DiscordField> fields = new ArrayList<>();
         fields.add(DiscordField.builder().name("Exception Type").value(exception.getClass().getSimpleName())
                 .inline(true).build());
+        if (exception.getMessage() != null && !exception.getMessage().isBlank()) {
+            fields.add(DiscordField.builder().name("Message").value(sanitizeAndTruncate(exception.getMessage()))
+                    .inline(false).build());
+        }
         if (context != null) {
-            fields.add(DiscordField.builder().name("Context")
-                    .value(SensitiveLogSanitizer.sanitize(truncateField(context))).inline(false).build());
+            fields.add(
+                    DiscordField.builder().name("Context").value(sanitizeAndTruncate(context)).inline(false).build());
         }
         final StackTraceElement firstElement = exception.getStackTrace().length > 0
                 ? exception.getStackTrace()[0]
@@ -105,9 +109,9 @@ public class DiscordErrorNotificationService {
         additionalInfo.forEach((key, value) -> {
             if (SAFE_ADDITIONAL_INFO_KEYS.contains(key) && value != null) {
                 final String safeValue = "Request Path".equals(key)
-                        ? FeignErrorDecoder.safeEndpoint(value.toString())
+                        ? SensitiveLogSanitizer.sanitizeEndpoint(value.toString())
                         : value.toString();
-                safeInfo.put(key, safeValue);
+                safeInfo.put(key, SensitiveLogSanitizer.sanitize(safeValue));
             }
         });
         return safeInfo;
@@ -118,5 +122,12 @@ public class DiscordErrorNotificationService {
             return text.substring(0, MAX_FIELD_LENGTH) + "...";
         }
         return text;
+    }
+
+    private String sanitizeAndTruncate(final String text) {
+        if (text == null || text.isBlank()) {
+            return "none";
+        }
+        return truncateField(SensitiveLogSanitizer.sanitize(text));
     }
 }

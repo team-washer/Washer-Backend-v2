@@ -1,7 +1,5 @@
 package team.washer.server.v2.global.thirdparty.feign.error;
 
-import java.net.URI;
-
 import org.springframework.http.HttpStatus;
 
 import feign.FeignException;
@@ -29,29 +27,8 @@ public class FeignErrorDecoder implements ErrorDecoder {
         log.error("feign request failed methodKey={} httpMethod={} endpoint={} status={}",
                 methodKey,
                 response.request().httpMethod().name(),
-                safeEndpoint(response.request().url()),
+                SensitiveLogSanitizer.sanitizeEndpoint(response.request().url()),
                 response.status());
-    }
-
-    public static String safeEndpoint(final String rawUrl) {
-        if (rawUrl == null || rawUrl.isBlank()) {
-            return "unknown";
-        }
-        if (rawUrl.startsWith("/")) {
-            return SensitiveLogSanitizer.sanitize(rawUrl.split("\\?", 2)[0]);
-        }
-        try {
-            final URI uri = URI.create(rawUrl);
-            final String host = uri.getHost();
-            if (host == null) {
-                return "unknown";
-            }
-            final String path = uri.getPath();
-            final String endpoint = uri.getScheme() + "://" + host + (path == null || path.isBlank() ? "/" : path);
-            return SensitiveLogSanitizer.sanitize(endpoint);
-        } catch (IllegalArgumentException e) {
-            return "unknown";
-        }
     }
 
     private ExpectedException createExpectedException(int status) {

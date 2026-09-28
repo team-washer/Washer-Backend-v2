@@ -3,6 +3,7 @@ package team.washer.server.v2.global.thirdparty.smartthings.feign;
 import feign.Response;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
+import team.washer.server.v2.global.common.logging.SensitiveLogSanitizer;
 import team.washer.server.v2.global.thirdparty.feign.error.FeignErrorDecoder;
 
 /**
@@ -18,7 +19,7 @@ public class SmartThingsFeignErrorDecoder extends FeignErrorDecoder {
         if (response.status() == 403) {
             log.warn("smartthings permission denied methodKey={} endpoint={} status={}",
                     methodKey,
-                    safeEndpoint(response.request().url()),
+                    SensitiveLogSanitizer.sanitizeEndpoint(response.request().url()),
                     response.status());
             return new SmartThingsPermissionException(
                     "SmartThings API 권한이 없습니다. OAuth 스코프(x:devices:*) 또는 기기 접근 권한을 확인해주세요.");
