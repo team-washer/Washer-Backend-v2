@@ -8,7 +8,8 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.ConcurrencyFailureException;
-import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.data.redis.RedisSystemException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -233,7 +234,7 @@ public class GlobalExceptionHandler {
     /**
      * Redis 연결 실패와 SmartThings 등 외부 API의 네트워크 장애. 일시적인 장애이므로 503으로 응답하고 운영 알림을 보낸다.
      */
-    @ExceptionHandler({RedisConnectionFailureException.class, RetryableException.class})
+    @ExceptionHandler({DataAccessResourceFailureException.class, RedisSystemException.class, RetryableException.class})
     public ResponseEntity<CommonApiResponse<ErrorDetailResDto>> externalServiceUnavailableException(Exception ex,
             HttpServletRequest request) {
         log.error("external service unavailable exception={} status={}",
