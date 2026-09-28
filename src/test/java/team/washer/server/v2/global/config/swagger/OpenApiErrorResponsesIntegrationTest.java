@@ -36,6 +36,8 @@ import team.washer.server.v2.global.security.jwt.provider.JwtTokenProvider;
 @DisplayName("OpenAPI 공통 오류 응답 문서는")
 class OpenApiErrorResponsesIntegrationTest {
 
+    private static final String SCHEMA_REF_PREFIX = "#/components/schemas/";
+
     @Resource
     private MockMvc mockMvc;
 
@@ -50,22 +52,18 @@ class OpenApiErrorResponsesIntegrationTest {
         final MvcResult result = mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk()).andReturn();
         final var document = objectMapper.readTree(result.getResponse().getContentAsString());
 
-        mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
-                .andExpect(jsonPath("$.components.schemas.CommonErrorResponse").exists())
-                .andExpect(
-                        jsonPath("$.paths['/test/explicit'].get.responses['409'].description").value("엔드포인트 전용 충돌 설명"))
-                .andExpect(jsonPath("$.paths['/test/explicit'].get.responses['503'].description")
-                        .value("Redis 또는 외부 서비스 일시 장애"))
-                .andExpect(jsonPath("$.paths['/test/generic'].get.responses['409'].description")
-                        .value("동시성 충돌 또는 현재 상태와 충돌하는 요청"))
-                .andExpect(jsonPath(
-                        "$.paths['/test/generic'].get.responses['409'].content['application/json'].schema.$ref")
-                        .value("#/components/schemas/CommonErrorResponse"))
-                .andExpect(jsonPath("$.paths['/test/generic'].get.responses['503'].description")
-                        .value("Redis 또는 외부 서비스 일시 장애"))
-                .andExpect(jsonPath(
-                        "$.paths['/test/generic'].get.responses['503'].content['application/json'].schema.$ref")
-                        .value("#/components/schemas/CommonErrorResponse"));
+        jsonPath("$.components.schemas.CommonErrorResponse").exists().match(result);
+        jsonPath("$.paths['/test/explicit'].get.responses['409'].description").value("엔드포인트 전용 충돌 설명").match(result);
+        jsonPath("$.paths['/test/explicit'].get.responses['503'].description").value("Redis 또는 외부 서비스 일시 장애")
+                .match(result);
+        jsonPath("$.paths['/test/generic'].get.responses['409'].description").value("동시성 충돌 또는 현재 상태와 충돌하는 요청")
+                .match(result);
+        jsonPath("$.paths['/test/generic'].get.responses['409'].content['application/json'].schema.$ref")
+                .value(SCHEMA_REF_PREFIX + CommonErrorResponseResDto.OPENAPI_SCHEMA_NAME).match(result);
+        jsonPath("$.paths['/test/generic'].get.responses['503'].description").value("Redis 또는 외부 서비스 일시 장애")
+                .match(result);
+        jsonPath("$.paths['/test/generic'].get.responses['503'].content['application/json'].schema.$ref")
+                .value(SCHEMA_REF_PREFIX + CommonErrorResponseResDto.OPENAPI_SCHEMA_NAME).match(result);
 
         assertEveryReferenceResolves(document);
     }
@@ -80,8 +78,9 @@ class OpenApiErrorResponsesIntegrationTest {
             node.fields().forEachRemaining(field -> {
                 if ("$ref".equals(field.getKey())) {
                     final var reference = field.getValue().asText();
-                    if (reference.startsWith("#/components/schemas/")) {
-                        assertThat(schemas.has(reference.substring("#/components/schemas/".length()))).isTrue();
+                    if (reference.startsWith(SCHEMA_REF_PREFIX)) {
+                        assertThat(schemas.has(reference.substring(SCHEMA_REF_PREFIX.length())))
+                                .as("해결되지 않은 $ref %s", reference).isTrue();
                     }
                 }
                 assertEveryReferenceResolves(field.getValue(), schemas);

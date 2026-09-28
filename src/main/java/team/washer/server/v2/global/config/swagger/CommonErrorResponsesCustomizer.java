@@ -1,5 +1,7 @@
 package team.washer.server.v2.global.config.swagger;
 
+import java.util.LinkedHashMap;
+
 import org.springdoc.core.customizers.GlobalOpenApiCustomizer;
 import org.springdoc.core.customizers.OperationCustomizer;
 import org.springframework.core.annotation.AnnotationUtils;
@@ -30,7 +32,7 @@ public class CommonErrorResponsesCustomizer implements OperationCustomizer, Glob
     public void customise(final OpenAPI openAPI) {
         final var components = openAPI.getComponents() == null ? new Components() : openAPI.getComponents();
         final var schemas = components.getSchemas() == null
-                ? new java.util.LinkedHashMap<String, Schema>()
+                ? new LinkedHashMap<String, Schema>()
                 : components.getSchemas();
         ModelConverters.getInstance().read(CommonErrorResponseResDto.class).forEach(schemas::putIfAbsent);
         components.setSchemas(schemas);
