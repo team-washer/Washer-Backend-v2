@@ -16,6 +16,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -45,6 +46,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     private final ReservationLifecycleProcessor reservationLifecycleProcessor;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
     private final DeviceShutdownSupport deviceShutdownSupport;
+    private final MachineShutdownClaimSupport machineShutdownClaimSupport;
     private final LongRunningReservationMonitor longRunningReservationMonitor;
 
     @Autowired(required = false)
@@ -118,7 +120,15 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
      *         {@code false}
      */
     private boolean shutdownCompletedMachine(CompletedMachine completedMachine, SmartThingsDeviceStatusResDto status) {
+        final var claim = new MachineShutdownClaimSupport.ShutdownClaim(completedMachine.machineId(),
+                completedMachine.shutdownClaimToken());
         try {
+            if (!machineShutdownClaimSupport.isActive(claim)) {
+                log.warn("power off after completion skipped because shutdown claim is inactive machine={} deviceId={}",
+                        completedMachine.machineName(),
+                        completedMachine.deviceId());
+                return true;
+            }
             deviceShutdownSupport.shutdownAfterCompletion(completedMachine.machineName(),
                     completedMachine.deviceId(),
                     completedMachine.isWasher(),
@@ -138,6 +148,16 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     completedMachine.deviceId(),
                     e.getMessage());
             return true;
+        } finally {
+            try {
+                machineShutdownClaimSupport.release(claim);
+            } catch (Exception e) {
+                log.error("failed to release shutdown claim machine={} deviceId={} reason={}",
+                        completedMachine.machineName(),
+                        completedMachine.deviceId(),
+                        e.getMessage(),
+                        e);
+            }
         }
     }
 

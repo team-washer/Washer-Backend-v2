@@ -11,6 +11,7 @@ import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.enums.Position;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @DisplayName("Machine 클래스의")
 class MachineTest {
@@ -191,6 +192,33 @@ class MachineTest {
 
             // Then
             assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
+        }
+    }
+
+    @Nested
+    @DisplayName("전원 차단 선점 메서드는")
+    class Describe_shutdown_claim {
+
+        @Test
+        @DisplayName("이전 작업의 토큰으로 신규 예약 이후 선점을 해제하지 않는다")
+        void it_does_not_release_a_new_claim_with_a_stale_token() {
+            // Given
+            var machine = createMachine();
+            var staleToken = machine.claimShutdown().orElseThrow();
+            ReflectionTestUtils.setField(machine,
+                    "shutdownClaimedAt",
+                    DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_CLAIM_TIMEOUT).minusSeconds(1));
+
+            // When
+            machine.recoverExpiredShutdownClaim();
+            var currentToken = machine.claimShutdown().orElseThrow();
+
+            // Then
+            assertThat(currentToken).isNotEqualTo(staleToken);
+            assertThat(machine.releaseShutdown(staleToken)).isFalse();
+            assertThat(machine.isShutdownInProgress()).isTrue();
+            assertThat(machine.releaseShutdown(currentToken)).isTrue();
+            assertThat(machine.isShutdownInProgress()).isFalse();
         }
     }
 }

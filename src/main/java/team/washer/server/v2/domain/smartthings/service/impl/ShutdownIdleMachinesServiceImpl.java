@@ -17,6 +17,7 @@ import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionE
 import team.washer.server.v2.domain.smartthings.service.ShutdownIdleMachinesService;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 import team.washer.server.v2.global.util.DateTimeUtil;
@@ -36,6 +37,7 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
     private final ReservationRepository reservationRepository;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
     private final DeviceShutdownSupport deviceShutdownSupport;
+    private final MachineShutdownClaimSupport machineShutdownClaimSupport;
 
     @Autowired(required = false)
     private DiscordErrorNotificationService discordErrorNotificationService;
@@ -75,17 +77,38 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                     continue;
                 }
 
-                var result = deviceShutdownSupport.shutdown(machine, status);
-                if (result != DeviceShutdownSupport.ShutdownResult.POWERED_OFF) {
+                final var claim = machineShutdownClaimSupport.claimIdleMachine(machine.getId());
+                if (claim.isEmpty()) {
+                    skippedCount++;
                     continue;
                 }
-                if (isOperating) {
-                    operatingPoweredOff.add(machine.getName());
-                    log.warn("operating device without active reservation powered off machine={} deviceId={}",
-                            machine.getName(),
-                            machine.getDeviceId());
-                } else {
-                    poweredOff.add(machine.getName());
+                try {
+                    if (!machineShutdownClaimSupport.isActive(claim.get())) {
+                        skippedCount++;
+                        continue;
+                    }
+                    var result = deviceShutdownSupport.shutdown(machine, status);
+                    if (result != DeviceShutdownSupport.ShutdownResult.POWERED_OFF) {
+                        continue;
+                    }
+                    if (isOperating) {
+                        operatingPoweredOff.add(machine.getName());
+                        log.warn("operating device without active reservation powered off machine={} deviceId={}",
+                                machine.getName(),
+                                machine.getDeviceId());
+                    } else {
+                        poweredOff.add(machine.getName());
+                    }
+                } finally {
+                    try {
+                        machineShutdownClaimSupport.release(claim.get());
+                    } catch (Exception e) {
+                        log.error("failed to release idle shutdown claim machine={} deviceId={} reason={}",
+                                machine.getName(),
+                                machine.getDeviceId(),
+                                e.getMessage(),
+                                e);
+                    }
                 }
             } catch (SmartThingsPermissionException e) {
                 log.warn("idle shutdown SmartThings permission error detected, stopping batch. machine={} reason={}",

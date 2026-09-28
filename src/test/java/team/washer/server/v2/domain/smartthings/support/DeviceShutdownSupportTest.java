@@ -192,15 +192,15 @@ class DeviceShutdownSupportTest {
         }
 
         @Test
-        @DisplayName("machineState를 읽을 수 없어도 사이클 종료가 확인된 기기이므로 전원을 차단한다")
-        void shouldPowerOff_WhenMachineStateUnknown() {
+        @DisplayName("machineState를 읽을 수 없으면 안전을 위해 전원 차단하지 않는다")
+        void shouldSkip_WhenMachineStateUnknown() {
             // When
             var result = deviceShutdownSupport
                     .shutdownAfterCompletion("D-2F-L1", "device-1", false, dryerStatus(null, "on"));
 
             // Then
-            assertThat(result).isEqualTo(ShutdownResult.POWERED_OFF);
-            assertPowerOffSent();
+            assertThat(result).isEqualTo(ShutdownResult.SKIPPED_UNKNOWN);
+            then(sendDeviceCommandService).should(never()).execute(any(), any());
         }
 
         @Test

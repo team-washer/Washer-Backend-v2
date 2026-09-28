@@ -100,7 +100,7 @@ public class AdminCreateReservationServiceImpl implements AdminCreateReservation
                 ? reservationCreationSupport.lockMachine(reqDto.machineId())
                 : reservationCreationSupport.findMachine(reqDto.machineId());
 
-        reservationCreationSupport.validateMachineAndReservations(targetUser, machine);
+        reservationCreationSupport.validateMachineAndReservations(targetUser, machine, forUpdate);
 
         return new ValidatedTarget(targetUser, adminUser, machine);
     }

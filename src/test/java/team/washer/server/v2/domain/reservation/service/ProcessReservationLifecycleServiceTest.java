@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +34,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,10 +54,18 @@ class ProcessReservationLifecycleServiceTest {
     private DeviceShutdownSupport deviceShutdownSupport;
 
     @Mock
+    private MachineShutdownClaimSupport machineShutdownClaimSupport;
+
+    @Mock
     private DiscordErrorNotificationService discordErrorNotificationService;
 
     @Mock
     private LongRunningReservationMonitor longRunningReservationMonitor;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
+    }
 
     private RunningTarget buildRunningTarget(Long reservationId, String deviceId, boolean longRunning) {
         return new RunningTarget(reservationId,
@@ -104,7 +115,7 @@ class ProcessReservationLifecycleServiceTest {
                 .thenReturn(List.of(buildRunningTarget(2L, "device-2", false)));
         when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenReturn(runningStatus);
         when(reservationLifecycleProcessor.processRunningToCompleted(2L, runningStatus))
-                .thenReturn(Optional.of(new CompletedMachine("D-2F-L1", "device-2", false)));
+                .thenReturn(Optional.of(new CompletedMachine(2L, "D-2F-L1", "device-2", false, "claim-token")));
 
         // When
         processReservationLifecycleService.execute();
@@ -123,7 +134,7 @@ class ProcessReservationLifecycleServiceTest {
                 List.of(buildRunningTarget(2L, "device-2", false), buildRunningTarget(3L, "device-3", false)));
         when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenReturn(firstStatus);
         when(reservationLifecycleProcessor.processRunningToCompleted(2L, firstStatus))
-                .thenReturn(Optional.of(new CompletedMachine("D-2F-L1", "device-2", false)));
+                .thenReturn(Optional.of(new CompletedMachine(2L, "D-2F-L1", "device-2", false, "claim-token")));
         when(deviceShutdownSupport.shutdownAfterCompletion("D-2F-L1", "device-2", false, firstStatus))
                 .thenThrow(new SmartThingsPermissionException("권한 없음"));
         ReflectionTestUtils.setField(processReservationLifecycleService,
@@ -136,6 +147,7 @@ class ProcessReservationLifecycleServiceTest {
         // Then
         verify(discordErrorNotificationService, times(1))
                 .notifyError(any(SmartThingsPermissionException.class), eq("예약 완료 기기 종료 - SmartThings 권한 오류"), any());
+        verify(machineShutdownClaimSupport, times(1)).release(any());
         verify(deviceStatusQuerySupport, never()).queryDeviceStatus("device-3");
         verify(reservationLifecycleProcessor, never()).processRunningToCompleted(eq(3L), any());
     }
@@ -152,7 +164,7 @@ class ProcessReservationLifecycleServiceTest {
         when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenReturn(firstStatus);
         when(deviceStatusQuerySupport.queryDeviceStatus("device-3")).thenReturn(secondStatus);
         when(reservationLifecycleProcessor.processRunningToCompleted(2L, firstStatus))
-                .thenReturn(Optional.of(new CompletedMachine("D-2F-L1", "device-2", false)));
+                .thenReturn(Optional.of(new CompletedMachine(2L, "D-2F-L1", "device-2", false, "claim-token")));
         when(deviceShutdownSupport.shutdownAfterCompletion("D-2F-L1", "device-2", false, firstStatus))
                 .thenThrow(new RuntimeException("api error"));
 
@@ -161,6 +173,7 @@ class ProcessReservationLifecycleServiceTest {
 
         // Then
         verify(reservationLifecycleProcessor, times(1)).processRunningToCompleted(3L, secondStatus);
+        verify(machineShutdownClaimSupport, times(1)).release(any());
     }
 
     @Test

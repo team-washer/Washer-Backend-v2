@@ -47,7 +47,7 @@ public class DeviceShutdownSupport {
      * @return 종료 처리 결과
      */
     public ShutdownResult shutdown(Machine machine, SmartThingsDeviceStatusResDto status) {
-        return powerOff(machine.getName(), machine.getDeviceId(), machine.isWasher(), status, true);
+        return powerOff(machine.getName(), machine.getDeviceId(), machine.isWasher(), status);
     }
 
     /**
@@ -71,7 +71,7 @@ public class DeviceShutdownSupport {
                     status.getOperatingState(true));
             return ShutdownResult.SKIPPED_WASHER_DRAINING;
         }
-        return powerOff(machineName, deviceId, isWasher, status, false);
+        return powerOff(machineName, deviceId, isWasher, status);
     }
 
     /**
@@ -88,15 +88,11 @@ public class DeviceShutdownSupport {
     /**
      * 기기 전원을 차단한다.
      *
-     * @param requireKnownState
-     *            machineState를 읽을 수 있을 때만 차단할지 여부. 사용 중인지 판단할 근거가 필요한 유휴 기기 종료에서는
-     *            {@code true}, 사이클 종료가 확인된 완료 처리에서는 {@code false}를 사용한다
      */
     private ShutdownResult powerOff(String machineName,
             String deviceId,
             boolean isWasher,
-            SmartThingsDeviceStatusResDto status,
-            boolean requireKnownState) {
+            SmartThingsDeviceStatusResDto status) {
         if (status == null) {
             log.warn("device status unknown, skip shutdown machine={} deviceId={}", machineName, deviceId);
             return ShutdownResult.SKIPPED_UNKNOWN;
@@ -109,7 +105,7 @@ public class DeviceShutdownSupport {
 
         // machineState를 읽을 수 없으면 사용 중인지 판단할 근거가 없다. 만료된 RESERVED 예약도 같은 이유로
         // 시작 여부 판정이 보류되므로(OverdueReservationProcessor), 여기서도 전원을 차단하지 않는다.
-        if (requireKnownState && status.getOperatingState(isWasher) == MachineOperatingState.UNKNOWN) {
+        if (status.getOperatingState(isWasher) == MachineOperatingState.UNKNOWN) {
             log.warn("device machine state unknown, skip shutdown machine={} deviceId={} switchStatus={}",
                     machineName,
                     deviceId,

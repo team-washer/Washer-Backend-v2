@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.reservation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -32,8 +33,10 @@ import team.washer.server.v2.domain.reservation.support.CompletionDecision;
 import team.washer.server.v2.domain.reservation.support.ReservationCompletionDecisionSupport;
 import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,6 +68,9 @@ class ReservationLifecycleProcessorTest {
     private ReservationNotificationSupport reservationNotificationSupport;
 
     @Mock
+    private MachineShutdownClaimSupport machineShutdownClaimSupport;
+
+    @Mock
     private Reservation reservation;
 
     @Mock
@@ -72,6 +78,9 @@ class ReservationLifecycleProcessorTest {
 
     @Mock
     private User user;
+
+    @Mock
+    private UserRepository userRepository;
 
     private SmartThingsDeviceStatusResDto buildDeviceStatus(String completionTime) {
         var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
@@ -231,9 +240,15 @@ class ReservationLifecycleProcessorTest {
     class ProcessRunningToCompletedTest {
 
         private void givenRunningReservation() {
-            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findUserIdById(RESERVATION_ID)).thenReturn(Optional.of(3L));
+            when(reservationRepository.findMachineIdById(RESERVATION_ID)).thenReturn(Optional.of(2L));
+            when(machineRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(machine));
+            when(userRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(user));
+            when(reservationRepository.findByIdForUpdateWithoutRelations(RESERVATION_ID))
+                    .thenReturn(Optional.of(reservation));
             when(reservation.isRunning()).thenReturn(true);
-            when(reservation.getMachine()).thenReturn(machine);
+            lenient().when(machineShutdownClaimSupport.claimLockedMachine(machine))
+                    .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(2L, "claim-token")));
         }
 
         private void givenCompletionDecision(CompletionDecision decision) {
@@ -263,7 +278,7 @@ class ReservationLifecycleProcessorTest {
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
             verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
-            assertThat(result).contains(new CompletedMachine("W-2F-L1", "device-1", true));
+            assertThat(result).contains(new CompletedMachine(2L, "W-2F-L1", "device-1", true, "claim-token"));
         }
 
         @Test
@@ -486,7 +501,12 @@ class ReservationLifecycleProcessorTest {
         void shouldSkip_WhenNoLongerRunning() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
-            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findUserIdById(RESERVATION_ID)).thenReturn(Optional.of(3L));
+            when(reservationRepository.findMachineIdById(RESERVATION_ID)).thenReturn(Optional.of(2L));
+            when(machineRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(machine));
+            when(userRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(user));
+            when(reservationRepository.findByIdForUpdateWithoutRelations(RESERVATION_ID))
+                    .thenReturn(Optional.of(reservation));
             when(reservation.isRunning()).thenReturn(false);
 
             // When
@@ -496,6 +516,24 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, never()).complete();
             verify(reservation, never()).cancel();
             verify(reservationRepository, never()).save(reservation);
+        }
+
+        @Test
+        @DisplayName("전원 차단 선점을 확보하지 못하면 완료 처리하지 않는다")
+        void shouldNotComplete_WhenShutdownClaimIsUnavailable() {
+            // Given
+            var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
+            givenRunningReservation();
+            givenCompletionDecision(CompletionDecision.completed(LocalDateTime.now(KOREA_ZONE), "job_finished"));
+            when(machineShutdownClaimSupport.claimLockedMachine(machine)).thenReturn(Optional.empty());
+
+            // When
+            var result = reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+
+            // Then
+            assertThat(result).isEmpty();
+            verify(reservation, never()).complete();
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
         }
     }
 }
