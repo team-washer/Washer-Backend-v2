@@ -1,5 +1,7 @@
 package team.washer.server.v2.global.common.logging;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -8,18 +10,20 @@ public final class SensitiveLogSanitizer {
 
     private static final Pattern WEBHOOK_URL_PATTERN = Pattern
             .compile("(?i)(https?://[^\\s/]+/api(?:/v\\d+)?/webhooks/\\d+/)[^\\s,;}\\]]+");
+    private static final Pattern WEBHOOK_PATH_PATTERN = Pattern
+            .compile("(?i)(/api(?:/v\\d+)?/webhooks/\\d+/)[^\\s/?#]+");
     private static final String ESCAPED_QUOTE = Pattern.quote("\\\"");
-    private static final Pattern ESCAPED_SENSITIVE_VALUE_PATTERN = Pattern
-            .compile("(?i)(" + ESCAPED_QUOTE + "(?:access_token|refresh_token|smartthings_token|password|token)"
-                    + ESCAPED_QUOTE + "\\s*[:=]\\s*" + ESCAPED_QUOTE + ")(.*?)(" + ESCAPED_QUOTE + ")");
+    private static final Pattern ESCAPED_SENSITIVE_VALUE_PATTERN = Pattern.compile("(?i)(" + ESCAPED_QUOTE
+            + "(?:access_token|refresh_token|smartthings_token|password|token|authorization_code|code|client_secret|client_id|fcm_token|webhook_url)"
+            + ESCAPED_QUOTE + "\\s*[:=]\\s*" + ESCAPED_QUOTE + ")(.*?)(" + ESCAPED_QUOTE + ")");
     private static final Pattern DUPLICATE_ENTRY_PATTERN = Pattern.compile("(?i)(Duplicate entry\\s+)(['\"])(.*?)\\2");
     private static final Pattern BEARER_TOKEN_PATTERN = Pattern.compile("(?i)Bearer\\s+[^\\r\\n,;}\\]]+");
     private static final Pattern AUTHORIZATION_VALUE_PATTERN = Pattern
             .compile("(?i)([\\\"']?authorization[\\\"']?\\s*[:=]\\s*)(\\\"[^\\\"]*\\\"|'[^']*'|[^\\r\\n,;}\\]]+)");
     private static final Pattern SENSITIVE_VALUE_PATTERN = Pattern.compile(
-            "(?i)((?<![A-Za-z0-9_])[\\\"']?(?:access_token|refresh_token|smartthings_token|password|token)[\\\"']?)(\\s*[:=]\\s*)(?!\\[REDACTED\\])(\\\"[^\\\"]*\\\"|'[^']*'|[^\\s,;}\\]]+)");
+            "(?i)((?<![A-Za-z0-9_])[\\\"']?(?:access_token|refresh_token|smartthings_token|password|token|authorization_code|code|client_secret|client_id|fcm_token|webhook_url)[\\\"']?)(\\s*[:=]\\s*)(?!\\[REDACTED\\])(\\\"[^\\\"]*\\\"|'[^']*'|[^\\s,;}\\]]+)");
     private static final Pattern SENSITIVE_UNQUOTED_VALUE_PATTERN = Pattern.compile(
-            "(?i)((?<![A-Za-z0-9_])[\\\"']?(?:access_token|refresh_token|smartthings_token|password|token)[\\\"']?\\s*[:=]\\s*)(?![\\\"'])([^\\r\\n,;}\\]]+?)(?=\\s+(?:[A-Za-z_][A-Za-z0-9_-]*\\s*[:=]|[\\{\\[])|[\\r\\n,;}\\]]|$)");
+            "(?i)((?<![A-Za-z0-9_])[\\\"']?(?:access_token|refresh_token|smartthings_token|password|token|authorization_code|code|client_secret|client_id|fcm_token|webhook_url)[\\\"']?\\s*[:=]\\s*)(?![\\\"'])([^\\r\\n,;}\\]]+?)(?=\\s+(?:[A-Za-z_][A-Za-z0-9_-]*\\s*[:=]|[\\{\\[])|[\\r\\n,;}\\]]|$)");
 
     private SensitiveLogSanitizer() {
     }
@@ -32,6 +36,51 @@ public final class SensitiveLogSanitizer {
         sanitized = BEARER_TOKEN_PATTERN.matcher(sanitized).replaceAll("Bearer [REDACTED]");
         sanitized = replaceSensitiveValues(sanitized, SENSITIVE_UNQUOTED_VALUE_PATTERN, false);
         return replaceSensitiveValues(sanitized, SENSITIVE_VALUE_PATTERN, true);
+    }
+
+    public static String sanitizeEndpoint(final String rawUrl) {
+        if (rawUrl == null || rawUrl.isBlank()) {
+            return "unknown";
+        }
+
+        final String withoutQuery = stripQueryAndFragment(rawUrl);
+        if (withoutQuery.startsWith("/")) {
+            return sanitizeWebhookPath(withoutQuery);
+        }
+
+        try {
+            final URI uri = new URI(withoutQuery);
+            final String authority = uri.getRawAuthority();
+            if (uri.getScheme() == null || authority == null) {
+                return "unknown";
+            }
+            final int userInfoSeparator = authority.lastIndexOf('@');
+            final String safeAuthority = userInfoSeparator >= 0
+                    ? authority.substring(userInfoSeparator + 1)
+                    : authority;
+            final String path = uri.getRawPath();
+            return sanitizeWebhookPath(
+                    uri.getScheme() + "://" + safeAuthority + (path == null || path.isBlank() ? "/" : path));
+        } catch (URISyntaxException e) {
+            return "unknown";
+        }
+    }
+
+    private static String stripQueryAndFragment(final String value) {
+        final int queryIndex = value.indexOf('?');
+        final int fragmentIndex = value.indexOf('#');
+        int endIndex = value.length();
+        if (queryIndex >= 0) {
+            endIndex = Math.min(endIndex, queryIndex);
+        }
+        if (fragmentIndex >= 0) {
+            endIndex = Math.min(endIndex, fragmentIndex);
+        }
+        return value.substring(0, endIndex);
+    }
+
+    private static String sanitizeWebhookPath(final String value) {
+        return WEBHOOK_PATH_PATTERN.matcher(value).replaceAll("$1[REDACTED]");
     }
 
     private static String replaceDuplicateEntry(final String value) {
