@@ -6,6 +6,7 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -33,9 +34,11 @@ import team.washer.server.v2.global.common.trace.TraceIdFilter;
  */
 public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
 
-    private static final Pattern BEARER_TOKEN_PATTERN = Pattern.compile("(?i)Bearer\\s+[^\\s,;\\\"}]+");
+    private static final Pattern BEARER_TOKEN_PATTERN = Pattern.compile("(?i)Bearer\\s+[^\\r\\n,;}\\]]+");
+    private static final Pattern AUTHORIZATION_VALUE_PATTERN = Pattern
+            .compile("(?i)([\\\"']?authorization[\\\"']?\\s*[:=]\\s*)(\\\"[^\\\"]*\\\"|'[^']*'|[^\\r\\n,;}\\]]+)");
     private static final Pattern SENSITIVE_VALUE_PATTERN = Pattern.compile(
-            "(?i)([\\\"']?)(authorization|access_token|refresh_token|smartthings_token|password|token)([\\\"']?)(\\s*[:=]\\s*)([\\\"']?)([^\\s,;\\\"'}]+)\\5");
+            "(?i)([\\\"']?(?:access_token|refresh_token|smartthings_token|password|token)[\\\"']?)(\\s*[:=]\\s*)(\\\"[^\\\"]*\\\"|'[^']*'|[^\\s,;}\\]]+)");
 
     private String logGroupName;
     private String logStreamNamePrefix;
@@ -282,8 +285,37 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
     }
 
     private String sanitize(final String value) {
-        final var withoutBearerToken = BEARER_TOKEN_PATTERN.matcher(value).replaceAll("Bearer [REDACTED]");
-        return SENSITIVE_VALUE_PATTERN.matcher(withoutBearerToken).replaceAll("$1$2$3$4$5[REDACTED]$5");
+        var sanitized = replaceSensitiveValues(value, AUTHORIZATION_VALUE_PATTERN);
+        sanitized = BEARER_TOKEN_PATTERN.matcher(sanitized).replaceAll("Bearer [REDACTED]");
+        return replaceSensitiveValues(sanitized, SENSITIVE_VALUE_PATTERN);
+    }
+
+    private String replaceSensitiveValues(final String value, final Pattern pattern) {
+        final var matcher = pattern.matcher(value);
+        final var result = new StringBuffer();
+        while (matcher.find()) {
+            final var prefix = new StringBuilder();
+            for (var group = 1; group < matcher.groupCount(); group++) {
+                prefix.append(matcher.group(group));
+            }
+            final var matchedValue = matcher.group(matcher.groupCount());
+            final var replacement = isQuoted(matchedValue)
+                    ? prefix + matchedValue.substring(0, 1) + "[REDACTED]"
+                            + matchedValue.substring(matchedValue.length() - 1)
+                    : prefix + "[REDACTED]";
+            matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
+        }
+        matcher.appendTail(result);
+        return result.toString();
+    }
+
+    private boolean isQuoted(final String value) {
+        if (value.length() < 2) {
+            return false;
+        }
+        final var first = value.charAt(0);
+        final var last = value.charAt(value.length() - 1);
+        return (first == '"' && last == '"') || (first == '\'' && last == '\'');
     }
 
     private void flushBatch(final List<ILoggingEvent> batch) {

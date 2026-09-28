@@ -37,7 +37,8 @@ class CloudWatchAppenderTest {
         event.setThreadName("request-thread");
         event.setMessage("request failed");
         event.setThrowableProxy(new ThrowableProxy(new IllegalStateException(
-                "root cause Authorization: Bearer secret-token access_token=access-secret {\"refresh_token\":\"refresh-secret\"}")));
+                "root cause Authorization: Basic dXNlcjpwYXNz, password=\"correct horse battery staple\", "
+                        + "access_token=access-secret {\"refresh_token\":\"refresh-secret\"}")));
         event.setMDCPropertyMap(Map.of(TraceIdFilter.MDC_KEY, "trace-123", "Authorization", "secret-token"));
 
         ReflectionTestUtils.invokeMethod(appender, "flushBatch", List.of(event));
@@ -48,9 +49,10 @@ class CloudWatchAppenderTest {
 
         assertThat(message).contains("level=\"ERROR\"").contains("logger=\"test.Logger\"")
                 .contains("traceId=\"trace-123\"").contains("exceptionType=\"java.lang.IllegalStateException\"")
-                .contains("root cause").doesNotContain("secret-token").doesNotContain("access-secret")
-                .doesNotContain("refresh-secret").contains("Authorization: [REDACTED]")
-                .contains("access_token=[REDACTED]").contains("{\\\"refresh_token\\\":\\\"[REDACTED]\\\"}");
+                .contains("root cause").doesNotContain("dXNlcjpwYXNz").doesNotContain("correct horse battery staple")
+                .doesNotContain("access-secret").doesNotContain("refresh-secret").contains("Authorization: [REDACTED]")
+                .contains("password=\\\"[REDACTED]\\\"").contains("access_token=[REDACTED]")
+                .contains("{\\\"refresh_token\\\":\\\"[REDACTED]\\\"}");
     }
 
     @Test
