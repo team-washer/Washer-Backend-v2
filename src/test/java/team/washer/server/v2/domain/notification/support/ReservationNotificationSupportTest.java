@@ -159,6 +159,32 @@ class ReservationNotificationSupportTest {
     }
 
     @Nested
+    @DisplayName("강제 정지 알림 메시지는")
+    class Describe_force_stop_notification_message {
+
+        @ParameterizedTest
+        @EnumSource(MachineType.class)
+        @DisplayName("관리자 강제 정지로 예약이 취소되었음을 알려야 한다")
+        void it_notifies_cancellation_by_admin_force_stop(final MachineType machineType) {
+            // Given
+            User user = createUser();
+            Machine machine = createMachine(machineType);
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(notificationRepository.countByUser(user)).willReturn(1L);
+
+            // When
+            reservationNotificationSupport.sendForceStop(user, machine);
+
+            // Then
+            final String expectedBody = "관리자에 의해 " + machine.getName() + "의 " + machineType.getActionNoun()
+                    + " 정지되어 예약이 패널티 없이 취소되었습니다.";
+            then(fcmNotificationSupport).should(times(1))
+                    .send(user, machineType.getDescription() + " 강제 정지 알림", expectedBody);
+        }
+    }
+
+    @Nested
     @DisplayName("FCM 전송 시점은")
     class Describe_fcm_send_timing {
 

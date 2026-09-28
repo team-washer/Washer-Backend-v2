@@ -38,6 +38,12 @@ public interface MachineRepository extends JpaRepository<Machine, Long>, Machine
 
     List<Machine> findByType(MachineType type);
 
+    List<Machine> findByTypeAndStatusAndAvailability(MachineType type,
+            MachineStatus status,
+            MachineAvailability availability);
+
+    List<Machine> findByTypeAndAvailability(MachineType type, MachineAvailability availability);
+
     List<Machine> findByFloor(Integer floor);
 
     List<Machine> findByStatus(MachineStatus status);

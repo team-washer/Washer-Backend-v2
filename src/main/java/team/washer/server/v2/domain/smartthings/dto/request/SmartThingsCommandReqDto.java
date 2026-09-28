@@ -25,6 +25,19 @@ public record SmartThingsCommandReqDto(@Schema(description = "명령 목록") Li
     }
 
     /**
+     * 세탁기의 무세제 통세척 코스를 선택하고 실행한다.
+     *
+     * @param cycle
+     *            기기 모델에 맞는 SmartThings 세탁 코스 코드
+     * @return 무세제 통세척 실행 명령
+     */
+    public static SmartThingsCommandReqDto washerTubClean(String cycle) {
+        return new SmartThingsCommandReqDto(
+                List.of(new Command("main", "samsungce.washerCycle", "setWasherCycle", List.of(cycle)),
+                        new Command("main", "washerOperatingState", "setMachineState", List.of("run"))));
+    }
+
+    /**
      * 세탁기를 안전하게 정지시킨다. 전원 차단(switch off)과 달리 사이클을 정상 종료하므로 작동 중 기기에 사용한다. 기기에서 원격
      * 제어(Smart Control)가 활성화되어 있어야 명령이 적용된다.
      */

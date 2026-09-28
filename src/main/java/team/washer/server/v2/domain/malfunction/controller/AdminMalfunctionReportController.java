@@ -18,12 +18,14 @@ import team.washer.server.v2.domain.malfunction.dto.response.MalfunctionReportRe
 import team.washer.server.v2.domain.malfunction.enums.MalfunctionReportStatus;
 import team.washer.server.v2.domain.malfunction.service.QueryMalfunctionReportListService;
 import team.washer.server.v2.domain.malfunction.service.UpdateMalfunctionReportStatusService;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 @RestController
 @RequestMapping("/api/v2/admin/malfunction-reports")
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Admin Malfunction Report", description = "고장 신고 관리 API (관리자용)")
+@CommonErrorResponses
 public class AdminMalfunctionReportController {
 
     private final QueryMalfunctionReportListService queryMalfunctionReportListService;

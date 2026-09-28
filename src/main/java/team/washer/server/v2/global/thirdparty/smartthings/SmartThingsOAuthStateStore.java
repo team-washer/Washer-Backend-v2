@@ -1,8 +1,10 @@
 package team.washer.server.v2.global.thirdparty.smartthings;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.springframework.stereotype.Component;
 
@@ -15,7 +17,18 @@ import org.springframework.stereotype.Component;
 @Component
 public class SmartThingsOAuthStateStore {
 
-    private final Set<String> validStates = Collections.synchronizedSet(new HashSet<>());
+    private static final Duration STATE_TTL = Duration.ofMinutes(10);
+
+    private final Clock clock;
+    private final Map<String, Instant> validStates = new ConcurrentHashMap<>();
+
+    public SmartThingsOAuthStateStore() {
+        this(Clock.systemUTC());
+    }
+
+    SmartThingsOAuthStateStore(Clock clock) {
+        this.clock = clock;
+    }
 
     /**
      * state 값을 저장합니다.
@@ -24,7 +37,9 @@ public class SmartThingsOAuthStateStore {
      *            저장할 state 값
      */
     public void save(String state) {
-        validStates.add(state);
+        final var now = Instant.now(clock);
+        validStates.entrySet().removeIf(entry -> !now.isBefore(entry.getValue()));
+        validStates.put(state, now.plus(STATE_TTL));
     }
 
     /**
@@ -35,6 +50,7 @@ public class SmartThingsOAuthStateStore {
      * @return state가 유효하면 true, 그렇지 않으면 false
      */
     public boolean validateAndRemove(String state) {
-        return validStates.remove(state);
+        final var expiresAt = validStates.remove(state);
+        return expiresAt != null && Instant.now(clock).isBefore(expiresAt);
     }
 }

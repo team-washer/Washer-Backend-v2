@@ -1,6 +1,8 @@
 package team.washer.server.v2.domain.notification.support;
 
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.AndroidNotification;
@@ -17,7 +19,7 @@ import com.google.firebase.messaging.WebpushNotification;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.washer.server.v2.domain.notification.service.DeleteFcmTokenService;
+import team.washer.server.v2.domain.notification.service.DeleteFcmTokenIfMatchesService;
 import team.washer.server.v2.domain.user.entity.User;
 
 /**
@@ -29,18 +31,75 @@ import team.washer.server.v2.domain.user.entity.User;
 public class FcmNotificationSupport {
 
     private final FirebaseMessaging firebaseMessaging;
-    private final DeleteFcmTokenService deleteFcmTokenService;
+    private final DeleteFcmTokenIfMatchesService deleteFcmTokenIfMatchesService;
 
     /**
      * FCM 푸시 알림을 전송한다.
      */
     public void send(final User user, final String title, final String body) {
+        final Long userId = user.getId();
         final String token = user.getFcmToken();
         if (token == null || token.isBlank()) {
-            log.info("FCM token not found skipping notification userId={}", user.getId());
+            log.info("FCM token not found skipping notification userId={}", userId);
             return;
         }
 
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+                @Override
+                public void afterCommit() {
+                    sendNow(userId, token, title, body);
+                }
+            });
+            return;
+        }
+
+        sendNow(userId, token, title, body);
+    }
+
+    /**
+     * FCM 푸시 알림을 즉시 전송하고 Firebase가 발급한 메시지 ID를 반환한다.
+     *
+     * <p>
+     * {@link #send(User, String, String)}와 달리 트랜잭션 커밋을 기다리지 않고 바로 전송하며, 전송 실패를
+     * 호출자에게 전파한다. 발송 결과를 확인해야 하는 관리자 테스트 발송에서 사용한다. 무효 토큰({@code UNREGISTERED},
+     * {@code INVALID_ARGUMENT})은 예외를 던지기 전에 정리한다.
+     * </p>
+     *
+     * @param user
+     *            발송 대상 사용자
+     * @param title
+     *            알림 제목
+     * @param body
+     *            알림 본문
+     * @return Firebase가 발급한 메시지 ID
+     * @throws FirebaseMessagingException
+     *             FCM 발송에 실패한 경우
+     */
+    public String sendAndGetMessageId(final User user, final String title, final String body)
+            throws FirebaseMessagingException {
+        return dispatch(user.getId(), user.getFcmToken(), title, body);
+    }
+
+    private void sendNow(final Long userId, final String token, final String title, final String body) {
+        if (token == null || token.isBlank()) {
+            log.info("FCM token not found skipping notification userId={}", userId);
+            return;
+        }
+
+        try {
+            dispatch(userId, token, title, body);
+        } catch (FirebaseMessagingException e) {
+            // dispatch에서 이미 로그와 토큰 정리를 수행했으므로 예약 알림 흐름에서는 삼킨다.
+        } catch (RuntimeException e) {
+            log.error("Failed to prepare or send FCM notification userId={}", userId, e);
+        }
+    }
+
+    private String dispatch(final Long userId, final String token, final String title, final String body)
+            throws FirebaseMessagingException {
         try {
             final var notification = Notification.builder().setTitle(title).setBody(body).build();
             final var messageBuilder = Message.builder().setToken(token).setNotification(notification)
@@ -54,15 +113,26 @@ public class FcmNotificationSupport {
             }
             final var message = messageBuilder.build();
             final String messageId = firebaseMessaging.send(message);
-            log.info("FCM notification sent successfully userId={} messageId={}", user.getId(), messageId);
+            log.info("FCM notification sent successfully userId={} messageId={}", userId, messageId);
+            return messageId;
         } catch (FirebaseMessagingException e) {
             final MessagingErrorCode errorCode = e.getMessagingErrorCode();
-            log.error("Failed to send FCM notification userId={} errorCode={}", user.getId(), errorCode, e);
-            if (errorCode == MessagingErrorCode.UNREGISTERED || errorCode == MessagingErrorCode.INVALID_ARGUMENT) {
-                log.warn("Removing invalid FCM token userId={} errorCode={}", user.getId(), errorCode);
-                user.clearFcmToken();
-                deleteFcmTokenService.execute(user.getId());
-            }
+            log.error("Failed to send FCM notification userId={} errorCode={}", userId, errorCode, e);
+            deleteTokenIfInvalid(userId, token, errorCode);
+            throw e;
+        }
+    }
+
+    private void deleteTokenIfInvalid(final Long userId, final String token, final MessagingErrorCode errorCode) {
+        if (errorCode != MessagingErrorCode.UNREGISTERED && errorCode != MessagingErrorCode.INVALID_ARGUMENT) {
+            return;
+        }
+
+        log.warn("Removing invalid FCM token userId={} errorCode={}", userId, errorCode);
+        try {
+            deleteFcmTokenIfMatchesService.execute(userId, token);
+        } catch (RuntimeException cleanupException) {
+            log.error("Failed to remove invalid FCM token userId={}", userId, cleanupException);
         }
     }
 

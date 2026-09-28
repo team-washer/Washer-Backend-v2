@@ -18,17 +18,27 @@ import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 
 import lombok.RequiredArgsConstructor;
+import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.entity.QReservation;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.custom.ReservationRepositoryCustom;
+import team.washer.server.v2.domain.user.entity.QUser;
+import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Repository
 @RequiredArgsConstructor
 public class ReservationRepositoryCustomImpl implements ReservationRepositoryCustom {
 
     private static final QReservation latestReservation = new QReservation("latestReservation");
+
+    // QUser 기본 별칭(user)은 reservation.user 조인에 이미 사용되므로 대리 예약 생성자용 별칭을 따로 둔다
+    private static final QUser createdByUser = new QUser("createdByUser");
+
+    private static final List<ReservationStatus> ACTIVE_STATUSES = List.of(ReservationStatus.RESERVED,
+            ReservationStatus.RUNNING);
 
     private final JPAQueryFactory jpaQueryFactory;
 
@@ -79,33 +89,155 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
     }
 
     @Override
-    public boolean existsActiveReservationByRoomAndMachineType(String roomNumber, MachineType machineType) {
-        return jpaQueryFactory.selectFrom(reservation).join(reservation.machine, machine)
-                .where(reservation.user.roomNumber.eq(roomNumber),
-                        reservation.machine.type.eq(machineType),
-                        reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.RUNNING))
-                .fetchFirst() != null;
+    public List<Reservation> findCurrentlyActiveByUser(User targetUser) {
+        return jpaQueryFactory.selectFrom(reservation).join(reservation.user, user).fetchJoin()
+                .join(reservation.machine, machine).fetchJoin()
+                .where(reservation.user.eq(targetUser), currentlyActive()).orderBy(reservation.createdAt.desc())
+                .fetch();
     }
 
     @Override
-    public List<Reservation> findActiveReservationsByRoomNumber(String roomNumber) {
+    public List<Reservation> findCurrentlyActiveByMachine(Machine targetMachine) {
+        return jpaQueryFactory.selectFrom(reservation).join(reservation.machine, machine).fetchJoin()
+                .where(reservation.machine.eq(targetMachine), currentlyActive()).orderBy(reservation.createdAt.desc())
+                .fetch();
+    }
+
+    @Override
+    public List<Reservation> findCurrentlyActiveByRoomNumber(String roomNumber) {
         return jpaQueryFactory.selectFrom(reservation).join(reservation.user, user).fetchJoin()
                 .join(reservation.machine, machine).fetchJoin()
-                .where(reservation.user.roomNumber.eq(roomNumber),
-                        reservation.status.in(ReservationStatus.RESERVED, ReservationStatus.RUNNING))
+                .where(reservation.user.roomNumber.eq(roomNumber), currentlyActive())
                 .orderBy(reservation.createdAt.desc()).fetch();
     }
 
     @Override
-    public List<Reservation> findExpiredReservations(ReservationStatus status,
-            LocalDateTime threshold,
-            LocalDateTime recentCutoff) {
+    public List<Reservation> findCurrentlyActiveByMachineId(Long machineId) {
+        return jpaQueryFactory.selectFrom(reservation).join(reservation.machine, machine).fetchJoin()
+                .join(reservation.user, user).fetchJoin().where(reservation.machine.id.eq(machineId), currentlyActive())
+                .orderBy(reservation.createdAt.desc()).fetch();
+    }
+
+    @Override
+    public List<Long> findCurrentlyActiveMachineIds() {
+        return jpaQueryFactory.select(reservation.machine.id).distinct().from(reservation).where(currentlyActive())
+                .fetch();
+    }
+
+    @Override
+    public long countCurrentlyActive() {
+        final var total = jpaQueryFactory.select(reservation.count()).from(reservation).where(currentlyActive())
+                .fetchOne();
+
+        return total != null ? total : 0L;
+    }
+
+    @Override
+    public boolean existsCurrentlyActiveByUser(User targetUser) {
+        return existsCurrentlyActiveByUser(targetUser, null);
+    }
+
+    @Override
+    public boolean existsCurrentlyActiveByUser(User targetUser, Long excludeReservationId) {
+        return jpaQueryFactory.selectOne().from(reservation)
+                .where(reservation.user.eq(targetUser),
+                        currentlyActive(),
+                        excludeReservationId != null ? reservation.id.ne(excludeReservationId) : null)
+                .fetchFirst() != null;
+    }
+
+    @Override
+    public boolean existsCurrentlyActiveByUserAfter(User targetUser, LocalDateTime createdAt, Long reservationId) {
+        return jpaQueryFactory.selectOne().from(reservation)
+                .where(reservation.user.eq(targetUser), currentlyActive(), newerThan(createdAt, reservationId))
+                .fetchFirst() != null;
+    }
+
+    @Override
+    public boolean existsCurrentlyActiveByMachine(Machine targetMachine) {
+        return existsCurrentlyActiveByMachine(targetMachine, null);
+    }
+
+    @Override
+    public boolean existsCurrentlyActiveByMachine(Machine targetMachine, Long excludeReservationId) {
+        return jpaQueryFactory.selectOne().from(reservation)
+                .where(reservation.machine.eq(targetMachine),
+                        currentlyActive(),
+                        excludeReservationId != null ? reservation.id.ne(excludeReservationId) : null)
+                .fetchFirst() != null;
+    }
+
+    @Override
+    public boolean existsCurrentlyActiveByMachineAfter(Machine targetMachine,
+            LocalDateTime createdAt,
+            Long reservationId) {
+        return jpaQueryFactory.selectOne().from(reservation)
+                .where(reservation.machine.eq(targetMachine), currentlyActive(), newerThan(createdAt, reservationId))
+                .fetchFirst() != null;
+    }
+
+    @Override
+    public boolean existsCurrentlyActiveByRoomNumberAndMachineType(String roomNumber, MachineType machineType) {
+        return jpaQueryFactory.selectOne().from(reservation)
+                .where(reservation.user.roomNumber.eq(roomNumber),
+                        reservation.machine.type.eq(machineType),
+                        currentlyActive())
+                .fetchFirst() != null;
+    }
+
+    /**
+     * 만료되지 않은 활성 예약 조건을 반환합니다. {@link Reservation#isCurrentlyActive()}와 동일한 규칙을 쿼리
+     * 조건으로 표현한 것으로, 전체를 로드한 뒤 메모리에서 거르지 않도록 합니다.
+     *
+     * <p>
+     * 타임아웃 유무와 길이는 엔티티와 마찬가지로 {@link ReservationStatus}의 설정에서 파생되므로, 상태별 타임아웃을 바꾸면
+     * 양쪽 판정이 함께 따라옵니다.
+     *
+     * @return 만료되지 않은 활성 예약 조건
+     */
+    private BooleanExpression currentlyActive() {
+        final LocalDateTime now = DateTimeUtil.nowInKorea();
+
+        return ACTIVE_STATUSES.stream().map(status -> notExpired(status, now)).reduce(BooleanExpression::or)
+                .orElseThrow();
+    }
+
+    private BooleanExpression newerThan(final LocalDateTime createdAt, final Long reservationId) {
+        if (createdAt == null) {
+            return reservationId == null ? null : reservation.id.gt(reservationId);
+        }
+        final BooleanExpression createdAtIsNewer = reservation.createdAt.gt(createdAt);
+        if (reservationId == null) {
+            return createdAtIsNewer;
+        }
+        return createdAtIsNewer.or(reservation.createdAt.eq(createdAt).and(reservation.id.gt(reservationId)));
+    }
+
+    /**
+     * 특정 상태의 만료되지 않은 예약 조건을 반환합니다. 타임아웃이 없는 상태는 상태 일치만으로 통과시키고, 타임아웃이 있는 상태는 컷오프
+     * 이후에 예약된 건만 남깁니다.
+     *
+     * @param status
+     *            판정 대상 예약 상태
+     * @param now
+     *            컷오프 계산 기준 시각
+     * @return 해당 상태의 만료되지 않은 예약 조건
+     */
+    private BooleanExpression notExpired(final ReservationStatus status, final LocalDateTime now) {
+        final BooleanExpression statusMatches = reservation.status.eq(status);
+
+        if (!status.hasTimeout()) {
+            return statusMatches;
+        }
+
+        return statusMatches.and(reservation.reservedAt.gt(now.minusMinutes(status.getTimeoutMinutes())));
+    }
+
+    @Override
+    public List<Reservation> findExpiredReservations(ReservationStatus status, LocalDateTime threshold) {
 
         return jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.machine, machine).fetchJoin()
-                .where(reservation.status.eq(status),
-                        reservation.createdAt.goe(recentCutoff),
-                        reservation.reservedAt.lt(threshold))
-                .fetch();
+                .where(reservation.status.eq(status), reservation.reservedAt.lt(threshold)).fetch();
     }
 
     @Override
@@ -127,9 +259,9 @@ public class ReservationRepositoryCustomImpl implements ReservationRepositoryCus
                 .groupBy(latestReservation.machine.id);
 
         final var content = jpaQueryFactory.selectFrom(reservation).leftJoin(reservation.user, user).fetchJoin()
-                .leftJoin(reservation.machine, machine).fetchJoin().where(reservation.id.in(latestReservationIds))
-                .orderBy(reservation.createdAt.desc()).offset(pageable.getOffset()).limit(pageable.getPageSize())
-                .fetch();
+                .leftJoin(reservation.machine, machine).fetchJoin().leftJoin(reservation.createdBy, createdByUser)
+                .fetchJoin().where(reservation.id.in(latestReservationIds)).orderBy(reservation.createdAt.desc())
+                .offset(pageable.getOffset()).limit(pageable.getPageSize()).fetch();
 
         final var total = jpaQueryFactory.select(reservation.count()).from(reservation)
                 .where(reservation.id.in(latestReservationIds)).fetchOne();

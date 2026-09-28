@@ -16,28 +16,14 @@ public class WithdrawnStudentRedisUtil {
 
     private final WithdrawnStudentRedisRepository withdrawnStudentRedisRepository;
 
-    /**
-     * 탈퇴한 학번을 30일간 Redis에 기록합니다.
-     */
     public void markWithdrawn(final String studentId) {
-        try {
-            withdrawnStudentRedisRepository
-                    .save(WithdrawnStudentEntity.builder().studentId(studentId).ttl(THIRTY_DAYS_IN_SECONDS).build());
-            log.info("withdrawn student recorded studentId={}", studentId);
-        } catch (Exception e) {
-            log.error("failed to record withdrawn student studentId={}", studentId, e);
-        }
+        withdrawnStudentRedisRepository
+                .save(WithdrawnStudentEntity.builder().studentId(studentId).ttl(THIRTY_DAYS_IN_SECONDS).build());
+        log.info("withdrawn student record saved");
     }
 
-    /**
-     * 해당 학번이 탈퇴 후 30일 이내인지 여부를 반환합니다.
-     */
     public boolean isWithdrawnRecently(final String studentId) {
-        try {
-            return withdrawnStudentRedisRepository.existsById(studentId);
-        } catch (Exception e) {
-            log.warn("failed to check withdrawn student studentId={}", studentId, e);
-            return false;
-        }
+        return withdrawnStudentRedisRepository.existsById(studentId);
     }
+
 }

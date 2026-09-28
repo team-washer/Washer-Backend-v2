@@ -16,10 +16,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.enums.MachineType;
+import team.washer.server.v2.domain.reservation.enums.RestrictionStatus;
 import team.washer.server.v2.domain.reservation.service.impl.QueryReservationAvailabilityServiceImpl;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
@@ -61,8 +64,8 @@ class QueryReservationAvailabilityServiceTest {
                 var user = createUser("301");
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(penaltyRedisUtil.isBlocked("301")).willReturn(false);
-                given(penaltyRedisUtil.isInCooldown(userId, MachineType.WASHER)).willReturn(false);
+                given(penaltyRedisUtil.checkBlock("301")).willReturn(RestrictionStatus.NONE);
+                given(penaltyRedisUtil.checkCooldown(userId, MachineType.WASHER)).willReturn(RestrictionStatus.NONE);
 
                 // When
                 var result = queryReservationAvailabilityService.execute();
@@ -86,9 +89,10 @@ class QueryReservationAvailabilityServiceTest {
                 var user = createUser("301");
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(penaltyRedisUtil.isBlocked("301")).willReturn(false);
-                given(penaltyRedisUtil.isInCooldown(userId, MachineType.WASHER)).willReturn(true);
-                given(penaltyRedisUtil.isInCooldown(userId, MachineType.DRYER)).willReturn(false);
+                given(penaltyRedisUtil.checkBlock("301")).willReturn(RestrictionStatus.NONE);
+                given(penaltyRedisUtil.checkCooldown(userId, MachineType.WASHER))
+                        .willReturn(RestrictionStatus.RESTRICTED);
+                given(penaltyRedisUtil.checkCooldown(userId, MachineType.DRYER)).willReturn(RestrictionStatus.NONE);
 
                 // When
                 var result = queryReservationAvailabilityService.execute();
@@ -112,10 +116,12 @@ class QueryReservationAvailabilityServiceTest {
                 var penaltyExpiresAt = LocalDateTime.now().plusMinutes(5);
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(penaltyRedisUtil.isBlocked("301")).willReturn(false);
-                given(penaltyRedisUtil.isInCooldown(userId, MachineType.WASHER)).willReturn(true);
-                given(penaltyRedisUtil.isInCooldown(userId, MachineType.DRYER)).willReturn(true);
-                given(penaltyRedisUtil.getPenaltyExpiryTime(userId)).willReturn(penaltyExpiresAt);
+                given(penaltyRedisUtil.checkBlock("301")).willReturn(RestrictionStatus.NONE);
+                given(penaltyRedisUtil.checkCooldown(userId, MachineType.WASHER))
+                        .willReturn(RestrictionStatus.RESTRICTED);
+                given(penaltyRedisUtil.checkCooldown(userId, MachineType.DRYER))
+                        .willReturn(RestrictionStatus.RESTRICTED);
+                given(penaltyRedisUtil.getPenaltyExpiryTimeOrThrow(userId)).willReturn(penaltyExpiresAt);
 
                 // When
                 var result = queryReservationAvailabilityService.execute();
@@ -139,7 +145,7 @@ class QueryReservationAvailabilityServiceTest {
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
                 given(washingBanRepository.existsByRoomNumber("301")).willReturn(true);
-                given(penaltyRedisUtil.isBlocked("301")).willReturn(false);
+                given(penaltyRedisUtil.checkBlock("301")).willReturn(RestrictionStatus.NONE);
 
                 // When
                 var result = queryReservationAvailabilityService.execute();
@@ -162,13 +168,52 @@ class QueryReservationAvailabilityServiceTest {
                 var user = createUser("301");
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
-                given(penaltyRedisUtil.isBlocked("301")).willReturn(true);
+                given(penaltyRedisUtil.checkBlock("301")).willReturn(RestrictionStatus.RESTRICTED);
 
                 // When
                 var result = queryReservationAvailabilityService.execute();
 
                 // Then
                 assertThat(result.canReserve()).isFalse();
+            }
+        }
+
+        @Nested
+        @DisplayName("Redis 조회에 실패할 때")
+        class Context_with_restriction_lookup_failure {
+
+            @Test
+            @DisplayName("호실 차단 조회 실패 시 예약 가능으로 판정하지 않고 503 오류 코드를 던져야 한다")
+            void it_fails_closed_when_block_lookup_fails() {
+                // Given
+                var userId = 1L;
+                var user = createUser("301");
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(penaltyRedisUtil.checkBlock("301")).willReturn(RestrictionStatus.UNAVAILABLE);
+
+                // When & Then
+                assertThatThrownBy(() -> queryReservationAvailabilityService.execute())
+                        .isInstanceOf(ErrorCodeException.class).extracting(e -> ((ErrorCodeException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE);
+            }
+
+            @Test
+            @DisplayName("쿨다운 조회 실패 시 예약 가능으로 판정하지 않고 503 오류 코드를 던져야 한다")
+            void it_fails_closed_when_cooldown_lookup_fails() {
+                // Given
+                var userId = 1L;
+                var user = createUser("301");
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(userRepository.findById(userId)).willReturn(Optional.of(user));
+                given(penaltyRedisUtil.checkBlock("301")).willReturn(RestrictionStatus.NONE);
+                given(penaltyRedisUtil.checkCooldown(userId, MachineType.WASHER))
+                        .willReturn(RestrictionStatus.UNAVAILABLE);
+
+                // When & Then
+                assertThatThrownBy(() -> queryReservationAvailabilityService.execute())
+                        .isInstanceOf(ErrorCodeException.class).extracting(e -> ((ErrorCodeException) e).getErrorCode())
+                        .isEqualTo(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE);
             }
         }
     }

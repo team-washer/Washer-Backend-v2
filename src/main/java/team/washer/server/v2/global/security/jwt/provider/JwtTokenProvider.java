@@ -3,6 +3,7 @@ package team.washer.server.v2.global.security.jwt.provider;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 import javax.crypto.SecretKey;
 
@@ -51,7 +52,8 @@ public class JwtTokenProvider {
         final var expiresAt = now.plusSeconds(jwtEnvironment.refreshTokenExpiration());
 
         return Jwts.builder().subject(userId.toString()).claim(TOKEN_TYPE_CLAIM, TOKEN_TYPE_REFRESH)
-                .issuedAt(Date.from(now)).expiration(Date.from(expiresAt)).signWith(secretKey).compact();
+                .id(UUID.randomUUID().toString()).issuedAt(Date.from(now)).expiration(Date.from(expiresAt))
+                .signWith(secretKey).compact();
     }
 
     /** Access Token을 파싱합니다. Refresh Token이 전달되면 예외를 발생시킵니다. */

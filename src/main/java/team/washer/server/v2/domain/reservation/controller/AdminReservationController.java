@@ -14,33 +14,56 @@ import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.machine.enums.MachineType;
+import team.washer.server.v2.domain.reservation.dto.request.AdminCreateReservationReqDto;
+import team.washer.server.v2.domain.reservation.dto.request.ApplyUserPenaltyReqDto;
 import team.washer.server.v2.domain.reservation.dto.request.ExtendBlockReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminCancellationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminMachineHistoryResDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminReservationListResDto;
+import team.washer.server.v2.domain.reservation.dto.response.AdminReservationResDto;
 import team.washer.server.v2.domain.reservation.dto.response.PenaltyStatusResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.service.*;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 @RestController
 @RequestMapping("/api/v2/admin/reservations")
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Admin Reservation", description = "예약 관리 API (관리자용)")
+@CommonErrorResponses
 public class AdminReservationController {
 
     private final QueryPenaltyStatusService queryPenaltyStatusService;
+    private final ApplyUserPenaltyService applyUserPenaltyService;
     private final ClearUserPenaltyService clearUserPenaltyService;
     private final ExtendCancellationBlockService extendCancellationBlockService;
     private final QueryAllReservationsService queryAllReservationsService;
     private final AdminCancelReservationService adminCancelReservationService;
     private final QueryAdminMachineHistoryService queryAdminMachineHistoryService;
+    private final AdminCreateReservationService adminCreateReservationService;
+
+    @PostMapping
+    @Operation(summary = "대리 예약 생성", description = "관리자가 지정한 사용자 명의로 예약을 생성합니다. 시간대 제한, 48시간 호실 차단, 5분 쿨다운은 적용되지 않으며 층 제한, 호실 세탁 금지, 기기 가용성, 중복 예약 제한은 그대로 적용됩니다.")
+    public AdminReservationResDto createReservation(@Valid @RequestBody AdminCreateReservationReqDto reqDto) {
+
+        return adminCreateReservationService.execute(reqDto);
+    }
 
     @GetMapping("/users/{userId}/penalty-status")
     @Operation(summary = "사용자 패널티 상태 조회", description = "특정 사용자의 패널티 상태를 조회합니다.")
     public PenaltyStatusResDto getUserPenaltyStatus(
             @Parameter(description = "사용자 ID") @PathVariable @NotNull Long userId) {
         return queryPenaltyStatusService.execute(userId);
+    }
+
+    @PostMapping("/users/{userId}/penalty")
+    @Operation(summary = "사용자 세탁 패널티 부과", description = "특정 사용자의 호실에 48시간 예약 차단을 부과합니다. 5분 패널티 5회 누적과 동일한 제재이며, 관리자와 기숙사자치위원회가 사용할 수 있습니다. 이미 차단 중인 호실은 차단 기간이 48시간으로 갱신됩니다.")
+    public CommonApiResponse applyUserPenalty(@Parameter(description = "사용자 ID") @PathVariable @NotNull Long userId,
+            @Valid @RequestBody ApplyUserPenaltyReqDto reqDto) {
+
+        applyUserPenaltyService.execute(userId, reqDto.reason());
+        return CommonApiResponse.success("세탁 패널티가 부과되었습니다.");
     }
 
     @DeleteMapping("/users/{userId}/penalty")

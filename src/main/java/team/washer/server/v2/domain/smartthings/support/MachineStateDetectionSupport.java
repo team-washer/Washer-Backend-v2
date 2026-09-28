@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 /**
@@ -15,6 +16,11 @@ import team.washer.server.v2.global.util.DateTimeUtil;
  * <p>
  * 모든 판정은 기기 타입(세탁기/건조기)에 해당하는 capability만 검사한다. 하나의 deviceId가 세탁기·건조기
  * capability를 동시에 노출하는 경우, 사용하지 않는 쪽의 유휴 상태를 비정상 중단으로 오판하지 않기 위함이다.
+ *
+ * <p>
+ * 세탁기/건조기 분기와 원시 문자열 해석은 {@link SmartThingsDeviceStatusResDto}의 타입 인자 접근자
+ * ({@code getOperatingState(isWasher)} 등)가 담당한다. 이 컴포넌트는 그 위에서 "작동 중·완료·중단" 같은
+ * 판정만 수행한다.
  */
 @Component
 @Slf4j
@@ -28,8 +34,7 @@ public class MachineStateDetectionSupport {
         if (status == null) {
             return false;
         }
-        var machineState = isWasher ? status.getWasherOperatingState() : status.getDryerOperatingState();
-        var isRunning = "run".equalsIgnoreCase(machineState);
+        var isRunning = status.getOperatingState(isWasher) == MachineOperatingState.RUN;
         if (isRunning) {
             log.debug("device is running isWasher={}", isWasher);
         }
@@ -37,72 +42,90 @@ public class MachineStateDetectionSupport {
     }
 
     /**
-     * 기기 작업이 완료되었는지 감지하고, 완료된 경우 완료 시각을 반환한다.
-     *
-     * <p>
-     * SmartThings 기기는 메인 사이클이 끝나면 냉각(cooling)·구김방지(wrinklePrevent) 등 잔여 단계가 남아 있어도
-     * jobState를 finish/finished로 먼저 보고하는 경우가 있다. 반대로 완료 직후 jobState가 none/null로 빠르게
-     * 리셋될 수 있으므로, machineState=stop(물리적 정지)와 completionTime이 현재 시각을 지났는지(잔여시간 0)를
-     * 함께 확인한다.
+     * 기기가 물리적으로 정지 상태인지 감지한다.
      */
-    public Optional<LocalDateTime> isCompleted(SmartThingsDeviceStatusResDto status, boolean isWasher) {
-        if (status == null) {
-            return Optional.empty();
-        }
-        var now = DateTimeUtil.nowInKorea();
-        if (isWasher) {
-            return evaluateCompletion(status.getWasherJobState(),
-                    "finish",
-                    status.getWasherOperatingState(),
-                    status.getWasherCompletionTime(),
-                    now);
-        }
-        return evaluateCompletion(status
-                .getDryerJobState(), "finished", status.getDryerOperatingState(), status.getDryerCompletionTime(), now);
+    public boolean isStopped(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        return status != null && status.getOperatingState(isWasher) == MachineOperatingState.STOP;
     }
 
     /**
-     * jobState·machineState·completionTime을 종합하여 단일 기기 타입의 완료 여부를 판정한다.
+     * 기기가 보고한 완료 예정 시각을 한국 시간으로 변환한다. 값이 없거나 파싱할 수 없으면 빈 값을 반환한다.
      */
-    private Optional<LocalDateTime> evaluateCompletion(String jobState,
-            String finishedJobState,
-            String machineState,
-            String completionTimeStr,
-            LocalDateTime now) {
-        if (!"stop".equalsIgnoreCase(machineState)) {
-            if (finishedJobState.equalsIgnoreCase(jobState)) {
-                log.debug("job finished but machine not stopped yet machineState={} jobState={}",
-                        machineState,
-                        jobState);
-            }
+    public Optional<LocalDateTime> resolveCompletionTime(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        if (status == null) {
             return Optional.empty();
         }
-        var completionTime = (completionTimeStr != null && !completionTimeStr.isBlank())
-                ? DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr)
-                : null;
-        if (completionTime != null && completionTime.isAfter(now)) {
-            log.debug("job finished but completion time still in future completionTime={} jobState={}",
-                    completionTime,
-                    jobState);
+        var completionTimeStr = status.getCompletionTime(isWasher);
+        if (completionTimeStr == null || completionTimeStr.isBlank()) {
             return Optional.empty();
         }
-
-        if (!finishedJobState.equalsIgnoreCase(jobState)) {
-            if (isResetJobState(jobState) && completionTime != null) {
-                log.debug("device job is completed after job reset jobState={} completionTime={}",
-                        jobState,
-                        completionTime);
-                return Optional.of(completionTime);
-            }
-            return Optional.empty();
-        }
-
-        log.debug("device job is completed jobState={} completionTime={}", jobState, completionTime);
-        return Optional.of(completionTime != null ? completionTime : now);
+        return Optional.ofNullable(DateTimeUtil.parseAndConvertToKoreaTime(completionTimeStr));
     }
 
-    private boolean isResetJobState(String jobState) {
-        return jobState == null || jobState.isBlank() || "none".equalsIgnoreCase(jobState);
+    /**
+     * 기기 작업이 완료되었는지 감지한다.
+     *
+     * <p>
+     * 아래 중 하나면 완료로 본다.
+     * <ul>
+     * <li>jobState가 finish(세탁기)/finished(건조기). machineState는 보지 않는다. 건조기는 finished
+     * 이후에도 구김방지(wrinklePrevent) 단계로 machineState=run을 유지할 수 있고, 완료 시 전원을 차단해 이 단계를
+     * 끊는다.</li>
+     * <li>machineState=stop이고 jobState가 none/공백. 폴링 사이에 완료 신호가 지나가고 jobState가 리셋된
+     * 경우다. 전원이 꺼진 정지는 사이클 중단일 수 있으므로 완료로 보지 않는다.</li>
+     * </ul>
+     *
+     * <p>
+     * 완료 신호가 이번 예약의 사이클에서 온 것인지는 호출 측이 {@link #resolveCompletionSignalTimestamp}로
+     * 확인한다.
+     */
+    public boolean isCompleted(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        if (status == null) {
+            return false;
+        }
+        if (status.isJobStateFinished(isWasher)) {
+            log.debug("device job finished machineState={} jobState={}",
+                    status.getOperatingState(isWasher),
+                    status.getJobState(isWasher));
+            return true;
+        }
+        if (isStopped(status, isWasher) && status.isJobStateReset(isWasher) && !isPoweredOff(status)) {
+            log.debug("device stopped with idle jobState jobState={}", status.getJobState(isWasher));
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 완료 판정의 근거가 된 상태 값의 갱신 시각을 한국 시간으로 반환한다. jobState 완료 신호면 jobState 갱신 시각, 정지
+     * 신호면 machineState 갱신 시각이다. 값이 없거나 파싱할 수 없으면 빈 값을 반환한다.
+     */
+    public Optional<LocalDateTime> resolveCompletionSignalTimestamp(SmartThingsDeviceStatusResDto status,
+            boolean isWasher) {
+        if (status == null) {
+            return Optional.empty();
+        }
+        var timestamp = status.isJobStateFinished(isWasher)
+                ? status.getJobStateTimestamp(isWasher)
+                : status.getOperatingStateTimestamp(isWasher);
+        if (timestamp == null || timestamp.isBlank()) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(DateTimeUtil.parseAndConvertToKoreaTime(timestamp));
+    }
+
+    /**
+     * 기기 전원이 꺼졌는지 감지한다.
+     */
+    public boolean isPoweredOff(SmartThingsDeviceStatusResDto status) {
+        if (status == null) {
+            return false;
+        }
+        var isPoweredOff = status.isSwitchOff();
+        if (isPoweredOff) {
+            log.debug("device power off detected switch=off");
+        }
+        return isPoweredOff;
     }
 
     /**
@@ -118,27 +141,23 @@ public class MachineStateDetectionSupport {
         if (status == null) {
             return false;
         }
-        if ("off".equalsIgnoreCase(status.getSwitchStatus())) {
-            log.debug("device power off detected switch=off");
+        if (isPoweredOff(status)) {
             return true;
         }
 
-        var machineState = isWasher ? status.getWasherOperatingState() : status.getDryerOperatingState();
-        if (!"stop".equalsIgnoreCase(machineState)) {
+        if (!isStopped(status, isWasher)) {
+            return false;
+        }
+        if (status.isJobStateFinished(isWasher)) {
+            return false;
+        }
+        if (status.isJobStateReset(isWasher)) {
+            log.debug("machine stopped with idle jobState, not treated as interruption jobState={}",
+                    status.getJobState(isWasher));
             return false;
         }
 
-        var jobState = isWasher ? status.getWasherJobState() : status.getDryerJobState();
-        var finishedJobState = isWasher ? "finish" : "finished";
-        if (finishedJobState.equalsIgnoreCase(jobState)) {
-            return false;
-        }
-        if (jobState == null || jobState.isBlank() || "none".equalsIgnoreCase(jobState)) {
-            log.debug("machine stopped with idle jobState, not treated as interruption jobState={}", jobState);
-            return false;
-        }
-
-        log.debug("machine interrupted mid-cycle machineState=stop jobState={}", jobState);
+        log.debug("machine interrupted mid-cycle machineState=stop jobState={}", status.getJobState(isWasher));
         return true;
     }
 
@@ -149,8 +168,7 @@ public class MachineStateDetectionSupport {
         if (status == null) {
             return false;
         }
-        var machineState = isWasher ? status.getWasherOperatingState() : status.getDryerOperatingState();
-        var isPaused = "pause".equalsIgnoreCase(machineState);
+        var isPaused = status.getOperatingState(isWasher) == MachineOperatingState.PAUSE;
         if (isPaused) {
             log.debug("device is paused isWasher={}", isWasher);
         }

@@ -6,6 +6,10 @@ import org.springframework.web.bind.annotation.*;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -26,12 +30,15 @@ import team.washer.server.v2.domain.machine.service.ForceStopMachineService;
 import team.washer.server.v2.domain.machine.service.QueryAllMachinesService;
 import team.washer.server.v2.domain.machine.service.UpdateMachineService;
 import team.washer.server.v2.domain.machine.service.UpdateMachineStatusService;
+import team.washer.server.v2.global.common.error.dto.response.CommonErrorResponseResDto;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 @RestController
 @RequestMapping("/api/v2/admin/machines")
 @RequiredArgsConstructor
 @Validated
 @Tag(name = "Admin Machine Management", description = "기기 관리 API (관리자용)")
+@CommonErrorResponses
 public class AdminMachineController {
 
     private final QueryAllMachinesService queryAllMachinesService;
@@ -63,6 +70,7 @@ public class AdminMachineController {
 
     @PostMapping("/{id}/force-stop")
     @Operation(summary = "기기 강제 정지", description = "동작 중인 세탁기 또는 건조기를 SmartThings 명령으로 즉시 정지하고 활성 예약을 패널티 없이 취소합니다")
+    @ApiResponses(@ApiResponse(responseCode = "502", description = "SmartThings 명령 실패", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class))))
     public ForceStopMachineResDto forceStopMachine(@Parameter(description = "기기 ID") @PathVariable @NotNull Long id) {
         return forceStopMachineService.execute(id);
     }

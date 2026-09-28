@@ -44,4 +44,20 @@ public final class DateTimeUtil {
         }
         return null;
     }
+
+    public static LocalDateTime getExpectedCompletionTime(DeviceStatusQuerySupport deviceStatusQuerySupport,
+            String deviceId,
+            boolean isWasher) {
+        try {
+            var status = deviceStatusQuerySupport.queryDeviceStatus(deviceId);
+            var completionTimeStr = status.getCompletionTime(isWasher);
+
+            if (completionTimeStr != null && !completionTimeStr.isBlank()) {
+                return parseAndConvertToKoreaTime(completionTimeStr);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get expected completion time for device: {}", deviceId, e);
+        }
+        return null;
+    }
 }

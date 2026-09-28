@@ -24,7 +24,7 @@ public class DeleteMachineServiceImpl implements DeleteMachineService {
         final var machine = machineRepository.findById(machineId)
                 .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
-        if (reservationRepository.findActiveReservationByMachineId(machineId).isPresent()) {
+        if (reservationRepository.findCurrentlyActiveReservationByMachineId(machineId).isPresent()) {
             throw new ExpectedException("활성 예약이 존재하는 기기는 삭제할 수 없습니다", HttpStatus.BAD_REQUEST);
         }
 

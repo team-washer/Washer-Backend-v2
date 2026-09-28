@@ -13,6 +13,7 @@ import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.constants.ReservationConstants;
 import team.washer.server.v2.global.common.entity.BaseEntity;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -39,6 +40,10 @@ public class Reservation extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "machine_id", nullable = false, foreignKey = @ForeignKey(name = "fk_reservation_machine"))
     private Machine machine;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id", foreignKey = @ForeignKey(name = "fk_reservation_created_by"))
+    private User createdBy;
 
     @NotNull(message = "예약 시간은 필수입니다")
     @Column(name = "reserved_at", nullable = false)
@@ -74,6 +79,14 @@ public class Reservation extends BaseEntity {
     private int interruptionCount = 0;
 
     /**
+     * 더 이상 사용하지 않는 완료 디바운스 카운터입니다. 운영 DB의 NOT NULL 컬럼과 맞추기 위해 남겨 두며, 컬럼 삭제 후 함께
+     * 제거합니다.
+     */
+    @Column(name = "completion_count", nullable = false)
+    @Builder.Default
+    private int completionCount = 0;
+
+    /**
      * 기기 일시정지 시각을 기록합니다.
      */
     public void markAsPaused() {
@@ -103,18 +116,18 @@ public class Reservation extends BaseEntity {
     }
 
     /**
-     * 예약 타임아웃 초과 여부를 반환합니다.
+     * 예약 타임아웃 초과 여부를 반환합니다. 타임아웃 유무와 길이는 {@link ReservationStatus}의 설정을 그대로 따르므로,
+     * 상태별 타임아웃을 바꾸려면 열거형만 수정하면 됩니다.
      *
      * @return 타임아웃 초과 여부
      */
     public boolean isExpired() {
-        LocalDateTime now = DateTimeUtil.nowInKorea();
+        if (!this.status.hasTimeout()) {
+            return false;
+        }
 
-        return switch (this.status) {
-            case RESERVED ->
-                Duration.between(this.reservedAt, now).toMinutes() >= ReservationStatus.RESERVED.getTimeoutMinutes();
-            default -> false;
-        };
+        return Duration.between(this.reservedAt, DateTimeUtil.nowInKorea()).toMinutes() >= this.status
+                .getTimeoutMinutes();
     }
 
     /**
@@ -123,16 +136,14 @@ public class Reservation extends BaseEntity {
      * @return 타임아웃까지 남은 시간
      */
     public Duration getRemainingTimeUntilTimeout() {
-        LocalDateTime now = DateTimeUtil.nowInKorea();
+        if (!this.status.hasTimeout()) {
+            return Duration.ZERO;
+        }
 
-        return switch (this.status) {
-            case RESERVED -> {
-                long minutes = ReservationStatus.RESERVED.getTimeoutMinutes()
-                        - Duration.between(this.reservedAt, now).toMinutes();
-                yield Duration.ofMinutes(Math.max(0, minutes));
-            }
-            default -> Duration.ZERO;
-        };
+        final long remainingMinutes = this.status.getTimeoutMinutes()
+                - Duration.between(this.reservedAt, DateTimeUtil.nowInKorea()).toMinutes();
+
+        return Duration.ofMinutes(Math.max(0, remainingMinutes));
     }
 
     /**
@@ -147,20 +158,72 @@ public class Reservation extends BaseEntity {
         }
         this.status = ReservationStatus.RUNNING;
         this.startTime = DateTimeUtil.nowInKorea();
-        this.expectedCompletionTime = expectedCompletionTime;
+        this.expectedCompletionTime = isReasonableCompletionTime(expectedCompletionTime)
+                ? expectedCompletionTime
+                : null;
     }
 
     /**
      * 실행 중인 예약의 예상 완료 시각을 갱신합니다. RUNNING 상태가 아니면 예외를 발생시킵니다.
      *
+     * <p>
+     * 기기가 보고한 값이 합리적인 사이클 길이를 벗어나면 이상치로 보고 갱신하지 않습니다. 조기 완료 판정의 기준선이 오염되는 것을 막기
+     * 위함입니다.
+     *
      * @param expectedCompletionTime
      *            갱신할 예상 완료 시각
+     * @return 갱신 여부. 이상치로 판단되어 무시되면 {@code false}
      */
-    public void updateExpectedCompletionTime(LocalDateTime expectedCompletionTime) {
+    public boolean updateExpectedCompletionTime(LocalDateTime expectedCompletionTime) {
         if (this.status != ReservationStatus.RUNNING) {
             throw new ExpectedException("실행 중인 예약만 완료 시각을 갱신할 수 있습니다", HttpStatus.BAD_REQUEST);
         }
+        if (!isReasonableCompletionTime(expectedCompletionTime)) {
+            return false;
+        }
         this.expectedCompletionTime = expectedCompletionTime;
+        return true;
+    }
+
+    /**
+     * 예상 완료 시각 후보가 합리적인 사이클 길이(최대 {@code MAX_REASONABLE_CYCLE_MINUTES}분) 안에 있는지
+     * 판정합니다. 시작 시각이 아직 없으면 현재 시각을 기준으로 삼습니다.
+     *
+     * @param candidate
+     *            검증할 예상 완료 시각
+     * @return 합리적인 범위 안에 있으면 {@code true}
+     */
+    private boolean isReasonableCompletionTime(LocalDateTime candidate) {
+        if (candidate == null) {
+            return false;
+        }
+        var baseTime = this.startTime != null ? this.startTime : DateTimeUtil.nowInKorea();
+        if (candidate.isBefore(baseTime)) {
+            return false;
+        }
+        return Duration.between(baseTime, candidate).toMinutes() <= ReservationConstants.MAX_REASONABLE_CYCLE_MINUTES;
+    }
+
+    /**
+     * 실행 중인 예약이 장기 실행 상태인지 판정합니다.
+     *
+     * <p>
+     * 기준 시각은 예상 완료 시각에 {@code LONG_RUNNING_GRACE_MINUTES}분을 더한 시각이며, 예상 완료 시각이 없으면
+     * 시작 시각에 최대 사이클 길이({@code MAX_REASONABLE_CYCLE_MINUTES}분)를 더한 시각입니다. 운영 확인 대상을
+     * 식별하는 용도이며 예약 상태를 바꾸지 않습니다.
+     *
+     * @param now
+     *            판정 기준 현재 시각
+     * @return RUNNING이고 기준 시각이 지났으면 {@code true}
+     */
+    public boolean isLongRunning(LocalDateTime now) {
+        if (this.status != ReservationStatus.RUNNING || this.startTime == null) {
+            return false;
+        }
+        var threshold = this.expectedCompletionTime != null
+                ? this.expectedCompletionTime.plusMinutes(ReservationConstants.LONG_RUNNING_GRACE_MINUTES)
+                : this.startTime.plusMinutes(ReservationConstants.MAX_REASONABLE_CYCLE_MINUTES);
+        return now.isAfter(threshold);
     }
 
     /**
@@ -192,6 +255,31 @@ public class Reservation extends BaseEntity {
      */
     public boolean isActive() {
         return this.status == ReservationStatus.RESERVED || this.status == ReservationStatus.RUNNING;
+    }
+
+    /**
+     * 만료되지 않은 현재 활성 예약인지 반환합니다.
+     *
+     * <p>
+     * 활성 상태이더라도 타임아웃이 지난 RESERVED 예약은 활성으로 세지 않습니다. 스케줄러가 아직 정리하지 못한 만료 예약이 새 예약을
+     * 막거나 조회 결과에 노출되는 것을 방지하기 위함입니다.
+     *
+     * @return 만료되지 않은 활성 예약 여부
+     */
+    public boolean isCurrentlyActive() {
+        return isActive() && !isExpired();
+    }
+
+    /**
+     * 관리자 대리 생성 예약 여부를 반환합니다.
+     *
+     * <p>
+     * 대리 예약은 사용자 본인이 요청한 것이 아니므로 취소·타임아웃 시 패널티를 부여하지 않습니다.
+     *
+     * @return 대리 예약 여부
+     */
+    public boolean isProxyReservation() {
+        return this.createdBy != null;
     }
 
     public boolean isReserved() {

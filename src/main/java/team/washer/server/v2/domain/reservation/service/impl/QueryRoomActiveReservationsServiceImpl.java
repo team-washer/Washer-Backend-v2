@@ -29,8 +29,7 @@ public class QueryRoomActiveReservationsServiceImpl implements QueryRoomActiveRe
         final User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
 
-        final var reservations = reservationRepository.findActiveReservationsByRoomNumber(user.getRoomNumber()).stream()
-                .filter(r -> !r.isExpired())
+        final var reservations = reservationRepository.findCurrentlyActiveByRoomNumber(user.getRoomNumber()).stream()
                 .map(r -> new ReservationResDto(r.getId(),
                         r.getUser().getId(),
                         r.getUser().getName(),

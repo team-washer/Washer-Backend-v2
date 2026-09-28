@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 import static org.mockito.Mockito.lenient;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,6 +30,7 @@ import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.enums.Position;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.machine.service.impl.ForceStopMachineServiceImpl;
+import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -41,9 +41,11 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.DryerOperatingState;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.SwitchCapability;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.WasherOperatingState;
+import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ForceStopMachineServiceImpl 클래스의")
@@ -65,6 +67,9 @@ class ForceStopMachineServiceTest {
     private SendDeviceCommandService sendDeviceCommandService;
 
     @Mock
+    private ReservationNotificationSupport reservationNotificationSupport;
+
+    @Mock
     private TransactionTemplate transactionTemplate;
 
     @BeforeEach
@@ -83,8 +88,8 @@ class ForceStopMachineServiceTest {
     private Reservation createReservation(Machine machine, ReservationStatus status) {
         var user = User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(3).floor(3).penaltyCount(0)
                 .build();
-        return Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now())
-                .startTime(LocalDateTime.now()).status(status).build();
+        final var now = DateTimeUtil.nowInKorea();
+        return Reservation.builder().user(user).machine(machine).reservedAt(now).startTime(now).status(status).build();
     }
 
     private SmartThingsDeviceStatusResDto washerStatus(String machineState) {
@@ -155,7 +160,7 @@ class ForceStopMachineServiceTest {
                 // Then
                 assertThat(result.machineId()).isEqualTo(machineId);
                 assertThat(result.forceStopResult()).isEqualTo(ForceStopResult.STOPPED);
-                assertThat(result.previousMachineState()).isEqualTo("run");
+                assertThat(result.previousMachineState()).isEqualTo(MachineOperatingState.RUN);
                 assertThat(result.cancelledReservationId()).isEqualTo(reservationId);
                 assertThat(result.reservationCancelled()).isTrue();
                 assertThat(result.availability()).isEqualTo(MachineAvailability.AVAILABLE);
@@ -169,6 +174,45 @@ class ForceStopMachineServiceTest {
                 assertThat(command.arguments()).containsExactly("stop");
                 then(reservationRepository).should(times(1)).save(reservation);
                 then(machineRepository).should(times(1)).save(machine);
+                then(reservationNotificationSupport).should(times(1)).sendForceStop(reservation.getUser(), machine);
+            }
+        }
+
+        @Nested
+        @DisplayName("진행 중 예약이 있으나 이미 정지된 기기이면")
+        class Context_with_running_reservation_and_already_stopped_machine {
+
+            @Test
+            @DisplayName("순간 정지를 강제 정지로 오인하지 않도록 예약을 취소하지 않고 알림도 보내지 않는다")
+            void it_keeps_running_reservation_without_cancellation() {
+                // Given
+                var machineId = 1L;
+                var machine = createMachine(MachineType.WASHER, MachineStatus.NORMAL, MachineAvailability.IN_USE);
+                var reservation = createReservation(machine, ReservationStatus.RUNNING);
+                var status = washerStatus("stop");
+                setId(machine, machineId);
+                setId(reservation, 10L);
+
+                given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
+                given(machineRepository.findByIdForUpdate(machineId)).willReturn(Optional.of(machine));
+                given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
+                given(reservationRepository.findFirstActiveReservationByMachineId(machineId,
+                        List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)))
+                        .willReturn(List.of(reservation));
+                given(machineRepository.save(any(Machine.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+                // When
+                var result = forceStopMachineService.execute(machineId);
+
+                // Then
+                assertThat(result.forceStopResult()).isEqualTo(ForceStopResult.ALREADY_STOPPED);
+                assertThat(result.cancelledReservationId()).isNull();
+                assertThat(result.reservationCancelled()).isFalse();
+                assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RUNNING);
+                assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.IN_USE);
+                then(sendDeviceCommandService).shouldHaveNoInteractions();
+                then(reservationRepository).should(never()).save(any(Reservation.class));
+                then(reservationNotificationSupport).shouldHaveNoInteractions();
             }
         }
 
@@ -278,6 +322,7 @@ class ForceStopMachineServiceTest {
                 assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.RESERVED);
                 then(sendDeviceCommandService).shouldHaveNoInteractions();
                 then(reservationRepository).should(never()).save(any(Reservation.class));
+                then(reservationNotificationSupport).shouldHaveNoInteractions();
             }
         }
 

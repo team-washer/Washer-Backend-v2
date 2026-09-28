@@ -30,7 +30,7 @@ public class Notification extends BaseEntity {
 
     @NotNull(message = "알림 유형은 필수입니다")
     @Enumerated(EnumType.STRING)
-    @Column(name = "type", nullable = false, length = 20)
+    @Column(name = "type", nullable = false, length = 50)
     private NotificationType type;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -108,6 +108,22 @@ public class Notification extends BaseEntity {
         String message = NotificationType.INTERRUPTION.formatMessage(machine.getName(), machine.getType());
 
         return Notification.builder().user(user).machine(machine).type(NotificationType.INTERRUPTION).message(message)
+                .isRead(false).build();
+    }
+
+    /**
+     * 관리자 강제 정지에 의한 예약 취소 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param machine
+     *            대상 기기
+     * @return 생성된 강제 정지 알림
+     */
+    public static Notification createForceStopNotification(User user, Machine machine) {
+        String message = NotificationType.FORCE_STOPPED.formatMessage(machine.getName(), machine.getType());
+
+        return Notification.builder().user(user).machine(machine).type(NotificationType.FORCE_STOPPED).message(message)
                 .isRead(false).build();
     }
 
@@ -212,6 +228,22 @@ public class Notification extends BaseEntity {
         String message = NotificationType.CANCELLATION_BLOCK_EXTENDED.formatMessage(newExpiryAt);
 
         return Notification.builder().user(user).type(NotificationType.CANCELLATION_BLOCK_EXTENDED).message(message)
+                .isRead(false).build();
+    }
+
+    /**
+     * 관리자 패널티 부과 알림을 생성합니다.
+     *
+     * @param user
+     *            알림 수신 사용자
+     * @param reason
+     *            패널티 부과 사유
+     * @return 생성된 관리자 패널티 알림
+     */
+    public static Notification createAdminPenaltyNotification(User user, String reason) {
+        String message = NotificationType.ADMIN_PENALTY_BLOCKED.getMessageTemplate().replace("{reason}", reason);
+
+        return Notification.builder().user(user).type(NotificationType.ADMIN_PENALTY_BLOCKED).message(message)
                 .isRead(false).build();
     }
 

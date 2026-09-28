@@ -1,18 +1,20 @@
 package team.washer.server.v2.domain.reservation.repository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import jakarta.persistence.LockModeType;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.custom.ReservationRepositoryCustom;
+import team.washer.server.v2.domain.reservation.util.ActiveReservationSelector;
 import team.washer.server.v2.domain.user.entity.User;
 
 @Repository
@@ -24,46 +26,80 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
 
     List<Reservation> findByStatus(ReservationStatus status);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Reservation r JOIN FETCH r.machine JOIN FETCH r.user WHERE r.id = :id")
+    Optional<Reservation> findByIdForUpdate(@Param("id") Long id);
+
+    /**
+     * 만료 예약 처리에서 관계 테이블 행을 추가로 잠그지 않도록 예약 행만 비관적 쓰기 락으로 조회합니다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Reservation r WHERE r.id = :id")
+    Optional<Reservation> findByIdForUpdateWithoutRelations(@Param("id") Long id);
+
+    /**
+     * 예약 엔티티를 영속성 컨텍스트에 올리지 않고 예약된 기기 ID만 조회합니다. 기기 락을 예약 락보다 먼저 잡아야 할 때 사용합니다.
+     */
+    @Query("SELECT r.machine.id FROM Reservation r WHERE r.id = :id")
+    Optional<Long> findMachineIdById(@Param("id") Long id);
+
+    /**
+     * 예약 엔티티를 영속성 컨텍스트에 올리지 않고 예약 사용자 ID만 조회합니다.
+     */
+    @Query("SELECT r.user.id FROM Reservation r WHERE r.id = :id")
+    Optional<Long> findUserIdById(@Param("id") Long id);
+
     @Query("SELECT r FROM Reservation r JOIN FETCH r.machine JOIN FETCH r.user WHERE r.status = :status")
     List<Reservation> findByStatusWithMachineAndUser(@Param("status") ReservationStatus status);
 
     List<Reservation> findByStatusIn(List<ReservationStatus> statuses);
 
-    @Query("SELECT r FROM Reservation r WHERE r.user = :user AND r.status IN :statuses")
-    List<Reservation> findByUserAndStatusIn(@Param("user") User user,
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT r FROM Reservation r JOIN FETCH r.machine WHERE r.user = :user AND r.status IN :statuses")
+    List<Reservation> findByUserAndStatusInForUpdate(@Param("user") User user,
             @Param("statuses") List<ReservationStatus> statuses);
 
+    /**
+     * 사용자의 지정 상태 예약이 점유한 기기 ID를 잠금 없이 조회합니다. 예약 락보다 기기 락을 먼저 잡아야 할 때 사용합니다.
+     */
+    @Query("SELECT DISTINCT r.machine.id FROM Reservation r WHERE r.user = :user AND r.status IN :statuses")
+    List<Long> findMachineIdsByUserAndStatusIn(@Param("user") User user,
+            @Param("statuses") List<ReservationStatus> statuses);
+
+    /**
+     * 기기의 지정 상태 예약을 비관적 쓰기 락으로 조회합니다. 락 대기 이후 커밋된 다른 트랜잭션의 예약까지 반영해 재검증할 때 사용합니다.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM Reservation r WHERE r.machine = :machine AND r.status IN :statuses")
-    List<Reservation> findByMachineAndStatusIn(@Param("machine") Machine machine,
+    List<Reservation> findByMachineAndStatusInForUpdate(@Param("machine") Machine machine,
             @Param("statuses") List<ReservationStatus> statuses);
 
     default List<Reservation> findAllActiveReservations() {
         return findByStatusIn(List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING));
     }
 
-    @Query("SELECT COUNT(r) FROM Reservation r WHERE r.status IN :statuses")
-    long countAllActiveReservations(@Param("statuses") List<ReservationStatus> statuses);
-
-    default long countActiveReservations() {
-        return countAllActiveReservations(List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING));
-    }
-
     @Query("SELECT r FROM Reservation r WHERE r.machine.id = :machineId AND r.status IN :statuses ORDER BY r.createdAt DESC")
     List<Reservation> findFirstActiveReservationByMachineId(@Param("machineId") Long machineId,
             @Param("statuses") List<ReservationStatus> statuses);
 
-    default Optional<Reservation> findActiveReservationByMachineId(Long machineId) {
-        return findFirstActiveReservationByMachineId(machineId,
-                List.of(ReservationStatus.RESERVED, ReservationStatus.RUNNING)).stream().findFirst();
+    /**
+     * 기기의 대표 활성 예약을 조회한다. 만료 예약 제외는
+     * {@link ReservationRepositoryCustom#findCurrentlyActiveByMachineId(Long)}가 쿼리
+     * 단계에서 처리하고, 남은 후보 중 대표를 고르는 규칙은 {@link ActiveReservationSelector}가 정의한다.
+     *
+     * <p>
+     * 타임아웃이 지난 RESERVED 예약만 남은 기기는 {@link Optional#empty()}가 된다. 스케줄러가 아직 정리하지 못한
+     * 만료 예약이 기기를 점유한 것처럼 보이게 하지 않기 위함이다.
+     */
+    default Optional<Reservation> findCurrentlyActiveReservationByMachineId(Long machineId) {
+        return ActiveReservationSelector.selectPrimary(findCurrentlyActiveByMachineId(machineId));
     }
 
-    @Query("SELECT r FROM Reservation r WHERE r.status = :status AND r.startTime < :threshold")
-    List<Reservation> findExpiredReservedReservations(@Param("status") ReservationStatus status,
-            @Param("threshold") LocalDateTime threshold);
-
-    @Query("SELECT COUNT(r) FROM Reservation r WHERE r.machine = :machine AND r.status IN :statuses")
-    long countActiveReservationsByMachine(@Param("machine") Machine machine,
-            @Param("statuses") List<ReservationStatus> statuses);
+    /**
+     * 기기의 가장 최근 완료 예약을 조회합니다. 완료 후 세탁기 배수 유예의 기준 시각을 구할 때 사용합니다.
+     */
+    Optional<Reservation> findFirstByMachineIdAndStatusOrderByActualCompletionTimeDesc(Long machineId,
+            ReservationStatus status);
 
     @Query("SELECT r FROM Reservation r WHERE r.user = :user ORDER BY r.createdAt DESC")
     List<Reservation> findReservationHistoryByUser(@Param("user") User user);
@@ -71,11 +107,4 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long>,
     default List<Reservation> findAllRunningReservations() {
         return findByStatus(ReservationStatus.RUNNING);
     }
-
-    @Query("SELECT DISTINCT r.machine.id FROM Reservation r WHERE r.status IN :statuses")
-    List<Long> findMachineIdsByStatusIn(@Param("statuses") List<ReservationStatus> statuses);
-
-    boolean existsByMachineAndStatusIn(Machine machine, List<ReservationStatus> statuses);
-
-    boolean existsByUserAndStatusIn(User user, List<ReservationStatus> statuses);
 }

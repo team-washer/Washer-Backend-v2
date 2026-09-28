@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
+import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 
 @Schema(description = "기기 상태 응답")
 public record MachineStatusResDto(@Schema(description = "기기 ID", example = "1") Long machineId,
@@ -18,7 +19,7 @@ public record MachineStatusResDto(@Schema(description = "기기 ID", example = "
 
         @Schema(description = "사용 가능 여부", example = "AVAILABLE") MachineAvailability availability,
 
-        @Schema(description = "작동 상태", example = "running") String operatingState,
+        @Schema(description = "작동 상태", example = "run") MachineOperatingState operatingState,
 
         @Schema(description = "작업 상태", example = "washing") String jobState,
 

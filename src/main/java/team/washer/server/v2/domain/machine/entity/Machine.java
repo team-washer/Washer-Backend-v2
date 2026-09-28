@@ -1,7 +1,11 @@
 package team.washer.server.v2.domain.machine.entity;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -10,6 +14,7 @@ import team.washer.server.v2.domain.machine.enums.*;
 import team.washer.server.v2.domain.malfunction.entity.MalfunctionReport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.global.common.entity.BaseEntity;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Entity
 @Table(name = "machines", indexes = {@Index(name = "idx_device_id", columnList = "device_id"),
@@ -23,6 +28,8 @@ import team.washer.server.v2.global.common.entity.BaseEntity;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor
 public class Machine extends BaseEntity {
+
+    public static final Duration SHUTDOWN_CLAIM_TIMEOUT = Duration.ofSeconds(30);
 
     @NotBlank(message = "기기명은 필수입니다")
     @Size(max = 50, message = "기기명은 50자를 초과할 수 없습니다")
@@ -66,6 +73,19 @@ public class Machine extends BaseEntity {
     @Builder.Default
     private MachineAvailability availability = MachineAvailability.AVAILABLE;
 
+    /** 외부 전원 차단 작업이 진행 중인지 나타내는 내부 보호 상태입니다. */
+    @Column(name = "shutdown_in_progress", nullable = false)
+    @Builder.Default
+    private boolean shutdownInProgress = false;
+
+    /** 외부 전원 차단 작업의 세대 토큰입니다. API 응답에는 포함하지 않습니다. */
+    @Column(name = "shutdown_claim_token", length = 36)
+    private String shutdownClaimToken;
+
+    /** 외부 전원 차단 작업을 시작한 시각입니다. */
+    @Column(name = "shutdown_claimed_at")
+    private LocalDateTime shutdownClaimedAt;
+
     // 연관관계
     @OneToMany(mappedBy = "machine", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
@@ -107,6 +127,28 @@ public class Machine extends BaseEntity {
     }
 
     /**
+     * 예약 또는 사용 중으로 점유되어 있던 경우에만 기기를 사용 가능 상태로 해제합니다.
+     *
+     * <p>
+     * 고장난 기기는 해제하지 않고 {@code UNAVAILABLE}로 되돌립니다. {@code status}가
+     * {@code MALFUNCTION}이면 {@code availability}도 {@code UNAVAILABLE}이어야 한다는 불변식을
+     * 예약 해제 경로에서 보장하기 위함입니다. 고장 처리 시점에 이미 진행 중이던 예약이 스케줄러에 의해 {@code IN_USE}로 전환되는
+     * 등, 다른 경로에서 어긋난 상태로 들어오더라도 이 지점에서 불변식이 복원됩니다.
+     *
+     * <p>
+     * 고장이 아닌데 {@code UNAVAILABLE}로 차단된 기기는 관리자가 의도적으로 내린 상태이므로 그대로 유지합니다.
+     */
+    public void releaseIfHeld() {
+        if (this.status == MachineStatus.MALFUNCTION) {
+            this.availability = MachineAvailability.UNAVAILABLE;
+            return;
+        }
+        if (this.availability == MachineAvailability.RESERVED || this.availability == MachineAvailability.IN_USE) {
+            this.availability = MachineAvailability.AVAILABLE;
+        }
+    }
+
+    /**
      * 기기 사용 중 상태로 변경합니다.
      */
     public void markAsInUse() {
@@ -118,6 +160,34 @@ public class Machine extends BaseEntity {
      */
     public void markAsReserved() {
         this.availability = MachineAvailability.RESERVED;
+    }
+
+    /**
+     * 기기를 통세척 중 상태로 변경합니다.
+     */
+    public void markAsCleaning() {
+        this.availability = MachineAvailability.CLEANING;
+    }
+
+    /**
+     * 통세척 점유 중인지 반환합니다.
+     *
+     * @return 통세척 점유 여부
+     */
+    public boolean isCleaning() {
+        return this.availability == MachineAvailability.CLEANING;
+    }
+
+    /**
+     * 통세척 중인 기기를 정상 상태에 맞게 해제합니다.
+     */
+    public void finishCleaning() {
+        if (this.availability != MachineAvailability.CLEANING) {
+            return;
+        }
+        this.availability = this.status == MachineStatus.NORMAL
+                ? MachineAvailability.AVAILABLE
+                : MachineAvailability.UNAVAILABLE;
     }
 
     /**
@@ -149,7 +219,59 @@ public class Machine extends BaseEntity {
      * @return 사용 가능 여부
      */
     public boolean isAvailable() {
-        return this.status == MachineStatus.NORMAL && this.availability == MachineAvailability.AVAILABLE;
+        recoverExpiredShutdownClaim();
+        return this.status == MachineStatus.NORMAL && this.availability == MachineAvailability.AVAILABLE
+                && !this.shutdownInProgress;
+    }
+
+    /** 현재 유효한 전원 차단 선점이 있는지 상태를 변경하지 않고 판정합니다. */
+    public boolean hasActiveShutdownClaim() {
+        if (!this.shutdownInProgress) {
+            return false;
+        }
+        return this.shutdownClaimedAt == null
+                || DateTimeUtil.nowInKorea().isBefore(this.shutdownClaimedAt.plus(SHUTDOWN_CLAIM_TIMEOUT));
+    }
+
+    /** 주어진 토큰이 현재 유효한 전원 차단 선점의 소유자인지 판정합니다. */
+    public boolean ownsActiveShutdownClaim(final String claimToken) {
+        return hasActiveShutdownClaim() && this.shutdownClaimToken != null
+                && this.shutdownClaimToken.equals(claimToken);
+    }
+
+    /** 외부 전원 차단 작업을 예약합니다. 유효한 기존 작업이 있으면 새 세대를 만들지 않습니다. */
+    public Optional<String> claimShutdown() {
+        recoverExpiredShutdownClaim();
+        if (this.shutdownInProgress) {
+            return Optional.empty();
+        }
+        this.shutdownInProgress = true;
+        this.shutdownClaimToken = UUID.randomUUID().toString();
+        this.shutdownClaimedAt = DateTimeUtil.nowInKorea();
+        return Optional.of(this.shutdownClaimToken);
+    }
+
+    /** SmartThings 호출의 최대 시간보다 긴 보호 구간이 지난 작업을 복구합니다. */
+    public void recoverExpiredShutdownClaim() {
+        if (this.shutdownInProgress && !hasActiveShutdownClaim()) {
+            clearShutdownClaim();
+        }
+    }
+
+    /** 지정된 세대의 전원 차단 작업만 해제합니다. */
+    public boolean releaseShutdown(final String claimToken) {
+        if (!this.shutdownInProgress || this.shutdownClaimToken == null
+                || !this.shutdownClaimToken.equals(claimToken)) {
+            return false;
+        }
+        clearShutdownClaim();
+        return true;
+    }
+
+    private void clearShutdownClaim() {
+        this.shutdownInProgress = false;
+        this.shutdownClaimToken = null;
+        this.shutdownClaimedAt = null;
     }
 
     /**

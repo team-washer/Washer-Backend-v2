@@ -107,7 +107,13 @@ dependencies {
 
     // Test Dependencies
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.springframework.security:spring-security-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
+    testImplementation("org.testcontainers:junit-jupiter:1.20.4")
+    testImplementation("org.testcontainers:mysql:1.20.4")
+    testRuntimeOnly("com.h2database:h2")
 
     // Documentation
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1")
@@ -145,6 +151,7 @@ sourceSets {
 }
 
 tasks.withType<JavaCompile> {
+    options.encoding = "UTF-8"
     options.generatedSourceOutputDirectory.set(generatedDir)
 }
 

@@ -2,17 +2,18 @@ package team.washer.server.v2.global.thirdparty.discord.service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.washer.server.v2.global.common.logging.SensitiveLogSanitizer;
 import team.washer.server.v2.global.thirdparty.discord.data.DiscordEmbed;
 import team.washer.server.v2.global.thirdparty.discord.data.DiscordField;
 import team.washer.server.v2.global.thirdparty.discord.data.DiscordWebhookPayload;
@@ -25,9 +26,10 @@ import team.washer.server.v2.global.thirdparty.feign.client.DiscordWebhookClient
 @RequiredArgsConstructor
 public class DiscordErrorNotificationService {
     private static final int MAX_FIELD_LENGTH = 1000;
+    private static final Set<String> SAFE_ADDITIONAL_INFO_KEYS = Set
+            .of("HTTP Method", "Request Path", "Trace ID", "감지된 기기", "조치 필요", "Penalty Type");
 
     private final DiscordWebhookClient discordWebhookClient;
-    private final ObjectMapper objectMapper;
 
     @Async
     public void notifyError(Throwable exception, String context, Map<String, Object> additionalInfo) {
@@ -35,12 +37,15 @@ public class DiscordErrorNotificationService {
             DiscordEmbed embed = createErrorEmbed(exception, context, additionalInfo);
             DiscordWebhookPayload payload = DiscordWebhookPayload.embedMessage(embed);
 
-            String jsonPayload = objectMapper.writeValueAsString(payload);
-            log.info("Discord 웹훅 전송 페이로드: {}", jsonPayload);
-
             discordWebhookClient.sendMessage(payload);
+            log.info("discord error notification sent exceptionType={} fieldCount={}",
+                    exception.getClass().getSimpleName(),
+                    embed.getFields().size());
         } catch (Exception sendException) {
-            log.error("Discord 에러 알림 전송 실패", sendException);
+            log.error("discord error notification failed exceptionType={} sendExceptionType={} reason={}",
+                    exception.getClass().getSimpleName(),
+                    sendException.getClass().getSimpleName(),
+                    sanitizeAndTruncate(sendException.getMessage()));
         }
     }
 
@@ -49,31 +54,37 @@ public class DiscordErrorNotificationService {
         notifyError(exception, null, Map.of());
     }
 
-    private DiscordEmbed createErrorEmbed(Throwable exception, String context, Map<String, Object> additionalInfo) {
-        List<DiscordField> fields = new ArrayList<>();
+    private DiscordEmbed createErrorEmbed(final Throwable exception,
+            final String context,
+            final Map<String, Object> additionalInfo) {
+        final List<DiscordField> fields = new ArrayList<>();
         fields.add(DiscordField.builder().name("Exception Type").value(exception.getClass().getSimpleName())
                 .inline(true).build());
-        String message = exception.getMessage() != null ? exception.getMessage() : "No message";
-        fields.add(DiscordField.builder().name("Message").value(truncateField(message)).inline(false).build());
-        if (context != null) {
-            fields.add(DiscordField.builder().name("Context").value(truncateField(context)).inline(false).build());
+        if (exception.getMessage() != null && !exception.getMessage().isBlank()) {
+            fields.add(DiscordField.builder().name("Message").value(sanitizeAndTruncate(exception.getMessage()))
+                    .inline(false).build());
         }
-        StackTraceElement firstElement = exception.getStackTrace().length > 0 ? exception.getStackTrace()[0] : null;
+        if (context != null) {
+            fields.add(
+                    DiscordField.builder().name("Context").value(sanitizeAndTruncate(context)).inline(false).build());
+        }
+        final StackTraceElement firstElement = exception.getStackTrace().length > 0
+                ? exception.getStackTrace()[0]
+                : null;
         if (firstElement != null) {
-            String location = String.format("```%s:%d (%s)```",
+            final String location = String.format("```%s:%d (%s)```",
                     firstElement.getFileName(),
                     firstElement.getLineNumber(),
                     firstElement.getMethodName());
             fields.add(DiscordField.builder().name("Location").value(location).inline(false).build());
         }
-        if (additionalInfo != null && !additionalInfo.isEmpty()) {
-            additionalInfo.forEach((key, value) -> fields
-                    .add(DiscordField.builder().name(key).value(truncateField(value.toString())).inline(true).build()));
-        }
-        StringBuilder stackTrace = new StringBuilder();
-        int limit = Math.min(5, exception.getStackTrace().length);
+        safeAdditionalInfo(additionalInfo).forEach((key, value) -> fields
+                .add(DiscordField.builder().name(key).value(truncateField(value)).inline(true).build()));
+
+        final StringBuilder stackTrace = new StringBuilder();
+        final int limit = Math.min(5, exception.getStackTrace().length);
         for (int i = 0; i < limit; i++) {
-            StackTraceElement element = exception.getStackTrace()[i];
+            final StackTraceElement element = exception.getStackTrace()[i];
             stackTrace.append(String.format("at %s.%s(%s:%d)\n",
                     element.getClassName(),
                     element.getMethodName(),
@@ -86,8 +97,24 @@ public class DiscordErrorNotificationService {
                     DiscordField.builder().name("Stack Trace").value("```" + stackTrace + "```").inline(false).build());
         }
         return DiscordEmbed.builder().title("🚨 애플리케이션 에러 발생")
-                .description(exception.getClass().getName() + ": " + message).color(EmbedColor.ERROR.getColor())
+                .description("Exception type: " + exception.getClass().getName()).color(EmbedColor.ERROR.getColor())
                 .fields(fields).timestamp(Instant.now().toString()).build();
+    }
+
+    private Map<String, String> safeAdditionalInfo(final Map<String, Object> additionalInfo) {
+        if (additionalInfo == null || additionalInfo.isEmpty()) {
+            return Map.of();
+        }
+        final Map<String, String> safeInfo = new LinkedHashMap<>();
+        additionalInfo.forEach((key, value) -> {
+            if (SAFE_ADDITIONAL_INFO_KEYS.contains(key) && value != null) {
+                final String safeValue = "Request Path".equals(key)
+                        ? SensitiveLogSanitizer.sanitizeEndpoint(value.toString())
+                        : value.toString();
+                safeInfo.put(key, SensitiveLogSanitizer.sanitize(safeValue));
+            }
+        });
+        return safeInfo;
     }
 
     private String truncateField(String text) {
@@ -95,5 +122,12 @@ public class DiscordErrorNotificationService {
             return text.substring(0, MAX_FIELD_LENGTH) + "...";
         }
         return text;
+    }
+
+    private String sanitizeAndTruncate(final String text) {
+        if (text == null || text.isBlank()) {
+            return "none";
+        }
+        return truncateField(SensitiveLogSanitizer.sanitize(text));
     }
 }

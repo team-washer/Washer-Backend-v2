@@ -6,9 +6,11 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
+import team.washer.server.v2.domain.user.entity.User;
 
 public interface ReservationRepositoryCustom {
 
@@ -24,20 +26,7 @@ public interface ReservationRepositoryCustom {
             LocalDateTime endTime,
             Long excludeReservationId);
 
-    /**
-     * 동일 호실의 동일 유형 기기 활성 예약 존재 여부 확인
-     *
-     * @param roomNumber
-     *            호실 번호
-     * @param machineType
-     *            기기 유형 (세탁기/건조기)
-     * @return 동일 유형 활성 예약 존재 여부
-     */
-    boolean existsActiveReservationByRoomAndMachineType(String roomNumber, MachineType machineType);
-
-    List<Reservation> findExpiredReservations(ReservationStatus status,
-            LocalDateTime threshold,
-            LocalDateTime recentCutoff);
+    List<Reservation> findExpiredReservations(ReservationStatus status, LocalDateTime threshold);
 
     /**
      * 관리자용 예약 목록 조회 (동적 필터링)
@@ -67,13 +56,82 @@ public interface ReservationRepositoryCustom {
             Pageable pageable);
 
     /**
-     * 호실 번호 기준 활성 예약 목록 조회
+     * 사용자의 현재 활성 예약 목록을 조회합니다. 타임아웃이 지난 RESERVED 예약은 쿼리 단계에서 제외됩니다.
+     *
+     * @param user
+     *            조회 대상 사용자
+     * @return 만료되지 않은 활성 예약 목록 (createdAt 내림차순)
+     */
+    List<Reservation> findCurrentlyActiveByUser(User user);
+
+    /**
+     * 기기의 현재 활성 예약 목록을 조회합니다. 타임아웃이 지난 RESERVED 예약은 쿼리 단계에서 제외됩니다.
+     *
+     * @param machine
+     *            조회 대상 기기
+     * @return 만료되지 않은 활성 예약 목록 (createdAt 내림차순)
+     */
+    List<Reservation> findCurrentlyActiveByMachine(Machine machine);
+
+    /**
+     * 호실의 현재 활성 예약 목록을 조회합니다. 타임아웃이 지난 RESERVED 예약은 쿼리 단계에서 제외됩니다.
      *
      * @param roomNumber
      *            호실 번호
-     * @return 해당 호실의 활성(RESERVED/RUNNING) 예약 목록 (createdAt 내림차순)
+     * @return 만료되지 않은 활성 예약 목록 (createdAt 내림차순)
      */
-    List<Reservation> findActiveReservationsByRoomNumber(String roomNumber);
+    List<Reservation> findCurrentlyActiveByRoomNumber(String roomNumber);
+
+    /**
+     * 기기 ID로 현재 활성 예약 목록을 조회합니다. 타임아웃이 지난 RESERVED 예약은 쿼리 단계에서 제외됩니다.
+     *
+     * @param machineId
+     *            조회 대상 기기 ID
+     * @return 만료되지 않은 활성 예약 목록 (createdAt 내림차순)
+     */
+    List<Reservation> findCurrentlyActiveByMachineId(Long machineId);
+
+    /**
+     * 현재 활성 예약이 걸려 있는 기기 ID 목록을 조회합니다. 타임아웃이 지난 RESERVED 예약만 남은 기기는 포함되지 않습니다.
+     *
+     * @return 만료되지 않은 활성 예약이 있는 기기 ID 목록
+     */
+    List<Long> findCurrentlyActiveMachineIds();
+
+    /**
+     * 현재 활성 예약 수를 반환합니다. 타임아웃이 지난 RESERVED 예약은 집계에서 제외됩니다.
+     *
+     * @return 만료되지 않은 활성 예약 수
+     */
+    long countCurrentlyActive();
+
+    /**
+     * 사용자에게 현재 활성 예약이 있는지 반환합니다. 타임아웃이 지난 RESERVED 예약만 남아 있으면 거짓입니다.
+     *
+     * @param user
+     *            조회 대상 사용자
+     * @return 만료되지 않은 활성 예약 존재 여부
+     */
+    boolean existsCurrentlyActiveByUser(User user);
+
+    boolean existsCurrentlyActiveByUser(User user, Long excludeReservationId);
+
+    boolean existsCurrentlyActiveByUserAfter(User user, LocalDateTime createdAt, Long reservationId);
+
+    /**
+     * 기기에 현재 활성 예약이 있는지 반환합니다. 타임아웃이 지난 RESERVED 예약만 남아 있으면 거짓입니다.
+     *
+     * @param machine
+     *            조회 대상 기기
+     * @return 만료되지 않은 활성 예약 존재 여부
+     */
+    boolean existsCurrentlyActiveByMachine(Machine machine);
+
+    boolean existsCurrentlyActiveByMachine(Machine machine, Long excludeReservationId);
+
+    boolean existsCurrentlyActiveByMachineAfter(Machine machine, LocalDateTime createdAt, Long reservationId);
+
+    boolean existsCurrentlyActiveByRoomNumberAndMachineType(String roomNumber, MachineType machineType);
 
     /**
      * 기기별 예약 히스토리 조회

@@ -1,7 +1,9 @@
 package team.washer.server.v2.domain.reservation.service;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -26,9 +28,15 @@ import team.washer.server.v2.domain.notification.support.ReservationNotification
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor;
+import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.CompletedMachine;
+import team.washer.server.v2.domain.reservation.support.CompletionDecision;
+import team.washer.server.v2.domain.reservation.support.ReservationCompletionDecisionSupport;
+import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
 
 @ExtendWith(MockitoExtension.class)
@@ -51,7 +59,16 @@ class ReservationLifecycleProcessorTest {
     private MachineStateDetectionSupport machineStateDetectionSupport;
 
     @Mock
+    private ReservationCompletionDecisionSupport completionDecisionSupport;
+
+    @Mock
+    private ReservationStartDecisionSupport reservationStartDecisionSupport;
+
+    @Mock
     private ReservationNotificationSupport reservationNotificationSupport;
+
+    @Mock
+    private MachineShutdownClaimSupport machineShutdownClaimSupport;
 
     @Mock
     private Reservation reservation;
@@ -62,57 +79,35 @@ class ReservationLifecycleProcessorTest {
     @Mock
     private User user;
 
+    @Mock
+    private UserRepository userRepository;
+
     private SmartThingsDeviceStatusResDto buildDeviceStatus(String completionTime) {
         var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
         var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null, null, completionTimeAttr);
-        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
-        return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
-    }
-
-    private SmartThingsDeviceStatusResDto buildWasherStatusWithTimestamp(String machineStateTimestamp,
-            String jobStateTimestamp) {
-        var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("stop", machineStateTimestamp, null);
-        var jobStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("finish", jobStateTimestamp, null);
-        var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(machineStateAttr,
-                jobStateAttr,
+        var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(null, null, completionTimeAttr);
+        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState,
+                dryerOpState,
+                null,
                 null);
-        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
         return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
     }
 
-    private SmartThingsDeviceStatusResDto buildDryerStatusWithTimestamp(String machineStateTimestamp,
-            String jobStateTimestamp) {
-        var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("stop", machineStateTimestamp, null);
-        var jobStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("finished", jobStateTimestamp, null);
-        var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(machineStateAttr, jobStateAttr, null);
-        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null, dryerOpState, null, null);
+    private SmartThingsDeviceStatusResDto buildStatusWithMixedCompletionTime(String washerCompletionTime,
+            String dryerCompletionTime) {
+        var washerCompletionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(washerCompletionTime,
+                null,
+                null);
+        var dryerCompletionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(dryerCompletionTime, null, null);
+        var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(null,
+                null,
+                washerCompletionTimeAttr);
+        var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(null, null, dryerCompletionTimeAttr);
+        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState,
+                dryerOpState,
+                null,
+                null);
         return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
-    }
-
-    private SmartThingsDeviceStatusResDto buildWasherStoppedStatus(String jobState, String completionTime) {
-        var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("stop", null, null);
-        var jobStateAttr = new SmartThingsDeviceStatusResDto.AttributeState(jobState, null, null);
-        var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
-        var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(machineStateAttr,
-                jobStateAttr,
-                completionTimeAttr);
-        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
-        return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
-    }
-
-    private SmartThingsDeviceStatusResDto buildDryerStoppedStatus(String jobState, String completionTime) {
-        var machineStateAttr = new SmartThingsDeviceStatusResDto.AttributeState("stop", null, null);
-        var jobStateAttr = new SmartThingsDeviceStatusResDto.AttributeState(jobState, null, null);
-        var completionTimeAttr = new SmartThingsDeviceStatusResDto.AttributeState(completionTime, null, null);
-        var dryerOpState = new SmartThingsDeviceStatusResDto.DryerOperatingState(machineStateAttr,
-                jobStateAttr,
-                completionTimeAttr);
-        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(null, dryerOpState, null, null);
-        return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
-    }
-
-    private String isoUtc(LocalDateTime koreaTime) {
-        return koreaTime.atZone(KOREA_ZONE).withZoneSameInstant(ZoneId.of("UTC")).toLocalDateTime().toString() + "Z";
     }
 
     @Nested
@@ -123,12 +118,14 @@ class ReservationLifecycleProcessorTest {
         @DisplayName("RESERVED 상태이고 기기가 작동 중이면 RUNNING으로 전환하고 시작 알림을 전송한다")
         void shouldStartReservation_WhenReservedAndMachineRunning() {
             // Given
+            var expectedCompletionTime = LocalDateTime.of(2026, 1, 27, 0, 30);
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isReserved()).thenReturn(true);
             when(reservation.getMachine()).thenReturn(machine);
             when(reservation.getUser()).thenReturn(user);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+            when(reservation.getExpectedCompletionTime()).thenReturn(expectedCompletionTime);
+            when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
 
             // When
@@ -137,7 +134,7 @@ class ReservationLifecycleProcessorTest {
             // Then
             verify(reservation, times(1)).start(any(LocalDateTime.class));
             verify(reservationRepository, times(1)).save(reservation);
-            verify(reservationNotificationSupport, times(1)).sendStarted(any(), any(), any(LocalDateTime.class));
+            verify(reservationNotificationSupport, times(1)).sendStarted(user, machine, expectedCompletionTime);
         }
 
         @Test
@@ -145,10 +142,10 @@ class ReservationLifecycleProcessorTest {
         void shouldNotStartReservation_WhenReservedButMachineNotRunning() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isReserved()).thenReturn(true);
             when(reservation.getMachine()).thenReturn(machine);
-            when(machineStateDetectionSupport.isRunning(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+            when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
 
             // When
@@ -160,11 +157,55 @@ class ReservationLifecycleProcessorTest {
         }
 
         @Test
+        @DisplayName("건조기 예약 시작 시 건조기 완료 예정 시간을 저장해야 한다")
+        void shouldStartDryerReservationWithDryerCompletionTime_WhenBothCompletionTimesExist() {
+            // Given
+            var dryerCompletionTime = LocalDateTime.of(2026, 1, 27, 1, 0);
+            var deviceStatus = buildStatusWithMixedCompletionTime("2026-01-26T15:30:00Z", "2026-01-26T16:00:00Z");
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservation.isReserved()).thenReturn(true);
+            when(reservation.getMachine()).thenReturn(machine);
+            when(reservation.getUser()).thenReturn(user);
+            when(reservation.getExpectedCompletionTime()).thenReturn(dryerCompletionTime);
+            when(machine.isWasher()).thenReturn(false);
+            when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(true);
+
+            // When
+            reservationLifecycleProcessor.processReservedToRunning(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, times(1)).start(dryerCompletionTime);
+            verify(reservationNotificationSupport, times(1)).sendStarted(user, machine, dryerCompletionTime);
+        }
+
+        @Test
+        @DisplayName("기기가 보고한 완료 예정 시각이 상한을 벗어나 저장되지 않으면 예상 완료 시각 없이 시작 알림을 전송한다")
+        void shouldSendStartedWithoutExpectedTime_WhenReportedCompletionTimeRejected() {
+            // Given
+            var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservation.isReserved()).thenReturn(true);
+            when(reservation.getMachine()).thenReturn(machine);
+            when(reservation.getUser()).thenReturn(user);
+            when(reservation.getExpectedCompletionTime()).thenReturn(null);
+            when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(true);
+
+            // When
+            reservationLifecycleProcessor.processReservedToRunning(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, times(1)).start(any(LocalDateTime.class));
+            verify(reservationNotificationSupport, times(1)).sendStarted(user, machine, null);
+        }
+
+        @Test
         @DisplayName("재조회 시점에 RESERVED 상태가 아니면 처리하지 않는다")
         void shouldSkip_WhenNoLongerReserved() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
             when(reservation.isReserved()).thenReturn(false);
 
             // When
@@ -174,6 +215,24 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, never()).start(any());
             verify(reservationRepository, never()).save(reservation);
         }
+
+        @Test
+        @DisplayName("RESERVED 상태여도 이미 만료된 예약이면 RUNNING으로 전환하지 않는다")
+        void shouldSkip_WhenReservedButExpired() {
+            // Given
+            var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
+            when(reservationRepository.findByIdForUpdate(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservation.isReserved()).thenReturn(true);
+            when(reservation.isExpired()).thenReturn(true);
+
+            // When
+            reservationLifecycleProcessor.processReservedToRunning(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, never()).start(any());
+            verify(machineStateDetectionSupport, never()).isRunning(any(), anyBoolean());
+            verify(reservationRepository, never()).save(reservation);
+        }
     }
 
     @Nested
@@ -181,253 +240,64 @@ class ReservationLifecycleProcessorTest {
     class ProcessRunningToCompletedTest {
 
         private void givenRunningReservation() {
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findUserIdById(RESERVATION_ID)).thenReturn(Optional.of(3L));
+            when(reservationRepository.findMachineIdById(RESERVATION_ID)).thenReturn(Optional.of(2L));
+            when(machineRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(machine));
+            when(userRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(user));
+            when(reservationRepository.findByIdForUpdateWithoutRelations(RESERVATION_ID))
+                    .thenReturn(Optional.of(reservation));
             when(reservation.isRunning()).thenReturn(true);
-            when(reservation.getMachine()).thenReturn(machine);
+            lenient().when(machineShutdownClaimSupport.claimLockedMachine(machine))
+                    .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(2L, "claim-token")));
+        }
+
+        private void givenCompletionDecision(CompletionDecision decision) {
+            when(completionDecisionSupport.decide(any(), any(), anyBoolean())).thenReturn(decision);
         }
 
         @Test
-        @DisplayName("RUNNING 상태이고 기기 작업이 완료되면 COMPLETED로 전환하고 알림을 전송한다")
-        void shouldCompleteReservation_WhenRunningAndMachineCompleted() {
+        @DisplayName("완료로 판정되면 즉시 COMPLETED로 전환하고 완료 알림을 전송한 뒤 전원 차단 대상 기기를 반환한다")
+        void shouldCompleteReservation_WhenCompleted() {
             // Given
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
             givenRunningReservation();
+            givenCompletionDecision(CompletionDecision.completed(LocalDateTime.now(KOREA_ZONE), "job_finished"));
             when(reservation.getUser()).thenReturn(user);
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.of(LocalDateTime.now(KOREA_ZONE)));
+            when(machine.getName()).thenReturn("W-2F-L1");
+            when(machine.getDeviceId()).thenReturn("device-1");
+            when(machine.isWasher()).thenReturn(true);
 
             // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+            var result = reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
 
             // Then
             verify(reservation, times(1)).complete();
-            verify(reservationRepository, times(1)).save(reservation);
-            verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
-        }
-
-        @Test
-        @DisplayName("완료 시각이 현재 예약 시작 시각보다 이전이면 이전 상태로 보고 완료 처리하지 않는다")
-        void shouldNotCompleteReservation_WhenCompletionTimeBeforeReservationStartTime() {
-            // Given
-            var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
-            var startTime = LocalDateTime.now(KOREA_ZONE);
-            var staleCompletionTime = startTime.minusMinutes(5);
-            givenRunningReservation();
-            when(reservation.getStartTime()).thenReturn(startTime);
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.of(staleCompletionTime));
-
-            // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
-
-            // Then
-            verify(reservation, never()).complete();
-            verify(machine, never()).markAsAvailable();
-            verify(reservationRepository, never()).save(reservation);
-            verify(machineRepository, never()).save(machine);
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
-        }
-
-        @Test
-        @DisplayName("완료 신호의 갱신 시각이 예약 시작 전이면 이전 상태로 보고 완료 처리하지 않는다")
-        void shouldNotCompleteReservation_WhenCompletionSignalTimestampBeforeReservationStartTime() {
-            // Given
-            var startTime = LocalDateTime.now(KOREA_ZONE);
-            var staleTimestamp = isoUtc(startTime.minusMinutes(1));
-            var deviceStatus = buildWasherStatusWithTimestamp(staleTimestamp, staleTimestamp);
-            givenRunningReservation();
-            when(machine.isWasher()).thenReturn(true);
-            when(reservation.getStartTime()).thenReturn(startTime);
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.of(startTime.plusMinutes(1)));
-
-            // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
-
-            // Then
-            verify(reservation, never()).complete();
-            verify(machine, never()).markAsAvailable();
-            verify(reservationRepository, never()).save(reservation);
-            verify(machineRepository, never()).save(machine);
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
-        }
-
-        @Test
-        @DisplayName("예상 완료 시간이 정상 범위이면 너무 이른 완료 신호를 보류한다")
-        void shouldNotCompleteReservation_WhenCompletionDetectedTooEarlyWithNormalExpectedTime() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var deviceStatus = buildDryerStatusWithTimestamp(isoUtc(nowKst), isoUtc(nowKst));
-            givenRunningReservation();
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(1));
-            when(reservation.getExpectedCompletionTime()).thenReturn(nowKst.plusMinutes(10));
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.of(nowKst));
-
-            // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
-
-            // Then
-            verify(reservation, never()).complete();
-            verify(machine, never()).markAsAvailable();
-            verify(reservationRepository, never()).save(reservation);
-            verify(machineRepository, never()).save(machine);
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
-        }
-
-        @Test
-        @DisplayName("예상 완료 시간이 비정상적으로 길고 최신 완료 증거가 있으면 완료 처리한다")
-        void shouldCompleteReservation_WhenExpectedCompletionTimeIsSuspiciousAndCompletionEvidenceIsFresh() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var deviceStatus = buildDryerStatusWithTimestamp(isoUtc(nowKst), isoUtc(nowKst));
-            givenRunningReservation();
-            when(reservation.getUser()).thenReturn(user);
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(10));
-            when(reservation.getExpectedCompletionTime()).thenReturn(nowKst.plusHours(10));
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.of(nowKst));
-
-            // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
-
-            // Then
-            verify(reservation, times(1)).complete();
-            verify(machine, times(1)).markAsAvailable();
-            verify(reservationRepository, times(1)).save(reservation);
-            verify(machineRepository, times(1)).save(machine);
-            verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
-        }
-
-        @Test
-        @DisplayName("예상 완료 시간이 비정상적으로 길어도 최신 완료 증거가 없으면 완료 신호를 보류한다")
-        void shouldNotCompleteReservation_WhenExpectedCompletionTimeIsSuspiciousButCompletionEvidenceIsMissing() {
-            // Given
-            var deviceStatus = buildDeviceStatus(null);
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            givenRunningReservation();
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(10));
-            when(reservation.getExpectedCompletionTime()).thenReturn(nowKst.plusHours(10));
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.of(nowKst));
-
-            // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
-
-            // Then
-            verify(reservation, never()).complete();
-            verify(machine, never()).markAsAvailable();
-            verify(reservationRepository, never()).save(reservation);
-            verify(machineRepository, never()).save(machine);
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
-        }
-
-        @Test
-        @DisplayName("RUNNING 상태이고 기기 작업이 완료되지 않으면 예상 완료 시각을 갱신한다")
-        void shouldUpdateExpectedCompletionTime_WhenRunningAndMachineNotCompleted() {
-            // Given
-            var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
-            givenRunningReservation();
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.empty());
-            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(false);
-            when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(false);
-            when(reservation.getExpectedCompletionTime()).thenReturn(null);
-
-            // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
-
-            // Then
-            verify(reservation, never()).complete();
-            verify(reservation, never()).cancel();
-            verify(reservation, times(1)).updateExpectedCompletionTime(any(LocalDateTime.class));
-            verify(reservationRepository, times(1)).save(reservation);
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
-        }
-
-        @Test
-        @DisplayName("완료 예정 시각 근처에서 정지 상태가 감지되면 중단 취소를 보류한다")
-        void shouldDeferInterruption_WhenStoppedNearFutureCompletionTime() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var completionTime = nowKst.plusMinutes(3);
-            var deviceStatus = buildWasherStoppedStatus("spin", isoUtc(completionTime));
-            givenRunningReservation();
-            when(machine.isWasher()).thenReturn(true);
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(40));
-            when(reservation.getExpectedCompletionTime()).thenReturn(completionTime);
-            when(reservation.getInterruptionCount()).thenReturn(1);
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.empty());
-
-            // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
-
-            // Then
             verify(reservation, times(1)).clearInterruptionCount();
-            verify(reservationRepository, times(1)).save(reservation);
-            verify(reservation, never()).incrementInterruptionCount();
-            verify(reservation, never()).cancel();
-            verify(reservationNotificationSupport, never()).sendInterruption(any(), any());
-            verify(machineStateDetectionSupport, never()).isInterrupted(any(), anyBoolean());
-        }
-
-        @Test
-        @DisplayName("완료 예정 시각 근처 정지 상태에서 완료 시각이 지나면 완료 처리한다")
-        void shouldComplete_WhenStoppedNearCompletionTimeAndTimePassed() {
-            // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var completionTime = nowKst.minusMinutes(1);
-            var deviceStatus = buildWasherStoppedStatus("spin", isoUtc(completionTime));
-            givenRunningReservation();
-            when(machine.isWasher()).thenReturn(true);
-            when(reservation.getUser()).thenReturn(user);
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(40));
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.empty());
-
-            // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
-
-            // Then
-            verify(reservation, times(1)).complete();
-            verify(machine, times(1)).markAsAvailable();
+            verify(reservation, times(1)).clearPausedAt();
+            verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
             verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
-            verify(reservation, never()).cancel();
-            verify(reservationNotificationSupport, never()).sendInterruption(any(), any());
-            verify(machineStateDetectionSupport, never()).isInterrupted(any(), anyBoolean());
+            assertThat(result).contains(new CompletedMachine(2L, "W-2F-L1", "device-1", true, "claim-token"));
         }
 
         @Test
-        @DisplayName("건조기도 완료 예정 시각 근처 정지 상태에서 완료 시각이 지나면 완료 처리한다")
-        void shouldCompleteDryer_WhenStoppedNearCompletionTimeAndTimePassed() {
+        @DisplayName("이전 사이클 신호로 보류되면 완료하지 않고 중단 판정으로 넘어가지 않는다")
+        void shouldDefer_WhenStaleCompletion() {
             // Given
-            var nowKst = LocalDateTime.now(KOREA_ZONE);
-            var completionTime = nowKst.minusMinutes(1);
-            var deviceStatus = buildDryerStoppedStatus("drying", isoUtc(completionTime));
+            var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
             givenRunningReservation();
-            when(machine.isWasher()).thenReturn(false);
-            when(reservation.getUser()).thenReturn(user);
-            when(reservation.getStartTime()).thenReturn(nowKst.minusMinutes(40));
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.empty());
+            givenCompletionDecision(CompletionDecision.deferred(LocalDateTime.now(KOREA_ZONE), "stale_completion"));
 
             // When
-            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+            var result = reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
 
             // Then
-            verify(reservation, times(1)).complete();
-            verify(machine, times(1)).markAsAvailable();
-            verify(reservationRepository, times(1)).save(reservation);
-            verify(machineRepository, times(1)).save(machine);
-            verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
-            verify(reservation, never()).cancel();
-            verify(reservationNotificationSupport, never()).sendInterruption(any(), any());
+            verify(reservation, never()).complete();
+            verify(reservationRepository, never()).save(reservation);
             verify(machineStateDetectionSupport, never()).isInterrupted(any(), anyBoolean());
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            assertThat(result).isEmpty();
         }
 
         @Test
@@ -436,8 +306,7 @@ class ReservationLifecycleProcessorTest {
             // Given
             var deviceStatus = buildDeviceStatus(null);
             givenRunningReservation();
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.empty());
+            givenCompletionDecision(CompletionDecision.notCompleted());
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
             when(reservation.getInterruptionCount()).thenReturn(1);
@@ -460,9 +329,8 @@ class ReservationLifecycleProcessorTest {
             // Given
             var deviceStatus = buildDeviceStatus(null);
             givenRunningReservation();
+            givenCompletionDecision(CompletionDecision.notCompleted());
             when(reservation.getUser()).thenReturn(user);
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.empty());
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
             when(reservation.getInterruptionCount()).thenReturn(ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD);
@@ -474,7 +342,7 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, times(1)).incrementInterruptionCount();
             verify(reservation, times(1)).cancel();
             verify(reservation, times(1)).clearInterruptionCount();
-            verify(machine, times(1)).markAsAvailable();
+            verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
             verify(reservationNotificationSupport, times(1)).sendInterruption(user, machine);
@@ -488,8 +356,7 @@ class ReservationLifecycleProcessorTest {
             // Given
             var deviceStatus = buildDeviceStatus(null);
             givenRunningReservation();
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.empty());
+            givenCompletionDecision(CompletionDecision.notCompleted());
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
@@ -512,14 +379,13 @@ class ReservationLifecycleProcessorTest {
             // Given
             var deviceStatus = buildDeviceStatus(null);
             givenRunningReservation();
+            givenCompletionDecision(CompletionDecision.notCompleted());
             when(reservation.getUser()).thenReturn(user);
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.empty());
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
-            when(reservation.getPausedAt()).thenReturn(LocalDateTime.now().minusMinutes(11));
+            when(reservation.getPausedAt()).thenReturn(LocalDateTime.now(KOREA_ZONE).minusMinutes(11));
 
             // When
             reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
@@ -527,7 +393,7 @@ class ReservationLifecycleProcessorTest {
             // Then
             verify(reservation, times(1)).cancel();
             verify(reservation, times(1)).clearPausedAt();
-            verify(machine, times(1)).markAsAvailable();
+            verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
             verify(reservationNotificationSupport, times(1)).sendPauseTimeout(user, machine);
@@ -536,19 +402,89 @@ class ReservationLifecycleProcessorTest {
         }
 
         @Test
+        @DisplayName("RUNNING 상태이고 기기 작업이 완료되지 않으면 예상 완료 시각을 갱신한다")
+        void shouldUpdateExpectedCompletionTime_WhenRunningAndMachineNotCompleted() {
+            // Given
+            var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
+            givenRunningReservation();
+            givenCompletionDecision(CompletionDecision.notCompleted());
+            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(false);
+            when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(false);
+            when(reservation.getExpectedCompletionTime()).thenReturn(null);
+            when(reservation.updateExpectedCompletionTime(any(LocalDateTime.class))).thenReturn(true);
+
+            // When
+            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, never()).complete();
+            verify(reservation, never()).cancel();
+            verify(reservation, times(1)).updateExpectedCompletionTime(any(LocalDateTime.class));
+            verify(reservationRepository, times(1)).save(reservation);
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+        }
+
+        @Test
+        @DisplayName("건조기 진행 중 상태 갱신 시 건조기 완료 예정 시간을 저장해야 한다")
+        void shouldUpdateDryerExpectedCompletionTime_WhenBothCompletionTimesExist() {
+            // Given
+            var deviceStatus = buildStatusWithMixedCompletionTime("2026-01-26T15:30:00Z", "2026-01-26T16:00:00Z");
+            givenRunningReservation();
+            givenCompletionDecision(CompletionDecision.notCompleted());
+            when(machine.isWasher()).thenReturn(false);
+            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(false);
+            when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(false);
+            when(reservation.getExpectedCompletionTime()).thenReturn(null);
+            when(reservation.updateExpectedCompletionTime(any(LocalDateTime.class))).thenReturn(true);
+
+            // When
+            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, times(1)).updateExpectedCompletionTime(LocalDateTime.of(2026, 1, 27, 1, 0));
+            verify(reservationRepository, times(1)).save(reservation);
+        }
+
+        @Test
+        @DisplayName("기기가 보고한 완료 예정 시각이 상한을 벗어나 거부되면 저장하지 않는다")
+        void shouldNotSave_WhenReportedExpectedCompletionTimeRejected() {
+            // Given
+            var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
+            givenRunningReservation();
+            givenCompletionDecision(CompletionDecision.notCompleted());
+            when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(false);
+            when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(false);
+            when(reservation.getExpectedCompletionTime()).thenReturn(null);
+            when(reservation.updateExpectedCompletionTime(any(LocalDateTime.class))).thenReturn(false);
+
+            // When
+            reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+
+            // Then
+            verify(reservation, times(1)).updateExpectedCompletionTime(any(LocalDateTime.class));
+            verify(reservationRepository, never()).save(reservation);
+        }
+
+        @Test
         @DisplayName("일시정지 후 재개되면 pausedAt을 초기화하고 예상 완료 시각을 갱신한다")
         void shouldClearPausedAtAndUpdateExpectedTime_WhenMachineResumed() {
             // Given
             var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
             givenRunningReservation();
-            when(machineStateDetectionSupport.isCompleted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
-                    .thenReturn(Optional.empty());
+            givenCompletionDecision(CompletionDecision.notCompleted());
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(false);
-            when(reservation.getPausedAt()).thenReturn(LocalDateTime.now().minusMinutes(3));
+            when(reservation.getPausedAt()).thenReturn(LocalDateTime.now(KOREA_ZONE).minusMinutes(3));
             when(reservation.getExpectedCompletionTime()).thenReturn(null);
+            when(reservation.updateExpectedCompletionTime(any(LocalDateTime.class))).thenReturn(true);
 
             // When
             reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
@@ -565,7 +501,12 @@ class ReservationLifecycleProcessorTest {
         void shouldSkip_WhenNoLongerRunning() {
             // Given
             var deviceStatus = buildDeviceStatus(null);
-            when(reservationRepository.findById(RESERVATION_ID)).thenReturn(Optional.of(reservation));
+            when(reservationRepository.findUserIdById(RESERVATION_ID)).thenReturn(Optional.of(3L));
+            when(reservationRepository.findMachineIdById(RESERVATION_ID)).thenReturn(Optional.of(2L));
+            when(machineRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(machine));
+            when(userRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(user));
+            when(reservationRepository.findByIdForUpdateWithoutRelations(RESERVATION_ID))
+                    .thenReturn(Optional.of(reservation));
             when(reservation.isRunning()).thenReturn(false);
 
             // When
@@ -575,6 +516,24 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, never()).complete();
             verify(reservation, never()).cancel();
             verify(reservationRepository, never()).save(reservation);
+        }
+
+        @Test
+        @DisplayName("전원 차단 선점을 확보하지 못하면 완료 처리하지 않는다")
+        void shouldNotComplete_WhenShutdownClaimIsUnavailable() {
+            // Given
+            var deviceStatus = buildDeviceStatus("2026-01-26T15:30:00Z");
+            givenRunningReservation();
+            givenCompletionDecision(CompletionDecision.completed(LocalDateTime.now(KOREA_ZONE), "job_finished"));
+            when(machineShutdownClaimSupport.claimLockedMachine(machine)).thenReturn(Optional.empty());
+
+            // When
+            var result = reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+
+            // Then
+            assertThat(result).isEmpty();
+            verify(reservation, never()).complete();
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
         }
     }
 }

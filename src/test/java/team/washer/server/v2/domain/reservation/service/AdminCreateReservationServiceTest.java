@@ -1,0 +1,370 @@
+package team.washer.server.v2.domain.reservation.service;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.transaction.PlatformTransactionManager;
+
+import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
+import team.washer.server.v2.domain.machine.entity.Machine;
+import team.washer.server.v2.domain.machine.enums.MachineAvailability;
+import team.washer.server.v2.domain.machine.enums.MachineStatus;
+import team.washer.server.v2.domain.machine.enums.MachineType;
+import team.washer.server.v2.domain.machine.repository.MachineRepository;
+import team.washer.server.v2.domain.reservation.dto.request.AdminCreateReservationReqDto;
+import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
+import team.washer.server.v2.domain.reservation.service.impl.AdminCreateReservationServiceImpl;
+import team.washer.server.v2.domain.reservation.support.ReservationCreationSupport;
+import team.washer.server.v2.domain.reservation.support.ReservationDeviceStateVerifier;
+import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
+import team.washer.server.v2.global.security.provider.CurrentUserProvider;
+
+@ExtendWith(MockitoExtension.class)
+class AdminCreateReservationServiceTest {
+
+    private AdminCreateReservationServiceImpl adminCreateReservationService;
+
+    @Mock
+    private ReservationRepository reservationRepository;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private MachineRepository machineRepository;
+    @Mock
+    private WashingBanRepository washingBanRepository;
+    @Mock
+    private CurrentUserProvider currentUserProvider;
+    @Mock
+    private ReservationDeviceStateVerifier reservationDeviceStateVerifier;
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
+    @Mock
+    private User targetUser;
+    @Mock
+    private User adminUser;
+    @Mock
+    private Machine machine;
+    @Mock
+    private Reservation activeReservation;
+
+    private static final Long TARGET_USER_ID = 12L;
+    private static final Long ADMIN_ID = 1L;
+    private static final Long MACHINE_ID = 3L;
+    private static final String ROOM_NUMBER = "301";
+    private static final String ADMIN_NAME = "박관리";
+
+    // 불변식 검증 순서와 에러 메시지를 그대로 검증하기 위해 Support는 실제 구현체를 사용한다
+    @BeforeEach
+    void setUp() {
+        final var reservationCreationSupport = new ReservationCreationSupport(reservationRepository,
+                machineRepository,
+                washingBanRepository,
+                userRepository);
+        adminCreateReservationService = new AdminCreateReservationServiceImpl(userRepository,
+                currentUserProvider,
+                reservationCreationSupport,
+                reservationDeviceStateVerifier,
+                transactionManager);
+        lenient().when(reservationRepository.existsCurrentlyActiveByMachine(any())).thenReturn(false);
+        lenient().when(reservationRepository.existsCurrentlyActiveByUser(any())).thenReturn(false);
+        lenient().when(reservationRepository.existsCurrentlyActiveByRoomNumberAndMachineType(any(), any()))
+                .thenReturn(false);
+    }
+
+    private AdminCreateReservationReqDto givenValidRequest() {
+        when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+        when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+        when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
+        when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+        when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
+        when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.of(machine));
+        when(machineRepository.findByIdForUpdate(MACHINE_ID)).thenReturn(Optional.of(machine));
+        when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
+        when(reservationRepository.save(any(Reservation.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        return new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
+    }
+
+    @Nested
+    @DisplayName("관리자 대리 예약 생성")
+    class ExecuteTest {
+
+        @Test
+        @DisplayName("관리자가 지정한 사용자 명의로 예약이 생성된다")
+        void execute_ShouldCreateReservationForTargetUser() {
+            // Given
+            final var reqDto = givenValidRequest();
+
+            // When
+            final var result = adminCreateReservationService.execute(reqDto);
+
+            // Then
+            final var captor = ArgumentCaptor.forClass(Reservation.class);
+            verify(reservationRepository).save(captor.capture());
+            assertThat(captor.getValue().getUser()).isSameAs(targetUser);
+            assertThat(result).isNotNull();
+            verify(machine).markAsReserved();
+        }
+
+        @Test
+        @DisplayName("생성된 예약의 createdBy에 관리자가 기록된다")
+        void execute_ShouldRecordAdminAsCreatedBy() {
+            // Given
+            final var reqDto = givenValidRequest();
+            when(adminUser.getName()).thenReturn(ADMIN_NAME);
+
+            // When
+            final var result = adminCreateReservationService.execute(reqDto);
+
+            // Then
+            final var captor = ArgumentCaptor.forClass(Reservation.class);
+            verify(reservationRepository).save(captor.capture());
+            assertThat(captor.getValue().getCreatedBy()).isSameAs(adminUser);
+            assertThat(captor.getValue().isProxyReservation()).isTrue();
+            assertThat(result.createdByAdminName()).isEqualTo(ADMIN_NAME);
+        }
+
+        @Test
+        @DisplayName("시간 제한 시간대에도 대리 예약이 생성된다")
+        void execute_ShouldBypassTimeRestriction() {
+            // Given
+            final var reqDto = givenValidRequest();
+
+            // When
+            adminCreateReservationService.execute(reqDto);
+
+            // Then
+            verify(targetUser, never()).validateTimeRestriction(any());
+            verify(reservationRepository).save(any(Reservation.class));
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 사용자면 NOT_FOUND 예외를 발생시킨다")
+        void execute_ShouldThrowNotFound_WhenTargetUserNotFound() {
+            // Given
+            final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
+            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ExpectedException.class).hasMessageContaining("사용자를 찾을 수 없습니다").satisfies(
+                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 기기면 NOT_FOUND 예외를 발생시킨다")
+        void execute_ShouldThrowNotFound_WhenMachineNotFound() {
+            // Given
+            final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
+            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
+            when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+            when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.empty());
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ExpectedException.class).hasMessageContaining("기기를 찾을 수 없습니다").satisfies(
+                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+        }
+
+        @Test
+        @DisplayName("세탁이 금지된 호실이면 FORBIDDEN 예외를 발생시킨다")
+        void execute_ShouldThrowForbidden_WhenRoomIsBanned() {
+            // Given
+            final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
+            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
+            when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+            when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(washingBanRepository.existsByRoomNumber(ROOM_NUMBER)).thenReturn(true);
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ExpectedException.class).hasMessageContaining("세탁이 금지된").satisfies(
+                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+        }
+
+        @Test
+        @DisplayName("기기가 사용 불가 상태이면 BAD_REQUEST 예외를 발생시킨다")
+        void execute_ShouldThrowBadRequest_WhenMachineNotAvailable() {
+            // Given
+            final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
+            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
+            when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+            when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.of(machine));
+            when(machine.getAvailability()).thenReturn(MachineAvailability.IN_USE);
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ExpectedException.class).hasMessageContaining("해당 기기를 사용할 수 없습니다").satisfies(
+                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+        }
+
+        @Test
+        @DisplayName("만료 RESERVED 예약이 남은 기기는 만료 처리가 끝날 때까지 대리 예약을 막는다")
+        void execute_ShouldRejectProxyReservation_WhenOnlyExpiredMachineReservationExists() {
+            // Given
+            final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
+            final var machineWithExpiredReservation = Machine.builder().name("세탁기 1")
+                    .availability(MachineAvailability.RESERVED).status(MachineStatus.NORMAL).build();
+            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
+            when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+            when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.of(machineWithExpiredReservation));
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ExpectedException.class).hasMessageContaining("해당 기기를 사용할 수 없습니다").satisfies(
+                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+            verify(machineRepository, never()).save(machineWithExpiredReservation);
+            verify(reservationRepository, never()).save(any(Reservation.class));
+        }
+
+        @Test
+        @DisplayName("기기에 이미 진행 중인 예약이 있으면 CONFLICT 예외를 발생시킨다")
+        void execute_ShouldThrowConflict_WhenMachineHasActiveReservation() {
+            // Given
+            final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
+            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
+            when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+            when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.of(machine));
+            when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
+            when(reservationRepository.existsCurrentlyActiveByMachine(machine)).thenReturn(true);
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ExpectedException.class).hasMessageContaining("이미 진행 중인 예약이 있습니다")
+                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+        }
+
+        @Test
+        @DisplayName("대상 사용자에게 이미 활성 예약이 있으면 예외를 발생시킨다")
+        void execute_ShouldThrowBadRequest_WhenTargetUserHasActiveReservation() {
+            // Given
+            final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
+            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
+            when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+            when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.of(machine));
+            when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
+            when(reservationRepository.existsCurrentlyActiveByUser(targetUser)).thenReturn(true);
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ExpectedException.class).hasMessageContaining("1인 1예약만 가능합니다");
+        }
+
+        @Test
+        @DisplayName("호실에 동일 유형의 활성 예약이 있으면 예외를 발생시킨다")
+        void execute_ShouldThrowBadRequest_WhenRoomHasSameTypeReservation() {
+            // Given
+            final var reqDto = new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
+            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
+            when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+            when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.of(machine));
+            when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
+            when(machine.getType()).thenReturn(MachineType.WASHER);
+            when(reservationRepository.existsCurrentlyActiveByRoomNumberAndMachineType(ROOM_NUMBER, machine.getType()))
+                    .thenReturn(true);
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ExpectedException.class).hasMessageContaining("동일 유형의 기기는 동시에 두 개 이상 예약할 수 없습니다");
+        }
+    }
+
+    @Nested
+    @DisplayName("SmartThings 작동 상태 검증")
+    class DeviceStateVerificationTest {
+
+        private AdminCreateReservationReqDto givenPreValidatedRequest() {
+            when(userRepository.findById(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(currentUserProvider.getCurrentUserId()).thenReturn(ADMIN_ID);
+            when(userRepository.findById(ADMIN_ID)).thenReturn(Optional.of(adminUser));
+            when(targetUser.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.of(machine));
+            when(machine.getAvailability()).thenReturn(MachineAvailability.AVAILABLE);
+            return new AdminCreateReservationReqDto(TARGET_USER_ID, MACHINE_ID);
+        }
+
+        @Test
+        @DisplayName("기기가 작동 중이면 사용자 본인 예약과 동일하게 대리 예약을 거부한다")
+        void execute_ShouldReject_WhenMachineIsOperating() {
+            // Given
+            final var reqDto = givenPreValidatedRequest();
+            doThrow(new ExpectedException("해당 기기가 현재 작동 중이어서 예약할 수 없습니다. 기기: 세탁기-1", HttpStatus.CONFLICT))
+                    .when(reservationDeviceStateVerifier).verifyNotOperating(machine);
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ExpectedException.class).hasMessageContaining("작동 중")
+                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+            verify(userRepository, never()).findByIdForUpdate(any());
+            verify(machineRepository, never()).findByIdForUpdate(any());
+            verify(reservationRepository, never()).save(any(Reservation.class));
+        }
+
+        @Test
+        @DisplayName("기기 상태를 확인할 수 없으면 MACHINE_STATE_UNAVAILABLE 오류 코드로 대리 예약을 거부한다")
+        void execute_ShouldRejectWithErrorCode_WhenDeviceStateUnknown() {
+            // Given
+            final var reqDto = givenPreValidatedRequest();
+            doThrow(new ErrorCodeException(ErrorCode.MACHINE_STATE_UNAVAILABLE)).when(reservationDeviceStateVerifier)
+                    .verifyNotOperating(machine);
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ErrorCodeException.class).extracting(e -> ((ErrorCodeException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.MACHINE_STATE_UNAVAILABLE);
+            verify(machineRepository, never()).findByIdForUpdate(any());
+            verify(reservationRepository, never()).save(any(Reservation.class));
+        }
+
+        @Test
+        @DisplayName("상태 확인과 락 사이에 다른 예약이 생기면 락 아래 재검증에서 CONFLICT로 거부한다")
+        void execute_ShouldThrowConflict_WhenReservationCreatedBetweenVerificationAndLock() {
+            // Given
+            final var reqDto = givenPreValidatedRequest();
+            when(userRepository.findByIdForUpdate(TARGET_USER_ID)).thenReturn(Optional.of(targetUser));
+            when(machineRepository.findByIdForUpdate(MACHINE_ID)).thenReturn(Optional.of(machine));
+            // 사전 검증 시에는 비어 있었지만 외부 조회 중 다른 요청이 먼저 예약을 저장한 상황
+            when(reservationRepository.existsCurrentlyActiveByMachine(machine)).thenReturn(false).thenReturn(true);
+
+            // When & Then
+            assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
+                    .isInstanceOf(ExpectedException.class).hasMessageContaining("이미 진행 중인 예약이 있습니다")
+                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+            verify(userRepository).findRoomUserIdsByUserIdForUpdate(TARGET_USER_ID);
+            verify(reservationDeviceStateVerifier, times(1)).verifyNotOperating(machine);
+            verify(reservationRepository, never()).save(any(Reservation.class));
+        }
+    }
+}

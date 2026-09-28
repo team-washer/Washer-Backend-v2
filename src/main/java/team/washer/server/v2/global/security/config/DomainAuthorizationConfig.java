@@ -1,6 +1,7 @@
 package team.washer.server.v2.global.security.config;
 
 import org.springframework.core.env.Environment;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer;
 import org.springframework.stereotype.Component;
@@ -32,12 +33,17 @@ public class DomainAuthorizationConfig {
                 // Swagger UI
                 .requestMatchers(swaggerUiResources, swaggerUiPath, apiDocsPath, apiDocsPath + "/**").permitAll()
                 // 헬스 체크
-                .requestMatchers("/api/v2/health", "/api/v2/admin/smartthings/**", "/api/v2/app-versions/status")
-                .permitAll()
+                .requestMatchers("/api/v2/health", "/api/v2/app-versions/status", "/api/v2/events/datagsm").permitAll()
+                // SmartThings OAuth 콜백은 외부 서비스의 리다이렉트를 위해 공개한다.
+                .requestMatchers("/api/v2/admin/smartthings/oauth/callback").permitAll()
                 // 인증 엔드포인트
                 .requestMatchers("/api/v2/auth/login", "/api/v2/auth/refresh", "/api/v2/auth/token/status").permitAll()
+                // 임의 사용자에게 임의 문구를 발송할 수 있으므로 테스트 푸시 발송은 ADMIN으로만 제한한다.
+                .requestMatchers(HttpMethod.POST, "/api/v2/admin/notifications/test").hasAuthority("ADMIN")
                 // 관리자 엔드포인트
                 .requestMatchers("/api/v2/admin/**").hasAnyAuthority("DORMITORY_COUNCIL", "ADMIN")
+                // SmartThings 액세스 토큰은 관리자급 권한이 필요하다.
+                .requestMatchers("/api/v2/smartthings/token").hasAnyAuthority("DORMITORY_COUNCIL", "ADMIN")
                 // 그 외 엔드포인트 - 인증 필요
                 .anyRequest().authenticated();
     }

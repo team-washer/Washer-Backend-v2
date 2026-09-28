@@ -15,12 +15,14 @@ import team.themoment.sdk.response.CommonApiResponse;
 import team.washer.server.v2.domain.notification.dto.response.NotificationListResDto;
 import team.washer.server.v2.domain.notification.service.DeleteAllNotificationsService;
 import team.washer.server.v2.domain.notification.service.QueryNotificationListService;
+import team.washer.server.v2.global.config.swagger.CommonErrorResponses;
 
 @RestController
 @RequestMapping("/api/v2/notifications")
 @RequiredArgsConstructor
 @Tag(name = "Notification", description = "알림 API")
 @SecurityRequirement(name = "bearerAuth")
+@CommonErrorResponses
 public class NotificationController {
 
     private final QueryNotificationListService queryNotificationListService;

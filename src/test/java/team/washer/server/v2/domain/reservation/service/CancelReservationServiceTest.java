@@ -25,10 +25,12 @@ import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
+import team.washer.server.v2.domain.reservation.enums.RestrictionStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.CancelReservationServiceImpl;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,7 +56,13 @@ class CancelReservationServiceTest {
     private CurrentUserProvider currentUserProvider;
 
     @Mock
+    private UserRepository userRepository;
+
+    @Mock
     private User user;
+
+    @Mock
+    private User adminUser;
 
     private Machine createMachine() {
         return Machine.builder().name("W-2F-L1").type(MachineType.WASHER).deviceId("device-1").floor(2)
@@ -64,8 +72,19 @@ class CancelReservationServiceTest {
 
     private Reservation createReservation(final ReservationStatus status, final Long userId) {
         var machine = createMachine();
-        given(user.getId()).willReturn(userId);
-        return Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now()).status(status).build();
+        if (status == ReservationStatus.RUNNING) {
+            machine.markAsInUse();
+        }
+        lenient().when(user.getId()).thenReturn(userId);
+        final var reservation = Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now())
+                .status(status).build();
+        lenient().when(reservationRepository.findUserIdById(anyLong())).thenReturn(Optional.of(userId));
+        lenient().when(reservationRepository.findMachineIdById(anyLong())).thenReturn(Optional.of(1L));
+        lenient().when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(user));
+        lenient().when(machineRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(machine));
+        lenient().when(reservationRepository.findByIdForUpdateWithoutRelations(anyLong()))
+                .thenReturn(Optional.of(reservation));
+        return reservation;
     }
 
     @Nested
@@ -84,8 +103,7 @@ class CancelReservationServiceTest {
                 var reservationId = 10L;
                 var reservation = createReservation(ReservationStatus.RESERVED, userId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
                 given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(0L);
 
                 // When
@@ -105,6 +123,40 @@ class CancelReservationServiceTest {
         }
 
         @Nested
+        @DisplayName("관리자가 대리 생성한 RESERVED 예약을 소유자가 취소할 때")
+        class Context_with_proxy_reservation {
+
+            @Test
+            @DisplayName("패널티 없이 예약만 취소되어야 한다")
+            void it_cancels_without_penalty() {
+                // Given
+                var userId = 1L;
+                var reservationId = 10L;
+                var machine = createMachine();
+                lenient().when(user.getId()).thenReturn(userId);
+                var reservation = Reservation.builder().user(user).machine(machine).createdBy(adminUser)
+                        .reservedAt(LocalDateTime.now()).status(ReservationStatus.RESERVED).build();
+                lenient().when(reservationRepository.findUserIdById(anyLong())).thenReturn(Optional.of(userId));
+                lenient().when(reservationRepository.findMachineIdById(anyLong())).thenReturn(Optional.of(1L));
+                lenient().when(userRepository.findByIdForUpdate(userId)).thenReturn(Optional.of(user));
+                lenient().when(machineRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(machine));
+                lenient().when(reservationRepository.findByIdForUpdateWithoutRelations(anyLong()))
+                        .thenReturn(Optional.of(reservation));
+
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
+
+                // When
+                var result = cancelReservationService.execute(reservationId);
+
+                // Then
+                assertThat(result.penaltyApplied()).isFalse();
+                assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+                assertThat(reservation.getMachine().getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
+                then(penaltyRedisUtil).shouldHaveNoInteractions();
+            }
+        }
+
+        @Nested
         @DisplayName("48시간 취소 횟수를 초과한 RESERVED 예약을 취소할 때")
         class Context_with_block_threshold_exceeded {
 
@@ -116,11 +168,11 @@ class CancelReservationServiceTest {
                 var reservationId = 10L;
                 var reservation = createReservation(ReservationStatus.RESERVED, userId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
                 given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(5L);
                 given(user.getRoomNumber()).willReturn("101");
-                given(penaltyRedisUtil.isBlocked("101")).willReturn(false);
+                given(penaltyRedisUtil.checkBlock("101")).willReturn(RestrictionStatus.NONE);
+                given(penaltyRedisUtil.applyBlock("101")).willReturn(true);
 
                 // When
                 cancelReservationService.execute(reservationId);
@@ -139,11 +191,11 @@ class CancelReservationServiceTest {
                 var reservationId = 10L;
                 var reservation = createReservation(ReservationStatus.RESERVED, userId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
                 given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(6L);
                 given(user.getRoomNumber()).willReturn("101");
-                given(penaltyRedisUtil.isBlocked("101")).willReturn(true);
+                given(penaltyRedisUtil.checkBlock("101")).willReturn(RestrictionStatus.RESTRICTED);
+                given(penaltyRedisUtil.applyBlock("101")).willReturn(true);
 
                 // When
                 cancelReservationService.execute(reservationId);
@@ -155,29 +207,83 @@ class CancelReservationServiceTest {
         }
 
         @Nested
-        @DisplayName("RUNNING 상태의 예약을 소유자가 취소할 때")
-        class Context_with_running_reservation_by_owner {
+        @DisplayName("48시간 취소 횟수를 초과했지만 Redis 장애로 차단 저장에 실패할 때")
+        class Context_with_block_apply_failure {
 
             @Test
-            @DisplayName("패널티 없이 예약이 취소되어야 한다")
-            void it_cancels_without_penalty() {
+            @DisplayName("예약 취소는 완료되고 차단 알림은 전송하지 않아야 한다")
+            void it_cancels_without_block_notification() {
                 // Given
                 var userId = 1L;
                 var reservationId = 10L;
-                var reservation = createReservation(ReservationStatus.RUNNING, userId);
+                var reservation = createReservation(ReservationStatus.RESERVED, userId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
+                given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(5L);
+                given(user.getRoomNumber()).willReturn("101");
+                given(penaltyRedisUtil.checkBlock("101")).willReturn(RestrictionStatus.UNAVAILABLE);
+                given(penaltyRedisUtil.applyBlock("101")).willReturn(false);
 
                 // When
                 var result = cancelReservationService.execute(reservationId);
 
                 // Then
-                assertThat(result).isNotNull();
                 assertThat(result.success()).isTrue();
-                assertThat(result.penaltyApplied()).isFalse();
                 assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
+                assertThat(reservation.getMachine().getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
+                then(reservationRepository).should(times(1)).save(reservation);
+                then(reservationNotificationSupport).should(never()).sendCancellationBlock(any(), any());
+            }
+
+            @Test
+            @DisplayName("기존 차단 조회만 실패하고 차단 저장에 성공하면 차단 알림을 전송해야 한다")
+            void it_sends_notification_when_only_lookup_fails() {
+                // Given
+                var userId = 1L;
+                var reservationId = 10L;
+                var reservation = createReservation(ReservationStatus.RESERVED, userId);
+
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
+                given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(5L);
+                given(user.getRoomNumber()).willReturn("101");
+                given(penaltyRedisUtil.checkBlock("101")).willReturn(RestrictionStatus.UNAVAILABLE);
+                given(penaltyRedisUtil.applyBlock("101")).willReturn(true);
+
+                // When
+                cancelReservationService.execute(reservationId);
+
+                // Then
+                then(reservationNotificationSupport).should(times(1)).sendCancellationBlock(user,
+                        reservation.getMachine());
+            }
+        }
+
+        @Nested
+        @DisplayName("RUNNING 상태의 예약을 소유자가 취소할 때")
+        class Context_with_running_reservation_by_owner {
+
+            @Test
+            @DisplayName("예약과 기기 상태를 보존하고 CONFLICT 예외를 발생시켜야 한다")
+            void it_keeps_running_state_and_throws_conflict() {
+                // Given
+                var userId = 1L;
+                var reservationId = 10L;
+                var reservation = createReservation(ReservationStatus.RUNNING, userId);
+
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
+
+                // When & Then
+                assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
+                        .isInstanceOf(ExpectedException.class)
+                        .hasMessage("이미 기기 사용이 시작되어 예약을 취소할 수 없습니다. 최신 상태를 확인해주세요.")
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.CONFLICT));
+
+                assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RUNNING);
+                assertThat(reservation.getMachine().getAvailability()).isEqualTo(MachineAvailability.IN_USE);
                 then(penaltyRedisUtil).should(never()).applyCooldown(anyLong(), any());
+                then(reservationRepository).should(never()).save(any());
+                then(machineRepository).should(never()).save(any());
             }
         }
 
@@ -194,8 +300,7 @@ class CancelReservationServiceTest {
                 var reservationId = 10L;
                 var reservation = createReservation(ReservationStatus.RESERVED, ownerUserId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(requestUserId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(requestUserId);
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
@@ -217,14 +322,37 @@ class CancelReservationServiceTest {
                 var reservationId = 10L;
                 var reservation = createReservation(ReservationStatus.COMPLETED, userId);
 
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("활성 예약만 취소할 수 있습니다")
+                        .isInstanceOf(ExpectedException.class).hasMessage("취소할 수 있는 상태의 예약이 아닙니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));
+            }
+        }
+
+        @Nested
+        @DisplayName("이미 취소된 예약을 다시 취소하려 할 때")
+        class Context_with_cancelled_reservation {
+
+            @Test
+            @DisplayName("ExpectedException을 발생시키고 저장하지 않아야 한다")
+            void it_throws_bad_request_exception_without_saving() {
+                // Given
+                var userId = 1L;
+                var reservationId = 10L;
+                var reservation = createReservation(ReservationStatus.CANCELLED, userId);
+
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
+
+                // When & Then
+                assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
+                        .isInstanceOf(ExpectedException.class)
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_REQUEST));
+                then(reservationRepository).should(never()).save(any());
+                then(machineRepository).should(never()).save(any());
             }
         }
 
@@ -238,8 +366,7 @@ class CancelReservationServiceTest {
                 // Given
                 var userId = 1L;
                 var reservationId = 999L;
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(reservationRepository.findById(reservationId)).willReturn(Optional.empty());
+                lenient().when(currentUserProvider.getCurrentUserId()).thenReturn(userId);
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))

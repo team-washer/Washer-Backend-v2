@@ -191,13 +191,11 @@ public class User extends BaseEntity {
                 if (time.isBefore(TimeRestrictionConstants.RESTRICTION_START_TIME)) {
                     return;
                 }
-                // TODO(임시): 월~목 21:20 예약 시간 제한 일시 해제. 되돌릴 때 아래 블록 주석 해제할 것.
-                // if (time.isBefore(TimeRestrictionConstants.WEEKDAY_START_TIME)) {
-                // throw new ExpectedException(
-                // String.format("%s 이후에만 예약할 수 있습니다",
-                // TimeRestrictionConstants.WEEKDAY_START_TIME),
-                // HttpStatus.BAD_REQUEST);
-                // }
+                if (time.isBefore(TimeRestrictionConstants.WEEKDAY_START_TIME)) {
+                    throw new ExpectedException(
+                            String.format("%s 이후에만 예약할 수 있습니다", TimeRestrictionConstants.WEEKDAY_START_TIME),
+                            HttpStatus.BAD_REQUEST);
+                }
             }
             case SUNDAY -> {
                 if (time.isBefore(TimeRestrictionConstants.RESTRICTION_START_TIME)) {
@@ -251,6 +249,16 @@ public class User extends BaseEntity {
     }
 
     /**
+     * 사용자 권한을 변경합니다.
+     *
+     * @param newRole
+     *            새 권한
+     */
+    public void changeRole(final UserRole newRole) {
+        this.role = newRole;
+    }
+
+    /**
      * 사용자 정보 수정
      *
      * @param roomNumber
@@ -269,6 +277,31 @@ public class User extends BaseEntity {
         }
         if (floor != null) {
             this.floor = floor;
+        }
+    }
+
+    /**
+     * DataGSM 이벤트로 전달된 사용자 정보를 반영합니다. 관리자 권한은 서비스 내부에서 별도로 지정하므로 DataGSM 역할 변경으로
+     * 덮어쓰지 않습니다.
+     *
+     * @param name
+     *            이름 (null이면 유지)
+     * @param roomNumber
+     *            호실 (null이면 유지)
+     * @param grade
+     *            학년 (null이면 유지)
+     * @param floor
+     *            층 (null이면 유지)
+     * @param role
+     *            사용자 권한 (null이면 유지)
+     */
+    public void updateDataGsmInfo(String name, String roomNumber, Integer grade, Integer floor, UserRole role) {
+        if (name != null) {
+            this.name = name;
+        }
+        updateInfo(roomNumber, grade, floor);
+        if (role != null && !this.role.isAdmin()) {
+            this.role = role;
         }
     }
 }

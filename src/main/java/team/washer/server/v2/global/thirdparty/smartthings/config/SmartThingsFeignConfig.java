@@ -15,13 +15,16 @@ import tools.jackson.databind.ObjectMapper;
 @Configuration
 public class SmartThingsFeignConfig {
 
-    private static final int CONNECT_TIMEOUT = 5000;
-    private static final int READ_TIMEOUT = 5000;
-    private static final int MAX_ATTEMPTS = 2;
+    public static final int CONNECT_TIMEOUT_MILLIS = 5000;
+    public static final int READ_TIMEOUT_MILLIS = 5000;
+    public static final int MAX_ATTEMPTS = 2;
+    public static final int MAX_RETRY_BACKOFF_MILLIS = 1000;
+    public static final long MAX_REQUEST_LIFETIME_MILLIS = (long) MAX_ATTEMPTS
+            * (CONNECT_TIMEOUT_MILLIS + READ_TIMEOUT_MILLIS) + (long) (MAX_ATTEMPTS - 1) * MAX_RETRY_BACKOFF_MILLIS;
 
     @Bean
     public Request.Options smartThingsRequestOptions() {
-        return new Request.Options(CONNECT_TIMEOUT, READ_TIMEOUT);
+        return new Request.Options(CONNECT_TIMEOUT_MILLIS, READ_TIMEOUT_MILLIS);
     }
 
     @Bean
