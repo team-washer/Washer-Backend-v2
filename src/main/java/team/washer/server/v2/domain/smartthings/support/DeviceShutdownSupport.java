@@ -71,7 +71,7 @@ public class DeviceShutdownSupport {
                     status.getOperatingState(true));
             return ShutdownResult.SKIPPED_WASHER_DRAINING;
         }
-        return powerOff(machineName, deviceId, isWasher, status, false);
+        return powerOff(machineName, deviceId, isWasher, status, true);
     }
 
     /**

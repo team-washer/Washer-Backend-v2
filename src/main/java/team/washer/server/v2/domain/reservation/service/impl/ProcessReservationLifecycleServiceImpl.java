@@ -16,6 +16,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -45,6 +46,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
     private final ReservationLifecycleProcessor reservationLifecycleProcessor;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
     private final DeviceShutdownSupport deviceShutdownSupport;
+    private final MachineShutdownClaimSupport machineShutdownClaimSupport;
     private final LongRunningReservationMonitor longRunningReservationMonitor;
 
     @Autowired(required = false)
@@ -138,6 +140,10 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     completedMachine.deviceId(),
                     e.getMessage());
             return true;
+        } finally {
+            machineShutdownClaimSupport
+                    .release(new MachineShutdownClaimSupport.ShutdownClaim(completedMachine.machineId(),
+                            completedMachine.shutdownClaimToken()));
         }
     }
 
