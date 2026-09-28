@@ -163,4 +163,55 @@ class FcmNotificationSupportTest {
             assertThatCode(() -> synchronizations.getFirst().afterCommit()).doesNotThrowAnyException();
         }
     }
+
+    @Nested
+    @DisplayName("sendAndGetMessageId 메서드는")
+    class Describe_sendAndGetMessageId {
+
+        @Test
+        @DisplayName("트랜잭션이 활성화되어 있어도 즉시 전송하고 메시지 ID를 반환해야 한다")
+        void it_sends_immediately_and_returns_message_id() throws Exception {
+            // Given
+            final User user = createUserWithToken();
+            given(firebaseMessaging.send(any(Message.class))).willReturn("message-id");
+            TransactionSynchronizationManager.setActualTransactionActive(true);
+            TransactionSynchronizationManager.initSynchronization();
+
+            // When
+            final String messageId = fcmNotificationSupport.sendAndGetMessageId(user, "제목", "본문");
+
+            // Then
+            assertThat(messageId).isEqualTo("message-id");
+            then(firebaseMessaging).should(times(1)).send(any(Message.class));
+            assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("발송에 실패하면 예외를 호출자에게 전파해야 한다")
+        void it_propagates_send_failure() throws Exception {
+            // Given
+            final User user = createUserWithToken();
+            final FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
+            given(exception.getMessagingErrorCode()).willReturn(MessagingErrorCode.UNAVAILABLE);
+            given(firebaseMessaging.send(any(Message.class))).willThrow(exception);
+
+            // When & Then
+            assertThatThrownBy(() -> fcmNotificationSupport.sendAndGetMessageId(user, "제목", "본문")).isSameAs(exception);
+            then(deleteFcmTokenIfMatchesService).should(never()).execute(any(), any());
+        }
+
+        @Test
+        @DisplayName("만료된 토큰 오류가 발생하면 예외를 전파하기 전에 토큰을 정리해야 한다")
+        void it_deletes_invalid_token_before_propagating() throws Exception {
+            // Given
+            final User user = createUserWithToken();
+            final FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
+            given(exception.getMessagingErrorCode()).willReturn(MessagingErrorCode.UNREGISTERED);
+            given(firebaseMessaging.send(any(Message.class))).willThrow(exception);
+
+            // When & Then
+            assertThatThrownBy(() -> fcmNotificationSupport.sendAndGetMessageId(user, "제목", "본문")).isSameAs(exception);
+            then(deleteFcmTokenIfMatchesService).should(times(1)).execute(any(), eq("fcm-token"));
+        }
+    }
 }

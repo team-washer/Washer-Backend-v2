@@ -196,6 +196,28 @@ class OverdueReservationProcessorTest {
     class MachineRunning {
 
         @Test
+        @DisplayName("더 최신 활성 예약이 있으면 만료 예약을 자동 시작하지 않는다")
+        void shouldCancelStaleReservation_WhenNewerMachineReservationExists() {
+            // Given
+            givenReservedReservation();
+            when(reservationRepository.existsCurrentlyActiveByUserAfter(eq(user), isNull(), eq(RESERVATION_ID)))
+                    .thenReturn(false);
+            when(reservationRepository.existsCurrentlyActiveByMachineAfter(eq(machine), isNull(), eq(RESERVATION_ID)))
+                    .thenReturn(true);
+
+            // When
+            final var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, buildDeviceStatus(null));
+
+            // Then
+            assertThat(result).isEqualTo(OverdueResult.CANCELLED_WITHOUT_PENALTY);
+            verify(reservation).cancel();
+            verify(reservationRepository).save(reservation);
+            verify(machine, never()).releaseIfHeld();
+            verify(machineRepository, never()).save(machine);
+            verifyNoInteractions(reservationStartDecisionSupport, penaltyRedisUtil, reservationNotificationSupport);
+        }
+
+        @Test
         @DisplayName("자동으로 RUNNING 상태로 시작하고 시작 알림을 전송하며 AUTO_STARTED를 반환한다")
         void shouldAutoStartAndNotify_WhenMachineRunning() {
             // Given

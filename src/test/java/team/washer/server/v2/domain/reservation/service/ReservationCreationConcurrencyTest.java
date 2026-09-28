@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.reservation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.willAnswer;
 
 import java.util.List;
 import java.util.Map;
@@ -49,11 +50,18 @@ import team.washer.server.v2.domain.reservation.enums.RestrictionStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor;
 import team.washer.server.v2.domain.reservation.service.impl.OverdueReservationProcessor.OverdueResult;
+import team.washer.server.v2.domain.reservation.service.impl.ProcessReservationLifecycleServiceImpl;
+import team.washer.server.v2.domain.reservation.support.CompletionDecision;
+import team.washer.server.v2.domain.reservation.support.ReservationCompletionDecisionSupport;
 import team.washer.server.v2.domain.reservation.support.ReservationDeviceStateVerifier;
 import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
 import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport.StartDecision;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.service.impl.ShutdownIdleMachinesServiceImpl;
+import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
+import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.UserRepository;
@@ -95,6 +103,12 @@ class ReservationCreationConcurrencyTest {
     private OverdueReservationProcessor overdueReservationProcessor;
 
     @Autowired
+    private ProcessReservationLifecycleServiceImpl processReservationLifecycleService;
+
+    @Autowired
+    private ShutdownIdleMachinesServiceImpl shutdownIdleMachinesService;
+
+    @Autowired
     private UserRepository userRepository;
 
     @Autowired
@@ -118,6 +132,18 @@ class ReservationCreationConcurrencyTest {
     // DB 락 경합만 검증하기 위해 SmartThings 작동 상태 확인은 항상 통과시킨다
     @MockitoBean
     private ReservationDeviceStateVerifier reservationDeviceStateVerifier;
+
+    @MockitoBean
+    private DeviceStatusQuerySupport deviceStatusQuerySupport;
+
+    @MockitoBean
+    private DeviceShutdownSupport deviceShutdownSupport;
+
+    @MockitoBean
+    private ReservationCompletionDecisionSupport reservationCompletionDecisionSupport;
+
+    @MockitoBean
+    private MachineStateDetectionSupport machineStateDetectionSupport;
 
     private TransactionTemplate transactionTemplate;
 
@@ -297,6 +323,99 @@ class ReservationCreationConcurrencyTest {
         }
     }
 
+    @Nested
+    @DisplayName("전원 차단 선점과 신규 예약이 겹치면")
+    class ShutdownClaimConcurrency {
+
+        @Test
+        @DisplayName("완료 후 외부 명령 전에 생성된 신규 예약이 기존 종료 작업을 선점하지 못한다")
+        void completionClaim_preventsNewReservationBeforePowerOff() throws Exception {
+            final var data = transactionTemplate.execute(status -> {
+                final var currentUser = saveUser("2201", "401", UserRole.USER);
+                final var newUser = saveUser("2202", "402", UserRole.USER);
+                final var machine = saveMachine("washer-claim-1", MachineType.WASHER, Position.LEFT, 1);
+                machine.markAsInUse();
+                machineRepository.save(machine);
+                final var reservation = reservationRepository.save(Reservation.builder().user(currentUser)
+                        .machine(machine).reservedAt(DateTimeUtil.nowInKorea().minusHours(1))
+                        .startTime(DateTimeUtil.nowInKorea().minusMinutes(30)).status(ReservationStatus.RUNNING)
+                        .build());
+                return new ShutdownClaimData(newUser.getId(),
+                        machine.getId(),
+                        reservation.getId(),
+                        machine.getDeviceId());
+            });
+            final var status = new SmartThingsDeviceStatusResDto(Map.of());
+            given(deviceStatusQuerySupport.queryDeviceStatus(data.deviceId())).willReturn(status);
+            given(reservationCompletionDecisionSupport.decide(any(), eq(status), eq(true)))
+                    .willReturn(CompletionDecision.completed(DateTimeUtil.nowInKorea(), "job_finished"));
+            final var shutdownStarted = new CountDownLatch(1);
+            final var allowShutdown = new CountDownLatch(1);
+            willAnswer(invocation -> {
+                shutdownStarted.countDown();
+                assertThat(allowShutdown.await(5, TimeUnit.SECONDS)).isTrue();
+                return DeviceShutdownSupport.ShutdownResult.POWERED_OFF;
+            }).given(deviceShutdownSupport)
+                    .shutdownAfterCompletion(anyString(), eq(data.deviceId()), eq(true), eq(status));
+
+            final var executor = Executors.newFixedThreadPool(2);
+            try {
+                final var completion = executor.submit(() -> processReservationLifecycleService.execute());
+                assertThat(shutdownStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+                final var creation = executor.submit(() -> reserveAsUser(data.newUserId(), data.machineId()));
+                final var result = creation.get(10, TimeUnit.SECONDS);
+                assertThat(result.isSuccess()).isFalse();
+                assertThat(result.throwable()).isInstanceOf(ExpectedException.class).hasMessageContaining("종료 처리 중입니다");
+                allowShutdown.countDown();
+                completion.get(10, TimeUnit.SECONDS);
+            } finally {
+                allowShutdown.countDown();
+                executor.shutdownNow();
+            }
+
+            assertReservationCount(1);
+        }
+
+        @Test
+        @DisplayName("유휴 기기 종료 외부 명령 전에 생성된 신규 예약이 기존 종료 작업을 선점하지 못한다")
+        void idleClaim_preventsNewReservationBeforePowerOff() throws Exception {
+            final var data = transactionTemplate.execute(status -> {
+                final var newUser = saveUser("2203", "403", UserRole.USER);
+                final var machine = saveMachine("washer-claim-2", MachineType.WASHER, Position.RIGHT, 2);
+                return new ShutdownClaimData(newUser.getId(), machine.getId(), null, machine.getDeviceId());
+            });
+            final var status = new SmartThingsDeviceStatusResDto(Map.of());
+            given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of(data.deviceId())))
+                    .willReturn(Map.of(data.deviceId(), status));
+            final var shutdownStarted = new CountDownLatch(1);
+            final var allowShutdown = new CountDownLatch(1);
+            willAnswer(invocation -> {
+                shutdownStarted.countDown();
+                assertThat(allowShutdown.await(5, TimeUnit.SECONDS)).isTrue();
+                return DeviceShutdownSupport.ShutdownResult.POWERED_OFF;
+            }).given(deviceShutdownSupport).shutdown(any(), eq(status));
+
+            final var executor = Executors.newFixedThreadPool(2);
+            try {
+                final var shutdown = executor.submit(() -> shutdownIdleMachinesService.execute());
+                assertThat(shutdownStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+                final var creation = executor.submit(() -> reserveAsUser(data.newUserId(), data.machineId()));
+                final var result = creation.get(10, TimeUnit.SECONDS);
+                assertThat(result.isSuccess()).isFalse();
+                assertThat(result.throwable()).isInstanceOf(ExpectedException.class).hasMessageContaining("종료 처리 중입니다");
+                allowShutdown.countDown();
+                shutdown.get(10, TimeUnit.SECONDS);
+            } finally {
+                allowShutdown.countDown();
+                executor.shutdownNow();
+            }
+
+            assertReservationCount(0);
+        }
+    }
+
     private ReservationAttemptResult reserveAsUser(final Long userId, final Long machineId) {
         authenticate(userId);
         try {
@@ -413,6 +532,9 @@ class ReservationCreationConcurrencyTest {
     }
 
     record ExpiredReservationData(Long userId, Long machineId, Long reservationId) {
+    }
+
+    record ShutdownClaimData(Long newUserId, Long machineId, Long reservationId, String deviceId) {
     }
 
     record ReservationAttemptResult(boolean success, Throwable throwable) {

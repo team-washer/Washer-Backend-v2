@@ -14,9 +14,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.domain.auth.repository.WithdrawnStudentRepository;
 import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.machine.entity.Machine;
@@ -47,6 +51,9 @@ class WithdrawUserServiceTest {
     private UserRepository userRepository;
 
     @Mock
+    private WithdrawnStudentRepository withdrawnStudentRepository;
+
+    @Mock
     private ReservationRepository reservationRepository;
 
     @Mock
@@ -67,6 +74,7 @@ class WithdrawUserServiceTest {
         final var userReservationCleanupSupport = new UserReservationCleanupSupport(reservationRepository,
                 machineRepository);
         withdrawUserService = new WithdrawUserServiceImpl(userRepository,
+                withdrawnStudentRepository,
                 refreshTokenRedisRepository,
                 withdrawnStudentRedisUtil,
                 currentUserProvider,
@@ -122,6 +130,92 @@ class WithdrawUserServiceTest {
                 then(withdrawnStudentRedisUtil).should(times(1)).markWithdrawn(user.getStudentId());
                 then(userRepository).should(times(1)).delete(user);
             }
+
+            @Test
+            @DisplayName("DB 트랜잭션이 롤백되면 탈퇴 제한 기록을 보상 삭제해야 한다")
+            void it_removes_withdrawal_record_when_transaction_rolls_back() {
+                final Long userId = 1L;
+                final User user = createUser();
+
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
+                        .willReturn(List.of());
+
+                TransactionSynchronizationManager.initSynchronization();
+                try {
+                    withdrawUserService.execute();
+                    TransactionSynchronizationManager.getSynchronizations().forEach(synchronization -> synchronization
+                            .afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+
+                    then(withdrawnStudentRedisUtil).shouldHaveNoInteractions();
+                    then(refreshTokenRedisRepository).shouldHaveNoInteractions();
+                    then(withdrawnStudentRepository).should().flush();
+                } finally {
+                    TransactionSynchronizationManager.clearSynchronization();
+                }
+            }
+
+            @Test
+            @DisplayName("DB 커밋 이후에만 Redis 탈퇴 기록과 리프레시 토큰을 처리한다")
+            void it_applies_redis_side_effects_after_transaction_commit() {
+                final Long userId = 1L;
+                final User user = createUser();
+
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
+                given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES))
+                        .willReturn(List.of());
+
+                TransactionSynchronizationManager.initSynchronization();
+                try {
+                    withdrawUserService.execute();
+
+                    TransactionSynchronizationManager.getSynchronizations().forEach(synchronization -> synchronization
+                            .afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
+
+                    then(withdrawnStudentRedisUtil).should().markWithdrawn(user.getStudentId());
+                    then(refreshTokenRedisRepository).should().deleteById(userId);
+                } finally {
+                    TransactionSynchronizationManager.clearSynchronization();
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("리프레시 토큰 삭제가 실패해도 탈퇴 기록 처리를 계속하고 오류를 기록한다")
+        void it_logs_and_continues_when_refresh_token_deletion_fails() {
+            final Long userId = 1L;
+            final User user = createUser();
+
+            given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+            given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
+            given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES)).willReturn(List.of());
+            willThrow(new RedisConnectionFailureException("Redis unavailable")).given(refreshTokenRedisRepository)
+                    .deleteById(userId);
+
+            assertThatCode(() -> withdrawUserService.execute()).doesNotThrowAnyException();
+
+            then(withdrawnStudentRedisUtil).should().markWithdrawn(user.getStudentId());
+            then(userRepository).should(times(1)).delete(user);
+        }
+
+        @Test
+        @DisplayName("탈퇴 기록 저장이 실패해도 리프레시 토큰 처리를 계속하고 오류를 기록한다")
+        void it_logs_and_continues_when_withdrawal_record_fails() {
+            final Long userId = 1L;
+            final User user = createUser();
+
+            given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+            given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
+            given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES)).willReturn(List.of());
+            willThrow(new RedisConnectionFailureException("Redis unavailable")).given(withdrawnStudentRedisUtil)
+                    .markWithdrawn(user.getStudentId());
+
+            assertThatCode(() -> withdrawUserService.execute()).doesNotThrowAnyException();
+
+            then(refreshTokenRedisRepository).should().deleteById(userId);
+            then(userRepository).should(times(1)).delete(user);
         }
 
         @Nested
