@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.user.service.impl;
 
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,8 +39,13 @@ public class WithdrawUserServiceImpl implements WithdrawUserService {
 
         userReservationCleanupSupport.cancelAndReleaseMachines(activeReservations);
 
-        refreshTokenRedisRepository.deleteById(userId);
+        try {
+            refreshTokenRedisRepository.deleteById(userId);
+        } catch (Exception e) {
+            throw new RedisConnectionFailureException("리프레시 토큰을 폐기할 수 없습니다.", e);
+        }
 
+        // Redis 기록이 모두 성공한 뒤 DB 삭제를 시도한다. DB가 롤백되어 기록이 남아도 로그인은 기존 사용자를 먼저 확인한다.
         withdrawnStudentRedisUtil.markWithdrawn(user.getStudentId());
 
         userRepository.delete(user);

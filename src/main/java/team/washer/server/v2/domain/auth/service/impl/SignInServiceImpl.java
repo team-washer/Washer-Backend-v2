@@ -33,15 +33,22 @@ public class SignInServiceImpl implements SignInService {
         if (oauthUser == null) {
             throw new ExpectedException("학생정보가 없는 DataGSM 계정입니다.", HttpStatus.BAD_REQUEST);
         }
-        if (withdrawnStudentRedisUtil.isWithdrawnRecently(oauthUser.getStudentNumber().toString())) {
+
+        final String studentId = oauthUser.getStudentNumber().toString();
+        final var existingUser = userRepository.findByStudentId(studentId);
+        if (existingUser.isPresent()) {
+            final var user = existingUser.get();
+            return tokenGenerationSupport.generate(user.getId(), user.getRole());
+        }
+
+        if (withdrawnStudentRedisUtil.isWithdrawnRecently(studentId)) {
             throw new ExpectedException("탈퇴 후 30일이 지나지 않아 재가입할 수 없습니다.", HttpStatus.FORBIDDEN);
         }
         User user;
         try {
-            user = userRepository.findByStudentId(oauthUser.getStudentNumber().toString())
-                    .orElseGet(() -> userRegistrationSupport.register(oauthUser));
+            user = userRegistrationSupport.register(oauthUser);
         } catch (DataIntegrityViolationException e) {
-            user = userRepository.findByStudentId(oauthUser.getStudentNumber().toString()).orElseThrow(
+            user = userRepository.findByStudentId(studentId).orElseThrow(
                     () -> new ExpectedException("회원가입 과정에서 오류가 발생했습니다. 다시 시도해주세요.", HttpStatus.INTERNAL_SERVER_ERROR));
         }
 

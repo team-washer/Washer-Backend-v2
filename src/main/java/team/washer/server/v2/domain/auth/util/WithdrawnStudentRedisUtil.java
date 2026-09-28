@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.auth.util;
 
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
@@ -23,9 +24,10 @@ public class WithdrawnStudentRedisUtil {
         try {
             withdrawnStudentRedisRepository
                     .save(WithdrawnStudentEntity.builder().studentId(studentId).ttl(THIRTY_DAYS_IN_SECONDS).build());
-            log.info("withdrawn student recorded studentId={}", studentId);
+            log.info("withdrawn student record saved");
         } catch (Exception e) {
-            log.error("failed to record withdrawn student studentId={}", studentId, e);
+            log.error("failed to save withdrawn student record", e);
+            throw new RedisConnectionFailureException("탈퇴 제한 기록을 저장할 수 없습니다.", e);
         }
     }
 
@@ -36,8 +38,8 @@ public class WithdrawnStudentRedisUtil {
         try {
             return withdrawnStudentRedisRepository.existsById(studentId);
         } catch (Exception e) {
-            log.warn("failed to check withdrawn student studentId={}", studentId, e);
-            return false;
+            log.warn("failed to check withdrawn student record", e);
+            throw new RedisConnectionFailureException("탈퇴 제한 기록을 확인할 수 없습니다.", e);
         }
     }
 }

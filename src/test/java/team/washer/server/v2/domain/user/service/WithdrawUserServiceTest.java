@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.http.HttpStatus;
 
 import team.themoment.sdk.exception.ExpectedException;
@@ -122,6 +123,41 @@ class WithdrawUserServiceTest {
                 then(withdrawnStudentRedisUtil).should(times(1)).markWithdrawn(user.getStudentId());
                 then(userRepository).should(times(1)).delete(user);
             }
+        }
+
+        @Test
+        @DisplayName("리프레시 토큰 삭제가 실패하면 사용자 삭제를 진행하지 않아야 한다")
+        void it_does_not_delete_user_when_refresh_token_deletion_fails() {
+            final Long userId = 1L;
+            final User user = createUser();
+
+            given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+            given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
+            given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES)).willReturn(List.of());
+            willThrow(new RedisConnectionFailureException("Redis unavailable")).given(refreshTokenRedisRepository)
+                    .deleteById(userId);
+
+            assertThatThrownBy(() -> withdrawUserService.execute()).isInstanceOf(RedisConnectionFailureException.class);
+
+            then(withdrawnStudentRedisUtil).shouldHaveNoInteractions();
+            then(userRepository).should(never()).delete(any(User.class));
+        }
+
+        @Test
+        @DisplayName("탈퇴 기록 저장이 실패하면 사용자 삭제를 진행하지 않아야 한다")
+        void it_does_not_delete_user_when_withdrawal_record_fails() {
+            final Long userId = 1L;
+            final User user = createUser();
+
+            given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+            given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(user));
+            given(reservationRepository.findByUserAndStatusInForUpdate(user, ACTIVE_STATUSES)).willReturn(List.of());
+            willThrow(new RedisConnectionFailureException("Redis unavailable")).given(withdrawnStudentRedisUtil)
+                    .markWithdrawn(user.getStudentId());
+
+            assertThatThrownBy(() -> withdrawUserService.execute()).isInstanceOf(RedisConnectionFailureException.class);
+
+            then(userRepository).should(never()).delete(any(User.class));
         }
 
         @Nested

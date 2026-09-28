@@ -90,7 +90,6 @@ class SignInServiceImplTest {
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
                 given(userInfoResponse.getStudent()).willReturn(student);
                 given(student.getStudentNumber()).willReturn(20210001);
-                given(withdrawnStudentRedisUtil.isWithdrawnRecently("20210001")).willReturn(false);
                 given(userRepository.findByStudentId("20210001")).willReturn(Optional.of(user));
                 given(tokenGenerationSupport.generate(user.getId(), user.getRole())).willReturn(expectedTokens);
 
@@ -102,6 +101,7 @@ class SignInServiceImplTest {
                 assertThat(result.accessToken()).isEqualTo("access.token");
                 assertThat(result.refreshToken()).isEqualTo("refresh.token");
                 then(userRegistrationSupport).shouldHaveNoInteractions();
+                then(withdrawnStudentRedisUtil).shouldHaveNoInteractions();
             }
         }
 
@@ -179,6 +179,7 @@ class SignInServiceImplTest {
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
                 given(userInfoResponse.getStudent()).willReturn(student);
                 given(student.getStudentNumber()).willReturn(20210001);
+                given(userRepository.findByStudentId("20210001")).willReturn(Optional.empty());
                 given(withdrawnStudentRedisUtil.isWithdrawnRecently("20210001")).willReturn(true);
 
                 // When & Then
@@ -187,7 +188,7 @@ class SignInServiceImplTest {
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.FORBIDDEN));
 
-                then(userRepository).shouldHaveNoInteractions();
+                then(userRepository).should().findByStudentId("20210001");
             }
         }
 
@@ -222,6 +223,26 @@ class SignInServiceImplTest {
                 assertThat(result).isNotNull();
                 then(userRepository).should(times(2)).findByStudentId("20210001");
             }
+        }
+
+        @Test
+        @DisplayName("신규 사용자의 탈퇴 기록 조회가 실패하면 가입을 진행하지 않고 Redis 오류를 전파해야 한다")
+        void it_propagates_withdrawn_record_lookup_failure() {
+            final var reqDto = createReqDto();
+
+            given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                    .willReturn(tokenResponse);
+            given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+            given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
+            given(userInfoResponse.getStudent()).willReturn(student);
+            given(student.getStudentNumber()).willReturn(20210001);
+            given(userRepository.findByStudentId("20210001")).willReturn(Optional.empty());
+            given(withdrawnStudentRedisUtil.isWithdrawnRecently("20210001"))
+                    .willThrow(new org.springframework.data.redis.RedisConnectionFailureException("Redis unavailable"));
+
+            assertThatThrownBy(() -> signInService.execute(reqDto))
+                    .isInstanceOf(org.springframework.data.redis.RedisConnectionFailureException.class);
+            then(userRegistrationSupport).shouldHaveNoInteractions();
         }
     }
 }
