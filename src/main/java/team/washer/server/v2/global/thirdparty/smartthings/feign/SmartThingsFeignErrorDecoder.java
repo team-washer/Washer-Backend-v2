@@ -14,9 +14,12 @@ import team.washer.server.v2.global.thirdparty.feign.error.FeignErrorDecoder;
 public class SmartThingsFeignErrorDecoder extends FeignErrorDecoder {
 
     @Override
-    public Exception decode(String methodKey, Response response) {
+    public Exception decode(final String methodKey, final Response response) {
         if (response.status() == 403) {
-            log.warn("[SmartThings] 권한 오류 발생 (403 Forbidden). 메서드: {}, URL: {}", methodKey, response.request().url());
+            log.warn("smartthings permission denied methodKey={} endpoint={} status={}",
+                    methodKey,
+                    safeEndpoint(response.request().url()),
+                    response.status());
             return new SmartThingsPermissionException(
                     "SmartThings API 권한이 없습니다. OAuth 스코프(x:devices:*) 또는 기기 접근 권한을 확인해주세요.");
         }
