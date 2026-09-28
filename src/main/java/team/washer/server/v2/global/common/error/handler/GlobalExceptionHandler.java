@@ -78,14 +78,21 @@ public class GlobalExceptionHandler {
     public ResponseEntity<CommonApiResponse<ErrorDetailResDto>> expectedException(ExpectedException ex,
             HttpServletRequest request) {
         if (ex.getStatusCode().is5xxServerError()) {
-            log.error("expected server exception status={} path={} message={}",
-                    ex.getStatusCode(),
+            log.error("expected server exception status={} method={} path={} traceId={} message={}",
+                    ex.getStatusCode().value(),
+                    request.getMethod(),
                     request.getRequestURI(),
+                    TraceIdFilter.currentTraceId(),
                     ex.getMessage(),
                     ex);
             notifyOperators(ex, request);
         } else {
-            log.warn("expected exception status={} message={}", ex.getStatusCode(), ex.getMessage());
+            log.warn("expected exception status={} method={} path={} traceId={} message={}",
+                    ex.getStatusCode().value(),
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    TraceIdFilter.currentTraceId(),
+                    ex.getMessage());
             log.trace("expected exception detail", ex);
         }
         return error(ex.getStatusCode(), ex.getStatusCode().name(), ex.getMessage(), null);
@@ -100,7 +107,13 @@ public class GlobalExceptionHandler {
             HttpServletRequest request) {
         final ErrorCode errorCode = ex.getErrorCode();
         if (errorCode.getStatus().is5xxServerError()) {
-            log.error("error code server exception errorCode={} path={}", errorCode, request.getRequestURI(), ex);
+            log.error("error code server exception errorCode={} status={} method={} path={} traceId={}",
+                    errorCode,
+                    errorCode.getStatus().value(),
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    TraceIdFilter.currentTraceId(),
+                    ex);
             notifyOperators(ex, request);
             return error(errorCode);
         }
@@ -234,9 +247,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({RedisConnectionFailureException.class, RetryableException.class})
     public ResponseEntity<CommonApiResponse<ErrorDetailResDto>> externalServiceUnavailableException(Exception ex,
             HttpServletRequest request) {
-        log.error("external service unavailable exception={} path={}",
+        log.error("external service unavailable exception={} status={} method={} path={} traceId={}",
                 ex.getClass().getSimpleName(),
+                ErrorCode.SERVICE_UNAVAILABLE.getStatus().value(),
+                request.getMethod(),
                 request.getRequestURI(),
+                TraceIdFilter.currentTraceId(),
                 ex);
         notifyOperators(ex, request);
         return error(ErrorCode.SERVICE_UNAVAILABLE);
@@ -252,9 +268,12 @@ public class GlobalExceptionHandler {
             return error(status, status.name(), ErrorCode.CLIENT_ERROR.getMessage(), null);
         }
 
-        log.error("unexpected exception exception={} path={}",
+        log.error("unexpected exception exception={} status={} method={} path={} traceId={}",
                 ex.getClass().getSimpleName(),
+                ErrorCode.INTERNAL_SERVER_ERROR.getStatus().value(),
+                request.getMethod(),
                 request.getRequestURI(),
+                TraceIdFilter.currentTraceId(),
                 ex);
         notifyOperators(ex, request);
         return error(ErrorCode.INTERNAL_SERVER_ERROR);

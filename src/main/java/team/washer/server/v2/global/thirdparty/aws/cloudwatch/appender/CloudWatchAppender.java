@@ -6,8 +6,10 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.UnsynchronizedAppenderBase;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -31,6 +33,10 @@ import team.washer.server.v2.global.common.trace.TraceIdFilter;
  */
 public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
 
+    private static final Pattern BEARER_TOKEN_PATTERN = Pattern.compile("(?i)Bearer\\s+[^\\s,;\\\"}]+");
+    private static final Pattern SENSITIVE_VALUE_PATTERN = Pattern.compile(
+            "(?i)([\\\"']?)(authorization|access_token|refresh_token|smartthings_token|password|token)([\\\"']?)(\\s*[:=]\\s*)([\\\"']?)([^\\s,;\\\"'}]+)\\5");
+
     private String logGroupName;
     private String logStreamNamePrefix;
     private String region = Region.AP_NORTHEAST_2.id();
@@ -42,6 +48,8 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
     private int retentionTimeDays = 30;
     private long shutdownTimeoutMillis = 5_000;
     private int maxRetries = 3;
+    private int maxMessageLength = 10_000;
+    private int maxThrowableLength = 20_000;
 
     private CloudWatchLogsClient cloudWatchClient;
     private final BlockingQueue<ILoggingEvent> logQueue = new LinkedBlockingQueue<>();
@@ -225,11 +233,57 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
      * 오류 응답의 추적 ID로 CloudWatch 로그를 검색할 수 있도록 요청 로그에 추적 ID를 붙인다.
      */
     private String formatMessage(final ILoggingEvent event) {
-        final var traceId = event.getMDCPropertyMap().get(TraceIdFilter.MDC_KEY);
+        final var builder = new StringBuilder();
+        appendField(builder, "level", event.getLevel().levelStr);
+        appendField(builder, "logger", event.getLoggerName());
+        appendField(builder, "thread", event.getThreadName());
+
+        final var mdcPropertyMap = event.getMDCPropertyMap();
+        final var traceId = mdcPropertyMap == null ? null : mdcPropertyMap.get(TraceIdFilter.MDC_KEY);
         if (traceId == null) {
-            return event.getFormattedMessage();
+            appendField(builder, "message", event.getFormattedMessage(), maxMessageLength);
+        } else {
+            appendField(builder, TraceIdFilter.MDC_KEY, traceId);
+            appendField(builder, "message", event.getFormattedMessage(), maxMessageLength);
         }
-        return "traceId=" + traceId + " " + event.getFormattedMessage();
+
+        if (event.getThrowableProxy() != null) {
+            appendField(builder, "exceptionType", event.getThrowableProxy().getClassName());
+            appendField(builder,
+                    "exception",
+                    ThrowableProxyUtil.asString(event.getThrowableProxy()),
+                    maxThrowableLength);
+        }
+        return builder.toString();
+    }
+
+    private void appendField(final StringBuilder builder, final String name, final String value) {
+        appendField(builder, name, value, Integer.MAX_VALUE);
+    }
+
+    private void appendField(final StringBuilder builder, final String name, final String value, final int maxLength) {
+        if (value == null) {
+            return;
+        }
+        if (builder.length() > 0) {
+            builder.append(' ');
+        }
+        builder.append(name).append("=\"").append(escapeAndTruncate(value, maxLength)).append('"');
+    }
+
+    private String escapeAndTruncate(final String value, final int maxLength) {
+        final var sanitized = sanitize(value);
+        final var normalized = sanitized.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n").replace("\"",
+                "\\\"");
+        if (normalized.length() <= maxLength) {
+            return normalized;
+        }
+        return normalized.substring(0, Math.max(0, maxLength - 15)) + "...[truncated]";
+    }
+
+    private String sanitize(final String value) {
+        final var withoutBearerToken = BEARER_TOKEN_PATTERN.matcher(value).replaceAll("Bearer [REDACTED]");
+        return SENSITIVE_VALUE_PATTERN.matcher(withoutBearerToken).replaceAll("$1$2$3$4$5[REDACTED]$5");
     }
 
     private void flushBatch(final List<ILoggingEvent> batch) {
@@ -308,5 +362,13 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
 
     public void setMaxRetries(final int maxRetries) {
         this.maxRetries = maxRetries;
+    }
+
+    public void setMaxMessageLength(final int maxMessageLength) {
+        this.maxMessageLength = maxMessageLength;
+    }
+
+    public void setMaxThrowableLength(final int maxThrowableLength) {
+        this.maxThrowableLength = maxThrowableLength;
     }
 }
