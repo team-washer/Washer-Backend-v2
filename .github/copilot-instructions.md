@@ -55,3 +55,10 @@ Korean dormitory laundry management system with Java 25 and Spring Boot 4.0.1.
 - `test: 테스트 코드 작성/수정`
 - `merge: 브랜치 병합`
 - `init: 초기 설정`
+
+## GitHub Issue and PR Rules
+- Do not use `[P0]` through `[P4]` priority prefixes in new Issue titles. Apply exactly one risk label instead.
+- Authors without label permissions must state one requested risk label in the template; a maintainer applies exactly one risk label during triage. No risk label is acceptable only before triage is complete.
+- Work-type labels such as `버그`, `리팩터링`, `신규 기능`, `문서화`, and `삭제` are a separate axis and may be used alongside one risk label.
+- Risk labels are `위험도: 긴급` (authentication, authorization, secrets, data loss, or immediate safety), `위험도: 높음` (core-flow outage, state integrity, or concurrency), `위험도: 보통` (limited functional, API contract, or operational-policy issues), `위험도: 낮음` (performance, observability, or maintainability), and `위험도: 정리` (unused code, configuration, or duplication removal).
+- Risk labels are Issue-only. PR tooling must select only PR labels appropriate for the code change and must never add risk labels automatically.
