@@ -125,7 +125,7 @@ class QueryRoomActiveReservationsServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> queryRoomActiveReservationsService.execute())
-                    .isInstanceOf(ErrorCodeException.class).hasMessage("사용자를 찾을 수 없습니다.")
+                    .isInstanceOf(ErrorCodeException.class).hasMessage(ErrorCode.USER_NOT_FOUND.getMessage())
                     .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
                             .isEqualTo(ErrorCode.USER_NOT_FOUND));
         }

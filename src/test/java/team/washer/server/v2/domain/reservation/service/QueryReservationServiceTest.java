@@ -98,7 +98,7 @@ class QueryReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> queryReservationService.execute(reservationId))
-                        .isInstanceOf(ErrorCodeException.class).hasMessage("예약을 찾을 수 없습니다.")
+                        .isInstanceOf(ErrorCodeException.class).hasMessage(ErrorCode.RESERVATION_NOT_FOUND.getMessage())
                         .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
                                 .isEqualTo(ErrorCode.RESERVATION_NOT_FOUND));
             }

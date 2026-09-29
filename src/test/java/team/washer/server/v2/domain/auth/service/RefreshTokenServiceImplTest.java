@@ -173,7 +173,7 @@ class RefreshTokenServiceImplTest {
 
                 // When & Then
                 assertThatThrownBy(() -> refreshTokenService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
-                        .hasMessage("사용자를 찾을 수 없습니다.")
+                        .hasMessage(ErrorCode.USER_NOT_FOUND.getMessage())
                         .satisfies(exception -> assertThat(((ErrorCodeException) exception).getErrorCode())
                                 .isEqualTo(ErrorCode.USER_NOT_FOUND));
 
