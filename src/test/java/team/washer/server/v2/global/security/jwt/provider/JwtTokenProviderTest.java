@@ -5,9 +5,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
 
-import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.jwt.config.JwtEnvironment;
 
 class JwtTokenProviderTest {
@@ -37,8 +37,8 @@ class JwtTokenProviderTest {
         expiredProvider.initSecretKey();
         final var expiredToken = expiredProvider.generateRefreshToken(1L);
 
-        assertThatThrownBy(() -> expiredProvider.parseRefreshToken(expiredToken)).isInstanceOf(ExpectedException.class)
-                .satisfies(exception -> assertThat(((ExpectedException) exception).getStatusCode())
-                        .isEqualTo(HttpStatus.UNAUTHORIZED));
+        assertThatThrownBy(() -> expiredProvider.parseRefreshToken(expiredToken)).isInstanceOf(ErrorCodeException.class)
+                .satisfies(exception -> assertThat(((ErrorCodeException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.REFRESH_TOKEN_EXPIRED));
     }
 }

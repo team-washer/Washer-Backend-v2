@@ -13,9 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineStatus;
@@ -31,6 +29,8 @@ import team.washer.server.v2.domain.reservation.service.impl.CancelReservationSe
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
@@ -274,10 +274,10 @@ class CancelReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class)
+                        .isInstanceOf(ErrorCodeException.class)
                         .hasMessage("이미 기기 사용이 시작되어 예약을 취소할 수 없습니다. 최신 상태를 확인해주세요.")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.CONFLICT));
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.RESERVATION_CANCELLATION_CONFLICT));
 
                 assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RUNNING);
                 assertThat(reservation.getMachine().getAvailability()).isEqualTo(MachineAvailability.IN_USE);
@@ -304,9 +304,9 @@ class CancelReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("예약을 취소할 권한이 없습니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.FORBIDDEN));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("예약을 취소할 권한이 없습니다")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.RESERVATION_ACCESS_DENIED));
             }
         }
 
@@ -326,9 +326,9 @@ class CancelReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("취소할 수 있는 상태의 예약이 아닙니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.BAD_REQUEST));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("취소할 수 있는 상태의 예약이 아닙니다")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.RESERVATION_STATE_INVALID));
             }
         }
 
@@ -348,9 +348,9 @@ class CancelReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class)
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.BAD_REQUEST));
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.RESERVATION_STATE_INVALID));
                 then(reservationRepository).should(never()).save(any());
                 then(machineRepository).should(never()).save(any());
             }
@@ -370,9 +370,9 @@ class CancelReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> cancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("예약을 찾을 수 없습니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage(ErrorCode.RESERVATION_NOT_FOUND.getMessage())
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.RESERVATION_NOT_FOUND));
             }
         }
     }

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.reservation.service.ProcessReservationLifecycleService;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.CompletedMachine;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.RunningTarget;
@@ -123,16 +124,12 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         final var claim = new MachineShutdownClaimSupport.ShutdownClaim(completedMachine.machineId(),
                 completedMachine.shutdownClaimToken());
         try {
-            if (!machineShutdownClaimSupport.isActive(claim)) {
-                log.warn("power off after completion skipped because shutdown claim is inactive machine={} deviceId={}",
-                        completedMachine.machineName(),
-                        completedMachine.deviceId());
-                return true;
-            }
             deviceShutdownSupport.shutdownAfterCompletion(completedMachine.machineName(),
                     completedMachine.deviceId(),
                     completedMachine.isWasher(),
-                    status);
+                    status,
+                    () -> machineShutdownClaimSupport.beginCommand(claim));
+            releaseClaim(claim, completedMachine);
             return true;
         } catch (SmartThingsPermissionException e) {
             log.warn(
@@ -140,24 +137,36 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     completedMachine.machineName(),
                     completedMachine.deviceId(),
                     e.getMessage());
+            releaseClaim(claim, completedMachine);
             notifyPermissionError(completedMachine, e);
             return false;
+        } catch (ExpectedException e) {
+            if (!e.getStatusCode().is5xxServerError()) {
+                releaseClaim(claim, completedMachine);
+            }
+            log.error("power off after completion failed machine={} deviceId={} reason={}",
+                    completedMachine.machineName(),
+                    completedMachine.deviceId(),
+                    e.getMessage());
+            return true;
         } catch (Exception e) {
             log.error("power off after completion failed machine={} deviceId={} reason={}",
                     completedMachine.machineName(),
                     completedMachine.deviceId(),
                     e.getMessage());
             return true;
-        } finally {
-            try {
-                machineShutdownClaimSupport.release(claim);
-            } catch (Exception e) {
-                log.error("failed to release shutdown claim machine={} deviceId={} reason={}",
-                        completedMachine.machineName(),
-                        completedMachine.deviceId(),
-                        e.getMessage(),
-                        e);
-            }
+        }
+    }
+
+    private void releaseClaim(MachineShutdownClaimSupport.ShutdownClaim claim, CompletedMachine completedMachine) {
+        try {
+            machineShutdownClaimSupport.release(claim);
+        } catch (Exception e) {
+            log.error("failed to release shutdown claim machine={} deviceId={} reason={}",
+                    completedMachine.machineName(),
+                    completedMachine.deviceId(),
+                    e.getMessage(),
+                    e);
         }
     }
 

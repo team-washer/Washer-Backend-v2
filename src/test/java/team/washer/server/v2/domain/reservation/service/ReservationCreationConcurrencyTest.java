@@ -12,6 +12,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +25,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,7 +37,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.google.firebase.messaging.FirebaseMessaging;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineType;
@@ -65,6 +66,8 @@ import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSup
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Testcontainers
@@ -352,21 +355,26 @@ class ReservationCreationConcurrencyTest {
             final var shutdownStarted = new CountDownLatch(1);
             final var allowShutdown = new CountDownLatch(1);
             willAnswer(invocation -> {
+                assertThat(invocation.getArgument(4, BooleanSupplier.class).getAsBoolean()).isTrue();
                 shutdownStarted.countDown();
                 assertThat(allowShutdown.await(5, TimeUnit.SECONDS)).isTrue();
                 return DeviceShutdownSupport.ShutdownResult.POWERED_OFF;
             }).given(deviceShutdownSupport)
-                    .shutdownAfterCompletion(anyString(), eq(data.deviceId()), eq(true), eq(status));
+                    .shutdownAfterCompletion(anyString(), eq(data.deviceId()), eq(true), eq(status), any());
 
             final var executor = Executors.newFixedThreadPool(2);
             try {
                 final var completion = executor.submit(() -> processReservationLifecycleService.execute());
                 assertThat(shutdownStarted.await(5, TimeUnit.SECONDS)).isTrue();
+                expireShutdownClaim(data.machineId());
 
                 final var creation = executor.submit(() -> reserveAsUser(data.newUserId(), data.machineId()));
                 final var result = creation.get(10, TimeUnit.SECONDS);
                 assertThat(result.isSuccess()).isFalse();
-                assertThat(result.throwable()).isInstanceOf(ExpectedException.class).hasMessageContaining("종료 처리 중입니다");
+                assertThat(result.throwable()).isInstanceOf(ErrorCodeException.class)
+                        .hasMessageContaining("종료 처리 중입니다");
+                assertThat(((ErrorCodeException) result.throwable()).getErrorCode())
+                        .isEqualTo(ErrorCode.MACHINE_SHUTDOWN_IN_PROGRESS);
                 allowShutdown.countDown();
                 completion.get(10, TimeUnit.SECONDS);
             } finally {
@@ -391,20 +399,25 @@ class ReservationCreationConcurrencyTest {
             final var shutdownStarted = new CountDownLatch(1);
             final var allowShutdown = new CountDownLatch(1);
             willAnswer(invocation -> {
+                assertThat(invocation.getArgument(2, BooleanSupplier.class).getAsBoolean()).isTrue();
                 shutdownStarted.countDown();
                 assertThat(allowShutdown.await(5, TimeUnit.SECONDS)).isTrue();
                 return DeviceShutdownSupport.ShutdownResult.POWERED_OFF;
-            }).given(deviceShutdownSupport).shutdown(any(), eq(status));
+            }).given(deviceShutdownSupport).shutdown(any(), eq(status), any());
 
             final var executor = Executors.newFixedThreadPool(2);
             try {
                 final var shutdown = executor.submit(() -> shutdownIdleMachinesService.execute());
                 assertThat(shutdownStarted.await(5, TimeUnit.SECONDS)).isTrue();
+                expireShutdownClaim(data.machineId());
 
                 final var creation = executor.submit(() -> reserveAsUser(data.newUserId(), data.machineId()));
                 final var result = creation.get(10, TimeUnit.SECONDS);
                 assertThat(result.isSuccess()).isFalse();
-                assertThat(result.throwable()).isInstanceOf(ExpectedException.class).hasMessageContaining("종료 처리 중입니다");
+                assertThat(result.throwable()).isInstanceOf(ErrorCodeException.class)
+                        .hasMessageContaining("종료 처리 중입니다");
+                assertThat(((ErrorCodeException) result.throwable()).getErrorCode())
+                        .isEqualTo(ErrorCode.MACHINE_SHUTDOWN_IN_PROGRESS);
                 allowShutdown.countDown();
                 shutdown.get(10, TimeUnit.SECONDS);
             } finally {
@@ -506,7 +519,7 @@ class ReservationCreationConcurrencyTest {
             final String message) {
         assertThat(results).filteredOn(ReservationAttemptResult::isSuccess).hasSize(1);
         assertThat(results).filteredOn(result -> !result.isSuccess()).singleElement().satisfies(result -> {
-            assertThat(result.throwable()).isInstanceOf(ExpectedException.class);
+            assertThat(result.throwable()).isInstanceOf(ErrorCodeException.class);
             assertThat(result.throwable()).hasMessageContaining(message);
         });
     }
@@ -514,12 +527,21 @@ class ReservationCreationConcurrencyTest {
     private void assertOneSuccessAndOneReservationFailure(final List<ReservationAttemptResult> results) {
         assertThat(results).filteredOn(ReservationAttemptResult::isSuccess).hasSize(1);
         assertThat(results).filteredOn(result -> !result.isSuccess()).singleElement()
-                .satisfies(result -> assertThat(result.throwable()).isInstanceOf(ExpectedException.class));
+                .satisfies(result -> assertThat(result.throwable()).isInstanceOf(ErrorCodeException.class));
     }
 
     private void assertReservationCount(final long expected) {
         final var count = transactionTemplate.execute(status -> reservationRepository.count());
         assertThat(count).isEqualTo(expected);
+    }
+
+    private void expireShutdownClaim(final Long machineId) {
+        transactionTemplate.executeWithoutResult(status -> {
+            final var machine = machineRepository.findById(machineId).orElseThrow();
+            ReflectionTestUtils.setField(machine,
+                    "shutdownClaimedAt",
+                    DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_CLAIM_TIMEOUT).minusSeconds(1));
+        });
     }
 
     record SameUserData(Long userId, Long firstMachineId, Long secondMachineId) {

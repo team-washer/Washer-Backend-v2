@@ -96,8 +96,9 @@ class ReservationDeviceStateVerifierTest {
 
             // When & Then
             assertThatThrownBy(() -> verifier.verifyNotOperating(machine(MachineType.WASHER)))
-                    .isInstanceOf(ExpectedException.class).hasMessageContaining("작동 중")
-                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+                    .isInstanceOf(ErrorCodeException.class).hasMessageContaining("작동 중")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_IN_USE));
         }
 
         @Test
@@ -128,8 +129,9 @@ class ReservationDeviceStateVerifierTest {
 
             // When & Then
             assertThatThrownBy(() -> verifier.verifyNotOperating(machine(MachineType.DRYER)))
-                    .isInstanceOf(ExpectedException.class)
-                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+                    .isInstanceOf(ErrorCodeException.class)
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_IN_USE));
         }
 
         @Test

@@ -1,15 +1,15 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.reservation.dto.response.AdminCancellationResDto;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.AdminCancelReservationService;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
 @Service
 @RequiredArgsConstructor
@@ -21,12 +21,12 @@ public class AdminCancelReservationServiceImpl implements AdminCancelReservation
     @Override
     public AdminCancellationResDto execute(Long reservationId) {
         final var reservation = reservationRepository.findById(reservationId)
-                .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.RESERVATION_NOT_FOUND));
         if (reservation.getStatus() == ReservationStatus.COMPLETED) {
-            throw new ExpectedException("이미 완료된 예약은 취소할 수 없습니다", HttpStatus.BAD_REQUEST);
+            throw new ErrorCodeException(ErrorCode.RESERVATION_STATE_INVALID, "이미 완료된 예약은 취소할 수 없습니다");
         }
         if (reservation.getStatus() == ReservationStatus.CANCELLED) {
-            throw new ExpectedException("이미 취소된 예약입니다", HttpStatus.BAD_REQUEST);
+            throw new ErrorCodeException(ErrorCode.RESERVATION_STATE_INVALID, "이미 취소된 예약입니다");
         }
         reservation.cancel();
         final var machine = reservation.getMachine();

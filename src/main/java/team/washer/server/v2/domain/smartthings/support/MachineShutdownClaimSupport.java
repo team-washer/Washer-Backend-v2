@@ -44,7 +44,14 @@ public class MachineShutdownClaimSupport {
             return Optional.empty();
         }
 
-        return claimLockedMachine(machine);
+        final var claim = claimLockedMachine(machine);
+        if (claim.isPresent()) {
+            return claim;
+        }
+        if (machine.reclaimShutdownCommand()) {
+            return Optional.of(new ShutdownClaim(machine.getId(), machine.getShutdownClaimToken()));
+        }
+        return Optional.empty();
     }
 
     /**
@@ -63,6 +70,13 @@ public class MachineShutdownClaimSupport {
     public boolean isActive(final ShutdownClaim claim) {
         return machineRepository.findById(claim.machineId())
                 .map(machine -> machine.ownsActiveShutdownClaim(claim.token())).orElse(false);
+    }
+
+    /** 외부 전원 차단 명령 직전에 claim을 명령 진행 중 상태로 전환한다. */
+    @Transactional
+    public boolean beginCommand(final ShutdownClaim claim) {
+        return machineRepository.findByIdForUpdate(claim.machineId())
+                .map(machine -> machine.beginShutdownCommand(claim.token())).orElse(false);
     }
 
     /** 외부 호출이 끝난 뒤 같은 세대의 claim만 해제합니다. */

@@ -19,7 +19,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.dto.response.RoomActiveReservationsResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -28,6 +27,8 @@ import team.washer.server.v2.domain.reservation.repository.ReservationRepository
 import team.washer.server.v2.domain.reservation.service.impl.QueryRoomActiveReservationsServiceImpl;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
@@ -123,8 +124,10 @@ class QueryRoomActiveReservationsServiceTest {
             when(userRepository.findById(USER_ID)).thenReturn(Optional.empty());
 
             // When & Then
-            assertThatThrownBy(() -> queryRoomActiveReservationsService.execute()).isInstanceOf(ExpectedException.class)
-                    .hasMessage("사용자를 찾을 수 없습니다");
+            assertThatThrownBy(() -> queryRoomActiveReservationsService.execute())
+                    .isInstanceOf(ErrorCodeException.class).hasMessage(ErrorCode.USER_NOT_FOUND.getMessage())
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.USER_NOT_FOUND));
         }
     }
 

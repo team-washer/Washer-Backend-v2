@@ -22,6 +22,8 @@ import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
@@ -105,9 +107,9 @@ class ExtendCancellationBlockServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> extendCancellationBlockService.execute(3L, 1))
-                        .isInstanceOf(ExpectedException.class).hasMessage("관리자 권한이 필요합니다.")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.FORBIDDEN));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("관리자 권한이 필요합니다.")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.FORBIDDEN));
 
                 then(penaltyRedisUtil).shouldHaveNoInteractions();
                 then(reservationNotificationSupport).shouldHaveNoInteractions();
@@ -128,9 +130,9 @@ class ExtendCancellationBlockServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> extendCancellationBlockService.execute(1L, 1))
-                        .isInstanceOf(ExpectedException.class).hasMessage("사용자를 찾을 수 없습니다.")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("사용자를 찾을 수 없습니다")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.USER_NOT_FOUND));
 
                 then(penaltyRedisUtil).shouldHaveNoInteractions();
                 then(reservationNotificationSupport).shouldHaveNoInteractions();
@@ -154,9 +156,9 @@ class ExtendCancellationBlockServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> extendCancellationBlockService.execute(targetId, 1))
-                        .isInstanceOf(ExpectedException.class).hasMessage("사용자를 찾을 수 없습니다.")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("사용자를 찾을 수 없습니다")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.USER_NOT_FOUND));
 
                 then(penaltyRedisUtil).shouldHaveNoInteractions();
                 then(reservationNotificationSupport).shouldHaveNoInteractions();
@@ -181,9 +183,9 @@ class ExtendCancellationBlockServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> extendCancellationBlockService.execute(targetId, 1))
-                        .isInstanceOf(ExpectedException.class).hasMessage("호실 정보를 찾을 수 없습니다.")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("호실 정보가 존재하지 않습니다.")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.ROOM_NOT_FOUND));
 
                 then(penaltyRedisUtil).shouldHaveNoInteractions();
                 then(reservationNotificationSupport).shouldHaveNoInteractions();
