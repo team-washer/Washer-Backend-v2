@@ -39,7 +39,7 @@ Korean dormitory laundry management system with Java 25 and Spring Boot 4.0.1.
 7. **QueryDSL:** For complex queries with joins
 
 ## Korean Language Requirement
-**ALL documentation, comments, and messages MUST be in Korean:**
+**Source-code documentation, comments, and messages MUST be in Korean:**
 - Javadoc comments: Korean
 - Inline comments: Korean
 - Exception messages: Korean
@@ -56,8 +56,8 @@ Korean dormitory laundry management system with Java 25 and Spring Boot 4.0.1.
 - `merge: 브랜치 병합`
 - `init: 초기 설정`
 
-## GitHub Issue 및 PR 규칙
-- 새 Issue 제목에는 `[P0]`~`[P4]` 우선순위 접두사를 넣지 않고 위험도 라벨을 하나만 적용합니다.
-- `버그`, `리팩터링`, `신규 기능`, `문서화`, `삭제` 같은 작업 유형 라벨은 위험도와 다른 축이므로 함께 적용할 수 있습니다.
-- 위험도 라벨은 `위험도: 긴급`(인증·권한·비밀정보·데이터 손실·즉시 안전 대응), `위험도: 높음`(핵심 흐름 장애·상태 정합성·동시성), `위험도: 보통`(제한된 기능 오류·API 계약·운영 정책), `위험도: 낮음`(성능·관측성·유지보수), `위험도: 정리`(미사용 코드·설정·중복 제거)로 구분합니다.
-- 위험도 라벨은 Issue 전용입니다. PR 작성 도구는 코드 수정 성격에 맞는 PR 라벨만 자동 선택합니다.
+## GitHub Issue and PR Rules
+- Do not use `[P0]` through `[P4]` priority prefixes in new Issue titles. Apply exactly one risk label instead.
+- Work-type labels such as `버그`, `리팩터링`, `신규 기능`, `문서화`, and `삭제` are a separate axis and may be used alongside one risk label.
+- Risk labels are `위험도: 긴급` (authentication, authorization, secrets, data loss, or immediate safety), `위험도: 높음` (core-flow outage, state integrity, or concurrency), `위험도: 보통` (limited functional, API contract, or operational-policy issues), `위험도: 낮음` (performance, observability, or maintainability), and `위험도: 정리` (unused code, configuration, or duplication removal).
+- Risk labels are Issue-only. PR tooling must select only labels appropriate for the code change and must never add risk labels automatically.

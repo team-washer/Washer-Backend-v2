@@ -1,18 +1,18 @@
 ---
 name: Bug Report
-about: 애플리케이션에 문제가 생겼어요!
+about: Report a problem with the application.
 title: "[{Scope}]"
 assignees: ''
 ---
 
-## 버그 설명
+## Bug Description
 ---
-> 버그에 대한 설명을 적어주세요.
+> Describe the problem.
 
-## 위험도
+## Risk
 ---
-> 제목에는 `[P0]`~`[P4]`를 넣지 말고, GitHub에서 `위험도: ...` 라벨을 정확히 하나 선택해 주세요.
+> Do not put a `[P0]` through `[P4]` prefix in the title. Select exactly one `위험도: ...` label on GitHub.
 
-## 기타 사항
+## Additional Context
 ---
-> 버그와 관련된 기타 사항을 적어주세요.
+> Add any other relevant context.

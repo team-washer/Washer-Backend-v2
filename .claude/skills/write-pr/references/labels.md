@@ -1,30 +1,30 @@
 # GitHub Labels Reference
 
-PR에는 실제 저장소에 존재하는 PR용 라벨을 1~2개만 선택합니다. 라벨명은 `gh label list`로 확인한 실제 이름과 일치해야 합니다.
+Select only 1–2 PR labels that exist in the repository. Label names must match the actual names reported by `gh label list`.
 
-## PR 라벨
+## PR Labels
 
-| 라벨 | 적용 기준 |
+| Label | When to use |
 |---|---|
-| `신규 기능` | 새 기능 또는 기존 기능의 동작 개선 |
-| `리팩터링` | 동작 변경 없이 구조·품질을 개선하는 작업 |
-| `버그` | 버그 수정 |
-| `문서화` | README, CONTRIBUTING, 주석 등 문서만 수정하는 작업 |
-| `삭제` | 기능, 모듈, 미사용 코드의 제거 |
+| `신규 기능` | New feature or improvement to an existing feature |
+| `리팩터링` | Structural or quality improvement without behavior changes |
+| `버그` | Bug fix |
+| `문서화` | Documentation-only changes, including README, CONTRIBUTING, and comments |
+| `삭제` | Removal of a feature, module, or unused code |
 
-## 자동 선택 금지 라벨
+## Do Not Auto-Select
 
-- `위험도: 긴급`, `위험도: 높음`, `위험도: 보통`, `위험도: 낮음`, `위험도: 정리`: Issue 전용 위험도 라벨입니다. PR에 자동으로 붙이지 않습니다.
-- `무효`, `중복됨`: Issue 전용 라벨입니다.
-- `중지됨`: 다른 Issue·PR에 의해 차단된 경우 작성자가 수동으로 적용합니다.
-- `harness sync:하네스 동기화`: 자동화가 관리하는 라벨입니다.
+- `위험도: 긴급`, `위험도: 높음`, `위험도: 보통`, `위험도: 낮음`, `위험도: 정리`: Issue-only risk labels. Never add them to PRs automatically.
+- `무효`, `중복됨`: Issue-only labels.
+- `중지됨`: Apply manually when work is blocked by another Issue or PR.
+- `harness sync:하네스 동기화`: Managed by automation; never auto-select it.
 
-## 선택 기준
+## Selection Guide
 
 ```
-버그 수정?                    -> 버그
-새 기능 또는 동작 개선?        -> 신규 기능
-구조 개선만 해당?              -> 리팩터링
-문서만 수정?                   -> 문서화
-기능·코드·설정 제거?           -> 삭제
+Bug fix?                         -> `버그`
+New feature or behavior change?  -> `신규 기능`
+Structural improvement only?     -> `리팩터링`
+Documentation only?              -> `문서화`
+Feature, code, or config removal? -> `삭제`
 ```

@@ -1,23 +1,23 @@
 ---
 name: ToDo
-about: 해야 할 일을 정리해요!
+about: Track work that needs to be done.
 title: "[{Scope}]"
 assignees: ''
 ---
 
-## 개요
+## Overview
 ---
-> 해야 할 일에 대한 설명을 적어주세요.
+> Describe the work.
 
-## 해야 할 일
+## Tasks
 ---
-- [ ] 해야 할 일을 적어주세요.
-- [ ] 해야 할 일을 적어주세요.
+- [ ] Add a task.
+- [ ] Add a task.
 
-## 위험도
+## Risk
 ---
-> 제목에는 `[P0]`~`[P4]`를 넣지 말고, GitHub에서 `위험도: ...` 라벨을 정확히 하나 선택해 주세요.
+> Do not put a `[P0]` through `[P4]` prefix in the title. Select exactly one `위험도: ...` label on GitHub.
 
-## 기타 사항
+## Additional Context
 ---
-> 참고해야 하거나 기타 사항이 있다면 적어주세요.
+> Add any relevant references or context.

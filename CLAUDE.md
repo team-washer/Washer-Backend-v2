@@ -63,7 +63,7 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
 - `GlobalExceptionHandler` maps `ExpectedException` to the response
 
 ## Korean Language Requirement
-**ALL documentation, comments, and messages in Korean:**
+**Source-code documentation, comments, and messages in Korean:**
 - Javadoc, inline comments
 - Exception/validation messages
 - Test `@DisplayName`
@@ -80,13 +80,14 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
 - Testing: BDD with `@Nested`, Korean `@DisplayName`, Given-When-Then
 - Commands: `/spotless-format`, `/split-commits`
 
-## GitHub Issue 및 PR 규칙
-- 새 Issue 제목에는 `[P0]`~`[P4]` 우선순위 접두사를 넣지 않고 GitHub 위험도 라벨로 표시합니다.
-- 한 Issue에는 위험도 라벨을 정확히 하나만 적용합니다. `버그`, `리팩터링`, `신규 기능`, `문서화`, `삭제` 같은 작업 유형 라벨은 위험도와 다른 축이므로 함께 유지할 수 있습니다.
-- 위험도 기준은 다음과 같습니다.
-  - `위험도: 긴급`: 인증·권한 우회, 토큰·비밀정보 노출, 데이터 손실 또는 즉시 안전 대응이 필요한 문제입니다. 예: 비인증 사용자가 관리자 기기 동기화를 실행하거나 인증 토큰이 로그에 기록되는 문제입니다.
-  - `위험도: 높음`: 예약·기기 제어 같은 핵심 흐름의 장애, 잘못된 상태 전이, 데이터 정합성·동시성 문제로 빠른 대응이 필요한 문제입니다. 예: 신규 예약이 진행 중인 기기의 전원을 끄거나 동일 사용자의 중복 예약을 허용하는 문제입니다.
-  - `위험도: 보통`: 영향 범위가 제한된 기능 오류, API 계약·사용자 안내 문제 또는 운영 정책 개선입니다. 예: 특정 입력 오류에서 수정할 필드를 안내하지 않는 문제입니다.
-  - `위험도: 낮음`: 기능은 유지되지만 성능, 관측성 또는 유지보수성을 개선하는 작업입니다. 예: 조회를 일괄 처리해 N+1을 줄이거나 비동기 로그의 추적 정보를 보강하는 작업입니다.
-  - `위험도: 정리`: 동작 영향이 낮은 미사용 코드·설정·의존성·중복을 제거하는 작업입니다. 예: 호출되지 않는 Repository 메서드를 삭제하는 작업입니다.
-- PR 작성 도구의 라벨 선택은 코드 수정 성격에 맞는 PR 라벨만 대상으로 합니다. `위험도: 긴급` 등 위험도 라벨은 Issue 전용이므로 PR에 자동으로 붙이지 않습니다.
+## GitHub Issue and PR Rules
+- Do not use `[P0]` through `[P4]` priority prefixes in new Issue titles. Represent priority with a GitHub risk label instead.
+- Apply exactly one risk label to each Issue. Work-type labels such as `버그`, `리팩터링`, `신규 기능`, `문서화`, and `삭제` are a separate axis and may be kept alongside the risk label.
+- Use these risk criteria:
+  - `위험도: 긴급`: Authentication or authorization bypasses, token or secret exposure, data loss, or problems requiring immediate safety response. Example: an unauthenticated user can trigger an admin device sync, or an auth token is written to logs.
+  - `위험도: 높음`: Core-flow outages, incorrect state transitions, data-integrity issues, or concurrency problems affecting reservations or device control and requiring prompt action. Example: a new reservation can power off a machine that is already running, or duplicate reservations are accepted for one user.
+  - `위험도: 보통`: Limited-scope functional errors, API contract issues, user guidance problems, or operational policy improvements. Example: a specific input error does not identify the field the user must fix.
+  - `위험도: 낮음`: Performance, observability, or maintainability improvements where the feature remains functional. Example: batching a query to remove N+1 behavior or adding trace context to asynchronous logs.
+  - `위험도: 정리`: Low-impact removal of unused code, configuration, dependencies, or duplication. Example: deleting unused Repository methods.
+- PR label selection must use only labels appropriate for the code change. Risk labels such as `위험도: 긴급` are Issue-only and must never be added to PRs automatically.
+- This harness guidance is written in English; source-code comments, API text, and test descriptions remain subject to the project language rules above.
