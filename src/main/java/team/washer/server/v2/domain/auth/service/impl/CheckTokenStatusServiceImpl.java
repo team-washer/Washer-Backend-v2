@@ -9,6 +9,8 @@ import team.washer.server.v2.domain.auth.dto.request.RefreshTokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenStatusResDto;
 import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
 import team.washer.server.v2.domain.auth.service.CheckTokenStatusService;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.jwt.provider.JwtTokenProvider;
 
 @Service
@@ -25,6 +27,12 @@ public class CheckTokenStatusServiceImpl implements CheckTokenStatusService {
             final var valid = refreshTokenRedisRepository.findByToken(reqDto.refreshToken())
                     .filter(entity -> entity.getUserId().equals(payload.userId())).isPresent();
             return new TokenStatusResDto(valid);
+        } catch (final ErrorCodeException e) {
+            if (e.getErrorCode() == ErrorCode.REFRESH_TOKEN_EXPIRED
+                    || e.getErrorCode() == ErrorCode.REFRESH_TOKEN_INVALID) {
+                return new TokenStatusResDto(false);
+            }
+            throw e;
         } catch (final ExpectedException e) {
             return new TokenStatusResDto(false);
         }
