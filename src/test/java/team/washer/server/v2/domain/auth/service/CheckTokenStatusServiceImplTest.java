@@ -20,6 +20,8 @@ import team.washer.server.v2.domain.auth.dto.response.TokenStatusResDto;
 import team.washer.server.v2.domain.auth.entity.redis.RefreshTokenEntity;
 import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
 import team.washer.server.v2.domain.auth.service.impl.CheckTokenStatusServiceImpl;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.jwt.dto.JwtPayload;
 import team.washer.server.v2.global.security.jwt.provider.JwtTokenProvider;
 
@@ -178,6 +180,28 @@ class CheckTokenStatusServiceImplTest {
                 assertThat(result.valid()).isFalse();
                 then(jwtTokenProvider).should(times(1)).parseRefreshToken(token);
                 then(refreshTokenRedisRepository).should(times(1)).findByToken(token);
+            }
+        }
+
+        @Nested
+        @DisplayName("원인별 ErrorCodeException이 발생한 Refresh Token은")
+        class Context_with_error_code_refresh_token {
+
+            @Test
+            @DisplayName("유효하지 않은 토큰으로 응답한다")
+            void it_returns_valid_false_for_expired_token() {
+                // Given
+                String token = "expired.refresh.token";
+                RefreshTokenReqDto reqDto = createReqDto(token);
+                given(jwtTokenProvider.parseRefreshToken(token))
+                        .willThrow(new ErrorCodeException(ErrorCode.REFRESH_TOKEN_EXPIRED));
+
+                // When
+                TokenStatusResDto result = checkTokenStatusService.execute(reqDto);
+
+                // Then
+                assertThat(result.valid()).isFalse();
+                then(refreshTokenRedisRepository).shouldHaveNoInteractions();
             }
         }
     }
