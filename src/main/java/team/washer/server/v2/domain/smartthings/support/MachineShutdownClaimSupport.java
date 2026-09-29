@@ -51,7 +51,7 @@ public class MachineShutdownClaimSupport {
         if (claim.isPresent()) {
             return claim;
         }
-        if (machine.isShutdownCommandRecoveryReady()) {
+        if (machine.reclaimShutdownCommand()) {
             return Optional.of(new ShutdownClaim(machine.getId(), machine.getShutdownClaimToken(), true));
         }
         return Optional.empty();

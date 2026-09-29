@@ -275,6 +275,15 @@ public class Machine extends BaseEntity {
                 .isBefore(this.shutdownCommandStartedAt.plus(SHUTDOWN_COMMAND_RECOVERY_TIMEOUT));
     }
 
+    /** 외부 명령 결과가 확인되지 않은 claim을 다시 점유하고 복구 보호 시간을 갱신합니다. */
+    public boolean reclaimShutdownCommand() {
+        if (!isShutdownCommandRecoveryReady()) {
+            return false;
+        }
+        this.shutdownCommandStartedAt = DateTimeUtil.nowInKorea();
+        return true;
+    }
+
     /** SmartThings 호출의 최대 시간보다 긴 보호 구간이 지난 작업을 복구합니다. */
     public void recoverExpiredShutdownClaim() {
         if (this.shutdownInProgress && !hasActiveShutdownClaim()) {

@@ -243,5 +243,23 @@ class MachineTest {
             assertThat(machine.isShutdownCommandRecoveryReady()).isTrue();
             assertThat(machine.isShutdownInProgress()).isTrue();
         }
+
+        @Test
+        @DisplayName("복구 claim을 재점유하면 명령 진행 보호 시간이 갱신된다")
+        void it_renews_recovery_protection_when_reclaiming_command() {
+            // Given
+            var machine = createMachine();
+            machine.claimShutdown();
+            ReflectionTestUtils.setField(machine,
+                    "shutdownCommandStartedAt",
+                    DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_COMMAND_RECOVERY_TIMEOUT).minusSeconds(1));
+
+            // When
+            assertThat(machine.reclaimShutdownCommand()).isTrue();
+
+            // Then
+            assertThat(machine.isShutdownCommandRecoveryReady()).isFalse();
+            assertThat(machine.hasActiveShutdownClaim()).isTrue();
+        }
     }
 }
