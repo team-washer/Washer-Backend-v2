@@ -96,9 +96,9 @@ config/, util/       # Configuration and utilities
   - `위험도: 긴급`: Authentication or authorization bypasses, token or secret exposure, data loss, or problems requiring immediate safety response. Example: an unauthenticated user can trigger an admin device sync, or an auth token is written to logs.
   - `위험도: 높음`: Core-flow outages, incorrect state transitions, data-integrity issues, or concurrency problems affecting reservations or device control and requiring prompt action. Example: a new reservation can power off a machine that is already running, or duplicate reservations are accepted for one user.
   - `위험도: 보통`: Limited-scope functional errors, API contract issues, user guidance problems, or operational policy improvements. Example: a specific input error does not identify the field the user must fix.
-  - `위험도: 낮음`: Performance, observability, or maintainability improvements where the feature remains functional. Example: batching a query to remove N+1 behavior or adding trace context to asynchronous logs.
+  - `위험도: 낮음`: Performance, observability, or maintainability improvements where the feature remains functional. Example: batching a query to reduce N+1 behavior or adding trace context to asynchronous logs.
   - `위험도: 정리`: Low-impact removal of unused code, configuration, dependencies, or duplication. Example: deleting unused Repository methods.
-- PR label selection must use only labels appropriate for the code change. Risk labels such as `위험도: 긴급` are Issue-only and must never be added to PRs automatically.
+- PR label selection must use only PR labels appropriate for the code change. Risk labels such as `위험도: 긴급` are Issue-only and must never be added to PRs automatically.
 - This harness guidance is written in English; source-code comments, API text, and test descriptions remain subject to the project language rules above.
 
 ## Special Rules Summary

@@ -27,4 +27,5 @@ New feature or behavior change?  -> `신규 기능`
 Structural improvement only?     -> `리팩터링`
 Documentation only?              -> `문서화`
 Feature, code, or config removal? -> `삭제`
+Unsure?                          -> `신규 기능`
 ```
