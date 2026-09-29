@@ -2,9 +2,12 @@ package team.washer.server.v2.domain.reservation.service.impl;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
@@ -65,30 +68,54 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         // 수동 취소 시 패널티 적용. 단, 관리자 대리 예약은 본인이 요청한 것이 아니므로 면제한다
         final boolean applyPenalty = !reservation.isProxyReservation();
         if (applyPenalty) {
-            penaltyRedisUtil.applyCooldown(userId, machine.getType());
-            penaltyRedisUtil.recordCancellation(userId);
             user.updateLastCancellationTime();
-            if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
-                final RestrictionStatus previousBlockStatus = penaltyRedisUtil.checkBlock(user.getRoomNumber());
-                // 차단 저장 실패는 PenaltyRedisUtil이 운영 알림으로 보고하며, 예약 취소 자체는 계속 진행한다
-                if (penaltyRedisUtil.applyBlock(user.getRoomNumber())) {
-                    // 기존 차단 여부를 조회하지 못했다면 알림 누락보다 중복 발송이 낫다고 보고 발송한다
-                    if (previousBlockStatus != RestrictionStatus.RESTRICTED) {
-                        reservationNotificationSupport.sendCancellationBlock(user, machine);
-                    }
-                    log.warn("48h block applied roomNumber={}", user.getRoomNumber());
-                }
-            }
-            log.info("manual cancel penalty applied userId={} reservationId={}", userId, reservationId);
         }
 
         reservation.cancel();
         machine.releaseIfHeld();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
+        registerPenaltyAfterCommit(applyPenalty, user, machine, userId, reservationId);
         log.info("Cancelled reservation reservationId={} userId={}", reservationId, userId);
 
         return mapToCancellationResDto(applyPenalty);
+    }
+
+    private void registerPenaltyAfterCommit(final boolean applyPenalty,
+            final User user,
+            final Machine machine,
+            final Long userId,
+            final Long reservationId) {
+        if (!applyPenalty) {
+            return;
+        }
+        final Runnable apply = () -> applyPenalty(user, machine, userId, reservationId);
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    apply.run();
+                }
+            });
+            return;
+        }
+        apply.run();
+    }
+
+    private void applyPenalty(final User user, final Machine machine, final Long userId, final Long reservationId) {
+        penaltyRedisUtil.applyCooldown(userId, machine.getType());
+        penaltyRedisUtil.recordCancellation(userId);
+        if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
+            final RestrictionStatus previousBlockStatus = penaltyRedisUtil.checkBlock(user.getRoomNumber());
+            if (penaltyRedisUtil.applyBlock(user.getRoomNumber())) {
+                if (previousBlockStatus != RestrictionStatus.RESTRICTED) {
+                    reservationNotificationSupport.sendCancellationBlock(user, machine);
+                }
+                log.warn("48h block applied roomNumber={}", user.getRoomNumber());
+            }
+        }
+        log.info("manual cancel penalty applied userId={} reservationId={}", userId, reservationId);
     }
 
     private CancellationResDto mapToCancellationResDto(final boolean penaltyApplied) {

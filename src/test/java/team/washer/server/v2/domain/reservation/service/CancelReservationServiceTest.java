@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -373,6 +374,33 @@ class CancelReservationServiceTest {
                         .isInstanceOf(ErrorCodeException.class).hasMessage(ErrorCode.RESERVATION_NOT_FOUND.getMessage())
                         .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
                                 .isEqualTo(ErrorCode.RESERVATION_NOT_FOUND));
+            }
+        }
+
+        @Nested
+        @DisplayName("DB 트랜잭션 경계가 적용될 때")
+        class Context_with_transaction_synchronization {
+
+            @Test
+            @DisplayName("커밋 전에는 Redis 패널티를 기록하지 않는다")
+            void delaysPenaltyUntilCommit() {
+                final var userId = 1L;
+                final var reservation = createReservation(ReservationStatus.RESERVED, userId);
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(0L);
+                TransactionSynchronizationManager.initSynchronization();
+                TransactionSynchronizationManager.setActualTransactionActive(true);
+                try {
+                    cancelReservationService.execute(10L);
+
+                    then(penaltyRedisUtil).shouldHaveNoInteractions();
+                    TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
+                    then(penaltyRedisUtil).should().applyCooldown(userId, MachineType.WASHER);
+                    then(penaltyRedisUtil).should().recordCancellation(userId);
+                } finally {
+                    TransactionSynchronizationManager.clearSynchronization();
+                    TransactionSynchronizationManager.setActualTransactionActive(false);
+                }
             }
         }
     }

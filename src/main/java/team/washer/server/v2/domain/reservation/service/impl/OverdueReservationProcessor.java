@@ -5,6 +5,8 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -154,7 +156,8 @@ public class OverdueReservationProcessor {
             return OverdueResult.CANCELLED_WITHOUT_PENALTY;
         }
 
-        applyTimeoutPenalty(user, machine);
+        user.updateLastCancellationTime();
+        applyTimeoutPenaltyAfterCommit(user, machine);
         return OverdueResult.CANCELLED;
     }
 
@@ -185,12 +188,25 @@ public class OverdueReservationProcessor {
      * 4. 48시간 내 {maxCount}회 초과 시 48h 블록 적용
      * </p>
      */
-    private void applyTimeoutPenalty(User user, Machine machine) {
+    private void applyTimeoutPenaltyAfterCommit(final User user, final Machine machine) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    applyTimeoutPenalty(user, machine);
+                }
+            });
+            return;
+        }
+        applyTimeoutPenalty(user, machine);
+    }
+
+    private void applyTimeoutPenalty(final User user, final Machine machine) {
         final long userId = user.getId();
 
         penaltyRedisUtil.applyCooldown(userId, machine.getType());
         penaltyRedisUtil.recordCancellation(userId);
-        user.updateLastCancellationTime();
 
         if (!penaltyRedisUtil.hasWarning(userId)) {
             penaltyRedisUtil.applyWarning(userId);
