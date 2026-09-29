@@ -89,7 +89,16 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         if (!applyPenalty) {
             return;
         }
-        final Runnable apply = () -> applyPenalty(user, machine, userId, reservationId);
+        final Runnable apply = () -> {
+            try {
+                applyPenalty(user, machine, userId, reservationId);
+            } catch (Exception e) {
+                log.error("manual cancel penalty after commit failed userId={} reservationId={}",
+                        userId,
+                        reservationId,
+                        e);
+            }
+        };
         if (TransactionSynchronizationManager.isActualTransactionActive()
                 && TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

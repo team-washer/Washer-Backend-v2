@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.reservation.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
@@ -504,6 +505,29 @@ class OverdueReservationProcessorTest {
             TransactionSynchronizationManager.getSynchronizations()
                     .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
             verifyNoInteractions(penaltyRedisUtil);
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+        }
+    }
+
+    @Test
+    @DisplayName("커밋 후 만료 패널티 처리 실패가 만료 취소 호출자에게 전파되지 않는다")
+    void doesNotPropagateTimeoutPenaltyFailureAfterCommit() {
+        givenReservedReservation();
+        when(machine.isCleaning()).thenReturn(true);
+        when(user.getId()).thenReturn(1L);
+        org.mockito.BDDMockito.willThrow(new RuntimeException("redis unavailable")).given(penaltyRedisUtil)
+                .applyCooldown(1L, null);
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            final var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, buildDeviceStatus(null));
+
+            assertThat(result).isEqualTo(OverdueResult.CANCELLED);
+            assertThatCode(
+                    () -> TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit()))
+                    .doesNotThrowAnyException();
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
             TransactionSynchronizationManager.setActualTransactionActive(false);

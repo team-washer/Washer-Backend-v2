@@ -194,7 +194,11 @@ public class OverdueReservationProcessor {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
                 public void afterCommit() {
-                    applyTimeoutPenalty(user, machine);
+                    try {
+                        applyTimeoutPenalty(user, machine);
+                    } catch (Exception e) {
+                        log.error("timeout penalty after commit failed userId={}", user.getId(), e);
+                    }
                 }
             });
             return;

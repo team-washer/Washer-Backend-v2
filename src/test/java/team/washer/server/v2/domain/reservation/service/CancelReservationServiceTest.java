@@ -402,6 +402,27 @@ class CancelReservationServiceTest {
                     TransactionSynchronizationManager.setActualTransactionActive(false);
                 }
             }
+
+            @Test
+            @DisplayName("커밋 후 패널티 처리 실패가 성공한 취소를 실패 응답으로 바꾸지 않는다")
+            void doesNotPropagateAfterCommitPenaltyFailure() {
+                final var userId = 1L;
+                createReservation(ReservationStatus.RESERVED, userId);
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                willThrow(new RuntimeException("redis unavailable")).given(penaltyRedisUtil).applyCooldown(userId,
+                        MachineType.WASHER);
+                TransactionSynchronizationManager.initSynchronization();
+                TransactionSynchronizationManager.setActualTransactionActive(true);
+                try {
+                    cancelReservationService.execute(10L);
+
+                    assertThatCode(() -> TransactionSynchronizationManager.getSynchronizations()
+                            .forEach(sync -> sync.afterCommit())).doesNotThrowAnyException();
+                } finally {
+                    TransactionSynchronizationManager.clearSynchronization();
+                    TransactionSynchronizationManager.setActualTransactionActive(false);
+                }
+            }
         }
     }
 }
