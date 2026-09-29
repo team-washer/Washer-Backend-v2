@@ -1,35 +1,30 @@
 # GitHub Labels Reference
 
-Select **1–2 labels** from the PR-eligible list below. Do NOT use issue-only or manual labels.
-Label names must match the repository exactly (verify with `gh label list`).
+PR에는 실제 저장소에 존재하는 PR용 라벨을 1~2개만 선택합니다. 라벨명은 `gh label list`로 확인한 실제 이름과 일치해야 합니다.
 
-## PR-Eligible Labels (auto-selectable)
+## PR 라벨
 
-| Label     | When to use                                            |
-|-----------|--------------------------------------------------------|
-| `신규 기능`  | New feature or improvement to an existing feature       |
-| `리팩터링`   | Refactoring / code improvement without behavior change |
-| `버그`      | Bug fix                                                 |
-| `문서화`     | Docs-only changes (README, CONTRIBUTING, comments)     |
-| `삭제`      | Removal of a feature, module, or dead code             |
+| 라벨 | 적용 기준 |
+|---|---|
+| `신규 기능` | 새 기능 또는 기존 기능의 동작 개선 |
+| `리팩터링` | 동작 변경 없이 구조·품질을 개선하는 작업 |
+| `버그` | 버그 수정 |
+| `문서화` | README, CONTRIBUTING, 주석 등 문서만 수정하는 작업 |
+| `삭제` | 기능, 모듈, 미사용 코드의 제거 |
 
-## Off-limits Labels (do NOT assign)
+## 자동 선택 금지 라벨
 
-| Label                    | Reason                                                    |
-|--------------------------|-----------------------------------------------------------|
-| `무효`                     | Issues only                                               |
-| `중복됨`                    | Issues only                                               |
-| `중지됨`                    | Applied manually when blocked by another PR/issue         |
-| `harness sync:하네스 동기화`  | Automation-managed — never auto-assigned                  |
-| `bug:버그`                 | Legacy duplicate of `버그` — use `버그` instead              |
+- `위험도: 긴급`, `위험도: 높음`, `위험도: 보통`, `위험도: 낮음`, `위험도: 정리`: Issue 전용 위험도 라벨입니다. PR에 자동으로 붙이지 않습니다.
+- `무효`, `중복됨`: Issue 전용 라벨입니다.
+- `중지됨`: 다른 Issue·PR에 의해 차단된 경우 작성자가 수동으로 적용합니다.
+- `harness sync:하네스 동기화`: 자동화가 관리하는 라벨입니다.
 
-## Quick Decision
+## 선택 기준
 
 ```
-Bug fix?              → 버그
-New feature?          → 신규 기능
-Refactoring only?     → 리팩터링
-Docs only?            → 문서화
-Removal / deletion?   → 삭제
-Unsure?               → 신규 기능
+버그 수정?                    -> 버그
+새 기능 또는 동작 개선?        -> 신규 기능
+구조 개선만 해당?              -> 리팩터링
+문서만 수정?                   -> 문서화
+기능·코드·설정 제거?           -> 삭제
 ```
