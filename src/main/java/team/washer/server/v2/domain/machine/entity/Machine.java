@@ -30,7 +30,7 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 public class Machine extends BaseEntity {
 
     public static final Duration SHUTDOWN_CLAIM_TIMEOUT = Duration.ofSeconds(30);
-    public static final Duration SHUTDOWN_COMMAND_RECOVERY_TIMEOUT = Duration.ofSeconds(30);
+    public static final Duration SHUTDOWN_COMMAND_RECOVERY_TIMEOUT = SHUTDOWN_CLAIM_TIMEOUT;
 
     @NotBlank(message = "기기명은 필수입니다")
     @Size(max = 50, message = "기기명은 50자를 초과할 수 없습니다")
@@ -280,7 +280,9 @@ public class Machine extends BaseEntity {
         if (!isShutdownCommandRecoveryReady()) {
             return false;
         }
-        this.shutdownCommandStartedAt = DateTimeUtil.nowInKorea();
+        this.shutdownClaimToken = UUID.randomUUID().toString();
+        this.shutdownClaimedAt = DateTimeUtil.nowInKorea();
+        this.shutdownCommandStartedAt = null;
         return true;
     }
 

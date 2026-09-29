@@ -12,6 +12,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -353,11 +354,12 @@ class ReservationCreationConcurrencyTest {
             final var shutdownStarted = new CountDownLatch(1);
             final var allowShutdown = new CountDownLatch(1);
             willAnswer(invocation -> {
+                assertThat(invocation.getArgument(4, BooleanSupplier.class).getAsBoolean()).isTrue();
                 shutdownStarted.countDown();
                 assertThat(allowShutdown.await(5, TimeUnit.SECONDS)).isTrue();
                 return DeviceShutdownSupport.ShutdownResult.POWERED_OFF;
             }).given(deviceShutdownSupport)
-                    .shutdownAfterCompletion(anyString(), eq(data.deviceId()), eq(true), eq(status));
+                    .shutdownAfterCompletion(anyString(), eq(data.deviceId()), eq(true), eq(status), any());
 
             final var executor = Executors.newFixedThreadPool(2);
             try {
@@ -393,10 +395,11 @@ class ReservationCreationConcurrencyTest {
             final var shutdownStarted = new CountDownLatch(1);
             final var allowShutdown = new CountDownLatch(1);
             willAnswer(invocation -> {
+                assertThat(invocation.getArgument(2, BooleanSupplier.class).getAsBoolean()).isTrue();
                 shutdownStarted.countDown();
                 assertThat(allowShutdown.await(5, TimeUnit.SECONDS)).isTrue();
                 return DeviceShutdownSupport.ShutdownResult.POWERED_OFF;
-            }).given(deviceShutdownSupport).shutdown(any(), eq(status));
+            }).given(deviceShutdownSupport).shutdown(any(), eq(status), any());
 
             final var executor = Executors.newFixedThreadPool(2);
             try {

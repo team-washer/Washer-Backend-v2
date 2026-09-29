@@ -23,10 +23,7 @@ public class MachineShutdownClaimSupport {
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
 
-    public record ShutdownClaim(Long machineId, String token, boolean commandInProgress) {
-        public ShutdownClaim(Long machineId, String token) {
-            this(machineId, token, false);
-        }
+    public record ShutdownClaim(Long machineId, String token) {
     }
 
     /**
@@ -52,7 +49,7 @@ public class MachineShutdownClaimSupport {
             return claim;
         }
         if (machine.reclaimShutdownCommand()) {
-            return Optional.of(new ShutdownClaim(machine.getId(), machine.getShutdownClaimToken(), true));
+            return Optional.of(new ShutdownClaim(machine.getId(), machine.getShutdownClaimToken()));
         }
         return Optional.empty();
     }
@@ -65,7 +62,7 @@ public class MachineShutdownClaimSupport {
      * @return 획득한 세대 토큰
      */
     public Optional<ShutdownClaim> claimLockedMachine(final Machine machine) {
-        return machine.claimShutdown().map(token -> new ShutdownClaim(machine.getId(), token, false));
+        return machine.claimShutdown().map(token -> new ShutdownClaim(machine.getId(), token));
     }
 
     /** 외부 명령 직전에 선점 토큰이 아직 유효한지 짧게 확인합니다. */
