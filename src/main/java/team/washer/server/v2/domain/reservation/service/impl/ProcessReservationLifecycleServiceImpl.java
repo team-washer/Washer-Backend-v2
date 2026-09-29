@@ -129,10 +129,18 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                         completedMachine.deviceId());
                 return true;
             }
+            if (!claim.commandInProgress() && !machineShutdownClaimSupport.beginCommand(claim)) {
+                log.warn(
+                        "power off after completion skipped because shutdown command claim was lost machine={} deviceId={}",
+                        completedMachine.machineName(),
+                        completedMachine.deviceId());
+                return true;
+            }
             deviceShutdownSupport.shutdownAfterCompletion(completedMachine.machineName(),
                     completedMachine.deviceId(),
                     completedMachine.isWasher(),
                     status);
+            releaseClaim(claim, completedMachine);
             return true;
         } catch (SmartThingsPermissionException e) {
             log.warn(
@@ -148,16 +156,18 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     completedMachine.deviceId(),
                     e.getMessage());
             return true;
-        } finally {
-            try {
-                machineShutdownClaimSupport.release(claim);
-            } catch (Exception e) {
-                log.error("failed to release shutdown claim machine={} deviceId={} reason={}",
-                        completedMachine.machineName(),
-                        completedMachine.deviceId(),
-                        e.getMessage(),
-                        e);
-            }
+        }
+    }
+
+    private void releaseClaim(MachineShutdownClaimSupport.ShutdownClaim claim, CompletedMachine completedMachine) {
+        try {
+            machineShutdownClaimSupport.release(claim);
+        } catch (Exception e) {
+            log.error("failed to release shutdown claim machine={} deviceId={} reason={}",
+                    completedMachine.machineName(),
+                    completedMachine.deviceId(),
+                    e.getMessage(),
+                    e);
         }
     }
 

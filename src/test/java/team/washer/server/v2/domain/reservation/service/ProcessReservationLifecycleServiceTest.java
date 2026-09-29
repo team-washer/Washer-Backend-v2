@@ -65,6 +65,7 @@ class ProcessReservationLifecycleServiceTest {
     @BeforeEach
     void setUp() {
         lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
+        lenient().when(machineShutdownClaimSupport.beginCommand(any())).thenReturn(true);
     }
 
     private RunningTarget buildRunningTarget(Long reservationId, String deviceId, boolean longRunning) {
@@ -147,7 +148,7 @@ class ProcessReservationLifecycleServiceTest {
         // Then
         verify(discordErrorNotificationService, times(1))
                 .notifyError(any(SmartThingsPermissionException.class), eq("예약 완료 기기 종료 - SmartThings 권한 오류"), any());
-        verify(machineShutdownClaimSupport, times(1)).release(any());
+        verify(machineShutdownClaimSupport, never()).release(any());
         verify(deviceStatusQuerySupport, never()).queryDeviceStatus("device-3");
         verify(reservationLifecycleProcessor, never()).processRunningToCompleted(eq(3L), any());
     }
@@ -173,7 +174,7 @@ class ProcessReservationLifecycleServiceTest {
 
         // Then
         verify(reservationLifecycleProcessor, times(1)).processRunningToCompleted(3L, secondStatus);
-        verify(machineShutdownClaimSupport, times(1)).release(any());
+        verify(machineShutdownClaimSupport, never()).release(any());
     }
 
     @Test

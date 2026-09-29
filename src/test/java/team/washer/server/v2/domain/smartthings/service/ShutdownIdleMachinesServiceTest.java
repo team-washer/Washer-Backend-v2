@@ -91,6 +91,7 @@ class ShutdownIdleMachinesServiceTest {
         lenient().when(machineShutdownClaimSupport.claimIdleMachine(machine.getId()))
                 .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(machine.getId(), "claim-token")));
         lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
+        lenient().when(machineShutdownClaimSupport.beginCommand(any())).thenReturn(true);
     }
 
     @Nested
@@ -132,6 +133,7 @@ class ShutdownIdleMachinesServiceTest {
                 lenient().when(machineShutdownClaimSupport.claimIdleMachine(1L))
                         .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token")));
                 lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
+                lenient().when(machineShutdownClaimSupport.beginCommand(any())).thenReturn(true);
                 given(deviceShutdownSupport.shutdown(eq(machine), any())).willReturn(ShutdownResult.POWERED_OFF);
 
                 // When
@@ -295,6 +297,24 @@ class ShutdownIdleMachinesServiceTest {
             }
 
             @Test
+            @DisplayName("이전 명령의 결과가 UNKNOWN이면 회수한 claim을 즉시 해제하지 않는다")
+            void it_keeps_recovered_claim_when_status_is_unknown() {
+                // Given
+                var machine = createMachine(1L, "W-2F-L1", "device-1");
+                givenSingleIdleMachine(machine);
+                var recoveredClaim = new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token", true);
+                given(machineShutdownClaimSupport.claimIdleMachine(1L)).willReturn(Optional.of(recoveredClaim));
+                given(deviceShutdownSupport.shutdown(machine, EMPTY_STATUS)).willReturn(ShutdownResult.SKIPPED_UNKNOWN);
+
+                // When
+                shutdownIdleMachinesService.execute();
+
+                // Then
+                then(deviceShutdownSupport).should(times(1)).shutdown(machine, EMPTY_STATUS);
+                then(machineShutdownClaimSupport).should(never()).release(recoveredClaim);
+            }
+
+            @Test
             @DisplayName("완료 예약 이력이 없으면 바로 전원을 차단해야 한다")
             void it_powers_off_without_completed_reservation() {
                 // Given
@@ -332,6 +352,7 @@ class ShutdownIdleMachinesServiceTest {
                 lenient().when(machineShutdownClaimSupport.claimIdleMachine(2L))
                         .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(2L, "claim-token-2")));
                 lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
+                lenient().when(machineShutdownClaimSupport.beginCommand(any())).thenReturn(true);
                 willThrow(new SmartThingsPermissionException("권한 없음")).given(deviceShutdownSupport)
                         .shutdown(eq(machine1), any());
 
@@ -363,6 +384,7 @@ class ShutdownIdleMachinesServiceTest {
                 lenient().when(machineShutdownClaimSupport.claimIdleMachine(2L))
                         .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(2L, "claim-token-2")));
                 lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
+                lenient().when(machineShutdownClaimSupport.beginCommand(any())).thenReturn(true);
                 willThrow(new RuntimeException("일시적 오류")).given(deviceShutdownSupport).shutdown(eq(machine1), any());
                 given(deviceShutdownSupport.shutdown(eq(machine2), any())).willReturn(ShutdownResult.POWERED_OFF);
 

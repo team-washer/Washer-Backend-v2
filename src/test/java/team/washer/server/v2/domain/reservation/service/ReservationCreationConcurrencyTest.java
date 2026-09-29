@@ -24,6 +24,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -362,6 +363,7 @@ class ReservationCreationConcurrencyTest {
             try {
                 final var completion = executor.submit(() -> processReservationLifecycleService.execute());
                 assertThat(shutdownStarted.await(5, TimeUnit.SECONDS)).isTrue();
+                expireShutdownClaim(data.machineId());
 
                 final var creation = executor.submit(() -> reserveAsUser(data.newUserId(), data.machineId()));
                 final var result = creation.get(10, TimeUnit.SECONDS);
@@ -400,6 +402,7 @@ class ReservationCreationConcurrencyTest {
             try {
                 final var shutdown = executor.submit(() -> shutdownIdleMachinesService.execute());
                 assertThat(shutdownStarted.await(5, TimeUnit.SECONDS)).isTrue();
+                expireShutdownClaim(data.machineId());
 
                 final var creation = executor.submit(() -> reserveAsUser(data.newUserId(), data.machineId()));
                 final var result = creation.get(10, TimeUnit.SECONDS);
@@ -520,6 +523,15 @@ class ReservationCreationConcurrencyTest {
     private void assertReservationCount(final long expected) {
         final var count = transactionTemplate.execute(status -> reservationRepository.count());
         assertThat(count).isEqualTo(expected);
+    }
+
+    private void expireShutdownClaim(final Long machineId) {
+        transactionTemplate.executeWithoutResult(status -> {
+            final var machine = machineRepository.findById(machineId).orElseThrow();
+            ReflectionTestUtils.setField(machine,
+                    "shutdownClaimedAt",
+                    DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_CLAIM_TIMEOUT).minusSeconds(1));
+        });
     }
 
     record SameUserData(Long userId, Long firstMachineId, Long secondMachineId) {
