@@ -151,9 +151,10 @@ class CreateReservationServiceTest {
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             // 만료된 RESERVED 예약은 쿼리 단계에서 제외되므로 활성 예약이 없는 것으로 조회된다
             // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
-                    .hasMessageContaining("해당 기기를 사용할 수 없습니다").satisfies(
-                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                    .hasMessageContaining("해당 기기를 사용할 수 없습니다")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_UNAVAILABLE));
             verify(machineRepository, never()).save(machineWithExpiredReservation);
             verify(reservationRepository, never()).save(any(Reservation.class));
         }
@@ -176,8 +177,10 @@ class CreateReservationServiceTest {
             // 만료된 RESERVED 예약은 쿼리 단계에서 제외되므로 활성 예약이 없는 것으로 조회된다
 
             // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
-                    .hasMessageContaining("해당 기기를 사용할 수 없습니다");
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                    .hasMessageContaining("해당 기기를 사용할 수 없습니다")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_UNAVAILABLE));
             verify(reservationRepository, never()).saveAll(anyList());
             verify(machineRepository, never()).save(unavailableMachine);
         }
@@ -231,8 +234,10 @@ class CreateReservationServiceTest {
             when(penaltyRedisUtil.checkCooldown(USER_ID, MachineType.WASHER)).thenReturn(RestrictionStatus.RESTRICTED);
 
             // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
-                    .hasMessageContaining("5분간 세탁기 예약이 제한");
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                    .hasMessageContaining("5분간 세탁기 예약이 제한")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.RESERVATION_COOLDOWN_ACTIVE));
         }
 
         @Test
@@ -247,8 +252,31 @@ class CreateReservationServiceTest {
             when(penaltyRedisUtil.checkBlock(ROOM_NUMBER)).thenReturn(RestrictionStatus.RESTRICTED);
 
             // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
-                    .hasMessageContaining("48시간 내 취소 횟수를 초과");
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                    .hasMessageContaining("최근 취소 횟수 초과")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.ROOM_RESERVATION_RESTRICTED));
+        }
+
+        @Test
+        @DisplayName("시간 제한에 걸리면 예약 시간 코드와 기존 안내 문구를 반환한다")
+        void execute_ShouldReturnTimeRestrictionErrorCode_WhenTimeIsRestricted() {
+            // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
+            final var reqDto = new CreateReservationReqDto(1L);
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(penaltyRedisUtil.checkBlock(ROOM_NUMBER)).thenReturn(RestrictionStatus.NONE);
+            when(reservationEnvironment.disableTimeRestriction()).thenReturn(false);
+            doThrow(new ExpectedException("22:00 이후에만 예약할 수 있습니다", HttpStatus.BAD_REQUEST)).when(user)
+                    .validateTimeRestriction(any());
+
+            // When & Then
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                    .hasMessage("22:00 이후에만 예약할 수 있습니다")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.RESERVATION_TIME_RESTRICTED));
+            verify(machineRepository, never()).findById(any());
         }
 
         @Test
@@ -308,8 +336,10 @@ class CreateReservationServiceTest {
             when(machine.getName()).thenReturn("세탁기-1");
 
             // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
-                    .hasMessageContaining("해당 기기를 사용할 수 없습니다");
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                    .hasMessageContaining("해당 기기를 사용할 수 없습니다")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_UNAVAILABLE));
         }
 
         @Test
@@ -330,9 +360,10 @@ class CreateReservationServiceTest {
             when(reservationRepository.existsCurrentlyActiveByMachine(machine)).thenReturn(true);
 
             // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
                     .hasMessageContaining("이미 진행 중인 예약")
-                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_ALREADY_RESERVED));
         }
 
         @Test
@@ -352,8 +383,9 @@ class CreateReservationServiceTest {
             when(reservationRepository.existsCurrentlyActiveByUser(user)).thenReturn(true);
 
             // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
-                    .hasMessageContaining("1인 1예약");
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                    .hasMessageContaining("1인 1예약").satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.USER_ACTIVE_RESERVATION));
         }
 
         @Test
@@ -411,8 +443,9 @@ class CreateReservationServiceTest {
             when(reservationRepository.existsCurrentlyActiveByRoomNumberAndMachineType(ROOM_NUMBER, machine.getType()))
                     .thenReturn(true);
             // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
-                    .hasMessageContaining("세탁기");
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                    .hasMessageContaining("세탁기").satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.ROOM_MACHINE_TYPE_RESERVED));
         }
     }
 
@@ -477,8 +510,10 @@ class CreateReservationServiceTest {
             when(reservationRepository.existsCurrentlyActiveByMachine(machine)).thenReturn(true);
 
             // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
-                    .hasMessageContaining("이미 진행 중인 예약");
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                    .hasMessageContaining("이미 진행 중인 예약")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_ALREADY_RESERVED));
             verify(reservationDeviceStateVerifier, never()).verifyNotOperating(any());
         }
 
@@ -530,9 +565,10 @@ class CreateReservationServiceTest {
             when(reservationRepository.existsCurrentlyActiveByMachine(machine)).thenReturn(false).thenReturn(true);
 
             // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
                     .hasMessageContaining("이미 진행 중인 예약")
-                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_ALREADY_RESERVED));
             // 락 아래에서는 외부 상태를 다시 조회하지 않으므로 확인 직후의 기기 상태 변화는 감지 범위 밖이다
             verify(reservationDeviceStateVerifier, times(1)).verifyNotOperating(machine);
             verify(transactionManager).rollback(any());

@@ -53,6 +53,8 @@ import jakarta.validation.constraints.NotNull;
 import team.themoment.sdk.autoconfigure.SdkAutoConfiguration;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.common.trace.TraceIdFilter;
 import team.washer.server.v2.global.security.config.DomainAuthorizationConfig;
 import team.washer.server.v2.global.security.config.SecurityConfig;
@@ -164,11 +166,11 @@ class GlobalExceptionHandlerHttpContractTest {
     class Describe_security {
 
         @Test
-        @DisplayName("토큰 없이 보호된 API를 호출하면 UNAUTHORIZED로 응답한다")
+        @DisplayName("토큰 없이 보호된 API를 호출하면 AUTHENTICATION_REQUIRED로 응답한다")
         void respondsUnauthorizedWithoutToken() throws Exception {
             final var result = mockMvc.perform(get(BASE_PATH + "/items/1"));
 
-            assertErrorContract(result, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED");
+            assertErrorContract(result, HttpStatus.UNAUTHORIZED, "AUTHENTICATION_REQUIRED");
             assertNotNotified();
         }
 
@@ -176,13 +178,13 @@ class GlobalExceptionHandlerHttpContractTest {
         @DisplayName("유효하지 않은 토큰이면 JWT 필터의 문구를 유지하며 같은 형식으로 응답한다")
         void respondsInvalidTokenInSameFormat() throws Exception {
             given(jwtTokenProvider.parseAccessToken("invalid-token"))
-                    .willThrow(new ExpectedException("유효하지 않은 토큰입니다.", HttpStatus.UNAUTHORIZED));
+                    .willThrow(new ErrorCodeException(ErrorCode.ACCESS_TOKEN_INVALID));
 
             final var result = mockMvc
                     .perform(get(BASE_PATH + "/items/1").header("Authorization", "Bearer invalid-token"));
 
-            assertErrorContract(result, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED");
-            result.andExpect(jsonPath("$.message").value("유효하지 않은 토큰입니다."));
+            assertErrorContract(result, HttpStatus.UNAUTHORIZED, "ACCESS_TOKEN_INVALID");
+            result.andExpect(jsonPath("$.message").value("로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요."));
             assertNotNotified();
         }
 

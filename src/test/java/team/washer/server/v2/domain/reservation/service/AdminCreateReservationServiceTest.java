@@ -183,8 +183,9 @@ class AdminCreateReservationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
-                    .isInstanceOf(ExpectedException.class).hasMessageContaining("기기를 찾을 수 없습니다").satisfies(
-                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+                    .isInstanceOf(ErrorCodeException.class).hasMessageContaining("기기를 찾을 수 없습니다")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_NOT_FOUND));
         }
 
         @Test
@@ -218,8 +219,9 @@ class AdminCreateReservationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
-                    .isInstanceOf(ExpectedException.class).hasMessageContaining("해당 기기를 사용할 수 없습니다").satisfies(
-                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+                    .isInstanceOf(ErrorCodeException.class).hasMessageContaining("해당 기기를 사용할 수 없습니다")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_UNAVAILABLE));
         }
 
         @Test
@@ -237,8 +239,9 @@ class AdminCreateReservationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
-                    .isInstanceOf(ExpectedException.class).hasMessageContaining("해당 기기를 사용할 수 없습니다").satisfies(
-                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+                    .isInstanceOf(ErrorCodeException.class).hasMessageContaining("해당 기기를 사용할 수 없습니다")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_UNAVAILABLE));
             verify(machineRepository, never()).save(machineWithExpiredReservation);
             verify(reservationRepository, never()).save(any(Reservation.class));
         }
@@ -258,8 +261,9 @@ class AdminCreateReservationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
-                    .isInstanceOf(ExpectedException.class).hasMessageContaining("이미 진행 중인 예약이 있습니다")
-                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+                    .isInstanceOf(ErrorCodeException.class).hasMessageContaining("이미 진행 중인 예약이 있습니다")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_ALREADY_RESERVED));
         }
 
         @Test
@@ -277,7 +281,9 @@ class AdminCreateReservationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
-                    .isInstanceOf(ExpectedException.class).hasMessageContaining("1인 1예약만 가능합니다");
+                    .isInstanceOf(ErrorCodeException.class).hasMessageContaining("1인 1예약만 가능합니다")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.USER_ACTIVE_RESERVATION));
         }
 
         @Test
@@ -297,7 +303,9 @@ class AdminCreateReservationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
-                    .isInstanceOf(ExpectedException.class).hasMessageContaining("동일 유형의 기기는 동시에 두 개 이상 예약할 수 없습니다");
+                    .isInstanceOf(ErrorCodeException.class).hasMessageContaining("동일 유형의 기기는 동시에 두 개 이상 예약할 수 없습니다")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.ROOM_MACHINE_TYPE_RESERVED));
         }
     }
 
@@ -360,8 +368,9 @@ class AdminCreateReservationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
-                    .isInstanceOf(ExpectedException.class).hasMessageContaining("이미 진행 중인 예약이 있습니다")
-                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+                    .isInstanceOf(ErrorCodeException.class).hasMessageContaining("이미 진행 중인 예약이 있습니다")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_ALREADY_RESERVED));
             verify(userRepository).findRoomUserIdsByUserIdForUpdate(TARGET_USER_ID);
             verify(reservationDeviceStateVerifier, times(1)).verifyNotOperating(machine);
             verify(reservationRepository, never()).save(any(Reservation.class));

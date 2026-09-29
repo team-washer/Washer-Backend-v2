@@ -24,4 +24,14 @@ public class ErrorCodeException extends RuntimeException {
         super(errorCode.getMessage(), cause);
         this.errorCode = errorCode;
     }
+
+    public ErrorCodeException(final ErrorCode errorCode, final String message) {
+        super(message);
+        this.errorCode = errorCode;
+    }
+
+    public ErrorCodeException(final ErrorCode errorCode, final String message, final Throwable cause) {
+        super(message, cause);
+        this.errorCode = errorCode;
+    }
 }

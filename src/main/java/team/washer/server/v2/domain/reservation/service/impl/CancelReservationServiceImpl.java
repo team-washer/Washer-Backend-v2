@@ -1,12 +1,10 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
@@ -18,6 +16,8 @@ import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.PenaltyConstants;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @Slf4j
@@ -37,28 +37,29 @@ public class CancelReservationServiceImpl implements CancelReservationService {
     public CancellationResDto execute(final Long reservationId) {
         final var userId = currentUserProvider.getCurrentUserId();
         final var reservationUserId = reservationRepository.findUserIdById(reservationId)
-                .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.RESERVATION_NOT_FOUND));
 
         if (!reservationUserId.equals(userId)) {
-            throw new ExpectedException("예약을 취소할 권한이 없습니다", HttpStatus.FORBIDDEN);
+            throw new ErrorCodeException(ErrorCode.RESERVATION_ACCESS_DENIED, "예약을 취소할 권한이 없습니다");
         }
 
         final var machineId = reservationRepository.findMachineIdById(reservationId)
-                .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.RESERVATION_NOT_FOUND));
         userRepository.findRoomUserIdsByUserIdForUpdate(reservationUserId);
         final User user = userRepository.findByIdForUpdate(reservationUserId)
-                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.USER_NOT_FOUND));
         final var machine = machineRepository.findByIdForUpdate(machineId)
-                .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.MACHINE_NOT_FOUND));
         final Reservation reservation = reservationRepository.findByIdForUpdateWithoutRelations(reservationId)
-                .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.RESERVATION_NOT_FOUND));
 
         if (reservation.isRunning()) {
-            throw new ExpectedException("이미 기기 사용이 시작되어 예약을 취소할 수 없습니다. 최신 상태를 확인해주세요.", HttpStatus.CONFLICT);
+            throw new ErrorCodeException(ErrorCode.RESERVATION_CANCELLATION_CONFLICT,
+                    "이미 기기 사용이 시작되어 예약을 취소할 수 없습니다. 최신 상태를 확인해주세요.");
         }
 
         if (!reservation.isReserved()) {
-            throw new ExpectedException("취소할 수 있는 상태의 예약이 아닙니다", HttpStatus.BAD_REQUEST);
+            throw new ErrorCodeException(ErrorCode.RESERVATION_STATE_INVALID, "취소할 수 있는 상태의 예약이 아닙니다");
         }
 
         // 수동 취소 시 패널티 적용. 단, 관리자 대리 예약은 본인이 요청한 것이 아니므로 면제한다

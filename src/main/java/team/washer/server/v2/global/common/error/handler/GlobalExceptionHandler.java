@@ -107,7 +107,7 @@ public class GlobalExceptionHandler {
             notifyOperators(ex, request);
             return error(errorCode);
         }
-        return clientError(errorCode, ex, null);
+        return clientError(errorCode, ex.getMessage(), ex, null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -179,7 +179,7 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<CommonApiResponse<ErrorDetailResDto>> authenticationException(AuthenticationException ex) {
-        return clientError(ErrorCode.UNAUTHORIZED, ex, null);
+        return clientError(ErrorCode.AUTHENTICATION_REQUIRED, ex, null);
     }
 
     /**
@@ -282,8 +282,15 @@ public class GlobalExceptionHandler {
     private ResponseEntity<CommonApiResponse<ErrorDetailResDto>> clientError(ErrorCode errorCode,
             Exception ex,
             List<FieldErrorResDto> fieldErrors) {
+        return clientError(errorCode, errorCode.getMessage(), ex, fieldErrors);
+    }
+
+    private ResponseEntity<CommonApiResponse<ErrorDetailResDto>> clientError(ErrorCode errorCode,
+            String message,
+            Exception ex,
+            List<FieldErrorResDto> fieldErrors) {
         logClientError(errorCode.name(), ex);
-        return error(errorCode.getStatus(), errorCode.name(), errorCode.getMessage(), fieldErrors);
+        return error(errorCode.getStatus(), errorCode.name(), message, fieldErrors);
     }
 
     private static void logClientError(String errorCode, Exception ex) {

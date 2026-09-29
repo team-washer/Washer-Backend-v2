@@ -1,11 +1,9 @@
 package team.washer.server.v2.domain.reservation.support;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
@@ -37,7 +35,7 @@ public class ReservationDeviceStateVerifier {
      *
      * @param machine
      *            예약 대상 기기
-     * @throws ExpectedException
+     * @throws ErrorCodeException
      *             기기가 작동 중이면 {@code 409 CONFLICT}
      * @throws ErrorCodeException
      *             상태를 확인할 수 없으면 {@link ErrorCode#MACHINE_STATE_UNAVAILABLE}
@@ -68,8 +66,8 @@ public class ReservationDeviceStateVerifier {
                     machine.getDeviceId(),
                     operatingState,
                     stateTimestamp);
-            throw new ExpectedException(String.format("해당 기기가 현재 작동 중이어서 예약할 수 없습니다. 기기: %s", machine.getName()),
-                    HttpStatus.CONFLICT);
+            throw new ErrorCodeException(ErrorCode.MACHINE_IN_USE,
+                    String.format("해당 기기가 현재 작동 중이어서 예약할 수 없습니다. 기기: %s", machine.getName()));
         }
         if (operatingState != MachineOperatingState.STOP) {
             log.warn("reservation device state unknown machineId={} deviceId={} operatingState={}",

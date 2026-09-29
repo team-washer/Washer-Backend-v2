@@ -22,6 +22,8 @@ import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.jwt.dto.JwtPayload;
 import team.washer.server.v2.global.security.jwt.provider.JwtTokenProvider;
 
@@ -158,7 +160,7 @@ class RefreshTokenServiceImplTest {
         class Context_with_deleted_user {
 
             @Test
-            @DisplayName("ExpectedException이 발생하고 NOT_FOUND 상태를 반환해야 한다")
+            @DisplayName("사용자 없음 오류 코드와 NOT_FOUND 상태를 반환해야 한다")
             void it_throws_expected_exception_with_not_found() {
                 // Given
                 String validToken = "valid.refresh.token";
@@ -170,11 +172,10 @@ class RefreshTokenServiceImplTest {
                 given(userRepository.findById(deletedUserId)).willReturn(Optional.empty());
 
                 // When & Then
-                assertThatThrownBy(() -> refreshTokenService.execute(reqDto)).isInstanceOf(ExpectedException.class)
-                        .hasMessage("사용자를 찾을 수 없습니다.").satisfies(exception -> {
-                            ExpectedException ex = (ExpectedException) exception;
-                            assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-                        });
+                assertThatThrownBy(() -> refreshTokenService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                        .hasMessage("사용자를 찾을 수 없습니다.")
+                        .satisfies(exception -> assertThat(((ErrorCodeException) exception).getErrorCode())
+                                .isEqualTo(ErrorCode.USER_NOT_FOUND));
 
                 then(jwtTokenProvider).should(times(1)).parseRefreshToken(validToken);
                 then(userRepository).should(times(1)).findById(deletedUserId);

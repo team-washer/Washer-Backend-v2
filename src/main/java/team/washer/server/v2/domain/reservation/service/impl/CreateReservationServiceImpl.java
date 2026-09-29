@@ -1,6 +1,5 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -88,13 +87,13 @@ public class CreateReservationServiceImpl implements CreateReservationService {
 
         // 사용자 삭제와 직렬화하기 위해 사용자 행을 먼저 잠근다 (락 순서: 사용자 → 기기 → 예약)
         final User user = (forUpdate ? userRepository.findByIdForUpdate(userId) : userRepository.findById(userId))
-                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.USER_NOT_FOUND));
 
         final String roomNumber = reservationCreationSupport.validateRoomConstraints(user);
 
         // 48시간 차단 검증 (호실 단위). 조회에 실패하면 제한을 우회하지 않도록 예약을 거부한다
         switch (penaltyRedisUtil.checkBlock(roomNumber)) {
-            case RESTRICTED -> throw new ExpectedException("48시간 내 취소 횟수를 초과하여 예약이 제한됩니다", HttpStatus.BAD_REQUEST);
+            case RESTRICTED -> throw new ErrorCodeException(ErrorCode.ROOM_RESERVATION_RESTRICTED);
             case UNAVAILABLE -> throw new ErrorCodeException(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE);
             case NONE -> {
             }
@@ -102,7 +101,11 @@ public class CreateReservationServiceImpl implements CreateReservationService {
 
         // 시간 제한 검증 (학년별 예약 시작 시각, 개발환경에서는 비활성화 가능)
         if (!reservationEnvironment.disableTimeRestriction()) {
-            user.validateTimeRestriction(DateTimeUtil.nowInKorea());
+            try {
+                user.validateTimeRestriction(DateTimeUtil.nowInKorea());
+            } catch (final ExpectedException e) {
+                throw new ErrorCodeException(ErrorCode.RESERVATION_TIME_RESTRICTED, e.getMessage(), e);
+            }
         }
 
         // 동일 기기 동시 예약 직렬화를 위해 비관적 쓰기 락으로 조회
@@ -112,9 +115,8 @@ public class CreateReservationServiceImpl implements CreateReservationService {
 
         // 쿨다운 검증 (취소 후 5분, 동일 기기 유형 한정). 조회에 실패하면 예약을 거부한다
         switch (penaltyRedisUtil.checkCooldown(userId, machine.getType())) {
-            case RESTRICTED -> throw new ExpectedException(
-                    String.format("예약 취소 후 5분간 %s 예약이 제한됩니다", machine.getType().getDescription()),
-                    HttpStatus.BAD_REQUEST);
+            case RESTRICTED -> throw new ErrorCodeException(ErrorCode.RESERVATION_COOLDOWN_ACTIVE,
+                    String.format("예약 취소 후 5분간 %s 예약이 제한됩니다", machine.getType().getDescription()));
             case UNAVAILABLE -> throw new ErrorCodeException(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE);
             case NONE -> {
             }

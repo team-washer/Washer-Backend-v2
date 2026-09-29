@@ -17,6 +17,8 @@ import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.support.UserRegistrationSupport;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Service
@@ -46,7 +48,7 @@ public class SignInServiceImpl implements SignInService {
         final boolean withdrawnInDatabase = withdrawnStudentRepository.existsByStudentIdAndExpiresAtAfter(studentId,
                 DateTimeUtil.nowInKorea());
         if (withdrawnInDatabase || withdrawnStudentRedisUtil.isWithdrawnRecently(studentId)) {
-            throw new ExpectedException("탈퇴 후 30일이 지나지 않아 재가입할 수 없습니다.", HttpStatus.FORBIDDEN);
+            throw new ErrorCodeException(ErrorCode.WITHDRAWN_REJOIN_RESTRICTED);
         }
         User user;
         try {

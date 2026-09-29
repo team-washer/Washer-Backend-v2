@@ -1,17 +1,17 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationResDto;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.QueryActiveReservationService;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @Service
@@ -27,7 +27,7 @@ public class QueryActiveReservationServiceImpl implements QueryActiveReservation
     public ReservationResDto execute() {
         final var userId = currentUserProvider.getCurrentUserId();
         final User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.USER_NOT_FOUND));
 
         // createdAt 내림차순으로 조회되므로 첫 건이 가장 최근 활성 예약이다
         final Reservation latest = reservationRepository.findCurrentlyActiveByUser(user).stream().findFirst()

@@ -35,7 +35,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import com.google.firebase.messaging.FirebaseMessaging;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineType;
@@ -65,6 +64,8 @@ import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSup
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Testcontainers
@@ -366,7 +367,10 @@ class ReservationCreationConcurrencyTest {
                 final var creation = executor.submit(() -> reserveAsUser(data.newUserId(), data.machineId()));
                 final var result = creation.get(10, TimeUnit.SECONDS);
                 assertThat(result.isSuccess()).isFalse();
-                assertThat(result.throwable()).isInstanceOf(ExpectedException.class).hasMessageContaining("종료 처리 중입니다");
+                assertThat(result.throwable()).isInstanceOf(ErrorCodeException.class)
+                        .hasMessageContaining("종료 처리 중입니다");
+                assertThat(((ErrorCodeException) result.throwable()).getErrorCode())
+                        .isEqualTo(ErrorCode.MACHINE_SHUTDOWN_IN_PROGRESS);
                 allowShutdown.countDown();
                 completion.get(10, TimeUnit.SECONDS);
             } finally {
@@ -404,7 +408,10 @@ class ReservationCreationConcurrencyTest {
                 final var creation = executor.submit(() -> reserveAsUser(data.newUserId(), data.machineId()));
                 final var result = creation.get(10, TimeUnit.SECONDS);
                 assertThat(result.isSuccess()).isFalse();
-                assertThat(result.throwable()).isInstanceOf(ExpectedException.class).hasMessageContaining("종료 처리 중입니다");
+                assertThat(result.throwable()).isInstanceOf(ErrorCodeException.class)
+                        .hasMessageContaining("종료 처리 중입니다");
+                assertThat(((ErrorCodeException) result.throwable()).getErrorCode())
+                        .isEqualTo(ErrorCode.MACHINE_SHUTDOWN_IN_PROGRESS);
                 allowShutdown.countDown();
                 shutdown.get(10, TimeUnit.SECONDS);
             } finally {
@@ -506,7 +513,7 @@ class ReservationCreationConcurrencyTest {
             final String message) {
         assertThat(results).filteredOn(ReservationAttemptResult::isSuccess).hasSize(1);
         assertThat(results).filteredOn(result -> !result.isSuccess()).singleElement().satisfies(result -> {
-            assertThat(result.throwable()).isInstanceOf(ExpectedException.class);
+            assertThat(result.throwable()).isInstanceOf(ErrorCodeException.class);
             assertThat(result.throwable()).hasMessageContaining(message);
         });
     }
@@ -514,7 +521,7 @@ class ReservationCreationConcurrencyTest {
     private void assertOneSuccessAndOneReservationFailure(final List<ReservationAttemptResult> results) {
         assertThat(results).filteredOn(ReservationAttemptResult::isSuccess).hasSize(1);
         assertThat(results).filteredOn(result -> !result.isSuccess()).singleElement()
-                .satisfies(result -> assertThat(result.throwable()).isInstanceOf(ExpectedException.class));
+                .satisfies(result -> assertThat(result.throwable()).isInstanceOf(ErrorCodeException.class));
     }
 
     private void assertReservationCount(final long expected) {

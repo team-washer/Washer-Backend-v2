@@ -1,11 +1,9 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.reservation.dto.response.ReservationAvailabilityResDto;
@@ -31,7 +29,7 @@ public class QueryReservationAvailabilityServiceImpl implements QueryReservation
     public ReservationAvailabilityResDto execute() {
         final var userId = currentUserProvider.getCurrentUserId();
         final var user = userRepository.findById(userId)
-                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.USER_NOT_FOUND));
         final String roomNumber = user.getRoomNumber();
 
         // 호실 세탁 강제 금지 여부

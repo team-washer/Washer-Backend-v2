@@ -7,7 +7,6 @@ import java.util.UUID;
 
 import javax.crypto.SecretKey;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
@@ -17,8 +16,9 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.user.enums.UserRole;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.jwt.config.JwtEnvironment;
 import team.washer.server.v2.global.security.jwt.dto.JwtPayload;
 
@@ -58,28 +58,35 @@ public class JwtTokenProvider {
 
     /** Access Token을 파싱합니다. Refresh Token이 전달되면 예외를 발생시킵니다. */
     public JwtPayload parseAccessToken(final String token) {
-        final var claims = parseClaims(token);
+        final var claims = parseClaims(token, ErrorCode.ACCESS_TOKEN_EXPIRED, ErrorCode.ACCESS_TOKEN_INVALID);
 
         if (!TOKEN_TYPE_ACCESS.equals(claims.get(TOKEN_TYPE_CLAIM, String.class))) {
-            throw new ExpectedException("유효하지 않은 JWT 토큰입니다.", HttpStatus.UNAUTHORIZED);
+            throw new ErrorCodeException(ErrorCode.ACCESS_TOKEN_INVALID);
         }
 
-        final var userId = Long.parseLong(claims.getSubject());
-        final var roleString = claims.get("role", String.class);
-        final var role = roleString != null ? UserRole.valueOf(roleString) : null;
-
-        return new JwtPayload(userId, role);
+        try {
+            final var userId = Long.parseLong(claims.getSubject());
+            final var roleString = claims.get("role", String.class);
+            final var role = roleString != null ? UserRole.valueOf(roleString) : null;
+            return new JwtPayload(userId, role);
+        } catch (final IllegalArgumentException | NullPointerException e) {
+            throw new ErrorCodeException(ErrorCode.ACCESS_TOKEN_INVALID, e);
+        }
     }
 
     /** Refresh Token을 파싱합니다. Access Token이 전달되면 예외를 발생시킵니다. */
     public JwtPayload parseRefreshToken(final String token) {
-        final var claims = parseClaims(token);
+        final var claims = parseClaims(token, ErrorCode.REFRESH_TOKEN_EXPIRED, ErrorCode.REFRESH_TOKEN_INVALID);
 
         if (!TOKEN_TYPE_REFRESH.equals(claims.get(TOKEN_TYPE_CLAIM, String.class))) {
-            throw new ExpectedException("유효하지 않은 JWT 토큰입니다.", HttpStatus.UNAUTHORIZED);
+            throw new ErrorCodeException(ErrorCode.REFRESH_TOKEN_INVALID);
         }
 
-        return new JwtPayload(Long.parseLong(claims.getSubject()), null);
+        try {
+            return new JwtPayload(Long.parseLong(claims.getSubject()), null);
+        } catch (final NumberFormatException | NullPointerException e) {
+            throw new ErrorCodeException(ErrorCode.REFRESH_TOKEN_INVALID, e);
+        }
     }
 
     public boolean validateToken(final String token) {
@@ -91,13 +98,13 @@ public class JwtTokenProvider {
         }
     }
 
-    private Claims parseClaims(final String token) {
+    private Claims parseClaims(final String token, final ErrorCode expiredCode, final ErrorCode invalidCode) {
         try {
             return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload();
         } catch (final ExpiredJwtException e) {
-            throw new ExpectedException("JWT 토큰이 만료되었습니다.", HttpStatus.UNAUTHORIZED);
+            throw new ErrorCodeException(expiredCode);
         } catch (final JwtException | IllegalArgumentException e) {
-            throw new ExpectedException("유효하지 않은 JWT 토큰입니다.", HttpStatus.UNAUTHORIZED);
+            throw new ErrorCodeException(invalidCode, e);
         }
     }
 }
