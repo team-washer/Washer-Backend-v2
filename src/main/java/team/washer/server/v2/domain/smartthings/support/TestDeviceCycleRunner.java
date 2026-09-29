@@ -146,6 +146,7 @@ public class TestDeviceCycleRunner implements ApplicationRunner {
             case POWERED_OFF -> "전원 차단됨 (POWERED_OFF)";
             case SKIPPED_WASHER_DRAINING -> "작동 중 세탁기 → 종료하지 않음 (SKIPPED_WASHER_DRAINING)";
             case SKIPPED_UNKNOWN -> "상태 불명 → 종료하지 않음 (SKIPPED_UNKNOWN)";
+            case SKIPPED_CLAIM_LOST -> "종료 claim 상실 → 종료하지 않음 (SKIPPED_CLAIM_LOST)";
         };
     }
 

@@ -30,6 +30,7 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 public class Machine extends BaseEntity {
 
     public static final Duration SHUTDOWN_CLAIM_TIMEOUT = Duration.ofSeconds(30);
+    public static final Duration SHUTDOWN_COMMAND_RECOVERY_TIMEOUT = SHUTDOWN_CLAIM_TIMEOUT;
 
     @NotBlank(message = "기기명은 필수입니다")
     @Size(max = 50, message = "기기명은 50자를 초과할 수 없습니다")
@@ -85,6 +86,10 @@ public class Machine extends BaseEntity {
     /** 외부 전원 차단 작업을 시작한 시각입니다. */
     @Column(name = "shutdown_claimed_at")
     private LocalDateTime shutdownClaimedAt;
+
+    /** 외부 전원 차단 명령을 시작한 시각이다. 이 시각 이후에는 명령 결과를 확인할 때까지 claim을 회수하지 않는다. */
+    @Column(name = "shutdown_command_started_at")
+    private LocalDateTime shutdownCommandStartedAt;
 
     // 연관관계
     @OneToMany(mappedBy = "machine", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -229,6 +234,9 @@ public class Machine extends BaseEntity {
         if (!this.shutdownInProgress) {
             return false;
         }
+        if (this.shutdownCommandStartedAt != null) {
+            return true;
+        }
         return this.shutdownClaimedAt == null
                 || DateTimeUtil.nowInKorea().isBefore(this.shutdownClaimedAt.plus(SHUTDOWN_CLAIM_TIMEOUT));
     }
@@ -248,7 +256,34 @@ public class Machine extends BaseEntity {
         this.shutdownInProgress = true;
         this.shutdownClaimToken = UUID.randomUUID().toString();
         this.shutdownClaimedAt = DateTimeUtil.nowInKorea();
+        this.shutdownCommandStartedAt = null;
         return Optional.of(this.shutdownClaimToken);
+    }
+
+    /** 외부 전원 차단 명령을 시작해 claim 만료로부터 보호되는 상태로 전환한다. */
+    public boolean beginShutdownCommand(final String claimToken) {
+        if (!ownsActiveShutdownClaim(claimToken) || this.shutdownCommandStartedAt != null) {
+            return false;
+        }
+        this.shutdownCommandStartedAt = DateTimeUtil.nowInKorea();
+        return true;
+    }
+
+    /** 외부 명령 결과가 확인되지 않은 claim을 다시 확인할 수 있는 시점인지 반환한다. */
+    public boolean isShutdownCommandRecoveryReady() {
+        return this.shutdownCommandStartedAt != null && !DateTimeUtil.nowInKorea()
+                .isBefore(this.shutdownCommandStartedAt.plus(SHUTDOWN_COMMAND_RECOVERY_TIMEOUT));
+    }
+
+    /** 외부 명령 결과가 확인되지 않은 claim을 다시 점유하고 복구 보호 시간을 갱신합니다. */
+    public boolean reclaimShutdownCommand() {
+        if (!isShutdownCommandRecoveryReady()) {
+            return false;
+        }
+        this.shutdownClaimToken = UUID.randomUUID().toString();
+        this.shutdownClaimedAt = DateTimeUtil.nowInKorea();
+        this.shutdownCommandStartedAt = null;
+        return true;
     }
 
     /** SmartThings 호출의 최대 시간보다 긴 보호 구간이 지난 작업을 복구합니다. */
@@ -272,6 +307,7 @@ public class Machine extends BaseEntity {
         this.shutdownInProgress = false;
         this.shutdownClaimToken = null;
         this.shutdownClaimedAt = null;
+        this.shutdownCommandStartedAt = null;
     }
 
     /**
