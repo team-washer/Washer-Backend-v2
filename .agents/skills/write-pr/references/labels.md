@@ -1,31 +1,35 @@
 # GitHub Labels Reference
 
-Select only 1–2 PR labels that exist in the repository. Label names must match the actual names reported by `gh label list`.
+Select **1–2 labels** from the PR-eligible list below. Do NOT use issue-only or manual labels.
+Label names must match the repository exactly (verify with `gh label list`).
 
-## PR Labels
+## PR-Eligible Labels (auto-selectable)
 
-| Label | When to use |
-|---|---|
-| `신규 기능` | New feature or improvement to an existing feature |
-| `리팩터링` | Structural or quality improvement without behavior changes |
-| `버그` | Bug fix |
-| `문서화` | Documentation-only changes, including README, CONTRIBUTING, and comments |
-| `삭제` | Removal of a feature, module, or unused code |
+| Label     | When to use                                            |
+|-----------|--------------------------------------------------------|
+| `신규 기능`  | New feature or improvement to an existing feature       |
+| `리팩터링`   | Refactoring / code improvement without behavior change |
+| `버그`      | Bug fix                                                 |
+| `문서화`     | Docs-only changes (README, CONTRIBUTING, comments)     |
+| `삭제`      | Removal of a feature, module, or dead code             |
 
-## Do Not Auto-Select
+## Off-limits Labels (do NOT assign)
 
-- `위험도: 긴급`, `위험도: 높음`, `위험도: 보통`, `위험도: 낮음`, `위험도: 정리`: Issue-only risk labels. Never add them to PRs automatically.
-- `무효`, `중복됨`: Issue-only labels.
-- `중지됨`: Apply manually when work is blocked by another Issue or PR.
-- `harness sync:하네스 동기화`: Managed by automation; never auto-select it.
+| Label                    | Reason                                                    |
+|--------------------------|-----------------------------------------------------------|
+| `위험도: 긴급`, `위험도: 높음`, `위험도: 보통`, `위험도: 낮음`, `위험도: 정리` | Issue-only risk labels — never auto-assigned to PRs |
+| `무효`                     | Issues only                                               |
+| `중복됨`                    | Issues only                                               |
+| `중지됨`                    | Applied manually when blocked by another PR/issue         |
+| `harness sync:하네스 동기화`  | Automation-managed — never auto-assigned                  |
 
-## Selection Guide
+## Quick Decision
 
 ```
-Bug fix?                         -> `버그`
-New feature or behavior change?  -> `신규 기능`
-Structural improvement only?     -> `리팩터링`
-Documentation only?              -> `문서화`
-Feature, code, or config removal? -> `삭제`
-Unsure?                          -> `신규 기능`
+Bug fix?              → 버그
+New feature?          → 신규 기능
+Refactoring only?     → 리팩터링
+Docs only?            → 문서화
+Removal / deletion?   → 삭제
+Unsure?               → 신규 기능
 ```

@@ -71,7 +71,7 @@ config/, util/       # Configuration and utilities
 - Eclipse formatter config: `eclipse-formatter.xml`
 
 ## Korean Language Requirement
-**Source-code documentation, comments, and messages in Korean:**
+**ALL documentation, comments, and messages in Korean:**
 - Javadoc, inline comments
 - Exception/validation messages
 - Test `@DisplayName`
@@ -99,7 +99,6 @@ config/, util/       # Configuration and utilities
   - `위험도: 낮음`: Performance, observability, or maintainability improvements where the feature remains functional. Example: batching a query to reduce N+1 behavior or adding trace context to asynchronous logs.
   - `위험도: 정리`: Low-impact removal of unused code, configuration, dependencies, or duplication. Example: deleting unused Repository methods.
 - PR label selection must use only PR labels appropriate for the code change. Risk labels such as `위험도: 긴급` are Issue-only and must never be added to PRs automatically.
-- This harness guidance is written in English; source-code comments, API text, and test descriptions remain subject to the project language rules above.
 
 ## Special Rules Summary
 1. Domain DTOs: records only, NO `from()` methods

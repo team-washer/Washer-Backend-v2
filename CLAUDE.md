@@ -63,7 +63,7 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
 - `GlobalExceptionHandler` maps `ExpectedException` to the response
 
 ## Korean Language Requirement
-**Source-code documentation, comments, and messages in Korean:**
+**ALL documentation, comments, and messages in Korean:**
 - Javadoc, inline comments
 - Exception/validation messages
 - Test `@DisplayName`
@@ -91,4 +91,3 @@ Korean dormitory laundry management system with Java 25 + Spring Boot 4.0.1. Fea
   - `위험도: 낮음`: Performance, observability, or maintainability improvements where the feature remains functional. Example: batching a query to reduce N+1 behavior or adding trace context to asynchronous logs.
   - `위험도: 정리`: Low-impact removal of unused code, configuration, dependencies, or duplication. Example: deleting unused Repository methods.
 - PR label selection must use only PR labels appropriate for the code change. Risk labels such as `위험도: 긴급` are Issue-only and must never be added to PRs automatically.
-- This harness guidance is written in English; source-code comments, API text, and test descriptions remain subject to the project language rules above.

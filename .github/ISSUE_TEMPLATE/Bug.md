@@ -1,20 +1,20 @@
 ---
 name: Bug Report
-about: Report a problem with the application.
+about: 애플리케이션에 문제가 생겼어요!
 title: "[{Scope}]"
 assignees: ''
 ---
 
-## Bug Description
+## 버그 설명
 ---
-> Describe the problem.
+> 버그에 대한 설명을 적어주세요.
 
-## Risk
+## 위험도
 ---
-> Do not put a `[P0]` through `[P4]` prefix in the title. If you can manage labels, select exactly one `위험도: ...` label. Otherwise, state one requested label below so a maintainer can apply it during triage.
+> 제목에는 `[P0]`~`[P4]` 접두사를 넣지 말아 주세요. 라벨 권한이 있다면 `위험도: ...` 라벨을 정확히 하나 선택해 주세요. 권한이 없다면 아래에 요청할 위험도 라벨을 하나 적어 주시면 maintainer가 triage 시 적용합니다.
 >
-> Requested risk label: `위험도: ...`
+> 요청 위험도 라벨: `위험도: ...`
 
-## Additional Context
+## 기타 사항
 ---
-> Add any other relevant context.
+> 버그와 관련된 기타 사항을 적어주세요.

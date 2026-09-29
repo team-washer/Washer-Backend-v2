@@ -39,7 +39,7 @@ Korean dormitory laundry management system with Java 25 and Spring Boot 4.0.1.
 7. **QueryDSL:** For complex queries with joins
 
 ## Korean Language Requirement
-**Source-code documentation, comments, and messages MUST be in Korean:**
+**ALL documentation, comments, and messages MUST be in Korean:**
 - Javadoc comments: Korean
 - Inline comments: Korean
 - Exception messages: Korean
