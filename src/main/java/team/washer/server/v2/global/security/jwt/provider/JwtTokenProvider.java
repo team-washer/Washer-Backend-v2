@@ -69,7 +69,7 @@ public class JwtTokenProvider {
             final var roleString = claims.get("role", String.class);
             final var role = roleString != null ? UserRole.valueOf(roleString) : null;
             return new JwtPayload(userId, role);
-        } catch (final IllegalArgumentException | NullPointerException e) {
+        } catch (final IllegalArgumentException e) {
             throw new ErrorCodeException(ErrorCode.ACCESS_TOKEN_INVALID, e);
         }
     }
@@ -84,7 +84,7 @@ public class JwtTokenProvider {
 
         try {
             return new JwtPayload(Long.parseLong(claims.getSubject()), null);
-        } catch (final NumberFormatException | NullPointerException e) {
+        } catch (final IllegalArgumentException e) {
             throw new ErrorCodeException(ErrorCode.REFRESH_TOKEN_INVALID, e);
         }
     }
@@ -102,7 +102,7 @@ public class JwtTokenProvider {
         try {
             return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload();
         } catch (final ExpiredJwtException e) {
-            throw new ErrorCodeException(expiredCode);
+            throw new ErrorCodeException(expiredCode, e);
         } catch (final JwtException | IllegalArgumentException e) {
             throw new ErrorCodeException(invalidCode, e);
         }

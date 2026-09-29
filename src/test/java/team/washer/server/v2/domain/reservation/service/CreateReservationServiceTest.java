@@ -253,7 +253,7 @@ class CreateReservationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
-                    .hasMessageContaining("최근 취소 횟수 초과")
+                    .hasMessageContaining("48시간 내 취소 횟수를 초과하여 예약이 제한됩니다")
                     .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
                             .isEqualTo(ErrorCode.ROOM_RESERVATION_RESTRICTED));
         }
@@ -268,7 +268,7 @@ class CreateReservationServiceTest {
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
             when(penaltyRedisUtil.checkBlock(ROOM_NUMBER)).thenReturn(RestrictionStatus.NONE);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(false);
-            doThrow(new ExpectedException("22:00 이후에만 예약할 수 있습니다", HttpStatus.BAD_REQUEST)).when(user)
+            doThrow(new ErrorCodeException(ErrorCode.RESERVATION_TIME_RESTRICTED, "22:00 이후에만 예약할 수 있습니다")).when(user)
                     .validateTimeRestriction(any());
 
             // When & Then
@@ -400,9 +400,9 @@ class CreateReservationServiceTest {
             when(washingBanRepository.existsByRoomNumber(ROOM_NUMBER)).thenReturn(true);
 
             // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
-                    .hasMessageContaining("세탁이 금지된").satisfies(
-                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                    .hasMessageContaining("세탁이 금지된").satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.ROOM_WASHING_BANNED));
         }
 
         @Test
@@ -413,14 +413,13 @@ class CreateReservationServiceTest {
             final var reqDto = new CreateReservationReqDto(1L);
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-            doThrow(new ExpectedException("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.", HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS))
-                    .when(user).validateFloorRestriction();
+            doThrow(new ErrorCodeException(ErrorCode.USER_FLOOR_RESTRICTED)).when(user).validateFloorRestriction();
 
             // When & Then
-            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
                     .hasMessage("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.")
-                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                            .isEqualTo(HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS));
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.USER_FLOOR_RESTRICTED));
 
             verify(machineRepository, never()).findByIdForUpdate(any());
         }

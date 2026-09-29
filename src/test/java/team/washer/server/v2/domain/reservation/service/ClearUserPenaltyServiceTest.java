@@ -12,14 +12,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.reservation.service.impl.ClearUserPenaltyServiceImpl;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
@@ -88,9 +88,9 @@ class ClearUserPenaltyServiceTest {
                 given(userRepository.findById(userId)).willReturn(Optional.of(user));
 
                 // When & Then
-                assertThatThrownBy(() -> clearUserPenaltyService.execute(3L)).isInstanceOf(ExpectedException.class)
-                        .hasMessage("관리자 권한이 필요합니다").satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.FORBIDDEN));
+                assertThatThrownBy(() -> clearUserPenaltyService.execute(3L)).isInstanceOf(ErrorCodeException.class)
+                        .hasMessage("관리자 권한이 필요합니다").satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.FORBIDDEN));
 
                 then(penaltyRedisUtil).shouldHaveNoInteractions();
             }
@@ -109,9 +109,9 @@ class ClearUserPenaltyServiceTest {
                 given(userRepository.findById(adminId)).willReturn(Optional.empty());
 
                 // When & Then
-                assertThatThrownBy(() -> clearUserPenaltyService.execute(1L)).isInstanceOf(ExpectedException.class)
-                        .hasMessage("사용자를 찾을 수 없습니다").satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                assertThatThrownBy(() -> clearUserPenaltyService.execute(1L)).isInstanceOf(ErrorCodeException.class)
+                        .hasMessage("사용자를 찾을 수 없습니다").satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.USER_NOT_FOUND));
 
                 then(penaltyRedisUtil).shouldHaveNoInteractions();
             }

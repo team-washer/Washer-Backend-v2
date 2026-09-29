@@ -10,9 +10,9 @@ import org.junit.jupiter.api.Test;
 
 import jakarta.persistence.Column;
 import jakarta.validation.constraints.Size;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.global.common.constants.NotificationConstants;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
 @DisplayName("User 엔티티의")
 class UserTest {
@@ -53,7 +53,7 @@ class UserTest {
                 final User user = createUser(1, UserRole.USER);
                 final LocalDateTime time = LocalDateTime.of(2026, 6, 8, 21, 19);
 
-                assertThatThrownBy(() -> user.validateTimeRestriction(time)).isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> user.validateTimeRestriction(time)).isInstanceOf(ErrorCodeException.class)
                         .hasMessageContaining("21:20");
             }
 
@@ -81,7 +81,7 @@ class UserTest {
                 final User grade3 = createUser(3, UserRole.USER);
                 final LocalDateTime time = LocalDateTime.of(2026, 6, 8, 21, 19);
 
-                assertThatThrownBy(() -> grade3.validateTimeRestriction(time)).isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> grade3.validateTimeRestriction(time)).isInstanceOf(ErrorCodeException.class)
                         .hasMessageContaining("21:20");
             }
         }
@@ -96,7 +96,7 @@ class UserTest {
                 final User user = createUser(1, UserRole.USER);
                 final LocalDateTime time = LocalDateTime.of(2026, 6, 7, 19, 59);
 
-                assertThatThrownBy(() -> user.validateTimeRestriction(time)).isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> user.validateTimeRestriction(time)).isInstanceOf(ErrorCodeException.class)
                         .hasMessageContaining("1학년").hasMessageContaining("20:00");
             }
 
@@ -115,7 +115,7 @@ class UserTest {
                 final User user = createUser(2, UserRole.USER);
                 final LocalDateTime time = LocalDateTime.of(2026, 6, 7, 20, 19);
 
-                assertThatThrownBy(() -> user.validateTimeRestriction(time)).isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> user.validateTimeRestriction(time)).isInstanceOf(ErrorCodeException.class)
                         .hasMessageContaining("2학년").hasMessageContaining("20:20");
             }
 
@@ -134,7 +134,7 @@ class UserTest {
                 final User user = createUser(3, UserRole.USER);
                 final LocalDateTime time = LocalDateTime.of(2026, 6, 7, 20, 39);
 
-                assertThatThrownBy(() -> user.validateTimeRestriction(time)).isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> user.validateTimeRestriction(time)).isInstanceOf(ErrorCodeException.class)
                         .hasMessageContaining("3학년").hasMessageContaining("20:40");
             }
 
@@ -208,7 +208,7 @@ class UserTest {
                 final User user = createUser(1, UserRole.USER);
                 final LocalDateTime time = LocalDateTime.of(2026, 6, 8, 8, 0);
 
-                assertThatThrownBy(() -> user.validateTimeRestriction(time)).isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> user.validateTimeRestriction(time)).isInstanceOf(ErrorCodeException.class)
                         .hasMessageContaining("21:20");
             }
         }

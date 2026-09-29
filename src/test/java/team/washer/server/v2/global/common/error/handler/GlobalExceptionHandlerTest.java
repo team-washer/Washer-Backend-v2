@@ -61,6 +61,24 @@ class GlobalExceptionHandlerTest {
             assertThat(response.getBody().getMessage()).isEqualTo("예약 취소 후 5분간 세탁기 예약이 제한됩니다");
             assertThat(response.getBody().getData().errorCode()).isEqualTo("RESERVATION_COOLDOWN_ACTIVE");
         }
+
+        @Test
+        @DisplayName("원인 예외의 내부 메시지를 사용자 응답에 노출하지 않는다")
+        void it_does_not_expose_cause_message_to_client() {
+            // Given
+            var exception = new ErrorCodeException(ErrorCode.USER_NOT_FOUND,
+                    "사용자에게 안전한 메시지",
+                    new IllegalStateException("secret-internal-detail"));
+            var request = new MockHttpServletRequest("GET", "/api/v2/users/me");
+
+            // When
+            var response = globalExceptionHandler.errorCodeException(exception, request);
+
+            // Then
+            assertThat(response.getBody()).isNotNull();
+            assertThat(response.getBody().getMessage()).isEqualTo("사용자에게 안전한 메시지");
+            assertThat(response.getBody().getMessage()).doesNotContain("secret-internal-detail");
+        }
     }
 
     @Nested

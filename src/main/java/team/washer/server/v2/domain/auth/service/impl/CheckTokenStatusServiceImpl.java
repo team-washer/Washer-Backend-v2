@@ -4,7 +4,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.RefreshTokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenStatusResDto;
 import team.washer.server.v2.domain.auth.repository.redis.RefreshTokenRedisRepository;
@@ -33,8 +32,6 @@ public class CheckTokenStatusServiceImpl implements CheckTokenStatusService {
                 return new TokenStatusResDto(false);
             }
             throw e;
-        } catch (final ExpectedException e) {
-            return new TokenStatusResDto(false);
         }
     }
 }

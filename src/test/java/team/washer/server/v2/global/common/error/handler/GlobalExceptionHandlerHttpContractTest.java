@@ -184,7 +184,7 @@ class GlobalExceptionHandlerHttpContractTest {
                     .perform(get(BASE_PATH + "/items/1").header("Authorization", "Bearer invalid-token"));
 
             assertErrorContract(result, HttpStatus.UNAUTHORIZED, "ACCESS_TOKEN_INVALID");
-            result.andExpect(jsonPath("$.message").value("로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요."));
+            result.andExpect(jsonPath("$.message").value(ErrorCode.ACCESS_TOKEN_INVALID.getMessage()));
             assertNotNotified();
         }
 

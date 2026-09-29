@@ -107,7 +107,7 @@ public class GlobalExceptionHandler {
             notifyOperators(ex, request);
             return error(errorCode);
         }
-        return clientError(errorCode, ex.getMessage(), ex, null);
+        return clientError(errorCode, ex.getUserMessage(), ex, null);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

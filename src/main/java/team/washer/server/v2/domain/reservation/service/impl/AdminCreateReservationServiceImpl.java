@@ -1,6 +1,5 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -8,7 +7,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.dto.request.AdminCreateReservationReqDto;
 import team.washer.server.v2.domain.reservation.dto.response.AdminReservationResDto;
@@ -18,6 +16,8 @@ import team.washer.server.v2.domain.reservation.support.ReservationCreationSuppo
 import team.washer.server.v2.domain.reservation.support.ReservationDeviceStateVerifier;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 /**
@@ -88,10 +88,10 @@ public class AdminCreateReservationServiceImpl implements AdminCreateReservation
         final User targetUser = (forUpdate
                 ? userRepository.findByIdForUpdate(reqDto.userId())
                 : userRepository.findById(reqDto.userId()))
-                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.USER_NOT_FOUND));
 
         final User adminUser = userRepository.findById(adminId)
-                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.USER_NOT_FOUND));
 
         reservationCreationSupport.validateRoomConstraints(targetUser);
 

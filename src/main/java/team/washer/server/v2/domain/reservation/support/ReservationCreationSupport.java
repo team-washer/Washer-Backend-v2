@@ -1,10 +1,8 @@
 package team.washer.server.v2.domain.reservation.support;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -57,12 +55,12 @@ public class ReservationCreationSupport {
 
         final String roomNumber = user.getRoomNumber();
         if (roomNumber == null) {
-            throw new ExpectedException("호실 정보가 존재하지 않습니다.", HttpStatus.BAD_REQUEST);
+            throw new ErrorCodeException(ErrorCode.ROOM_NOT_FOUND);
         }
 
         // 호실 세탁 강제 금지 검증
         if (washingBanRepository.existsByRoomNumber(roomNumber)) {
-            throw new ExpectedException("해당 호실은 현재 세탁이 금지된 상태입니다.", HttpStatus.FORBIDDEN);
+            throw new ErrorCodeException(ErrorCode.ROOM_WASHING_BANNED);
         }
 
         return roomNumber;

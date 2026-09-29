@@ -7,7 +7,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.reservation.config.ReservationEnvironment;
 import team.washer.server.v2.domain.reservation.dto.request.CreateReservationReqDto;
@@ -101,11 +100,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
 
         // 시간 제한 검증 (학년별 예약 시작 시각, 개발환경에서는 비활성화 가능)
         if (!reservationEnvironment.disableTimeRestriction()) {
-            try {
-                user.validateTimeRestriction(DateTimeUtil.nowInKorea());
-            } catch (final ExpectedException e) {
-                throw new ErrorCodeException(ErrorCode.RESERVATION_TIME_RESTRICTED, e.getMessage(), e);
-            }
+            user.validateTimeRestriction(DateTimeUtil.nowInKorea());
         }
 
         // 동일 기기 동시 예약 직렬화를 위해 비관적 쓰기 락으로 조회

@@ -166,8 +166,9 @@ class AdminCreateReservationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
-                    .isInstanceOf(ExpectedException.class).hasMessageContaining("사용자를 찾을 수 없습니다").satisfies(
-                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+                    .isInstanceOf(ErrorCodeException.class).hasMessageContaining("사용자를 찾을 수 없습니다")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.USER_NOT_FOUND));
         }
 
         @Test
@@ -201,8 +202,9 @@ class AdminCreateReservationServiceTest {
 
             // When & Then
             assertThatThrownBy(() -> adminCreateReservationService.execute(reqDto))
-                    .isInstanceOf(ExpectedException.class).hasMessageContaining("세탁이 금지된").satisfies(
-                            e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+                    .isInstanceOf(ErrorCodeException.class).hasMessageContaining("세탁이 금지된")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.ROOM_WASHING_BANNED));
         }
 
         @Test

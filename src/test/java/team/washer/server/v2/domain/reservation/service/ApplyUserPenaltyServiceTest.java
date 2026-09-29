@@ -13,15 +13,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.RedisConnectionFailureException;
-import org.springframework.http.HttpStatus;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.service.impl.ApplyUserPenaltyServiceImpl;
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
@@ -128,9 +128,9 @@ class ApplyUserPenaltyServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> applyUserPenaltyService.execute(ACTOR_ID, REASON))
-                        .isInstanceOf(ExpectedException.class).hasMessage("자신에게는 패널티를 부과할 수 없습니다.")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.BAD_REQUEST));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("자신에게는 패널티를 부과할 수 없습니다.")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.RESERVATION_ACCESS_DENIED));
 
                 then(penaltyRedisUtil).shouldHaveNoInteractions();
                 then(reservationNotificationSupport).shouldHaveNoInteractions();
@@ -150,9 +150,9 @@ class ApplyUserPenaltyServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> applyUserPenaltyService.execute(TARGET_ID, REASON))
-                        .isInstanceOf(ExpectedException.class).hasMessage("사용자를 찾을 수 없습니다.")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("사용자를 찾을 수 없습니다")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.USER_NOT_FOUND));
 
                 then(penaltyRedisUtil).shouldHaveNoInteractions();
                 then(reservationNotificationSupport).shouldHaveNoInteractions();
@@ -173,9 +173,9 @@ class ApplyUserPenaltyServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> applyUserPenaltyService.execute(TARGET_ID, REASON))
-                        .isInstanceOf(ExpectedException.class).hasMessage("사용자를 찾을 수 없습니다.")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("사용자를 찾을 수 없습니다")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.USER_NOT_FOUND));
 
                 then(penaltyRedisUtil).shouldHaveNoInteractions();
                 then(reservationNotificationSupport).shouldHaveNoInteractions();
@@ -196,9 +196,9 @@ class ApplyUserPenaltyServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> applyUserPenaltyService.execute(TARGET_ID, REASON))
-                        .isInstanceOf(ExpectedException.class).hasMessage("호실 정보를 찾을 수 없습니다.")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("호실 정보가 존재하지 않습니다.")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.ROOM_NOT_FOUND));
 
                 then(penaltyRedisUtil).shouldHaveNoInteractions();
                 then(reservationNotificationSupport).shouldHaveNoInteractions();
@@ -221,9 +221,9 @@ class ApplyUserPenaltyServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> applyUserPenaltyService.execute(TARGET_ID, REASON))
-                        .isInstanceOf(ExpectedException.class).hasMessage("패널티 부과에 실패했습니다. 잠시 후 다시 시도해 주세요.")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("패널티 부과에 실패했습니다. 잠시 후 다시 시도해 주세요.")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR));
 
                 then(penaltyRedisUtil).should(times(1)).applyBlockOrThrow(TARGET_ROOM);
                 then(reservationNotificationSupport).shouldHaveNoInteractions();
@@ -241,7 +241,7 @@ class ApplyUserPenaltyServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> applyUserPenaltyService.execute(TARGET_ID, REASON))
-                        .isInstanceOf(ExpectedException.class);
+                        .isInstanceOf(ErrorCodeException.class);
 
                 // 이미 차단 중인 호실에서 checkBlock은 RESTRICTED를 반환하므로 성공 판정 근거로 쓰면 안 된다
                 then(penaltyRedisUtil).should(never()).checkBlock(anyString());

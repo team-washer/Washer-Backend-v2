@@ -12,9 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.RefreshTokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenStatusResDto;
 import team.washer.server.v2.domain.auth.entity.redis.RefreshTokenEntity;
@@ -93,7 +91,7 @@ class CheckTokenStatusServiceImplTest {
                 RefreshTokenReqDto reqDto = createReqDto(token);
 
                 given(jwtTokenProvider.parseRefreshToken(token))
-                        .willThrow(new ExpectedException("JWT 토큰이 만료되었습니다.", HttpStatus.UNAUTHORIZED));
+                        .willThrow(new ErrorCodeException(ErrorCode.REFRESH_TOKEN_EXPIRED));
 
                 // When
                 TokenStatusResDto result = checkTokenStatusService.execute(reqDto);
@@ -117,7 +115,7 @@ class CheckTokenStatusServiceImplTest {
                 RefreshTokenReqDto reqDto = createReqDto(token);
 
                 given(jwtTokenProvider.parseRefreshToken(token))
-                        .willThrow(new ExpectedException("유효하지 않은 JWT 토큰입니다.", HttpStatus.UNAUTHORIZED));
+                        .willThrow(new ErrorCodeException(ErrorCode.REFRESH_TOKEN_INVALID));
 
                 // When
                 TokenStatusResDto result = checkTokenStatusService.execute(reqDto);
