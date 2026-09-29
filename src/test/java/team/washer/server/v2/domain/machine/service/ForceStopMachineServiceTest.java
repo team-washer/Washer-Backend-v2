@@ -17,11 +17,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.ForceStopResult;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -45,6 +43,8 @@ import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
@@ -371,8 +371,9 @@ class ForceStopMachineServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> forceStopMachineService.execute(machineId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("기기 동작 상태를 확인할 수 없습니다")
-                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.BAD_GATEWAY);
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.SMARTTHINGS_RESPONSE_INVALID));
 
                 then(sendDeviceCommandService).shouldHaveNoInteractions();
                 then(transactionTemplate).should(never()).execute(any());
@@ -396,13 +397,14 @@ class ForceStopMachineServiceTest {
 
                 given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
                 given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
-                willThrow(new ExpectedException("기기 명령 전송에 실패했습니다", HttpStatus.BAD_GATEWAY))
+                willThrow(new ErrorCodeException(ErrorCode.SMARTTHINGS_COMMAND_UNAVAILABLE))
                         .given(sendDeviceCommandService).execute(eq("device-1"), any(SmartThingsCommandReqDto.class));
 
                 // When & Then
                 assertThatThrownBy(() -> forceStopMachineService.execute(machineId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("기기 명령 전송에 실패했습니다")
-                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.BAD_GATEWAY);
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.SMARTTHINGS_COMMAND_UNAVAILABLE));
 
                 then(transactionTemplate).should(never()).execute(any());
                 then(reservationRepository).shouldHaveNoInteractions();
@@ -456,8 +458,9 @@ class ForceStopMachineServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> forceStopMachineService.execute(machineId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("기기를 찾을 수 없습니다")
-                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.NOT_FOUND);
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.MACHINE_NOT_FOUND));
 
                 then(deviceStatusQuerySupport).shouldHaveNoInteractions();
                 then(sendDeviceCommandService).shouldHaveNoInteractions();

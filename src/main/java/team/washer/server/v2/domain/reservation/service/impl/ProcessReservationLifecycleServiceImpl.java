@@ -14,10 +14,11 @@ import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycl
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.RunningTarget;
 import team.washer.server.v2.domain.reservation.support.LongRunningReservationMonitor;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -131,7 +132,18 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     () -> machineShutdownClaimSupport.beginCommand(claim));
             releaseClaim(claim, completedMachine);
             return true;
-        } catch (SmartThingsPermissionException e) {
+        } catch (ErrorCodeException e) {
+            if (e.getErrorCode() != ErrorCode.SMARTTHINGS_PERMISSION_DENIED) {
+                if (!e.getErrorCode().getStatus().is5xxServerError()) {
+                    releaseClaim(claim, completedMachine);
+                }
+                log.error("power off after completion failed machine={} deviceId={} errorCode={}",
+                        completedMachine.machineName(),
+                        completedMachine.deviceId(),
+                        e.getErrorCode(),
+                        e);
+                return true;
+            }
             log.warn(
                     "power off after completion SmartThings permission error detected, stopping batch. machine={} deviceId={} reason={}",
                     completedMachine.machineName(),
@@ -170,7 +182,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         }
     }
 
-    private void notifyPermissionError(CompletedMachine completedMachine, SmartThingsPermissionException e) {
+    private void notifyPermissionError(CompletedMachine completedMachine, ErrorCodeException e) {
         if (discordErrorNotificationService == null) {
             return;
         }

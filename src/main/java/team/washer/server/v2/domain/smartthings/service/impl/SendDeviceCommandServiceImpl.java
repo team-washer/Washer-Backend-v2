@@ -1,15 +1,14 @@
 package team.washer.server.v2.domain.smartthings.service.impl;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
-import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
+import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsErrorMapper;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeignClient;
 
 @Service
@@ -30,11 +29,12 @@ public class SendDeviceCommandServiceImpl implements SendDeviceCommandService {
             feignClient.sendDeviceCommand(authorization, deviceId, command);
 
             log.debug("smartthings command sent successfully deviceId={} command={}", deviceId, command);
-        } catch (SmartThingsPermissionException | ExpectedException e) {
+        } catch (ErrorCodeException e) {
             throw e;
         } catch (Exception e) {
-            log.error("smartthings failed to send command deviceId={}", deviceId, e);
-            throw new ExpectedException("기기 명령 전송에 실패했습니다: " + e.getMessage(), HttpStatus.BAD_GATEWAY);
+            final var mapped = SmartThingsErrorMapper.toCommandException(e);
+            log.error("smartthings command failed deviceId={} errorCode={}", deviceId, mapped.getErrorCode(), e);
+            throw mapped;
         }
     }
 }

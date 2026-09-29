@@ -3,13 +3,11 @@ package team.washer.server.v2.domain.machine.service.impl;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.dto.response.ForceStopMachineResDto;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.ForceStopResult;
@@ -28,6 +26,8 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
 @Service
 @RequiredArgsConstructor
@@ -44,7 +44,7 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
     @Override
     public ForceStopMachineResDto execute(Long machineId) {
         final var machine = machineRepository.findById(machineId)
-                .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.MACHINE_NOT_FOUND));
         final var status = deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
         final var previousMachineState = status == null
                 ? MachineOperatingState.UNKNOWN
@@ -73,16 +73,16 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
             SmartThingsDeviceStatusResDto status,
             MachineOperatingState machineState) {
         if (status == null) {
-            throw new ExpectedException("기기 상태를 확인할 수 없습니다", HttpStatus.BAD_GATEWAY);
+            throw new ErrorCodeException(ErrorCode.SMARTTHINGS_RESPONSE_INVALID);
         }
         if (!machine.isWasher() && !machine.isDryer()) {
-            throw new ExpectedException("지원하지 않는 기기 유형입니다", HttpStatus.BAD_REQUEST);
+            throw new ErrorCodeException(ErrorCode.MACHINE_UNAVAILABLE);
         }
         if (status.isSwitchOff() || machineState == MachineOperatingState.STOP) {
             return ForceStopResult.ALREADY_STOPPED;
         }
         if (!machineState.isOperating()) {
-            throw new ExpectedException("기기 동작 상태를 확인할 수 없습니다", HttpStatus.BAD_GATEWAY);
+            throw new ErrorCodeException(ErrorCode.SMARTTHINGS_RESPONSE_INVALID);
         }
 
         if (machine.isWasher()) {
@@ -96,7 +96,7 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
     private UpdateResult updateMachineAndReservation(Long machineId, ForceStopResult forceStopResult) {
         return transactionTemplate.execute(status -> {
             final var machine = machineRepository.findByIdForUpdate(machineId)
-                    .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                    .orElseThrow(() -> new ErrorCodeException(ErrorCode.MACHINE_NOT_FOUND));
             final var activeReservation = findActiveReservationWithRunningPriority(machineId);
             final var cancelledReservationId = cancelActiveReservationIfNeeded(activeReservation.orElse(null),
                     forceStopResult);

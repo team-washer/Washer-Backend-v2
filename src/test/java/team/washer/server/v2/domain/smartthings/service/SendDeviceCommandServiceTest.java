@@ -10,13 +10,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
-import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.service.impl.SendDeviceCommandServiceImpl;
 import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
+import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsApiException;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeignClient;
 
 @ExtendWith(MockitoExtension.class)
@@ -66,14 +66,14 @@ class SendDeviceCommandServiceTest {
             void it_throws_not_found_exception() {
                 // Given
                 given(tokenProvider.getValidAccessToken())
-                        .willThrow(new ExpectedException("SmartThings 토큰이 존재하지 않습니다", HttpStatus.NOT_FOUND));
+                        .willThrow(new ErrorCodeException(ErrorCode.SMARTTHINGS_TOKEN_UNAVAILABLE));
 
                 // When & Then
                 assertThatThrownBy(
                         () -> sendDeviceCommandService.execute("device-abc", SmartThingsCommandReqDto.powerOff()))
-                        .isInstanceOf(ExpectedException.class).hasMessage("SmartThings 토큰이 존재하지 않습니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.SMARTTHINGS_TOKEN_UNAVAILABLE));
 
                 then(feignClient).shouldHaveNoInteractions();
             }
@@ -88,14 +88,14 @@ class SendDeviceCommandServiceTest {
             void it_throws_not_found_for_expired_token() {
                 // Given
                 given(tokenProvider.getValidAccessToken())
-                        .willThrow(new ExpectedException("SmartThings 토큰이 만료되었거나 유효하지 않습니다", HttpStatus.NOT_FOUND));
+                        .willThrow(new ErrorCodeException(ErrorCode.SMARTTHINGS_TOKEN_INVALID));
 
                 // When & Then
                 assertThatThrownBy(
                         () -> sendDeviceCommandService.execute("device-abc", SmartThingsCommandReqDto.powerOff()))
-                        .isInstanceOf(ExpectedException.class).hasMessage("SmartThings 토큰이 만료되었거나 유효하지 않습니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.SMARTTHINGS_TOKEN_INVALID));
 
                 then(feignClient).shouldHaveNoInteractions();
             }
@@ -106,19 +106,21 @@ class SendDeviceCommandServiceTest {
         class Context_when_permission_denied {
 
             @Test
-            @DisplayName("SmartThingsPermissionException을 그대로 전파해야 한다")
+            @DisplayName("SmartThings 권한 오류를 내부 오류 코드로 변환해야 한다")
             void it_propagates_permission_exception() {
                 // Given
                 var deviceId = "device-abc";
                 var command = SmartThingsCommandReqDto.powerOff();
 
                 given(tokenProvider.getValidAccessToken()).willReturn("valid-access-token");
-                willThrow(new SmartThingsPermissionException("x:devices:* 스코프 없음")).given(feignClient)
+                willThrow(new SmartThingsApiException(403)).given(feignClient)
                         .sendDeviceCommand(anyString(), eq(deviceId), eq(command));
 
                 // When & Then
                 assertThatThrownBy(() -> sendDeviceCommandService.execute(deviceId, command))
-                        .isInstanceOf(SmartThingsPermissionException.class).hasMessage("x:devices:* 스코프 없음");
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.SMARTTHINGS_PERMISSION_DENIED));
             }
         }
 
@@ -139,9 +141,9 @@ class SendDeviceCommandServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> sendDeviceCommandService.execute(deviceId, command))
-                        .isInstanceOf(ExpectedException.class).hasMessageContaining("기기 명령 전송에 실패했습니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.BAD_GATEWAY));
+                        .isInstanceOf(ErrorCodeException.class).hasMessageNotContaining("네트워크 오류")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.SMARTTHINGS_COMMAND_UNAVAILABLE));
             }
         }
     }

@@ -5,13 +5,14 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
+import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsErrorMapper;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeignClient;
 
 /**
@@ -31,13 +32,18 @@ public class DeviceStatusQuerySupport {
     public SmartThingsDeviceStatusResDto queryDeviceStatus(String deviceId) {
         try {
             var authorization = "Bearer " + tokenProvider.getValidAccessToken();
-            return feignClient.getDeviceStatus(authorization, deviceId);
-        } catch (ExpectedException e) {
-            log.error("smartthings token not found or invalid", e);
+            final var response = feignClient.getDeviceStatus(authorization, deviceId);
+            if (response == null || response.components() == null || response.components().get("main") == null) {
+                throw new ErrorCodeException(ErrorCode.SMARTTHINGS_RESPONSE_INVALID);
+            }
+            return response;
+        } catch (ErrorCodeException e) {
+            log.error("smartthings status query rejected errorCode={}", e.getErrorCode(), e);
             throw e;
         } catch (Exception e) {
-            log.error("smartthings failed to query device status deviceId={}", deviceId, e);
-            throw new ExpectedException("기기 상태 조회에 실패했습니다: " + e.getMessage(), HttpStatus.BAD_GATEWAY);
+            final var mapped = SmartThingsErrorMapper.toStatusException(e);
+            log.error("smartthings status query failed deviceId={} errorCode={}", deviceId, mapped.getErrorCode(), e);
+            throw mapped;
         }
     }
 

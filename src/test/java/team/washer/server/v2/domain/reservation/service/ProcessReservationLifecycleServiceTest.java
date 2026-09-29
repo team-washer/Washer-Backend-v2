@@ -31,10 +31,11 @@ import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycl
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.RunningTarget;
 import team.washer.server.v2.domain.reservation.support.LongRunningReservationMonitor;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 
 @ExtendWith(MockitoExtension.class)
@@ -139,7 +140,7 @@ class ProcessReservationLifecycleServiceTest {
                 .thenReturn(Optional.of(new CompletedMachine(2L, "D-2F-L1", "device-2", false, "claim-token")));
         when(deviceShutdownSupport
                 .shutdownAfterCompletion(eq("D-2F-L1"), eq("device-2"), eq(false), eq(firstStatus), any()))
-                .thenThrow(new SmartThingsPermissionException("권한 없음"));
+                .thenThrow(new ErrorCodeException(ErrorCode.SMARTTHINGS_PERMISSION_DENIED));
         ReflectionTestUtils.setField(processReservationLifecycleService,
                 "discordErrorNotificationService",
                 discordErrorNotificationService);
@@ -149,7 +150,7 @@ class ProcessReservationLifecycleServiceTest {
 
         // Then
         verify(discordErrorNotificationService, times(1))
-                .notifyError(any(SmartThingsPermissionException.class), eq("예약 완료 기기 종료 - SmartThings 권한 오류"), any());
+                .notifyError(any(ErrorCodeException.class), eq("예약 완료 기기 종료 - SmartThings 권한 오류"), any());
         verify(machineShutdownClaimSupport, times(1)).release(any());
         verify(deviceStatusQuerySupport, never()).queryDeviceStatus("device-3");
         verify(reservationLifecycleProcessor, never()).processRunningToCompleted(eq(3L), any());

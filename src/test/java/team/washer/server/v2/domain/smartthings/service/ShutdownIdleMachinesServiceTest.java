@@ -30,12 +30,13 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.service.impl.ShutdownIdleMachinesServiceImpl;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport.ShutdownResult;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
@@ -357,7 +358,7 @@ class ShutdownIdleMachinesServiceTest {
                         .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(2L, "claim-token-2")));
                 lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
                 lenient().when(machineShutdownClaimSupport.beginCommand(any())).thenReturn(true);
-                willThrow(new SmartThingsPermissionException("권한 없음")).given(deviceShutdownSupport)
+                willThrow(new ErrorCodeException(ErrorCode.SMARTTHINGS_PERMISSION_DENIED)).given(deviceShutdownSupport)
                         .shutdown(eq(machine1), any(), any());
 
                 // When

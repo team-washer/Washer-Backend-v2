@@ -14,12 +14,13 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
-import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.service.ShutdownIdleMachinesService;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -115,7 +116,18 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                         }
                     }
                 }
-            } catch (SmartThingsPermissionException e) {
+            } catch (ErrorCodeException e) {
+                if (e.getErrorCode() != ErrorCode.SMARTTHINGS_PERMISSION_DENIED) {
+                    if (!e.getErrorCode().getStatus().is5xxServerError()) {
+                        releaseClaim(claimForRelease, machine);
+                    }
+                    failed.add(machine.getName());
+                    log.error("idle shutdown failed to turn off machine={} errorCode={}",
+                            machine.getName(),
+                            e.getErrorCode(),
+                            e);
+                    continue;
+                }
                 releaseClaim(claimForRelease, machine);
                 log.warn("idle shutdown SmartThings permission error detected, stopping batch. machine={} reason={}",
                         machine.getName(),

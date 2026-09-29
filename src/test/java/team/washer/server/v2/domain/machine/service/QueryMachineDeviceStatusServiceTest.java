@@ -28,6 +28,8 @@ import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("QueryMachineDeviceStatusServiceImpl 클래스의")
@@ -132,9 +134,9 @@ class QueryMachineDeviceStatusServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> queryMachineDeviceStatusService.execute(USER_ID, MACHINE_ID))
-                        .isInstanceOf(ExpectedException.class)
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.MACHINE_NOT_FOUND));
                 verifyNoInteractions(deviceStatusQuerySupport);
             }
         }
