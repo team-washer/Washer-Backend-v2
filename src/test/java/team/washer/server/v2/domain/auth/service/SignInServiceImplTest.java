@@ -29,6 +29,8 @@ import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.auth.util.WithdrawnStudentRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.support.UserRegistrationSupport;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("SignInServiceImpl 클래스의")
@@ -171,7 +173,7 @@ class SignInServiceImplTest {
         class Context_with_recently_withdrawn_user {
 
             @Test
-            @DisplayName("ExpectedException이 발생하고 FORBIDDEN 상태를 반환해야 한다")
+            @DisplayName("탈퇴 제한 코드와 FORBIDDEN 상태를 반환해야 한다")
             void it_throws_expected_exception_with_forbidden() {
                 // Given
                 var reqDto = createReqDto();
@@ -186,10 +188,10 @@ class SignInServiceImplTest {
                 given(withdrawnStudentRedisUtil.isWithdrawnRecently("20210001")).willReturn(true);
 
                 // When & Then
-                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
                         .hasMessage("탈퇴 후 30일이 지나지 않아 재가입할 수 없습니다.")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.FORBIDDEN));
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.WITHDRAWN_REJOIN_RESTRICTED));
 
                 then(existingUserSignInSupport).should().generateIfExistingUser("20210001");
             }
@@ -211,8 +213,9 @@ class SignInServiceImplTest {
                         .willReturn(true);
 
                 // When & Then
-                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class)
-                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.FORBIDDEN);
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.WITHDRAWN_REJOIN_RESTRICTED));
 
                 then(withdrawnStudentRedisUtil).shouldHaveNoInteractions();
                 then(userRegistrationSupport).shouldHaveNoInteractions();

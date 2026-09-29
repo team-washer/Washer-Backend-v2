@@ -31,6 +31,8 @@ import team.washer.server.v2.domain.malfunction.repository.MalfunctionReportRepo
 import team.washer.server.v2.domain.malfunction.service.impl.CreateMalfunctionReportServiceImpl;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @ExtendWith(MockitoExtension.class)
@@ -146,12 +148,9 @@ class CreateMalfunctionReportServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> createMalfunctionReportService.execute(reqDto))
-                        .isInstanceOf(ExpectedException.class).hasMessage("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.")
-                        .satisfies(exception -> {
-                            ExpectedException expectedException = (ExpectedException) exception;
-                            assertThat(expectedException.getStatusCode())
-                                    .isEqualTo(HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS);
-                        });
+                        .isInstanceOf(ErrorCodeException.class).hasMessage(ErrorCode.USER_FLOOR_RESTRICTED.getMessage())
+                        .satisfies(exception -> assertThat(((ErrorCodeException) exception).getErrorCode())
+                                .isEqualTo(ErrorCode.USER_FLOOR_RESTRICTED));
 
                 then(userRepository).should(times(1)).findById(userId);
                 then(machineRepository).shouldHaveNoInteractions();

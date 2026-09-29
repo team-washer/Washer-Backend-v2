@@ -61,8 +61,8 @@ config/, util/       # Configuration and utilities
 - Custom: `{Entity}RepositoryCustom` + QueryDSL impl
 
 **Exceptions:**
-- Throw the SDK's `ExpectedException` directly: `new ExpectedException("메시지", HttpStatus.X)` — do NOT subclass it
-- `GlobalExceptionHandler` maps `ExpectedException` to the response
+- Throw the SDK's `ExpectedException` directly for unclassified errors: `new ExpectedException("메시지", HttpStatus.X)` — do NOT subclass it
+- Use the repository's `ErrorCodeException` when the client needs a stable, cause-specific `errorCode`; the handler maps it to the response
 
 ## Code Style (Spotless)
 - 120 chars max, 4 spaces indent

@@ -1,10 +1,8 @@
 package team.washer.server.v2.domain.reservation.support;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.admin.repository.WashingBanRepository;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -14,6 +12,8 @@ import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 /**
@@ -55,12 +55,12 @@ public class ReservationCreationSupport {
 
         final String roomNumber = user.getRoomNumber();
         if (roomNumber == null) {
-            throw new ExpectedException("호실 정보가 존재하지 않습니다.", HttpStatus.BAD_REQUEST);
+            throw new ErrorCodeException(ErrorCode.ROOM_NOT_FOUND);
         }
 
         // 호실 세탁 강제 금지 검증
         if (washingBanRepository.existsByRoomNumber(roomNumber)) {
-            throw new ExpectedException("해당 호실은 현재 세탁이 금지된 상태입니다.", HttpStatus.FORBIDDEN);
+            throw new ErrorCodeException(ErrorCode.ROOM_WASHING_BANNED);
         }
 
         return roomNumber;
@@ -75,7 +75,7 @@ public class ReservationCreationSupport {
      */
     public Machine findMachine(final Long machineId) {
         return machineRepository.findById(machineId)
-                .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.MACHINE_NOT_FOUND));
     }
 
     /**
@@ -97,7 +97,7 @@ public class ReservationCreationSupport {
      */
     public Machine lockMachine(final Long machineId) {
         return machineRepository.findByIdForUpdate(machineId)
-                .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.MACHINE_NOT_FOUND));
     }
 
     /**
@@ -117,31 +117,32 @@ public class ReservationCreationSupport {
             machine.recoverExpiredShutdownClaim();
         }
         if (machine.hasActiveShutdownClaim()) {
-            throw new ExpectedException("기기 종료 처리 중입니다. 잠시 후 다시 시도해 주세요", HttpStatus.CONFLICT);
+            throw new ErrorCodeException(ErrorCode.MACHINE_SHUTDOWN_IN_PROGRESS);
         }
 
         // 기기 가용성 검증
         if (machine.getAvailability() != MachineAvailability.AVAILABLE) {
-            throw new ExpectedException(String.format("해당 기기를 사용할 수 없습니다. 기기: %s", machine.getName()),
-                    HttpStatus.BAD_REQUEST);
+            throw new ErrorCodeException(ErrorCode.MACHINE_UNAVAILABLE,
+                    String.format("해당 기기를 사용할 수 없습니다. 기기: %s", machine.getName()));
         }
 
         // 기기 단위 중복 예약 검증 (가용성 플래그 드리프트에 대한 방어 심화)
         if (reservationRepository.existsCurrentlyActiveByMachine(machine)) {
-            throw new ExpectedException(String.format("해당 기기에 이미 진행 중인 예약이 있습니다. 기기: %s", machine.getName()),
-                    HttpStatus.CONFLICT);
+            throw new ErrorCodeException(ErrorCode.MACHINE_ALREADY_RESERVED,
+                    String.format("해당 기기에 이미 진행 중인 예약이 있습니다. 기기: %s", machine.getName()));
         }
 
         // 개인 중복 예약 검증 (1인 1예약)
         if (reservationRepository.existsCurrentlyActiveByUser(user)) {
-            throw new ExpectedException("이미 활성 예약이 존재합니다. 1인 1예약만 가능합니다.", HttpStatus.BAD_REQUEST);
+            throw new ErrorCodeException(ErrorCode.USER_ACTIVE_RESERVATION, "이미 활성 예약이 존재합니다. 1인 1예약만 가능합니다.");
         }
 
         // 동일 호실의 동일 유형 기기 중복 예약 검증
         if (reservationRepository.existsCurrentlyActiveByRoomNumberAndMachineType(user.getRoomNumber(),
                 machine.getType())) {
-            throw new ExpectedException(String.format("해당 호실에 이미 %s 예약이 존재합니다. 동일 유형의 기기는 동시에 두 개 이상 예약할 수 없습니다.",
-                    machine.getType().getDescription()), HttpStatus.BAD_REQUEST);
+            throw new ErrorCodeException(ErrorCode.ROOM_MACHINE_TYPE_RESERVED,
+                    String.format("해당 호실에 이미 %s 예약이 존재합니다. 동일 유형의 기기는 동시에 두 개 이상 예약할 수 없습니다.",
+                            machine.getType().getDescription()));
         }
     }
 

@@ -13,9 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineStatus;
@@ -26,6 +24,8 @@ import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.QueryReservationServiceImpl;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("QueryReservationServiceImpl 클래스의")
@@ -98,9 +98,9 @@ class QueryReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> queryReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("예약을 찾을 수 없습니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage(ErrorCode.RESERVATION_NOT_FOUND.getMessage())
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.RESERVATION_NOT_FOUND));
             }
         }
     }
