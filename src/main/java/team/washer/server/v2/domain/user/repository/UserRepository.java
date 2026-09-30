@@ -1,6 +1,6 @@
 package team.washer.server.v2.domain.user.repository;
 
-import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -64,6 +64,10 @@ public interface UserRepository extends JpaRepository<User, Long>, UserRepositor
     @Query("SELECT u FROM User u WHERE u.penaltyCount > :threshold ORDER BY u.penaltyCount DESC")
     List<User> findUsersWithPenaltyAbove(@Param("threshold") Integer threshold);
 
-    @Query("SELECT COUNT(u) FROM User u WHERE u.lastCancellationAt IS NOT NULL AND u.lastCancellationAt >= :threshold")
-    long countSuspendedStudents(@Param("threshold") LocalDateTime threshold);
+    /**
+     * 지정한 사용자 ID 또는 호실에 해당하는 고유 사용자 수를 셉니다. 두 조건에 모두 해당하는 사용자는 한 번만 셉니다.
+     */
+    @Query("SELECT COUNT(u) FROM User u WHERE u.id IN :userIds OR u.roomNumber IN :roomNumbers")
+    long countByIdInOrRoomNumberIn(@Param("userIds") Collection<Long> userIds,
+            @Param("roomNumbers") Collection<String> roomNumbers);
 }

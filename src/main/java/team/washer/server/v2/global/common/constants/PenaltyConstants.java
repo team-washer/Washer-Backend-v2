@@ -4,8 +4,6 @@ public final class PenaltyConstants {
     private PenaltyConstants() {
     }
 
-    public static final int PENALTY_DURATION_MINUTES = 10;
-
     /** 예약 취소 후 재예약 쿨다운 시간 (분) */
     public static final int COOLDOWN_DURATION_MINUTES = 5;
 
