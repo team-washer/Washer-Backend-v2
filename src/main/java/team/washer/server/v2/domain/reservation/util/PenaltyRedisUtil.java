@@ -1,12 +1,15 @@
 package team.washer.server.v2.domain.reservation.util;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -360,8 +363,9 @@ public class PenaltyRedisUtil {
     /**
      * 세탁기·건조기 중 어느 한 유형이라도 활성 쿨다운이 있는 사용자 ID를 모두 반환합니다.
      * <p>
-     * {@link #checkCooldown(Long, MachineType)}이 판정 기준으로 쓰는 Redis Repository
-     * keyspace 인덱스를 한 번에 조회하므로, 사용자 수만큼 개별 조회하지 않고도 예약 생성 경로와 같은 기준으로 집계할 수 있습니다.
+     * Redis Repository keyspace 인덱스로 후보 ID를 모은 뒤,
+     * {@link #checkCooldown(Long, MachineType)}과 같이 실제 엔티티 키가 남아 있는 항목만 활성 쿨다운으로
+     * 봅니다. 사용자 수만큼 개별 조회하지 않고 파이프라인으로 한 번에 확인합니다.
      * </p>
      *
      * @throws ErrorCodeException
@@ -370,7 +374,7 @@ public class PenaltyRedisUtil {
      */
     public Set<Long> findCooldownUserIdsOrThrow() {
         final Set<Long> userIds = new HashSet<>();
-        for (final String cooldownId : keyspaceMembersOrThrow(CooldownEntity.KEYSPACE, PENALTY_TYPE_COOLDOWN)) {
+        for (final String cooldownId : activeKeyspaceIdsOrThrow(CooldownEntity.KEYSPACE, PENALTY_TYPE_COOLDOWN)) {
             final Long userId = parseCooldownUserId(cooldownId);
             if (userId != null) {
                 userIds.add(userId);
@@ -382,8 +386,8 @@ public class PenaltyRedisUtil {
     /**
      * 48시간 예약 차단(관리자 연장분 포함)이 적용 중인 호실 번호를 모두 반환합니다.
      * <p>
-     * {@link #checkBlock(String)}이 판정 기준으로 쓰는 Redis Repository keyspace 인덱스를 한 번에
-     * 조회합니다.
+     * Redis Repository keyspace 인덱스로 후보 호실을 모은 뒤, {@link #checkBlock(String)}과 같이
+     * 실제 엔티티 키가 남아 있는 호실만 반환합니다.
      * </p>
      *
      * @throws ErrorCodeException
@@ -391,13 +395,37 @@ public class PenaltyRedisUtil {
      *             ({@link ErrorCode#RESERVATION_RESTRICTION_UNAVAILABLE})
      */
     public Set<String> findBlockedRoomNumbersOrThrow() {
-        return keyspaceMembersOrThrow(CancellationBlockEntity.KEYSPACE, PENALTY_TYPE_BLOCK);
+        return activeKeyspaceIdsOrThrow(CancellationBlockEntity.KEYSPACE, PENALTY_TYPE_BLOCK);
     }
 
-    private Set<String> keyspaceMembersOrThrow(final String keyspace, final String penaltyType) {
+    /**
+     * keyspace 인덱스의 ID 중 실제 엔티티 키가 존재하는 ID만 반환합니다.
+     * <p>
+     * 인덱스 멤버는 TTL 만료 시 keyspace 이벤트로 정리되므로, 이벤트가 비활성화되었거나 유실되면 만료된 ID가 남을 수 있습니다.
+     * 예약 생성 경로의 {@code existsById}는 엔티티 키 존재 여부로 판정하므로, 같은 기준으로 걸러 집행과 통계를 일치시킵니다.
+     * </p>
+     */
+    private Set<String> activeKeyspaceIdsOrThrow(final String keyspace, final String penaltyType) {
         try {
             final Set<String> members = stringRedisTemplate.opsForSet().members(keyspace);
-            return members != null ? members : Set.of();
+            if (members == null || members.isEmpty()) {
+                return Set.of();
+            }
+            final List<String> candidateIds = List.copyOf(members);
+            final List<Object> existsResults = stringRedisTemplate
+                    .executePipelined((RedisCallback<Object>) connection -> {
+                        for (final String id : candidateIds) {
+                            connection.keyCommands().exists((keyspace + ":" + id).getBytes(StandardCharsets.UTF_8));
+                        }
+                        return null;
+                    });
+            final Set<String> activeIds = new HashSet<>();
+            for (int i = 0; i < candidateIds.size(); i++) {
+                if (Boolean.TRUE.equals(existsResults.get(i))) {
+                    activeIds.add(candidateIds.get(i));
+                }
+            }
+            return activeIds;
         } catch (Exception e) {
             log.error("penalty lookup failed event=penalty_lookup_failed penaltyType={} scope=all", penaltyType, e);
             throw new ErrorCodeException(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE, e);
