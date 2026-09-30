@@ -16,8 +16,11 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@RedisHash(value = "reservation:block:room")
+@RedisHash(value = CancellationBlockEntity.KEYSPACE)
 public class CancellationBlockEntity {
+
+    /** 활성 호실 차단 ID를 모아 두는 Redis Repository keyspace 인덱스 키 */
+    public static final String KEYSPACE = "reservation:block:room";
 
     @Id
     private String roomNumber;

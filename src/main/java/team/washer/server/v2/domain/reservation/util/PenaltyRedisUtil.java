@@ -2,7 +2,9 @@ package team.washer.server.v2.domain.reservation.util;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -350,6 +352,65 @@ public class PenaltyRedisUtil {
                     roomNumber,
                     e);
             return RestrictionStatus.UNAVAILABLE;
+        }
+    }
+
+    // ===== 활성 예약 제한 일괄 조회 (통계용) =====
+
+    /**
+     * 세탁기·건조기 중 어느 한 유형이라도 활성 쿨다운이 있는 사용자 ID를 모두 반환합니다.
+     * <p>
+     * {@link #checkCooldown(Long, MachineType)}이 판정 기준으로 쓰는 Redis Repository
+     * keyspace 인덱스를 한 번에 조회하므로, 사용자 수만큼 개별 조회하지 않고도 예약 생성 경로와 같은 기준으로 집계할 수 있습니다.
+     * </p>
+     *
+     * @throws ErrorCodeException
+     *             Redis 조회에 실패한 경우
+     *             ({@link ErrorCode#RESERVATION_RESTRICTION_UNAVAILABLE})
+     */
+    public Set<Long> findCooldownUserIdsOrThrow() {
+        final Set<Long> userIds = new HashSet<>();
+        for (final String cooldownId : keyspaceMembersOrThrow(CooldownEntity.KEYSPACE, PENALTY_TYPE_COOLDOWN)) {
+            final Long userId = parseCooldownUserId(cooldownId);
+            if (userId != null) {
+                userIds.add(userId);
+            }
+        }
+        return userIds;
+    }
+
+    /**
+     * 48시간 예약 차단(관리자 연장분 포함)이 적용 중인 호실 번호를 모두 반환합니다.
+     * <p>
+     * {@link #checkBlock(String)}이 판정 기준으로 쓰는 Redis Repository keyspace 인덱스를 한 번에
+     * 조회합니다.
+     * </p>
+     *
+     * @throws ErrorCodeException
+     *             Redis 조회에 실패한 경우
+     *             ({@link ErrorCode#RESERVATION_RESTRICTION_UNAVAILABLE})
+     */
+    public Set<String> findBlockedRoomNumbersOrThrow() {
+        return keyspaceMembersOrThrow(CancellationBlockEntity.KEYSPACE, PENALTY_TYPE_BLOCK);
+    }
+
+    private Set<String> keyspaceMembersOrThrow(final String keyspace, final String penaltyType) {
+        try {
+            final Set<String> members = stringRedisTemplate.opsForSet().members(keyspace);
+            return members != null ? members : Set.of();
+        } catch (Exception e) {
+            log.error("penalty lookup failed event=penalty_lookup_failed penaltyType={} scope=all", penaltyType, e);
+            throw new ErrorCodeException(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE, e);
+        }
+    }
+
+    private static Long parseCooldownUserId(final String cooldownId) {
+        final int separatorIndex = cooldownId.indexOf(':');
+        try {
+            return Long.valueOf(cooldownId.substring(0, separatorIndex));
+        } catch (IndexOutOfBoundsException | NumberFormatException e) {
+            log.warn("malformed cooldown id skipped cooldownId={}", cooldownId);
+            return null;
         }
     }
 
