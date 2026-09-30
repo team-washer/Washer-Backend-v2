@@ -17,6 +17,7 @@ import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepos
 import team.washer.server.v2.domain.smartthings.service.RefreshSmartThingsTokenService;
 import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnvironment;
+import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsApiException;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsOAuthClient;
 
 @Service
@@ -55,6 +56,10 @@ public class RefreshSmartThingsTokenServiceImpl implements RefreshSmartThingsTok
             updateToken(token, response);
 
             log.info("Successfully refreshed SmartThings token");
+        } catch (SmartThingsApiException e) {
+            log.warn("SmartThings token refresh rejected status={}", e.getStatus());
+            throw new ExpectedException("SmartThings 토큰 갱신에 실패했습니다.",
+                    resolveStatus(e.getStatus(), HttpStatus.BAD_GATEWAY));
         } catch (ExpectedException e) {
             log.warn("SmartThings token not found, skipping refresh");
             throw e;
@@ -63,6 +68,11 @@ public class RefreshSmartThingsTokenServiceImpl implements RefreshSmartThingsTok
             throw new ExpectedException("SmartThings 토큰 갱신에 실패했습니다: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    private HttpStatus resolveStatus(final int status, final HttpStatus fallback) {
+        final var resolved = HttpStatus.resolve(status);
+        return resolved != null ? resolved : fallback;
     }
 
     private void updateToken(SmartThingsToken token, SmartThingsTokenExchangeResDto response) {

@@ -401,6 +401,22 @@ class ShutdownIdleMachinesServiceTest {
                 // Then
                 then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine2), any(), any());
             }
+
+            @Test
+            @DisplayName("명령이 확실히 거절되면 SmartThings 오류여도 claim을 해제한다")
+            void it_releasesClaimWhenCommandIsDefinitelyRejected() {
+                // Given
+                var machine = createMachine(1L, "W-2F-L1", "device-1");
+                givenSingleIdleMachine(machine);
+                willThrow(new ErrorCodeException(ErrorCode.SMARTTHINGS_RATE_LIMITED)).given(deviceShutdownSupport)
+                        .shutdown(eq(machine), eq(EMPTY_STATUS), any());
+
+                // When
+                shutdownIdleMachinesService.execute();
+
+                // Then
+                then(machineShutdownClaimSupport).should().release(any());
+            }
         }
     }
 }

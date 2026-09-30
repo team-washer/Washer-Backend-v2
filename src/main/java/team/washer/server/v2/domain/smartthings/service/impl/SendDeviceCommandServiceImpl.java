@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsErrorMapper;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeignClient;
@@ -30,10 +31,16 @@ public class SendDeviceCommandServiceImpl implements SendDeviceCommandService {
 
             log.debug("smartthings command sent successfully deviceId={} command={}", deviceId, command);
         } catch (ErrorCodeException e) {
+            if (e.getErrorCode() == ErrorCode.SMARTTHINGS_TOKEN_INVALID) {
+                tokenProvider.invalidate();
+            }
             throw e;
         } catch (Exception e) {
             final var mapped = SmartThingsErrorMapper.toCommandException(e);
             log.error("smartthings command failed deviceId={} errorCode={}", deviceId, mapped.getErrorCode(), e);
+            if (mapped.getErrorCode() == ErrorCode.SMARTTHINGS_TOKEN_INVALID) {
+                tokenProvider.invalidate();
+            }
             throw mapped;
         }
     }

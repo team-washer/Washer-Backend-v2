@@ -71,6 +71,17 @@ class QueryMachineDeviceStatusServiceTest {
         return new SmartThingsDeviceStatusResDto(Map.of("main", component));
     }
 
+    private SmartThingsDeviceStatusResDto unknownWasherStatus() {
+        var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(
+                new SmartThingsDeviceStatusResDto.AttributeState("new-state", null, null),
+                new SmartThingsDeviceStatusResDto.AttributeState("none", null, null),
+                null);
+        var switchCapability = new SmartThingsDeviceStatusResDto.SwitchCapability(
+                new SmartThingsDeviceStatusResDto.AttributeState("on", null, null));
+        var component = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, switchCapability, null);
+        return new SmartThingsDeviceStatusResDto(Map.of("main", component));
+    }
+
     @Nested
     @DisplayName("execute 메서드는")
     class Describe_execute {
@@ -119,6 +130,22 @@ class QueryMachineDeviceStatusServiceTest {
                 assertThat(result.expectedCompletionTime()).isNull();
                 assertThat(result.remainingMinutes()).isNull();
             }
+        }
+
+        @Test
+        @DisplayName("알 수 없는 machineState는 기존 계약대로 UNKNOWN으로 반환한다")
+        void returnsUnknownStateWithoutRejectingResponse() {
+            // Given
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(machineRepository.findById(MACHINE_ID)).thenReturn(Optional.of(washer()));
+            when(deviceStatusQuerySupport.queryDeviceStatus(DEVICE_ID)).thenReturn(unknownWasherStatus());
+
+            // When
+            var result = queryMachineDeviceStatusService.execute(USER_ID, MACHINE_ID);
+
+            // Then
+            assertThat(result.operatingState()).isEqualTo(MachineOperatingState.UNKNOWN);
+            assertThat(result.jobState()).isEqualTo("none");
         }
 
         @Nested

@@ -38,11 +38,17 @@ public class DeviceStatusQuerySupport {
             }
             return response;
         } catch (ErrorCodeException e) {
-            log.error("smartthings status query rejected errorCode={}", e.getErrorCode(), e);
+            if (e.getErrorCode() == ErrorCode.SMARTTHINGS_TOKEN_INVALID) {
+                tokenProvider.invalidate();
+            }
+            log.warn("smartthings status query rejected errorCode={} deviceId={}", e.getErrorCode(), deviceId);
             throw e;
         } catch (Exception e) {
             final var mapped = SmartThingsErrorMapper.toStatusException(e);
             log.error("smartthings status query failed deviceId={} errorCode={}", deviceId, mapped.getErrorCode(), e);
+            if (mapped.getErrorCode() == ErrorCode.SMARTTHINGS_TOKEN_INVALID) {
+                tokenProvider.invalidate();
+            }
             throw mapped;
         }
     }
@@ -62,7 +68,10 @@ public class DeviceStatusQuerySupport {
                 var status = queryDeviceStatus(deviceId);
                 return Map.entry(deviceId, status);
             } catch (Exception e) {
-                log.warn("Failed to query status for device: {}", deviceId, e);
+                var errorCode = e instanceof ErrorCodeException errorCodeException
+                        ? errorCodeException.getErrorCode()
+                        : ErrorCode.SMARTTHINGS_STATUS_UNAVAILABLE;
+                log.warn("smartthings bulk status query skipped deviceId={} errorCode={}", deviceId, errorCode);
                 return null;
             }
         })).toList();

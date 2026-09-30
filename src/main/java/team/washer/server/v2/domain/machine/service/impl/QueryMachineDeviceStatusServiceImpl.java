@@ -11,7 +11,6 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.machine.service.QueryMachineDeviceStatusService;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.error.code.ErrorCode;
@@ -43,9 +42,6 @@ public class QueryMachineDeviceStatusServiceImpl implements QueryMachineDeviceSt
                 .orElseThrow(() -> new ErrorCodeException(ErrorCode.MACHINE_NOT_FOUND));
 
         final var deviceStatus = deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
-        if (deviceStatus.getOperatingState(machine.isWasher()) == MachineOperatingState.UNKNOWN) {
-            throw new ErrorCodeException(ErrorCode.SMARTTHINGS_RESPONSE_INVALID);
-        }
         return mapToDto(machine, deviceStatus);
     }
 

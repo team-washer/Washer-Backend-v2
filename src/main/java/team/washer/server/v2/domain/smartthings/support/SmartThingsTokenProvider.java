@@ -33,6 +33,11 @@ public class SmartThingsTokenProvider {
         log.debug("smartthings token cache refreshed expiresAt={}", token.getExpiresAt());
     }
 
+    public void invalidate() {
+        cache.set(null);
+        log.debug("smartthings token cache invalidated");
+    }
+
     private String reload() {
         final var token = tokenRepository.findSingletonToken()
                 .orElseThrow(() -> new ErrorCodeException(ErrorCode.SMARTTHINGS_TOKEN_UNAVAILABLE));

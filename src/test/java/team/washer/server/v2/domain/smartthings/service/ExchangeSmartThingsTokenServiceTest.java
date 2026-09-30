@@ -24,6 +24,7 @@ import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepos
 import team.washer.server.v2.domain.smartthings.service.impl.ExchangeSmartThingsTokenServiceImpl;
 import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnvironment;
+import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsApiException;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsOAuthClient;
 
 @ExtendWith(MockitoExtension.class)
@@ -122,6 +123,22 @@ class ExchangeSmartThingsTokenServiceTest {
                         .isInstanceOf(ExpectedException.class).hasMessageContaining("SmartThings 토큰 교환에 실패했습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_GATEWAY));
+            }
+
+            @Test
+            @DisplayName("SmartThings OAuth 400 응답은 안전한 메시지와 원래 상태를 반환한다")
+            void it_preserves_external_status_without_leaking_response_details() {
+                // Given
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.exchangeToken(anyString(), anyString()))
+                        .willThrow(new SmartThingsApiException(400));
+
+                // When & Then
+                assertThatThrownBy(() -> exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri"))
+                        .isInstanceOf(ExpectedException.class).hasMessage("SmartThings 토큰 교환에 실패했습니다.")
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_REQUEST));
             }
         }
     }

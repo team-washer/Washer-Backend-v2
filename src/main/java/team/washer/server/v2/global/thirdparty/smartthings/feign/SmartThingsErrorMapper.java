@@ -1,10 +1,5 @@
 package team.washer.server.v2.global.thirdparty.smartthings.feign;
 
-import java.net.ConnectException;
-import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
-
-import feign.RetryableException;
 import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
@@ -24,17 +19,37 @@ public final class SmartThingsErrorMapper {
 
     private static ErrorCode resolve(final Throwable cause, final ErrorCode fallback) {
         if (cause instanceof SmartThingsApiException apiException) {
-            return switch (apiException.getStatus()) {
+            final var status = apiException.getStatus();
+            return switch (status) {
                 case 401 -> ErrorCode.SMARTTHINGS_TOKEN_INVALID;
                 case 403 -> ErrorCode.SMARTTHINGS_PERMISSION_DENIED;
                 case 429 -> ErrorCode.SMARTTHINGS_RATE_LIMITED;
-                default -> fallback;
+                case 408 -> fallback;
+                default -> status >= 400 && status < 500 ? ErrorCode.SMARTTHINGS_RESPONSE_INVALID : fallback;
             };
         }
-        if (cause instanceof RetryableException || cause instanceof SocketTimeoutException
-                || cause instanceof ConnectException || cause instanceof UnknownHostException) {
-            return fallback;
-        }
         return fallback;
+    }
+
+    public static boolean shouldReleaseCommandClaim(final ErrorCodeException exception) {
+        if (isSmartThingsError(exception.getErrorCode())) {
+            return switch (exception.getErrorCode()) {
+                case SMARTTHINGS_TOKEN_UNAVAILABLE, SMARTTHINGS_TOKEN_INVALID, SMARTTHINGS_PERMISSION_DENIED,
+                        SMARTTHINGS_RATE_LIMITED, SMARTTHINGS_RESPONSE_INVALID ->
+                    true;
+                default -> false;
+            };
+        }
+        return !exception.getErrorCode().getStatus().is5xxServerError();
+    }
+
+    private static boolean isSmartThingsError(final ErrorCode errorCode) {
+        return switch (errorCode) {
+            case SMARTTHINGS_TOKEN_UNAVAILABLE, SMARTTHINGS_TOKEN_INVALID, SMARTTHINGS_PERMISSION_DENIED,
+                    SMARTTHINGS_RATE_LIMITED, SMARTTHINGS_STATUS_UNAVAILABLE, SMARTTHINGS_COMMAND_UNAVAILABLE,
+                    SMARTTHINGS_RESPONSE_INVALID ->
+                true;
+            default -> false;
+        };
     }
 }

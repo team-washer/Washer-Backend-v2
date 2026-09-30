@@ -22,6 +22,7 @@ import team.washer.server.v2.global.common.constants.ReservationConstants;
 import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
+import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsErrorMapper;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 /**
@@ -118,7 +119,7 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                 }
             } catch (ErrorCodeException e) {
                 if (e.getErrorCode() != ErrorCode.SMARTTHINGS_PERMISSION_DENIED) {
-                    if (!e.getErrorCode().getStatus().is5xxServerError()) {
+                    if (SmartThingsErrorMapper.shouldReleaseCommandClaim(e)) {
                         releaseClaim(claimForRelease, machine);
                     }
                     failed.add(machine.getName());

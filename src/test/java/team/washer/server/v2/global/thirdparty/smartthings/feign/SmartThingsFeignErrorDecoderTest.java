@@ -34,6 +34,27 @@ class SmartThingsFeignErrorDecoderTest {
     }
 
     @Test
+    @DisplayName("영구적인 4xx를 응답 오류 코드로 매핑한다")
+    void mapsPermanentClientError() {
+        final var exception = SmartThingsErrorMapper.toCommandException(new SmartThingsApiException(404));
+
+        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.SMARTTHINGS_RESPONSE_INVALID);
+    }
+
+    @Test
+    @DisplayName("확실히 거절된 명령은 claim을 해제한다")
+    void releasesClaimWhenCommandIsDefinitelyRejected() {
+        assertThat(SmartThingsErrorMapper
+                .shouldReleaseCommandClaim(new team.washer.server.v2.global.common.error.exception.ErrorCodeException(
+                        ErrorCode.SMARTTHINGS_RATE_LIMITED)))
+                .isTrue();
+        assertThat(SmartThingsErrorMapper
+                .shouldReleaseCommandClaim(new team.washer.server.v2.global.common.error.exception.ErrorCodeException(
+                        ErrorCode.SMARTTHINGS_COMMAND_UNAVAILABLE)))
+                .isFalse();
+    }
+
+    @Test
     @DisplayName("외부 원문 없이 상태 조회와 명령 실패를 구분한다")
     void separatesOperationFailures() {
         final var status = SmartThingsErrorMapper.toStatusException(new RuntimeException("deviceId=secret"));

@@ -88,6 +88,8 @@ public class ReservationDeviceStateVerifier {
     private SmartThingsDeviceStatusResDto queryDeviceStatus(final Machine machine) {
         try {
             return deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
+        } catch (final ErrorCodeException e) {
+            throw e;
         } catch (final Exception e) {
             log.warn("reservation device state query failed machineId={} deviceId={}",
                     machine.getId(),

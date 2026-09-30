@@ -256,4 +256,25 @@ class ProcessReservationLifecycleServiceTest {
         verify(longRunningReservationMonitor, times(1)).report(eq(List.of(longRunning)), any(LocalDateTime.class));
         verify(reservationLifecycleProcessor, times(1)).findRunningTargets();
     }
+
+    @Test
+    @DisplayName("명령이 확실히 거절되면 SmartThings 오류여도 shutdown claim을 해제한다")
+    void execute_ShouldReleaseClaim_WhenCommandIsDefinitelyRejected() {
+        // Given
+        var status = buildDeviceStatus("2026-01-26T16:00:00Z");
+        when(reservationLifecycleProcessor.findReservedTargets()).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findRunningTargets())
+                .thenReturn(List.of(buildRunningTarget(2L, "device-2", false)));
+        when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenReturn(status);
+        when(reservationLifecycleProcessor.processRunningToCompleted(2L, status))
+                .thenReturn(Optional.of(new CompletedMachine(2L, "D-2F-L1", "device-2", false, "claim-token")));
+        when(deviceShutdownSupport.shutdownAfterCompletion(eq("D-2F-L1"), eq("device-2"), eq(false), eq(status), any()))
+                .thenThrow(new ErrorCodeException(ErrorCode.SMARTTHINGS_RATE_LIMITED));
+
+        // When
+        processReservationLifecycleService.execute();
+
+        // Then
+        verify(machineShutdownClaimSupport, times(1)).release(any());
+    }
 }

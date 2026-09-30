@@ -46,9 +46,7 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
         final var machine = machineRepository.findById(machineId)
                 .orElseThrow(() -> new ErrorCodeException(ErrorCode.MACHINE_NOT_FOUND));
         final var status = deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
-        final var previousMachineState = status == null
-                ? MachineOperatingState.UNKNOWN
-                : status.getOperatingState(machine.isWasher());
+        final var previousMachineState = status.getOperatingState(machine.isWasher());
         final var forceStopResult = forceStop(machine, status, previousMachineState);
         final var updateResult = updateMachineAndReservation(machineId, forceStopResult);
 
@@ -72,9 +70,6 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
     private ForceStopResult forceStop(Machine machine,
             SmartThingsDeviceStatusResDto status,
             MachineOperatingState machineState) {
-        if (status == null) {
-            throw new ErrorCodeException(ErrorCode.SMARTTHINGS_RESPONSE_INVALID);
-        }
         if (!machine.isWasher() && !machine.isDryer()) {
             throw new ErrorCodeException(ErrorCode.MACHINE_UNAVAILABLE);
         }

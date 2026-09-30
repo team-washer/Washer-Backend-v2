@@ -122,6 +122,25 @@ class SendDeviceCommandServiceTest {
                         .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
                                 .isEqualTo(ErrorCode.SMARTTHINGS_PERMISSION_DENIED));
             }
+
+            @Test
+            @DisplayName("401 응답이면 토큰 캐시를 무효화한다")
+            void it_invalidates_token_cache_when_token_is_rejected() {
+                // Given
+                var deviceId = "device-abc";
+                var command = SmartThingsCommandReqDto.powerOff();
+
+                given(tokenProvider.getValidAccessToken()).willReturn("valid-access-token");
+                willThrow(new SmartThingsApiException(401)).given(feignClient)
+                        .sendDeviceCommand(anyString(), eq(deviceId), eq(command));
+
+                // When
+                assertThatThrownBy(() -> sendDeviceCommandService.execute(deviceId, command))
+                        .isInstanceOf(ErrorCodeException.class);
+
+                // Then
+                then(tokenProvider).should().invalidate();
+            }
         }
 
         @Nested

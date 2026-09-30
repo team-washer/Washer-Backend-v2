@@ -20,6 +20,7 @@ import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupp
 import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
+import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsErrorMapper;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 /**
@@ -134,7 +135,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
             return true;
         } catch (ErrorCodeException e) {
             if (e.getErrorCode() != ErrorCode.SMARTTHINGS_PERMISSION_DENIED) {
-                if (!e.getErrorCode().getStatus().is5xxServerError()) {
+                if (SmartThingsErrorMapper.shouldReleaseCommandClaim(e)) {
                     releaseClaim(claim, completedMachine);
                 }
                 log.error("power off after completion failed machine={} deviceId={} errorCode={}",
