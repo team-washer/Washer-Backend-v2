@@ -250,7 +250,7 @@ class CreateReservationServiceTest {
 
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
             when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
-            when(user.hasRecentCancellation(anyInt())).thenReturn(true);
+            when(user.hasRecentCancellation(eq(MachineType.WASHER), anyInt())).thenReturn(true);
             when(penaltyRedisUtil.checkBlock(ROOM_NUMBER)).thenReturn(RestrictionStatus.NONE);
             when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
             when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));

@@ -156,7 +156,7 @@ public class OverdueReservationProcessor {
             return OverdueResult.CANCELLED_WITHOUT_PENALTY;
         }
 
-        user.updateLastCancellationTime();
+        user.updateLastCancellationTime(machine.getType());
         applyTimeoutPenaltyAfterCommit(user, machine);
         return OverdueResult.CANCELLED;
     }

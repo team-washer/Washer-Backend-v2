@@ -68,7 +68,7 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         // 수동 취소 시 패널티 적용. 단, 관리자 대리 예약은 본인이 요청한 것이 아니므로 면제한다
         final boolean applyPenalty = !reservation.isProxyReservation();
         if (applyPenalty) {
-            user.updateLastCancellationTime();
+            user.updateLastCancellationTime(machine.getType());
         }
 
         reservation.cancel();

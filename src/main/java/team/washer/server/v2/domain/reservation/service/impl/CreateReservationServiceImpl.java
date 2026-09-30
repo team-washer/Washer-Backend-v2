@@ -109,7 +109,7 @@ public class CreateReservationServiceImpl implements CreateReservationService {
                 ? reservationCreationSupport.lockMachine(machineId)
                 : reservationCreationSupport.findMachine(machineId);
 
-        if (user.hasRecentCancellation(PenaltyConstants.COOLDOWN_DURATION_MINUTES)) {
+        if (user.hasRecentCancellation(machine.getType(), PenaltyConstants.COOLDOWN_DURATION_MINUTES)) {
             throw new ErrorCodeException(ErrorCode.RESERVATION_COOLDOWN_ACTIVE,
                     String.format("예약 취소 후 5분간 %s 예약이 제한됩니다.", machine.getType().getDescription()));
         }
