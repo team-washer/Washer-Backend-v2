@@ -7,6 +7,7 @@ import static org.mockito.Mockito.*;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,6 +17,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import team.washer.server.v2.domain.machine.enums.MachineType;
@@ -398,6 +400,71 @@ class PenaltyRedisUtilTest {
             assertThatThrownBy(() -> penaltyRedisUtil.applyBlockOrThrow("101")).isInstanceOf(RuntimeException.class)
                     .hasMessage("redis down");
             verify(discordErrorNotificationServiceProvider, never()).ifAvailable(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("findCooldownUserIdsOrThrow / findBlockedRoomNumbersOrThrow 메서드는")
+    class Describe_bulk_lookup {
+
+        @Mock
+        private SetOperations<String, String> setOperations;
+
+        @Test
+        @DisplayName("기기 유형별 쿨다운 키를 사용자 ID로 환산하고 중복을 제거한다")
+        void it_returns_distinct_cooldown_user_ids() {
+            // Given
+            when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
+            when(setOperations.members(CooldownEntity.KEYSPACE)).thenReturn(Set.of("1:WASHER", "1:DRYER", "2:DRYER"));
+
+            // When
+            Set<Long> result = penaltyRedisUtil.findCooldownUserIdsOrThrow();
+
+            // Then
+            assertThat(result).containsExactlyInAnyOrder(1L, 2L);
+        }
+
+        @Test
+        @DisplayName("형식이 맞지 않는 쿨다운 키는 건너뛴다")
+        void it_skips_malformed_cooldown_ids() {
+            // Given
+            when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
+            when(setOperations.members(CooldownEntity.KEYSPACE)).thenReturn(Set.of("abc:WASHER", "WASHER", "3:WASHER"));
+
+            // When
+            Set<Long> result = penaltyRedisUtil.findCooldownUserIdsOrThrow();
+
+            // Then
+            assertThat(result).containsExactly(3L);
+        }
+
+        @Test
+        @DisplayName("차단 중인 호실 번호를 반환하고, 키가 없으면 빈 집합을 반환한다")
+        void it_returns_blocked_room_numbers() {
+            // Given
+            when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
+            when(setOperations.members(CancellationBlockEntity.KEYSPACE)).thenReturn(Set.of("301", "302"))
+                    .thenReturn(null);
+
+            // When & Then
+            assertThat(penaltyRedisUtil.findBlockedRoomNumbersOrThrow()).containsExactlyInAnyOrder("301", "302");
+            assertThat(penaltyRedisUtil.findBlockedRoomNumbersOrThrow()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Redis 조회에 실패하면 503 오류 코드 예외를 던진다")
+        void it_throws_when_lookup_fails() {
+            // Given
+            when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
+            when(setOperations.members(any())).thenThrow(new RuntimeException("redis down"));
+
+            // When & Then
+            assertThatThrownBy(() -> penaltyRedisUtil.findCooldownUserIdsOrThrow())
+                    .isInstanceOf(ErrorCodeException.class).extracting(e -> ((ErrorCodeException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE);
+            assertThatThrownBy(() -> penaltyRedisUtil.findBlockedRoomNumbersOrThrow())
+                    .isInstanceOf(ErrorCodeException.class).extracting(e -> ((ErrorCodeException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE);
         }
     }
 }
