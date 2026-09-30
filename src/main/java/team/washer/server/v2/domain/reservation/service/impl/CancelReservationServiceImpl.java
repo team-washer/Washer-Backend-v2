@@ -113,7 +113,9 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         penaltyRedisUtil.recordCancellation(userId);
         if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
             final RestrictionStatus previousBlockStatus = penaltyRedisUtil.checkBlock(user.getRoomNumber());
+            // 차단 저장 실패는 PenaltyRedisUtil이 운영 알림으로 보고하며, 예약 취소 자체는 계속 진행한다
             if (penaltyRedisUtil.applyBlock(user.getRoomNumber())) {
+                // 기존 차단 여부를 조회하지 못했다면 알림 누락보다 중복 발송이 낫다고 보고 발송한다
                 if (previousBlockStatus != RestrictionStatus.RESTRICTED) {
                     reservationNotificationSupport.sendCancellationBlock(user, machine);
                 }
