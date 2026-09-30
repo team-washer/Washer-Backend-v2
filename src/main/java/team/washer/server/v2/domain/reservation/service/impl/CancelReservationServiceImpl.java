@@ -75,26 +75,21 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         machine.releaseIfHeld();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
-        registerPenaltyAfterCommit(applyPenalty, user, machine, userId, reservationId);
+        if (applyPenalty) {
+            registerPenaltyAfterCommit(user, machine, reservationId);
+        }
         log.info("Cancelled reservation reservationId={} userId={}", reservationId, userId);
 
         return mapToCancellationResDto(applyPenalty);
     }
 
-    private void registerPenaltyAfterCommit(final boolean applyPenalty,
-            final User user,
-            final Machine machine,
-            final Long userId,
-            final Long reservationId) {
-        if (!applyPenalty) {
-            return;
-        }
+    private void registerPenaltyAfterCommit(final User user, final Machine machine, final Long reservationId) {
         final Runnable apply = () -> {
             try {
-                applyPenalty(user, machine, userId, reservationId);
+                applyPenalty(user, machine, reservationId);
             } catch (Exception e) {
                 log.error("manual cancel penalty after commit failed userId={} reservationId={}",
-                        userId,
+                        user.getId(),
                         reservationId,
                         e);
             }
@@ -112,7 +107,8 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         apply.run();
     }
 
-    private void applyPenalty(final User user, final Machine machine, final Long userId, final Long reservationId) {
+    private void applyPenalty(final User user, final Machine machine, final Long reservationId) {
+        final Long userId = user.getId();
         penaltyRedisUtil.applyCooldown(userId, machine.getType());
         penaltyRedisUtil.recordCancellation(userId);
         if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {

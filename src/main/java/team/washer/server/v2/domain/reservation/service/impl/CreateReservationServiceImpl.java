@@ -18,6 +18,7 @@ import team.washer.server.v2.domain.reservation.support.ReservationDeviceStateVe
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.constants.PenaltyConstants;
 import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
@@ -107,6 +108,11 @@ public class CreateReservationServiceImpl implements CreateReservationService {
         final Machine machine = forUpdate
                 ? reservationCreationSupport.lockMachine(machineId)
                 : reservationCreationSupport.findMachine(machineId);
+
+        if (user.hasRecentCancellation(PenaltyConstants.COOLDOWN_DURATION_MINUTES)) {
+            throw new ErrorCodeException(ErrorCode.RESERVATION_COOLDOWN_ACTIVE,
+                    String.format("예약 취소 후 5분간 %s 예약이 제한됩니다.", machine.getType().getDescription()));
+        }
 
         // 쿨다운 검증 (취소 후 5분, 동일 기기 유형 한정). 조회에 실패하면 예약을 거부한다
         switch (penaltyRedisUtil.checkCooldown(userId, machine.getType())) {

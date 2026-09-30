@@ -179,15 +179,7 @@ public class OverdueReservationProcessor {
         return !DateTimeUtil.nowInKorea().isBefore(unknownDeadline);
     }
 
-    /**
-     * 타임아웃 취소 시 패널티를 적용합니다.
-     * <p>
-     * 1. 항상 5분 쿨다운 적용<br>
-     * 2. 취소 횟수 기록 (48h 슬라이딩 윈도우)<br>
-     * 3. 첫 번째 경고 여부에 따라 알림 분기<br>
-     * 4. 48시간 내 {maxCount}회 초과 시 48h 블록 적용
-     * </p>
-     */
+    /** 커밋 이후 패널티 적용을 예약하고 트랜잭션이 없으면 즉시 실행합니다. */
     private void applyTimeoutPenaltyAfterCommit(final User user, final Machine machine) {
         if (TransactionSynchronizationManager.isActualTransactionActive()
                 && TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -206,6 +198,15 @@ public class OverdueReservationProcessor {
         applyTimeoutPenalty(user, machine);
     }
 
+    /**
+     * 타임아웃 취소 시 패널티를 적용합니다.
+     * <p>
+     * 1. 항상 5분 쿨다운 적용<br>
+     * 2. 취소 횟수 기록 (48h 슬라이딩 윈도우)<br>
+     * 3. 첫 번째 경고 여부에 따라 알림 분기<br>
+     * 4. 48시간 내 {maxCount}회 초과 시 48h 블록 적용
+     * </p>
+     */
     private void applyTimeoutPenalty(final User user, final Machine machine) {
         final long userId = user.getId();
 
@@ -214,10 +215,12 @@ public class OverdueReservationProcessor {
 
         if (!penaltyRedisUtil.hasWarning(userId)) {
             penaltyRedisUtil.applyWarning(userId);
-            reservationNotificationSupport.sendTimeoutWarning(user, machine);
+            sendPenaltyNotification(() -> reservationNotificationSupport.sendTimeoutWarning(user, machine),
+                    "timeout warning");
             log.info("timeout first warning applied userId={}", userId);
         } else {
-            reservationNotificationSupport.sendAutoCancellation(user, machine);
+            sendPenaltyNotification(() -> reservationNotificationSupport.sendAutoCancellation(user, machine),
+                    "auto cancellation");
             log.info("timeout penalty applied userId={}", userId);
         }
 
@@ -227,12 +230,21 @@ public class OverdueReservationProcessor {
             if (penaltyRedisUtil.applyBlock(user.getRoomNumber())) {
                 // 기존 차단 여부를 조회하지 못했다면 알림 누락보다 중복 발송이 낫다고 보고 발송한다
                 if (previousBlockStatus != RestrictionStatus.RESTRICTED) {
-                    reservationNotificationSupport.sendCancellationBlock(user, machine);
+                    sendPenaltyNotification(() -> reservationNotificationSupport.sendCancellationBlock(user, machine),
+                            "cancellation block");
                 }
                 log.warn("48h block applied roomNumber={} exceeded max cancellations {}",
                         user.getRoomNumber(),
                         PenaltyConstants.MAX_CANCELLATIONS_IN_48H);
             }
+        }
+    }
+
+    private void sendPenaltyNotification(final Runnable notification, final String notificationType) {
+        try {
+            notification.run();
+        } catch (RuntimeException e) {
+            log.error("timeout penalty notification failed type={}", notificationType, e);
         }
     }
 }

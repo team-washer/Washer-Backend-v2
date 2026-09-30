@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
@@ -397,6 +398,26 @@ class CancelReservationServiceTest {
                     TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
                     then(penaltyRedisUtil).should().applyCooldown(userId, MachineType.WASHER);
                     then(penaltyRedisUtil).should().recordCancellation(userId);
+                } finally {
+                    TransactionSynchronizationManager.clearSynchronization();
+                    TransactionSynchronizationManager.setActualTransactionActive(false);
+                }
+            }
+
+            @Test
+            @DisplayName("DB 롤백 시 수동 취소 패널티를 기록하지 않는다")
+            void doesNotApplyPenaltyAfterRollback() {
+                final var userId = 1L;
+                createReservation(ReservationStatus.RESERVED, userId);
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                TransactionSynchronizationManager.initSynchronization();
+                TransactionSynchronizationManager.setActualTransactionActive(true);
+                try {
+                    cancelReservationService.execute(10L);
+
+                    TransactionSynchronizationManager.getSynchronizations()
+                            .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+                    then(penaltyRedisUtil).shouldHaveNoInteractions();
                 } finally {
                     TransactionSynchronizationManager.clearSynchronization();
                     TransactionSynchronizationManager.setActualTransactionActive(false);
