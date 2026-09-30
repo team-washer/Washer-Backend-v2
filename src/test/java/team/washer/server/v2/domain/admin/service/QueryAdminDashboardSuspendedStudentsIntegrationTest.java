@@ -30,6 +30,7 @@ import org.testcontainers.utility.DockerImageName;
 import team.washer.server.v2.domain.admin.entity.WashingBan;
 import team.washer.server.v2.domain.admin.service.impl.QueryAdminDashboardServiceImpl;
 import team.washer.server.v2.domain.machine.enums.MachineType;
+import team.washer.server.v2.domain.reservation.entity.redis.CancellationBlockEntity;
 import team.washer.server.v2.domain.reservation.entity.redis.CooldownEntity;
 import team.washer.server.v2.domain.reservation.enums.RestrictionStatus;
 import team.washer.server.v2.domain.reservation.repository.redis.CooldownRedisRepository;
@@ -198,6 +199,28 @@ class QueryAdminDashboardSuspendedStudentsIntegrationTest {
 
             // When & Then
             assertThat(suspendedStudents()).isEqualTo(3L);
+        }
+    }
+
+    @Nested
+    @DisplayName("keyspace 만료 이벤트가 유실되어 인덱스에만 ID가 남으면")
+    class Describe_stale_keyspace_index {
+
+        @Test
+        @DisplayName("예약 생성 판정처럼 제한이 없는 것으로 보고 집계하지 않는다")
+        void it_ignores_stale_index_members() {
+            // Given
+            final User user = persistUser("20240001", "301");
+            persistUser("20240002", "302");
+            final String cooldownId = user.getId() + ":" + MachineType.WASHER.name();
+            stringRedisTemplate.opsForSet().add(CooldownEntity.KEYSPACE, cooldownId);
+            stringRedisTemplate.opsForSet().add(CancellationBlockEntity.KEYSPACE, "302");
+
+            // When & Then
+            assertThat(penaltyRedisUtil.checkCooldown(user.getId(), MachineType.WASHER))
+                    .isEqualTo(RestrictionStatus.NONE);
+            assertThat(penaltyRedisUtil.checkBlock("302")).isEqualTo(RestrictionStatus.NONE);
+            assertThat(suspendedStudents()).isZero();
         }
     }
 
