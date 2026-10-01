@@ -19,6 +19,7 @@ import team.washer.server.v2.domain.smartthings.service.ExchangeSmartThingsToken
 import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnvironment;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsApiException;
+import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsErrorMapper;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsOAuthClient;
 
 @Service
@@ -54,16 +55,11 @@ public class ExchangeSmartThingsTokenServiceImpl implements ExchangeSmartThingsT
         } catch (SmartThingsApiException e) {
             log.warn("SmartThings token exchange rejected status={}", e.getStatus());
             throw new ExpectedException("SmartThings 토큰 교환에 실패했습니다.",
-                    resolveStatus(e.getStatus(), HttpStatus.BAD_GATEWAY));
+                    SmartThingsErrorMapper.toOAuthStatus(e.getStatus()));
         } catch (Exception e) {
             log.error("Failed to exchange SmartThings token", e);
             throw new ExpectedException("SmartThings 토큰 교환에 실패했습니다: " + e.getMessage(), HttpStatus.BAD_GATEWAY);
         }
-    }
-
-    private HttpStatus resolveStatus(final int status, final HttpStatus fallback) {
-        final var resolved = HttpStatus.resolve(status);
-        return resolved != null ? resolved : fallback;
     }
 
     /**

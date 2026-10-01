@@ -9,7 +9,6 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
@@ -142,12 +141,6 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                                     "SmartThings OAuth 재인증 또는 x:devices:* 스코프 확인"));
                 }
                 break;
-            } catch (ExpectedException e) {
-                if (!e.getStatusCode().is5xxServerError()) {
-                    releaseClaim(claimForRelease, machine);
-                }
-                failed.add(machine.getName());
-                log.error("idle shutdown failed to turn off machine={} reason={}", machine.getName(), e.getMessage());
             } catch (Exception e) {
                 failed.add(machine.getName());
                 log.error("idle shutdown failed to turn off machine={} reason={}", machine.getName(), e.getMessage());

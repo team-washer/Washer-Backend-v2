@@ -1,5 +1,7 @@
 package team.washer.server.v2.global.thirdparty.smartthings.feign;
 
+import org.springframework.http.HttpStatus;
+
 import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
@@ -15,6 +17,10 @@ public final class SmartThingsErrorMapper {
 
     public static ErrorCodeException toCommandException(final Throwable cause) {
         return new ErrorCodeException(resolve(cause, ErrorCode.SMARTTHINGS_COMMAND_UNAVAILABLE), cause);
+    }
+
+    public static HttpStatus toOAuthStatus(final int externalStatus) {
+        return externalStatus >= 400 && externalStatus < 500 ? HttpStatus.BAD_REQUEST : HttpStatus.BAD_GATEWAY;
     }
 
     private static ErrorCode resolve(final Throwable cause, final ErrorCode fallback) {

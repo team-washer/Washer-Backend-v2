@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,9 +34,25 @@ public class SmartThingsTokenProvider {
         log.debug("smartthings token cache refreshed expiresAt={}", token.getExpiresAt());
     }
 
-    public void invalidate() {
-        cache.set(null);
-        log.debug("smartthings token cache invalidated");
+    @Transactional
+    public void invalidate(final String rejectedAccessToken) {
+        if (rejectedAccessToken == null || rejectedAccessToken.isBlank()) {
+            return;
+        }
+
+        final var token = tokenRepository.findSingletonTokenWithLock().orElse(null);
+        if (token == null) {
+            clearCachedToken(rejectedAccessToken);
+            return;
+        }
+        if (!token.getAccessToken().equals(rejectedAccessToken)) {
+            refresh(token);
+            return;
+        }
+
+        token.invalidateAccessToken();
+        clearCachedToken(rejectedAccessToken);
+        log.warn("smartthings access token invalidated after upstream rejection");
     }
 
     private String reload() {
@@ -47,6 +64,11 @@ public class SmartThingsTokenProvider {
         cache.set(new CachedToken(token.getAccessToken(), token.getExpiresAt()));
         log.debug("smartthings token cache loaded from db expiresAt={}", token.getExpiresAt());
         return token.getAccessToken();
+    }
+
+    private void clearCachedToken(final String rejectedAccessToken) {
+        cache.updateAndGet(
+                cached -> cached != null && cached.accessToken().equals(rejectedAccessToken) ? null : cached);
     }
 
     private record CachedToken(String accessToken, LocalDateTime expiresAt) {

@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.reservation.service.ProcessReservationLifecycleService;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.CompletedMachine;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor.RunningTarget;
@@ -153,15 +152,6 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
             releaseClaim(claim, completedMachine);
             notifyPermissionError(completedMachine, e);
             return false;
-        } catch (ExpectedException e) {
-            if (!e.getStatusCode().is5xxServerError()) {
-                releaseClaim(claim, completedMachine);
-            }
-            log.error("power off after completion failed machine={} deviceId={} reason={}",
-                    completedMachine.machineName(),
-                    completedMachine.deviceId(),
-                    e.getMessage());
-            return true;
         } catch (Exception e) {
             log.error("power off after completion failed machine={} deviceId={} reason={}",
                     completedMachine.machineName(),

@@ -140,6 +140,34 @@ class ExchangeSmartThingsTokenServiceTest {
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));
             }
+
+            @Test
+            @DisplayName("SmartThings OAuth 401 응답을 서버 인증 실패와 구분해 400으로 변환한다")
+            void it_maps_external_unauthorized_to_bad_request() {
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.exchangeToken(anyString(), anyString()))
+                        .willThrow(new SmartThingsApiException(401));
+
+                assertThatThrownBy(() -> exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri"))
+                        .isInstanceOf(ExpectedException.class)
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_REQUEST));
+            }
+
+            @Test
+            @DisplayName("SmartThings OAuth 5xx 응답을 외부 연동 실패인 502로 변환한다")
+            void it_maps_external_server_error_to_bad_gateway() {
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.exchangeToken(anyString(), anyString()))
+                        .willThrow(new SmartThingsApiException(503));
+
+                assertThatThrownBy(() -> exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri"))
+                        .isInstanceOf(ExpectedException.class)
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_GATEWAY));
+            }
         }
     }
 }

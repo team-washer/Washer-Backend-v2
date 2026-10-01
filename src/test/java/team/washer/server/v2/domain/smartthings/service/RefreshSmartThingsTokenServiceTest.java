@@ -170,6 +170,36 @@ class RefreshSmartThingsTokenServiceTest {
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.BAD_REQUEST));
             }
+
+            @Test
+            @DisplayName("SmartThings OAuth 401 응답을 서버 인증 실패와 구분해 400으로 변환한다")
+            void it_maps_external_unauthorized_to_bad_request() {
+                var expiredToken = createExpiredToken();
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(expiredToken));
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.refreshToken(anyString(), anyString()))
+                        .willThrow(new SmartThingsApiException(401));
+
+                assertThatThrownBy(() -> refreshSmartThingsTokenService.execute()).isInstanceOf(ExpectedException.class)
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_REQUEST));
+            }
+
+            @Test
+            @DisplayName("SmartThings OAuth 5xx 응답을 외부 연동 실패인 502로 변환한다")
+            void it_maps_external_server_error_to_bad_gateway() {
+                var expiredToken = createExpiredToken();
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(expiredToken));
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.refreshToken(anyString(), anyString()))
+                        .willThrow(new SmartThingsApiException(503));
+
+                assertThatThrownBy(() -> refreshSmartThingsTokenService.execute()).isInstanceOf(ExpectedException.class)
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_GATEWAY));
+            }
         }
     }
 }

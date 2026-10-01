@@ -139,7 +139,24 @@ class SendDeviceCommandServiceTest {
                         .isInstanceOf(ErrorCodeException.class);
 
                 // Then
-                then(tokenProvider).should().invalidate();
+                then(tokenProvider).should().invalidate("valid-access-token");
+            }
+
+            @Test
+            @DisplayName("토큰 만료 기록 실패가 원래 토큰 오류 계약을 바꾸지 않는다")
+            void it_preserves_token_error_when_invalidation_fails() {
+                var deviceId = "device-abc";
+                var command = SmartThingsCommandReqDto.powerOff();
+                given(tokenProvider.getValidAccessToken()).willReturn("valid-access-token");
+                willThrow(new SmartThingsApiException(401)).given(feignClient)
+                        .sendDeviceCommand(anyString(), eq(deviceId), eq(command));
+                willThrow(new RuntimeException("database unavailable")).given(tokenProvider)
+                        .invalidate("valid-access-token");
+
+                assertThatThrownBy(() -> sendDeviceCommandService.execute(deviceId, command))
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.SMARTTHINGS_TOKEN_INVALID));
             }
         }
 

@@ -25,23 +25,33 @@ public class SendDeviceCommandServiceImpl implements SendDeviceCommandService {
      */
     @Override
     public void execute(String deviceId, SmartThingsCommandReqDto command) {
+        String accessToken = null;
         try {
-            var authorization = "Bearer " + tokenProvider.getValidAccessToken();
+            accessToken = tokenProvider.getValidAccessToken();
+            var authorization = "Bearer " + accessToken;
             feignClient.sendDeviceCommand(authorization, deviceId, command);
 
             log.debug("smartthings command sent successfully deviceId={} command={}", deviceId, command);
         } catch (ErrorCodeException e) {
             if (e.getErrorCode() == ErrorCode.SMARTTHINGS_TOKEN_INVALID) {
-                tokenProvider.invalidate();
+                invalidateRejectedToken(accessToken);
             }
             throw e;
         } catch (Exception e) {
             final var mapped = SmartThingsErrorMapper.toCommandException(e);
             log.error("smartthings command failed deviceId={} errorCode={}", deviceId, mapped.getErrorCode(), e);
             if (mapped.getErrorCode() == ErrorCode.SMARTTHINGS_TOKEN_INVALID) {
-                tokenProvider.invalidate();
+                invalidateRejectedToken(accessToken);
             }
             throw mapped;
+        }
+    }
+
+    private void invalidateRejectedToken(final String accessToken) {
+        try {
+            tokenProvider.invalidate(accessToken);
+        } catch (Exception e) {
+            log.error("smartthings rejected token invalidation failed", e);
         }
     }
 }
