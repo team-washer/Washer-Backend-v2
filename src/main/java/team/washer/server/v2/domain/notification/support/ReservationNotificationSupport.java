@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.notification.support;
 import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -66,7 +67,7 @@ public class ReservationNotificationSupport {
     /**
      * 예약 자동 취소 알림을 전송한다.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendAutoCancellation(User user, Machine machine) {
         var notification = Notification.createAutoCancellationNotification(user, machine);
         persistAndSend(user, notification, "예약 자동 취소 알림");
@@ -84,7 +85,7 @@ public class ReservationNotificationSupport {
     /**
      * 예약 취소 경고 알림(첫 번째 타임아웃)을 전송한다.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendTimeoutWarning(User user, Machine machine) {
         var notification = Notification.createTimeoutWarningNotification(user, machine);
         persistAndSend(user, notification, "예약 취소 경고");
@@ -93,7 +94,7 @@ public class ReservationNotificationSupport {
     /**
      * 48시간 예약 차단 알림을 전송한다.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void sendCancellationBlock(User user, Machine machine) {
         var notification = Notification.createCancellationBlockNotification(user, machine);
         persistAndSend(user, notification, "예약 차단 알림");

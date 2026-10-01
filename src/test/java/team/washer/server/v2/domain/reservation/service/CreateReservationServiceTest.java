@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.reservation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -236,6 +237,28 @@ class CreateReservationServiceTest {
             // When & Then
             assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
                     .hasMessageContaining("5분간 세탁기 예약이 제한")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.RESERVATION_COOLDOWN_ACTIVE));
+        }
+
+        @Test
+        @DisplayName("DB의 최근 취소 시각이 남아 있으면 Redis 기록 전에도 예약을 제한한다")
+        void execute_ShouldThrowException_WhenRecentCancellationIsPersisted() {
+            // Given
+            when(currentUserProvider.getCurrentUserId()).thenReturn(USER_ID);
+            final var reqDto = new CreateReservationReqDto(1L);
+
+            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+            when(user.getRoomNumber()).thenReturn(ROOM_NUMBER);
+            when(user.hasRecentCancellation(eq(MachineType.WASHER), anyInt())).thenReturn(true);
+            when(penaltyRedisUtil.checkBlock(ROOM_NUMBER)).thenReturn(RestrictionStatus.NONE);
+            when(reservationEnvironment.disableTimeRestriction()).thenReturn(true);
+            when(machineRepository.findById(reqDto.machineId())).thenReturn(Optional.of(machine));
+            when(machine.getType()).thenReturn(MachineType.WASHER);
+
+            // When & Then
+            assertThatThrownBy(() -> createReservationService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                    .hasMessage("예약 취소 후 5분간 세탁기 예약이 제한됩니다.")
                     .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
                             .isEqualTo(ErrorCode.RESERVATION_COOLDOWN_ACTIVE));
         }

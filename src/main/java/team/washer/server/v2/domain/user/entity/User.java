@@ -10,6 +10,7 @@ import java.util.List;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
+import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.malfunction.entity.MalfunctionReport;
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -73,6 +74,10 @@ public class User extends BaseEntity {
     @Column(name = "last_cancellation_at")
     private LocalDateTime lastCancellationAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "last_cancellation_machine_type", length = 20)
+    private MachineType lastCancellationMachineType;
+
     @Size(max = NotificationConstants.FCM_TOKEN_MAX_LENGTH, message = "FCM 토큰은 4096자를 초과할 수 없습니다")
     @Column(name = "fcm_token", length = NotificationConstants.FCM_TOKEN_MAX_LENGTH)
     private String fcmToken;
@@ -125,8 +130,9 @@ public class User extends BaseEntity {
     /**
      * 마지막 취소 시각을 현재 시각으로 갱신합니다.
      */
-    public void updateLastCancellationTime() {
+    public void updateLastCancellationTime(final MachineType machineType) {
         this.lastCancellationAt = DateTimeUtil.nowInKorea();
+        this.lastCancellationMachineType = machineType;
     }
 
     /**
@@ -134,6 +140,7 @@ public class User extends BaseEntity {
      */
     public void clearLastCancellationTime() {
         this.lastCancellationAt = null;
+        this.lastCancellationMachineType = null;
     }
 
     /**
@@ -160,8 +167,12 @@ public class User extends BaseEntity {
      *            패널티 지속 시간 (분)
      * @return 패널티 기간 내 취소 이력 존재 여부
      */
-    public boolean hasRecentCancellation(int penaltyMinutes) {
+    public boolean hasRecentCancellation(final MachineType machineType, final int penaltyMinutes) {
         if (this.lastCancellationAt == null) {
+            return false;
+        }
+        // 기존 데이터는 기기 유형이 없으므로 만료 전까지 모든 기기 유형에 보수적으로 적용합니다.
+        if (this.lastCancellationMachineType != null && this.lastCancellationMachineType != machineType) {
             return false;
         }
         LocalDateTime penaltyExpiry = this.lastCancellationAt.plusMinutes(penaltyMinutes);

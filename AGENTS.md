@@ -88,6 +88,18 @@ config/, util/       # Configuration and utilities
 - Testing: BDD with `@Nested`, Korean `@DisplayName`, Given-When-Then
 - Commands: `/spotless-format`, `/split-commits`
 
+## GitHub Issue and PR Rules
+- Do not use `[P0]` through `[P4]` priority prefixes in new Issue titles. Represent priority with a GitHub risk label instead.
+- Apply exactly one risk label to each Issue. Work-type labels such as `버그`, `리팩터링`, `신규 기능`, `문서화`, and `삭제` are a separate axis and may be kept alongside the risk label.
+- Issue authors who cannot manage GitHub labels must state one requested risk label in the template. A maintainer must apply exactly one risk label during triage; an unlabeled Issue is allowed only before triage is complete.
+- Use these risk criteria:
+  - `위험도: 긴급`: Authentication or authorization bypasses, token or secret exposure, data loss, or problems requiring immediate safety response. Example: an unauthenticated user can trigger an admin device sync, or an auth token is written to logs.
+  - `위험도: 높음`: Core-flow outages, incorrect state transitions, data-integrity issues, or concurrency problems affecting reservations or device control and requiring prompt action. Example: a new reservation can power off a machine that is already running, or duplicate reservations are accepted for one user.
+  - `위험도: 보통`: Limited-scope functional errors, API contract issues, user guidance problems, or operational policy improvements. Example: a specific input error does not identify the field the user must fix.
+  - `위험도: 낮음`: Performance, observability, or maintainability improvements where the feature remains functional. Example: batching a query to reduce N+1 behavior or adding trace context to asynchronous logs.
+  - `위험도: 정리`: Low-impact removal of unused code, configuration, dependencies, or duplication. Example: deleting unused Repository methods.
+- PR label selection must use only PR labels appropriate for the code change. Risk labels such as `위험도: 긴급` are Issue-only and must never be added to PRs automatically.
+
 ## Special Rules Summary
 1. Domain DTOs: records only, NO `from()` methods
 2. Services: single method, interface + Impl

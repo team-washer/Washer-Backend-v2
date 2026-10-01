@@ -5,8 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,6 +20,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.connection.RedisConnection;
+import org.springframework.data.redis.connection.RedisKeyCommands;
+import org.springframework.data.redis.core.RedisCallback;
+import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import team.washer.server.v2.domain.machine.enums.MachineType;
@@ -398,6 +406,131 @@ class PenaltyRedisUtilTest {
             assertThatThrownBy(() -> penaltyRedisUtil.applyBlockOrThrow("101")).isInstanceOf(RuntimeException.class)
                     .hasMessage("redis down");
             verify(discordErrorNotificationServiceProvider, never()).ifAvailable(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("findCooldownUserIdsOrThrow / findBlockedRoomNumbersOrThrow 메서드는")
+    class Describe_bulk_lookup {
+
+        @Mock
+        private SetOperations<String, String> setOperations;
+
+        /**
+         * 파이프라인으로 확인하는 엔티티 키 중 지정한 키만 존재하는 것으로 응답하도록 설정합니다.
+         */
+        @SuppressWarnings("unchecked")
+        private void givenExistingEntityKeys(final String... existingKeys) {
+            final Set<String> existing = Set.of(existingKeys);
+            when(stringRedisTemplate.executePipelined(any(RedisCallback.class))).thenAnswer(invocation -> {
+                final RedisCallback<Object> callback = invocation.getArgument(0);
+                final RedisConnection connection = mock(RedisConnection.class);
+                final RedisKeyCommands keyCommands = mock(RedisKeyCommands.class);
+                final List<Object> results = new ArrayList<>();
+                when(connection.keyCommands()).thenReturn(keyCommands);
+                when(keyCommands.exists(any(byte[].class))).thenAnswer(existsInvocation -> {
+                    final byte[] key = existsInvocation.getArgument(0);
+                    results.add(existing.contains(new String(key, StandardCharsets.UTF_8)));
+                    return null;
+                });
+                callback.doInRedis(connection);
+                return results;
+            });
+        }
+
+        @Test
+        @DisplayName("기기 유형별 쿨다운 키를 사용자 ID로 환산하고 중복을 제거한다")
+        void it_returns_distinct_cooldown_user_ids() {
+            // Given
+            when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
+            when(setOperations.members(CooldownEntity.KEYSPACE)).thenReturn(Set.of("1:WASHER", "1:DRYER", "2:DRYER"));
+            givenExistingEntityKeys(CooldownEntity.KEYSPACE + ":1:WASHER",
+                    CooldownEntity.KEYSPACE + ":1:DRYER",
+                    CooldownEntity.KEYSPACE + ":2:DRYER");
+
+            // When
+            Set<Long> result = penaltyRedisUtil.findCooldownUserIdsOrThrow();
+
+            // Then
+            assertThat(result).containsExactlyInAnyOrder(1L, 2L);
+        }
+
+        @Test
+        @DisplayName("형식이 맞지 않는 쿨다운 키는 건너뛴다")
+        void it_skips_malformed_cooldown_ids() {
+            // Given
+            when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
+            when(setOperations.members(CooldownEntity.KEYSPACE)).thenReturn(Set.of("abc:WASHER", "WASHER", "3:WASHER"));
+            givenExistingEntityKeys(CooldownEntity.KEYSPACE + ":abc:WASHER",
+                    CooldownEntity.KEYSPACE + ":WASHER",
+                    CooldownEntity.KEYSPACE + ":3:WASHER");
+
+            // When
+            Set<Long> result = penaltyRedisUtil.findCooldownUserIdsOrThrow();
+
+            // Then
+            assertThat(result).containsExactly(3L);
+        }
+
+        @Test
+        @DisplayName("엔티티 키가 만료되어 인덱스에만 남은 ID는 제외한다")
+        void it_excludes_stale_index_members() {
+            // Given
+            when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
+            when(setOperations.members(CooldownEntity.KEYSPACE)).thenReturn(Set.of("1:WASHER", "2:DRYER"));
+            when(setOperations.members(CancellationBlockEntity.KEYSPACE)).thenReturn(Set.of("301", "302"));
+            givenExistingEntityKeys(CooldownEntity.KEYSPACE + ":2:DRYER", CancellationBlockEntity.KEYSPACE + ":302");
+
+            // When & Then
+            assertThat(penaltyRedisUtil.findCooldownUserIdsOrThrow()).containsExactly(2L);
+            assertThat(penaltyRedisUtil.findBlockedRoomNumbersOrThrow()).containsExactly("302");
+        }
+
+        @Test
+        @DisplayName("차단 중인 호실 번호를 반환하고, 인덱스가 없으면 빈 집합을 반환한다")
+        void it_returns_blocked_room_numbers() {
+            // Given
+            when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
+            when(setOperations.members(CancellationBlockEntity.KEYSPACE)).thenReturn(Set.of("301", "302"))
+                    .thenReturn(null);
+            givenExistingEntityKeys(CancellationBlockEntity.KEYSPACE + ":301",
+                    CancellationBlockEntity.KEYSPACE + ":302");
+
+            // When & Then
+            assertThat(penaltyRedisUtil.findBlockedRoomNumbersOrThrow()).containsExactlyInAnyOrder("301", "302");
+            assertThat(penaltyRedisUtil.findBlockedRoomNumbersOrThrow()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Redis 조회에 실패하면 503 오류 코드 예외를 던진다")
+        void it_throws_when_lookup_fails() {
+            // Given
+            when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
+            when(setOperations.members(any())).thenThrow(new RuntimeException("redis down"));
+
+            // When & Then
+            assertThatThrownBy(() -> penaltyRedisUtil.findCooldownUserIdsOrThrow())
+                    .isInstanceOf(ErrorCodeException.class).extracting(e -> ((ErrorCodeException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE);
+            assertThatThrownBy(() -> penaltyRedisUtil.findBlockedRoomNumbersOrThrow())
+                    .isInstanceOf(ErrorCodeException.class).extracting(e -> ((ErrorCodeException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE);
+        }
+
+        @Test
+        @DisplayName("엔티티 키 확인 파이프라인이 실패해도 503 오류 코드 예외를 던진다")
+        @SuppressWarnings("unchecked")
+        void it_throws_when_existence_check_fails() {
+            // Given
+            when(stringRedisTemplate.opsForSet()).thenReturn(setOperations);
+            when(setOperations.members(CooldownEntity.KEYSPACE)).thenReturn(Set.of("1:WASHER"));
+            when(stringRedisTemplate.executePipelined(any(RedisCallback.class)))
+                    .thenThrow(new RuntimeException("redis down"));
+
+            // When & Then
+            assertThatThrownBy(() -> penaltyRedisUtil.findCooldownUserIdsOrThrow())
+                    .isInstanceOf(ErrorCodeException.class).extracting(e -> ((ErrorCodeException) e).getErrorCode())
+                    .isEqualTo(ErrorCode.RESERVATION_RESTRICTION_UNAVAILABLE);
         }
     }
 }
