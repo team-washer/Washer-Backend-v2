@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 
 import jakarta.persistence.Column;
 import jakarta.validation.constraints.Size;
+import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.global.common.constants.NotificationConstants;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
@@ -36,6 +37,34 @@ class UserTest {
 
             assertThat(column.length()).isEqualTo(NotificationConstants.FCM_TOKEN_MAX_LENGTH);
             assertThat(size.max()).isEqualTo(NotificationConstants.FCM_TOKEN_MAX_LENGTH);
+        }
+    }
+
+    @Nested
+    @DisplayName("최근 취소 패널티")
+    class Describe_recentCancellation {
+
+        @Test
+        @DisplayName("같은 기기 유형의 최근 취소만 예약을 제한한다")
+        void it_restricts_only_the_same_machine_type() {
+            final User user = createUser(1, UserRole.USER);
+
+            user.updateLastCancellationTime(MachineType.WASHER);
+
+            assertThat(user.hasRecentCancellation(MachineType.WASHER, 5)).isTrue();
+            assertThat(user.hasRecentCancellation(MachineType.DRYER, 5)).isFalse();
+        }
+
+        @Test
+        @DisplayName("패널티 초기화 시 취소 시각과 기기 유형을 함께 삭제한다")
+        void it_clears_cancellation_time_and_machine_type() {
+            final User user = createUser(1, UserRole.USER);
+
+            user.updateLastCancellationTime(MachineType.WASHER);
+            user.clearLastCancellationTime();
+
+            assertThat(user.hasRecentCancellation(MachineType.WASHER, 5)).isFalse();
+            assertThat(user.hasRecentCancellation(MachineType.DRYER, 5)).isFalse();
         }
     }
 
