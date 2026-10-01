@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.auth.service.impl;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import lombok.AllArgsConstructor;
 import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient;
@@ -33,7 +34,10 @@ public class SignInServiceImpl implements SignInService {
 
     @Override
     public TokenResDto execute(TokenReqDto reqDto) {
-        String accessToken = oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri()).getAccessToken();
+        final var tokenResponse = StringUtils.hasText(reqDto.codeVerifier())
+                ? oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri(), reqDto.codeVerifier())
+                : oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri());
+        String accessToken = tokenResponse.getAccessToken();
         Student oauthUser = oauthClient.getUserInfo(accessToken).getStudent();
         if (oauthUser == null) {
             throw new ExpectedException("학생정보가 없는 DataGSM 계정입니다.", HttpStatus.BAD_REQUEST);

@@ -9,6 +9,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -67,7 +69,11 @@ class SignInServiceImplTest {
     private Student student;
 
     private TokenReqDto createReqDto() {
-        return new TokenReqDto("auth-code-123", "https://example.com/callback");
+        return createReqDto(null);
+    }
+
+    private TokenReqDto createReqDto(final String codeVerifier) {
+        return new TokenReqDto("auth-code-123", "https://example.com/callback", codeVerifier);
     }
 
     private User createUser() {
@@ -105,8 +111,77 @@ class SignInServiceImplTest {
                 assertThat(result).isNotNull();
                 assertThat(result.accessToken()).isEqualTo("access.token");
                 assertThat(result.refreshToken()).isEqualTo("refresh.token");
+                then(oauthClient).should(times(1)).exchangeCodeForToken("auth-code-123",
+                        "https://example.com/callback");
+                then(oauthClient).should(never()).exchangeCodeForToken(anyString(), anyString(), anyString());
                 then(userRegistrationSupport).shouldHaveNoInteractions();
                 then(withdrawnStudentRedisUtil).shouldHaveNoInteractions();
+            }
+        }
+
+        @Nested
+        @DisplayName("PKCE code verifier가 포함된 인증 코드로 기존 사용자가 로그인할 때")
+        class Context_with_pkce_code_verifier {
+
+            @Test
+            @DisplayName("verifier를 변경하지 않고 PKCE 토큰 교환 후 기존 로그인 흐름을 수행해야 한다")
+            void it_exchanges_token_with_unchanged_code_verifier() {
+                // Given
+                final var codeVerifier = "pkce.verifier-123_ABC~value";
+                final var reqDto = createReqDto(codeVerifier);
+                final var expectedTokens = new TokenResDto("access.token", 3600L, "refresh.token");
+
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
+                given(userInfoResponse.getStudent()).willReturn(student);
+                given(student.getStudentNumber()).willReturn(20210001);
+                given(existingUserSignInSupport.generateIfExistingUser("20210001"))
+                        .willReturn(Optional.of(expectedTokens));
+
+                // When
+                final var result = signInService.execute(reqDto);
+
+                // Then
+                assertThat(result).isEqualTo(expectedTokens);
+                then(oauthClient).should(times(1))
+                        .exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier);
+                then(oauthClient).should(never()).exchangeCodeForToken(anyString(), anyString());
+                then(oauthClient).should().getUserInfo("oauth-access-token");
+                then(userRegistrationSupport).shouldHaveNoInteractions();
+            }
+        }
+
+        @Nested
+        @DisplayName("PKCE code verifier에 실제 텍스트가 없을 때")
+        class Context_with_blank_code_verifier {
+
+            @ParameterizedTest
+            @ValueSource(strings = {"", "   "})
+            @DisplayName("빈 문자열과 공백 문자열은 기존 토큰 교환 방식을 사용해야 한다")
+            void it_uses_legacy_token_exchange(final String codeVerifier) {
+                // Given
+                final var reqDto = createReqDto(codeVerifier);
+                final var expectedTokens = new TokenResDto("access.token", 3600L, "refresh.token");
+
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
+                given(userInfoResponse.getStudent()).willReturn(student);
+                given(student.getStudentNumber()).willReturn(20210001);
+                given(existingUserSignInSupport.generateIfExistingUser("20210001"))
+                        .willReturn(Optional.of(expectedTokens));
+
+                // When
+                final var result = signInService.execute(reqDto);
+
+                // Then
+                assertThat(result).isEqualTo(expectedTokens);
+                then(oauthClient).should(times(1)).exchangeCodeForToken("auth-code-123",
+                        "https://example.com/callback");
+                then(oauthClient).should(never()).exchangeCodeForToken(anyString(), anyString(), anyString());
             }
         }
 
