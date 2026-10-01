@@ -24,6 +24,7 @@ import team.washer.server.v2.domain.smartthings.repository.SmartThingsTokenRepos
 import team.washer.server.v2.domain.smartthings.service.impl.RefreshSmartThingsTokenServiceImpl;
 import team.washer.server.v2.domain.smartthings.support.SmartThingsTokenProvider;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsEnvironment;
+import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsApiException;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsOAuthClient;
 
 @ExtendWith(MockitoExtension.class)
@@ -150,6 +151,54 @@ class RefreshSmartThingsTokenServiceTest {
                         .hasMessageContaining("SmartThings 토큰 갱신에 실패했습니다")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR));
+            }
+
+            @Test
+            @DisplayName("SmartThings OAuth 400 응답은 안전한 메시지와 원래 상태를 반환한다")
+            void it_preserves_external_status_without_leaking_response_details() {
+                // Given
+                var expiredToken = createExpiredToken();
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(expiredToken));
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.refreshToken(anyString(), anyString()))
+                        .willThrow(new SmartThingsApiException(400));
+
+                // When & Then
+                assertThatThrownBy(() -> refreshSmartThingsTokenService.execute()).isInstanceOf(ExpectedException.class)
+                        .hasMessage("SmartThings 토큰 갱신에 실패했습니다.")
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_REQUEST));
+            }
+
+            @Test
+            @DisplayName("SmartThings OAuth 401 응답을 서버 인증 실패와 구분해 400으로 변환한다")
+            void it_maps_external_unauthorized_to_bad_request() {
+                var expiredToken = createExpiredToken();
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(expiredToken));
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.refreshToken(anyString(), anyString()))
+                        .willThrow(new SmartThingsApiException(401));
+
+                assertThatThrownBy(() -> refreshSmartThingsTokenService.execute()).isInstanceOf(ExpectedException.class)
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_REQUEST));
+            }
+
+            @Test
+            @DisplayName("SmartThings OAuth 5xx 응답을 외부 연동 실패인 502로 변환한다")
+            void it_maps_external_server_error_to_bad_gateway() {
+                var expiredToken = createExpiredToken();
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(expiredToken));
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.refreshToken(anyString(), anyString()))
+                        .willThrow(new SmartThingsApiException(503));
+
+                assertThatThrownBy(() -> refreshSmartThingsTokenService.execute()).isInstanceOf(ExpectedException.class)
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_GATEWAY));
             }
         }
     }

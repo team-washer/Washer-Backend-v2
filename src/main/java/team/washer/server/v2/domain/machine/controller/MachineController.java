@@ -44,7 +44,8 @@ public class MachineController {
     @Operation(summary = "전체 기기 현황 조회", description = "모든 세탁기/건조기의 실시간 상태를 조회합니다. SmartThings API와 예약 정보를 결합하여 반환합니다. 5층(여학생) 기숙사생은 이용할 수 없습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "451", description = "이용 대상이 아닌 사용자", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class), examples = @ExampleObject(value = "{\"status\":\"UNAVAILABLE_FOR_LEGAL_REASONS\",\"code\":451,\"message\":\"1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.\",\"data\":{\"errorCode\":\"UNAVAILABLE_FOR_LEGAL_REASONS\",\"traceId\":\"...\"}}"))),
-            @ApiResponse(responseCode = "503", description = "SmartThings 상태를 확인할 수 없음", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class)))})
+            @ApiResponse(responseCode = "502", description = "SmartThings 상태 응답을 검증할 수 없음", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class))),
+            @ApiResponse(responseCode = "503", description = "SmartThings 상태를 일시적으로 확인할 수 없음", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class)))})
     public MachineStatusListResDto getAllMachinesStatus(
             @Parameter(description = "정렬 여부 (층 → 기기종류(세탁기 우선) → 위치(왼쪽 우선) → 번호)") @RequestParam(defaultValue = "true") boolean sorted) {
         var result = queryAllMachinesStatusService.execute(currentUserProvider.getCurrentUserId(), sorted);
@@ -56,7 +57,8 @@ public class MachineController {
             + "앱은 SmartThings 액세스 토큰 없이 이 API로 상태를 조회합니다. 5층(여학생) 기숙사생은 이용할 수 없습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "451", description = "이용 대상이 아닌 사용자", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class))),
-            @ApiResponse(responseCode = "503", description = "SmartThings 상태를 확인할 수 없음", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class)))})
+            @ApiResponse(responseCode = "502", description = "SmartThings 상태 응답을 검증할 수 없음", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class))),
+            @ApiResponse(responseCode = "503", description = "SmartThings 상태를 일시적으로 확인할 수 없음", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class)))})
     public MachineDeviceStatusResDto getMachineDeviceStatus(@Parameter(description = "기기 ID") @PathVariable Long id) {
         return queryMachineDeviceStatusService.execute(currentUserProvider.getCurrentUserId(), id);
     }

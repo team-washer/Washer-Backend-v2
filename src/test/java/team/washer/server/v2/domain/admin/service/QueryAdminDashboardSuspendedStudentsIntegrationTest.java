@@ -233,7 +233,7 @@ class QueryAdminDashboardSuspendedStudentsIntegrationTest {
         void it_ignores_recent_cancellation_time_only() {
             // Given
             final User user = persistUser("20240001", "301");
-            user.updateLastCancellationTime();
+            user.updateLastCancellationTime(MachineType.WASHER);
             entityManager.flush();
 
             // When & Then
