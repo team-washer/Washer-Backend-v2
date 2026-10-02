@@ -12,10 +12,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient;
+import team.themoment.datagsm.sdk.oauth.exception.BadRequestException;
+import team.themoment.datagsm.sdk.oauth.exception.UnauthorizedException;
 import team.themoment.datagsm.sdk.oauth.model.Student;
 import team.themoment.datagsm.sdk.oauth.model.TokenResponse;
 import team.themoment.datagsm.sdk.oauth.model.UserInfo;
@@ -67,7 +73,11 @@ class SignInServiceImplTest {
     private Student student;
 
     private TokenReqDto createReqDto() {
-        return new TokenReqDto("auth-code-123", "https://example.com/callback");
+        return createReqDto(null);
+    }
+
+    private TokenReqDto createReqDto(final String codeVerifier) {
+        return new TokenReqDto("auth-code-123", "https://example.com/callback", codeVerifier);
     }
 
     private User createUser() {
@@ -89,7 +99,7 @@ class SignInServiceImplTest {
                 var reqDto = createReqDto();
                 var expectedTokens = new TokenResDto("access.token", 3600L, "refresh.token");
 
-                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", null))
                         .willReturn(tokenResponse);
                 given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
@@ -105,8 +115,109 @@ class SignInServiceImplTest {
                 assertThat(result).isNotNull();
                 assertThat(result.accessToken()).isEqualTo("access.token");
                 assertThat(result.refreshToken()).isEqualTo("refresh.token");
+                then(oauthClient).should(times(1))
+                        .exchangeCodeForToken("auth-code-123", "https://example.com/callback", null);
                 then(userRegistrationSupport).shouldHaveNoInteractions();
                 then(withdrawnStudentRedisUtil).shouldHaveNoInteractions();
+            }
+        }
+
+        @Nested
+        @DisplayName("PKCE code verifier가 포함된 인증 코드로 기존 사용자가 로그인할 때")
+        class Context_with_pkce_code_verifier {
+
+            @Test
+            @DisplayName("verifier를 변경하지 않고 PKCE 토큰 교환 후 기존 로그인 흐름을 수행해야 한다")
+            void it_exchanges_token_with_unchanged_code_verifier() {
+                // Given
+                final var codeVerifier = "a".repeat(43);
+                final var reqDto = createReqDto(codeVerifier);
+                final var expectedTokens = new TokenResDto("access.token", 3600L, "refresh.token");
+
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
+                given(userInfoResponse.getStudent()).willReturn(student);
+                given(student.getStudentNumber()).willReturn(20210001);
+                given(existingUserSignInSupport.generateIfExistingUser("20210001"))
+                        .willReturn(Optional.of(expectedTokens));
+
+                // When
+                final var result = signInService.execute(reqDto);
+
+                // Then
+                assertThat(result).isEqualTo(expectedTokens);
+                then(oauthClient).should(times(1))
+                        .exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier);
+                then(oauthClient).should().getUserInfo("oauth-access-token");
+                then(userRegistrationSupport).shouldHaveNoInteractions();
+            }
+        }
+
+        @Nested
+        @DisplayName("DataGSM 인증 정보가 유효하지 않을 때")
+        class Context_with_invalid_datagsm_authentication {
+
+            @Test
+            @DisplayName("토큰 교환의 잘못된 요청은 401 ExpectedException으로 변환해야 한다")
+            void it_converts_bad_request_to_unauthorized() {
+                // Given
+                final var reqDto = createReqDto();
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", null))
+                        .willThrow(new BadRequestException("invalid authorization code"));
+
+                // When & Then
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+                        .hasMessage("인증 정보가 올바르지 않습니다. 다시 로그인해 주세요.")
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.UNAUTHORIZED));
+            }
+
+            @Test
+            @DisplayName("토큰 교환 거부는 인증 값 없이 운영 로그에 남겨야 한다")
+            void it_logs_token_exchange_rejection_without_authentication_values() {
+                // Given
+                final var codeVerifier = "a".repeat(43);
+                final var reqDto = createReqDto(codeVerifier);
+                final var logger = (Logger) LoggerFactory.getLogger(SignInServiceImpl.class);
+                final var appender = new ListAppender<ILoggingEvent>();
+                appender.start();
+                logger.addAppender(appender);
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willThrow(new UnauthorizedException("invalid authorization code"));
+
+                try {
+                    // When
+                    assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class);
+
+                    // Then
+                    assertThat(appender.list).singleElement().satisfies(event -> {
+                        assertThat(event.getFormattedMessage()).contains("operation=token_exchange", "pkce=true")
+                                .doesNotContain("auth-code-123", codeVerifier, "invalid authorization code");
+                    });
+                } finally {
+                    logger.detachAppender(appender);
+                    appender.stop();
+                }
+            }
+
+            @Test
+            @DisplayName("사용자 정보 조회의 인증 실패는 401 ExpectedException으로 변환해야 한다")
+            void it_converts_unauthorized_to_unauthorized() {
+                // Given
+                final var reqDto = createReqDto();
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", null))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token"))
+                        .willThrow(new UnauthorizedException("invalid access token"));
+
+                // When & Then
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class)
+                        .hasMessage("인증 정보가 올바르지 않습니다. 다시 로그인해 주세요.")
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.UNAUTHORIZED));
             }
         }
 
@@ -122,7 +233,7 @@ class SignInServiceImplTest {
                 var newUser = createUser();
                 var expectedTokens = new TokenResDto("new.access.token", 3600L, "new.refresh.token");
 
-                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", null))
                         .willReturn(tokenResponse);
                 given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
@@ -152,7 +263,7 @@ class SignInServiceImplTest {
                 // Given
                 var reqDto = createReqDto();
 
-                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", null))
                         .willReturn(tokenResponse);
                 given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
@@ -178,7 +289,7 @@ class SignInServiceImplTest {
                 // Given
                 var reqDto = createReqDto();
 
-                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", null))
                         .willReturn(tokenResponse);
                 given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
@@ -202,7 +313,7 @@ class SignInServiceImplTest {
                 // Given
                 var reqDto = createReqDto();
 
-                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", null))
                         .willReturn(tokenResponse);
                 given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
@@ -234,7 +345,7 @@ class SignInServiceImplTest {
                 var user = createUser();
                 var expectedTokens = new TokenResDto("access.token", 3600L, "refresh.token");
 
-                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", null))
                         .willReturn(tokenResponse);
                 given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
                 given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
@@ -259,7 +370,7 @@ class SignInServiceImplTest {
         void it_propagates_withdrawn_record_lookup_failure() {
             final var reqDto = createReqDto();
 
-            given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+            given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", null))
                     .willReturn(tokenResponse);
             given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
             given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
