@@ -228,6 +228,29 @@ class GlobalExceptionHandlerHttpContractTest {
         }
 
         @Test
+        @DisplayName("경로가 없는 JSON mapping 오류는 fieldErrors를 만들지 않는다")
+        void respondsRootJsonMappingErrorWithoutFieldErrors() throws Exception {
+            final var result = performAsUser(
+                    post(BASE_PATH + "/items").contentType(MediaType.APPLICATION_JSON).content("[]"));
+
+            assertErrorContract(result, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY");
+            result.andExpect(jsonPath("$.data.fieldErrors").doesNotExist());
+            assertNotNotified();
+        }
+
+        @Test
+        @DisplayName("원시형 필드의 JSON null은 필수 값 오류로 응답한다")
+        void respondsJsonNullForPrimitiveFieldWithRequiredFieldError() throws Exception {
+            final var result = performAsUser(post(BASE_PATH + "/primitive").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"quantity\":null}"));
+
+            assertErrorContract(result, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY");
+            result.andExpect(jsonPath("$.data.fieldErrors[0].field").value("quantity"))
+                    .andExpect(jsonPath("$.data.fieldErrors[0].message").value("필수 값입니다."));
+            assertNotNotified();
+        }
+
+        @Test
         @DisplayName("경로 변수 타입 불일치는 500이 아닌 TYPE_MISMATCH로 응답한다")
         void respondsTypeMismatch() throws Exception {
             final var result = performAsUser(get(BASE_PATH + "/items/abc"));
@@ -393,6 +416,9 @@ class GlobalExceptionHandlerHttpContractTest {
     record ItemResDto(Long id) {
     }
 
+    record PrimitiveReqDto(int quantity) {
+    }
+
     record StatusReqDto(ItemStatus status) {
     }
 
@@ -420,6 +446,11 @@ class GlobalExceptionHandlerHttpContractTest {
 
         @PostMapping("/items")
         ItemResDto createItem(@Valid @RequestBody ItemReqDto reqDto) {
+            return new ItemResDto(1L);
+        }
+
+        @PostMapping("/primitive")
+        ItemResDto createPrimitive(@RequestBody PrimitiveReqDto reqDto) {
             return new ItemResDto(1L);
         }
 

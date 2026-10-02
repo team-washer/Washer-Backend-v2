@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -49,6 +50,7 @@ import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.common.trace.TraceIdFilter;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 import tools.jackson.core.JacksonException;
+import tools.jackson.databind.exc.InvalidNullException;
 import tools.jackson.databind.exc.MismatchedInputException;
 
 /**
@@ -69,6 +71,7 @@ public class GlobalExceptionHandler {
 
     private static final String REQUIRED_FIELD_MESSAGE = "필수 값입니다.";
     private static final String INVALID_FORMAT_MESSAGE = "형식이 올바르지 않습니다.";
+    private static final Pattern SAFE_FIELD_NAME_PATTERN = Pattern.compile("[A-Za-z][A-Za-z0-9_]*");
 
     @Autowired(required = false)
     private DiscordErrorNotificationService discordErrorNotificationService;
@@ -253,7 +256,7 @@ public class GlobalExceptionHandler {
         // 전용 처리기가 없는 Spring MVC 요청 오류(406 등)는 자체 상태 코드를 따르고 운영 알림 대상에서 제외한다
         if (ex instanceof ErrorResponse errorResponse && errorResponse.getStatusCode().is4xxClientError()) {
             final var status = HttpStatus.valueOf(errorResponse.getStatusCode().value());
-            logClientError(status.name(), ex);
+            logClientError(status.name(), ex, null);
             return error(status, status.name(), ErrorCode.CLIENT_ERROR.getMessage(), null);
         }
 
@@ -290,7 +293,10 @@ public class GlobalExceptionHandler {
         if (fieldPath == null) {
             return null;
         }
-        return List.of(new FieldErrorResDto(fieldPath, INVALID_FORMAT_MESSAGE));
+        final var targetType = mappingException.getTargetType();
+        final var message = mappingException instanceof InvalidNullException
+                || targetType != null && targetType.isPrimitive() ? REQUIRED_FIELD_MESSAGE : INVALID_FORMAT_MESSAGE;
+        return List.of(new FieldErrorResDto(fieldPath, message));
     }
 
     private static MismatchedInputException findMismatchedInputException(Exception ex) {
@@ -309,7 +315,7 @@ public class GlobalExceptionHandler {
         for (final JacksonException.Reference reference : mappingException.getPath()) {
             final var fieldName = reference.getPropertyName();
             if (fieldName != null) {
-                if (!fieldName.matches("[A-Za-z][A-Za-z0-9_]*")) {
+                if (!SAFE_FIELD_NAME_PATTERN.matcher(fieldName).matches()) {
                     return null;
                 }
                 if (!fieldPath.isEmpty()) {
@@ -335,20 +341,18 @@ public class GlobalExceptionHandler {
             String message,
             Exception ex,
             List<FieldErrorResDto> fieldErrors) {
-        logClientError(errorCode.name(), ex);
+        logClientError(errorCode.name(), ex, fieldErrors);
         return error(errorCode.getStatus(), errorCode.name(), message, fieldErrors);
     }
 
-    private static void logClientError(String errorCode, Exception ex) {
-        if (ex instanceof HttpMessageNotReadableException) {
-            log.warn("request rejected errorCode={} exception={}", errorCode, ex.getClass().getSimpleName());
-            return;
-        }
-        log.warn("request rejected errorCode={} exception={} reason={}",
+    private static void logClientError(String errorCode, Exception ex, List<FieldErrorResDto> fieldErrors) {
+        final var fields = fieldErrors == null
+                ? List.<String>of()
+                : fieldErrors.stream().map(FieldErrorResDto::field).toList();
+        log.warn("request rejected errorCode={} exception={} fields={}",
                 errorCode,
                 ex.getClass().getSimpleName(),
-                ex.getMessage());
-        log.trace("request rejected detail", ex);
+                fields);
     }
 
     private static ResponseEntity<CommonApiResponse<ErrorDetailResDto>> error(ErrorCode errorCode) {
