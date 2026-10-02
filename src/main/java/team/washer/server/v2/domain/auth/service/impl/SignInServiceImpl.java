@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient;
 import team.themoment.datagsm.sdk.oauth.exception.BadRequestException;
 import team.themoment.datagsm.sdk.oauth.exception.UnauthorizedException;
@@ -26,6 +27,7 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Service
 @AllArgsConstructor
+@Slf4j
 public class SignInServiceImpl implements SignInService {
     private final DataGsmOAuthClient oauthClient;
     private final UserRegistrationSupport userRegistrationSupport;
@@ -42,6 +44,7 @@ public class SignInServiceImpl implements SignInService {
         try {
             oauthUser = oauthClient.getUserInfo(accessToken).getStudent();
         } catch (BadRequestException | UnauthorizedException e) {
+            logAuthenticationRejected("user_info", e, reqDto);
             throw invalidAuthenticationException();
         }
         if (oauthUser == null) {
@@ -74,8 +77,17 @@ public class SignInServiceImpl implements SignInService {
         try {
             return oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri(), reqDto.codeVerifier());
         } catch (BadRequestException | UnauthorizedException e) {
+            logAuthenticationRejected("token_exchange", e, reqDto);
             throw invalidAuthenticationException();
         }
+    }
+
+    private static void logAuthenticationRejected(final String operation, final Exception exception,
+            final TokenReqDto reqDto) {
+        log.warn("datagsm authentication rejected operation={} exception={} pkce={}",
+                operation,
+                exception.getClass().getSimpleName(),
+                reqDto.codeVerifier() != null);
     }
 
     private static ExpectedException invalidAuthenticationException() {

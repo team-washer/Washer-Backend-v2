@@ -12,9 +12,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient;
 import team.themoment.datagsm.sdk.oauth.exception.BadRequestException;
 import team.themoment.datagsm.sdk.oauth.exception.UnauthorizedException;
@@ -168,6 +172,34 @@ class SignInServiceImplTest {
                         .hasMessage("인증 정보가 올바르지 않습니다. 다시 로그인해 주세요.")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.UNAUTHORIZED));
+            }
+
+            @Test
+            @DisplayName("토큰 교환 거부는 인증 값 없이 운영 로그에 남겨야 한다")
+            void it_logs_token_exchange_rejection_without_authentication_values() {
+                // Given
+                final var codeVerifier = "a".repeat(43);
+                final var reqDto = createReqDto(codeVerifier);
+                final var logger = (Logger) LoggerFactory.getLogger(SignInServiceImpl.class);
+                final var appender = new ListAppender<ILoggingEvent>();
+                appender.start();
+                logger.addAppender(appender);
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willThrow(new UnauthorizedException("invalid authorization code"));
+
+                try {
+                    // When
+                    assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class);
+
+                    // Then
+                    assertThat(appender.list).singleElement().satisfies(event -> {
+                        assertThat(event.getFormattedMessage()).contains("operation=token_exchange", "pkce=true")
+                                .doesNotContain("auth-code-123", codeVerifier, "invalid authorization code");
+                    });
+                } finally {
+                    logger.detachAppender(appender);
+                    appender.stop();
+                }
             }
 
             @Test
