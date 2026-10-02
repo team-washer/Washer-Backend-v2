@@ -48,6 +48,8 @@ import team.washer.server.v2.global.common.error.dto.response.FieldErrorResDto;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.common.trace.TraceIdFilter;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.exc.MismatchedInputException;
 
 /**
  * 모든 오류를 {@link CommonApiResponse} 형식으로 변환하는 전역 예외 처리기.
@@ -145,7 +147,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<CommonApiResponse<ErrorDetailResDto>> httpMessageNotReadableException(
             HttpMessageNotReadableException ex) {
-        return clientError(ErrorCode.INVALID_REQUEST_BODY, ex, null);
+        return clientError(ErrorCode.INVALID_REQUEST_BODY, ex, jsonFieldErrors(ex));
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -279,6 +281,50 @@ public class GlobalExceptionHandler {
                 List.of(new FieldErrorResDto(name, REQUIRED_FIELD_MESSAGE)));
     }
 
+    private static List<FieldErrorResDto> jsonFieldErrors(HttpMessageNotReadableException ex) {
+        final var mappingException = findMismatchedInputException(ex);
+        if (mappingException == null) {
+            return null;
+        }
+        final var fieldPath = jsonFieldPath(mappingException);
+        if (fieldPath == null) {
+            return null;
+        }
+        return List.of(new FieldErrorResDto(fieldPath, INVALID_FORMAT_MESSAGE));
+    }
+
+    private static MismatchedInputException findMismatchedInputException(Exception ex) {
+        Throwable cause = ex;
+        while (cause != null) {
+            if (cause instanceof MismatchedInputException mappingException) {
+                return mappingException;
+            }
+            cause = cause.getCause();
+        }
+        return null;
+    }
+
+    private static String jsonFieldPath(MismatchedInputException mappingException) {
+        final var fieldPath = new StringBuilder();
+        for (final JacksonException.Reference reference : mappingException.getPath()) {
+            final var fieldName = reference.getPropertyName();
+            if (fieldName != null) {
+                if (!fieldName.matches("[A-Za-z][A-Za-z0-9_]*")) {
+                    return null;
+                }
+                if (!fieldPath.isEmpty()) {
+                    fieldPath.append('.');
+                }
+                fieldPath.append(fieldName);
+            } else if (reference.getIndex() >= 0 && !fieldPath.isEmpty()) {
+                fieldPath.append('[').append(reference.getIndex()).append(']');
+            } else {
+                return null;
+            }
+        }
+        return fieldPath.isEmpty() ? null : fieldPath.toString();
+    }
+
     private ResponseEntity<CommonApiResponse<ErrorDetailResDto>> clientError(ErrorCode errorCode,
             Exception ex,
             List<FieldErrorResDto> fieldErrors) {
@@ -294,6 +340,10 @@ public class GlobalExceptionHandler {
     }
 
     private static void logClientError(String errorCode, Exception ex) {
+        if (ex instanceof HttpMessageNotReadableException) {
+            log.warn("request rejected errorCode={} exception={}", errorCode, ex.getClass().getSimpleName());
+            return;
+        }
         log.warn("request rejected errorCode={} exception={} reason={}",
                 errorCode,
                 ex.getClass().getSimpleName(),
