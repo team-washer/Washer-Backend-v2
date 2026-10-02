@@ -50,6 +50,7 @@ import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.common.trace.TraceIdFilter;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 import tools.jackson.core.JacksonException;
+import tools.jackson.core.JsonToken;
 import tools.jackson.databind.exc.InvalidNullException;
 import tools.jackson.databind.exc.MismatchedInputException;
 
@@ -293,10 +294,13 @@ public class GlobalExceptionHandler {
         if (fieldPath == null) {
             return null;
         }
-        final var targetType = mappingException.getTargetType();
-        final var message = mappingException instanceof InvalidNullException
-                || targetType != null && targetType.isPrimitive() ? REQUIRED_FIELD_MESSAGE : INVALID_FORMAT_MESSAGE;
+        final var message = isNullJsonInput(mappingException) ? REQUIRED_FIELD_MESSAGE : INVALID_FORMAT_MESSAGE;
         return List.of(new FieldErrorResDto(fieldPath, message));
+    }
+
+    private static boolean isNullJsonInput(MismatchedInputException mappingException) {
+        return mappingException instanceof InvalidNullException
+                || mappingException.getCurrentToken() == JsonToken.VALUE_NULL;
     }
 
     private static MismatchedInputException findMismatchedInputException(Exception ex) {

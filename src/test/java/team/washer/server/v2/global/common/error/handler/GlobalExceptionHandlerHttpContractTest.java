@@ -251,6 +251,20 @@ class GlobalExceptionHandlerHttpContractTest {
         }
 
         @Test
+        @DisplayName("원시형 필드의 JSON 형식 오류는 필수 값 오류로 분류하지 않는다")
+        void respondsJsonTypeMismatchForPrimitiveFieldWithInvalidFormatError() throws Exception {
+            for (final var invalidValue : List.of("\"invalid-number\"", "{}", "[]")) {
+                final var result = performAsUser(post(BASE_PATH + "/primitive").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"quantity\":" + invalidValue + "}"));
+
+                assertErrorContract(result, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY");
+                result.andExpect(jsonPath("$.data.fieldErrors[0].field").value("quantity"))
+                        .andExpect(jsonPath("$.data.fieldErrors[0].message").value("형식이 올바르지 않습니다."));
+            }
+            assertNotNotified();
+        }
+
+        @Test
         @DisplayName("경로 변수 타입 불일치는 500이 아닌 TYPE_MISMATCH로 응답한다")
         void respondsTypeMismatch() throws Exception {
             final var result = performAsUser(get(BASE_PATH + "/items/abc"));
