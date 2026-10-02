@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  콘솔 전용 로그 설정.
+
+  기본 설정(logback-spring.xml)은 stage/prod 프로파일에서 CloudWatchAppender 를 붙인다.
+  그런데 springProperty 에 defaultValue 가 없어서, aws.cloudwatch.* 를 지정하지 않으면
+  logGroupName 이 "CW_LOG_GROUP_IS_UNDEFINED" 라는 문자열이 된다. 공백이 아니라서
+  어펜더의 빈 값 가드를 그대로 통과해 실제 AWS 호출까지 가고, 거기서 실패하면
+  Spring Boot 가 "Logback configuration error detected" 로 기동을 중단한다.
+
+  CloudWatch 를 쓰지 않는 환경(개발 서버 등)에서는 application-<profile>.yml 에
+      logging:
+        config: classpath:logback-console.xml
+  을 지정해 이 파일로 갈아끼운다. 로그는 docker logs 로 본다.
+
+  파일명이 logback-spring.xml 이 아니므로 <springProfile> / <springProperty> 같은
+  Spring Boot 확장 태그는 쓸 수 없다. 여기서는 필요 없다.
+-->
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
+            <layout class="team.washer.server.v2.global.common.logging.SensitiveLogMaskingLayout">
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId:-}] [%X{httpMethod:-}] [%X{requestPath:-}] %-5level %logger{36} - %msg%n</pattern>
+            </layout>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>
