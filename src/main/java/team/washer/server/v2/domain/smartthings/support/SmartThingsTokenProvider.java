@@ -5,6 +5,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,9 +31,33 @@ public class SmartThingsTokenProvider {
         return reload();
     }
 
+    /**
+     * 저장한 토큰을 캐시에 반영한다.
+     *
+     * <p>
+     * 트랜잭션 안에서 호출되면 커밋이 성공한 뒤에만 반영하고, 롤백되면 기존 캐시를 유지한다. 트랜잭션 밖에서는 즉시 반영한다.
+     * </p>
+     *
+     * @param token
+     *            저장한 토큰
+     */
     public void refresh(final SmartThingsToken token) {
-        cache.set(new CachedToken(token.getAccessToken(), token.getExpiresAt()));
-        log.debug("smartthings token cache refreshed expiresAt={}", token.getExpiresAt());
+        final var refreshed = new CachedToken(token.getAccessToken(), token.getExpiresAt());
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+                @Override
+                public void afterCommit() {
+                    publish(refreshed);
+                    log.debug("smartthings token cache refreshed after commit expiresAt={}", refreshed.expiresAt());
+                }
+            });
+            return;
+        }
+
+        publish(refreshed);
+        log.debug("smartthings token cache refreshed expiresAt={}", refreshed.expiresAt());
     }
 
     @Transactional
@@ -46,7 +72,8 @@ public class SmartThingsTokenProvider {
             return;
         }
         if (!token.getAccessToken().equals(rejectedAccessToken)) {
-            refresh(token);
+            // 이미 확정된 DB 값이므로 커밋을 기다리지 않는다. 호출부가 예외로 롤백되어도 거절된 토큰이 캐시에 남지 않도록 즉시 반영한다.
+            publish(new CachedToken(token.getAccessToken(), token.getExpiresAt()));
             return;
         }
 
@@ -61,9 +88,18 @@ public class SmartThingsTokenProvider {
         if (!token.isValid()) {
             throw new ErrorCodeException(ErrorCode.SMARTTHINGS_TOKEN_INVALID);
         }
-        cache.set(new CachedToken(token.getAccessToken(), token.getExpiresAt()));
-        log.debug("smartthings token cache loaded from db expiresAt={}", token.getExpiresAt());
-        return token.getAccessToken();
+        final var published = publish(new CachedToken(token.getAccessToken(), token.getExpiresAt()));
+        log.debug("smartthings token cache loaded from db expiresAt={}", published.expiresAt());
+        return published.accessToken();
+    }
+
+    /**
+     * 서로 다른 토큰이면 만료 시각이 더 늦은 토큰만 캐시에 남긴다. 먼저 조회한 이전 토큰이 나중에 확정된 토큰을 덮어쓰지 않도록 한다. 같은
+     * 토큰이면 무효화로 앞당겨진 만료 시각도 반영한다.
+     */
+    private CachedToken publish(final CachedToken candidate) {
+        return cache.updateAndGet(current -> current != null && !current.accessToken().equals(candidate.accessToken())
+                && current.expiresLaterThan(candidate) ? current : candidate);
     }
 
     private void clearCachedToken(final String rejectedAccessToken) {
@@ -78,6 +114,10 @@ public class SmartThingsTokenProvider {
         private boolean isValid() {
             return accessToken != null && !accessToken.isBlank() && expiresAt != null
                     && expiresAt.isAfter(LocalDateTime.now().plusMinutes(EXPIRY_BUFFER_MINUTES));
+        }
+
+        private boolean expiresLaterThan(final CachedToken other) {
+            return expiresAt != null && other.expiresAt() != null && expiresAt.isAfter(other.expiresAt());
         }
     }
 }
