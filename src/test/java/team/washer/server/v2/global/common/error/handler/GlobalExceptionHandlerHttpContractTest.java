@@ -1,6 +1,7 @@
 package team.washer.server.v2.global.common.error.handler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,6 +17,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -127,6 +130,29 @@ class GlobalExceptionHandlerHttpContractTest {
         }
 
         @Test
+        @DisplayName("여러 본문 검증 오류는 기존 fieldErrors 목록을 유지한다")
+        void respondsMultipleValidationFailuresWithFieldErrors() throws Exception {
+            final var result = performAsUser(post(BASE_PATH + "/items").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"name\":\"\",\"quantity\":null}"));
+
+            assertErrorContract(result, HttpStatus.BAD_REQUEST, "VALIDATION_FAILED");
+            result.andExpect(jsonPath("$.data.fieldErrors[*].field").value(containsInAnyOrder("name", "quantity")));
+            assertNotNotified();
+        }
+
+        @Test
+        @DisplayName("필수 JSON 필드가 누락되면 기존 Bean Validation fieldErrors를 유지한다")
+        void respondsMissingRequiredFieldWithValidationFieldError() throws Exception {
+            final var result = performAsUser(
+                    post(BASE_PATH + "/items").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"세탁기\"}"));
+
+            assertErrorContract(result, HttpStatus.BAD_REQUEST, "VALIDATION_FAILED");
+            result.andExpect(jsonPath("$.data.fieldErrors[0].field").value("quantity"))
+                    .andExpect(jsonPath("$.data.fieldErrors[0].message").value("수량은 필수입니다"));
+            assertNotNotified();
+        }
+
+        @Test
         @DisplayName("잘못된 JSON은 파서 상세를 노출하지 않고 INVALID_REQUEST_BODY로 응답한다")
         void respondsMalformedJson() throws Exception {
             final var result = performAsUser(
@@ -136,6 +162,105 @@ class GlobalExceptionHandlerHttpContractTest {
             result.andExpect(jsonPath("$.message").value("요청 본문 형식이 올바르지 않습니다."))
                     .andExpect(content().string(not(containsString("JSON parse error"))))
                     .andExpect(content().string(not(containsString("jackson"))));
+            assertNotNotified();
+        }
+
+        @Test
+        @DisplayName("JSON 숫자 타입 오류는 안전한 필드 정보를 포함한다")
+        void respondsJsonNumberTypeMismatchWithFieldError() throws Exception {
+            final var result = performAsUser(post(BASE_PATH + "/items").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"name\":\"세탁기\",\"quantity\":\"invalid-number\"}"));
+
+            assertErrorContract(result, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY");
+            result.andExpect(jsonPath("$.data.fieldErrors[0].field").value("quantity"))
+                    .andExpect(jsonPath("$.data.fieldErrors[0].message").value("형식이 올바르지 않습니다."))
+                    .andExpect(content().string(not(containsString("invalid-number"))))
+                    .andExpect(content().string(not(containsString("java.lang"))));
+            assertNotNotified();
+        }
+
+        @Test
+        @DisplayName("JSON enum 타입 오류는 안전한 필드 정보를 포함한다")
+        void respondsJsonEnumTypeMismatchWithFieldError() throws Exception {
+            final var result = performAsUser(post(BASE_PATH + "/statuses").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"status\":\"unknown-status\"}"));
+
+            assertErrorContract(result, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY");
+            result.andExpect(jsonPath("$.data.fieldErrors[0].field").value("status"))
+                    .andExpect(jsonPath("$.data.fieldErrors[0].message").value("형식이 올바르지 않습니다."))
+                    .andExpect(content().string(not(containsString("unknown-status"))))
+                    .andExpect(content().string(not(containsString("ItemStatus"))));
+            assertNotNotified();
+        }
+
+        @Test
+        @DisplayName("중첩 JSON 타입 오류는 DTO 기준 경로를 포함한다")
+        void respondsNestedJsonTypeMismatchWithFieldError() throws Exception {
+            final var result = performAsUser(post(BASE_PATH + "/nested").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"request\":{\"machineId\":\"invalid-machine-id\"}}"));
+
+            assertErrorContract(result, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY");
+            result.andExpect(jsonPath("$.data.fieldErrors[0].field").value("request.machineId"))
+                    .andExpect(content().string(not(containsString("invalid-machine-id"))));
+            assertNotNotified();
+        }
+
+        @Test
+        @DisplayName("컬렉션 내부 JSON 타입 오류는 인덱스를 포함한 DTO 기준 경로를 제공한다")
+        void respondsCollectionJsonTypeMismatchWithFieldError() throws Exception {
+            final var result = performAsUser(post(BASE_PATH + "/collections").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"items\":[{\"machineId\":\"invalid-machine-id\"}]}"));
+
+            assertErrorContract(result, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY");
+            result.andExpect(jsonPath("$.data.fieldErrors[0].field").value("items[0].machineId"))
+                    .andExpect(content().string(not(containsString("invalid-machine-id"))));
+            assertNotNotified();
+        }
+
+        @Test
+        @DisplayName("빈 JSON 본문은 필드 경로를 추측하지 않는다")
+        void respondsEmptyJsonBodyWithoutFieldErrors() throws Exception {
+            final var result = performAsUser(post(BASE_PATH + "/items").contentType(MediaType.APPLICATION_JSON));
+
+            assertErrorContract(result, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY");
+            result.andExpect(jsonPath("$.data.fieldErrors").doesNotExist());
+            assertNotNotified();
+        }
+
+        @Test
+        @DisplayName("경로가 없는 JSON mapping 오류는 fieldErrors를 만들지 않는다")
+        void respondsRootJsonMappingErrorWithoutFieldErrors() throws Exception {
+            final var result = performAsUser(
+                    post(BASE_PATH + "/items").contentType(MediaType.APPLICATION_JSON).content("[]"));
+
+            assertErrorContract(result, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY");
+            result.andExpect(jsonPath("$.data.fieldErrors").doesNotExist());
+            assertNotNotified();
+        }
+
+        @Test
+        @DisplayName("원시형 필드의 JSON null은 필수 값 오류로 응답한다")
+        void respondsJsonNullForPrimitiveFieldWithRequiredFieldError() throws Exception {
+            final var result = performAsUser(post(BASE_PATH + "/primitive").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"quantity\":null}"));
+
+            assertErrorContract(result, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY");
+            result.andExpect(jsonPath("$.data.fieldErrors[0].field").value("quantity"))
+                    .andExpect(jsonPath("$.data.fieldErrors[0].message").value("필수 값입니다."));
+            assertNotNotified();
+        }
+
+        @Test
+        @DisplayName("원시형 필드의 JSON 형식 오류는 필수 값 오류로 분류하지 않는다")
+        void respondsJsonTypeMismatchForPrimitiveFieldWithInvalidFormatError() throws Exception {
+            for (final var invalidValue : List.of("\"invalid-number\"", "{}", "[]")) {
+                final var result = performAsUser(post(BASE_PATH + "/primitive").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"quantity\":" + invalidValue + "}"));
+
+                assertErrorContract(result, HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY");
+                result.andExpect(jsonPath("$.data.fieldErrors[0].field").value("quantity"))
+                        .andExpect(jsonPath("$.data.fieldErrors[0].message").value("형식이 올바르지 않습니다."));
+            }
             assertNotNotified();
         }
 
@@ -305,6 +430,25 @@ class GlobalExceptionHandlerHttpContractTest {
     record ItemResDto(Long id) {
     }
 
+    record PrimitiveReqDto(int quantity) {
+    }
+
+    record StatusReqDto(ItemStatus status) {
+    }
+
+    record NestedItemReqDto(Long machineId) {
+    }
+
+    record NestedReqDto(NestedItemReqDto request) {
+    }
+
+    record CollectionReqDto(List<NestedItemReqDto> items) {
+    }
+
+    enum ItemStatus {
+        READY
+    }
+
     @RestController
     @RequestMapping(BASE_PATH)
     static class ErrorTestController {
@@ -316,6 +460,26 @@ class GlobalExceptionHandlerHttpContractTest {
 
         @PostMapping("/items")
         ItemResDto createItem(@Valid @RequestBody ItemReqDto reqDto) {
+            return new ItemResDto(1L);
+        }
+
+        @PostMapping("/primitive")
+        ItemResDto createPrimitive(@RequestBody PrimitiveReqDto reqDto) {
+            return new ItemResDto(1L);
+        }
+
+        @PostMapping("/statuses")
+        ItemResDto createStatus(@RequestBody StatusReqDto reqDto) {
+            return new ItemResDto(1L);
+        }
+
+        @PostMapping("/nested")
+        ItemResDto createNested(@RequestBody NestedReqDto reqDto) {
+            return new ItemResDto(1L);
+        }
+
+        @PostMapping("/collections")
+        ItemResDto createCollection(@RequestBody CollectionReqDto reqDto) {
             return new ItemResDto(1L);
         }
 
