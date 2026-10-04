@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -84,6 +85,35 @@ class GlobalExceptionHandlerTest {
     @Nested
     @DisplayName("예외 운영 로그는")
     class Describe_operational_logging {
+
+        @Test
+        @DisplayName("요청 오류 로그에 원본 입력값과 예외 메시지를 남기지 않는다")
+        void doesNotLogRawClientInput() {
+            // Given
+            final var logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
+            final var appender = new ListAppender<ILoggingEvent>();
+            appender.start();
+            logger.addAppender(appender);
+            final var rawValue = "sensitive-input";
+            final var exception = new MethodArgumentTypeMismatchException(rawValue,
+                    Long.class,
+                    "machineId",
+                    null,
+                    new IllegalArgumentException(rawValue));
+
+            try {
+                // When
+                globalExceptionHandler.methodArgumentTypeMismatchException(exception);
+
+                // Then
+                final var event = appender.list.stream().filter(item -> item.getLevel().toString().equals("WARN"))
+                        .findFirst().orElseThrow();
+                assertThat(event.getFormattedMessage()).contains("fields=[machineId]").doesNotContain(rawValue)
+                        .doesNotContain("IllegalArgumentException");
+            } finally {
+                logger.detachAppender(appender);
+            }
+        }
 
         @Test
         @DisplayName("비예상 예외에 요청 진단 정보와 원인 stack trace를 남긴다")
