@@ -179,21 +179,6 @@ class PenaltyRedisUtilTest {
         }
 
         @Test
-        @DisplayName("쿨다운 저장에 성공하면 같은 TTL 기준의 만료 시각을 반환한다")
-        void it_returns_expiry_time_when_cooldown_is_saved() {
-            // Given
-            final Long userId = 1L;
-
-            // When
-            final LocalDateTime result = penaltyRedisUtil.applyCooldownAndGetExpiryTime(userId, MachineType.WASHER);
-
-            // Then
-            assertThat(result).isBetween(DateTimeUtil.nowInKorea().plusSeconds(290),
-                    DateTimeUtil.nowInKorea().plusSeconds(310));
-            verify(cooldownRedisRepository).save(any(CooldownEntity.class));
-        }
-
-        @Test
         @DisplayName("해당 유형 쿨다운 중이면 RESTRICTED를 반환한다")
         void it_returns_restricted_when_in_cooldown() {
             // Given
@@ -391,20 +376,6 @@ class PenaltyRedisUtilTest {
             penaltyRedisUtil.applyCooldown(1L, MachineType.WASHER);
 
             // Then
-            verify(discordErrorNotificationServiceProvider, times(1)).ifAvailable(any());
-        }
-
-        @Test
-        @DisplayName("쿨다운 저장 실패 시 만료 시각을 반환하지 않는다")
-        void it_returns_null_when_cooldown_apply_fails() {
-            // Given
-            when(cooldownRedisRepository.save(any(CooldownEntity.class))).thenThrow(new RuntimeException("redis down"));
-
-            // When
-            final LocalDateTime result = penaltyRedisUtil.applyCooldownAndGetExpiryTime(1L, MachineType.WASHER);
-
-            // Then
-            assertThat(result).isNull();
             verify(discordErrorNotificationServiceProvider, times(1)).ifAvailable(any());
         }
 

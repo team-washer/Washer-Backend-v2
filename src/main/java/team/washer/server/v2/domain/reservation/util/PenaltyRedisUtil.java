@@ -157,32 +157,16 @@ public class PenaltyRedisUtil {
      * </p>
      */
     public void applyCooldown(final Long userId, final MachineType machineType) {
-        applyCooldownAndGetExpiryTime(userId, machineType);
-    }
-
-    /**
-     * 취소 직후 해당 기기 유형에 쿨다운을 적용하고, 저장에 성공한 경우 만료 시각을 반환합니다.
-     * <p>
-     * 응답에 전달할 만료 시각은 Redis에 적용한 TTL과 같은 기준 시각에서 계산해야 하므로, 저장 성공 여부와 함께 이 메서드에서
-     * 반환합니다.
-     * </p>
-     *
-     * @return Redis 저장에 성공한 경우 만료 시각, 실패한 경우 {@code null}
-     */
-    public LocalDateTime applyCooldownAndGetExpiryTime(final Long userId, final MachineType machineType) {
-        final long ttlSeconds = PenaltyConstants.COOLDOWN_DURATION_MINUTES * 60L;
-        final LocalDateTime appliedAt = DateTimeUtil.nowInKorea();
         try {
+            final long ttlSeconds = PenaltyConstants.COOLDOWN_DURATION_MINUTES * 60L;
             cooldownRedisRepository
                     .save(CooldownEntity.builder().id(cooldownKey(userId, machineType)).ttl(ttlSeconds).build());
             log.info("cooldown applied userId={} machineType={} expiresInMinutes={}",
                     userId,
                     machineType,
                     PenaltyConstants.COOLDOWN_DURATION_MINUTES);
-            return appliedAt.plusSeconds(ttlSeconds);
         } catch (Exception e) {
             reportPenaltyApplyFailure(PENALTY_TYPE_COOLDOWN, cooldownKey(userId, machineType), e);
-            return null;
         }
     }
 
@@ -326,23 +310,12 @@ public class PenaltyRedisUtil {
      * @return 차단 저장에 성공하면 {@code true}
      */
     public boolean applyBlock(final String roomNumber) {
-        return applyBlockAndGetExpiryTime(roomNumber) != null;
-    }
-
-    /**
-     * 48시간 예약 차단을 적용하고, 저장에 성공한 경우 만료 시각을 반환합니다.
-     *
-     * @return Redis 저장에 성공한 경우 만료 시각, 실패한 경우 {@code null}
-     */
-    public LocalDateTime applyBlockAndGetExpiryTime(final String roomNumber) {
-        final long ttlSeconds = PenaltyConstants.CANCELLATION_WINDOW_HOURS * 3600L;
-        final LocalDateTime appliedAt = DateTimeUtil.nowInKorea();
         try {
             applyBlockOrThrow(roomNumber);
-            return appliedAt.plusSeconds(ttlSeconds);
+            return true;
         } catch (Exception e) {
             reportPenaltyApplyFailure(PENALTY_TYPE_BLOCK, roomNumber, e);
-            return null;
+            return false;
         }
     }
 
