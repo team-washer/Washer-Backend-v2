@@ -1,5 +1,7 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -80,7 +82,7 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         }
         log.info("Cancelled reservation reservationId={} userId={}", reservationId, userId);
 
-        return mapToCancellationResDto(applyPenalty);
+        return mapToCancellationResDto(applyPenalty, user);
     }
 
     private void registerPenaltyAfterCommit(final User user, final Machine machine, final Long reservationId) {
@@ -125,8 +127,12 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         log.info("manual cancel penalty applied userId={} reservationId={}", userId, reservationId);
     }
 
-    private CancellationResDto mapToCancellationResDto(final boolean penaltyApplied) {
+    private CancellationResDto mapToCancellationResDto(final boolean penaltyApplied, final User user) {
         final String message = penaltyApplied ? "예약이 취소되었습니다. 5분간 동일 종류 기기 재예약이 제한됩니다." : "예약이 취소되었습니다.";
-        return new CancellationResDto(true, message, penaltyApplied, null);
+        // Redis 패널티는 커밋 후에 기록되므로 TTL을 조회하지 않고, 같은 트랜잭션에서 기록한 취소 시각으로 쿨다운 만료 시각을 계산한다
+        final LocalDateTime penaltyExpiresAt = penaltyApplied
+                ? user.getLastCancellationAt().plusMinutes(PenaltyConstants.COOLDOWN_DURATION_MINUTES)
+                : null;
+        return new CancellationResDto(true, message, penaltyApplied, penaltyExpiresAt);
     }
 }
