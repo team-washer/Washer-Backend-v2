@@ -1,7 +1,9 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionOperations;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -34,10 +36,16 @@ public class CancelReservationServiceImpl implements CancelReservationService {
     private final ReservationNotificationSupport reservationNotificationSupport;
     private final CurrentUserProvider currentUserProvider;
     private final UserRepository userRepository;
+    private final TransactionOperations transactionOperations;
 
     @Override
-    @Transactional
     public CancellationResDto execute(final Long reservationId) {
+        final CancellationPenaltyResult penaltyResult = transactionOperations
+                .execute(status -> cancelReservation(reservationId));
+        return mapToCancellationResDto(penaltyResult);
+    }
+
+    private CancellationPenaltyResult cancelReservation(final Long reservationId) {
         final var userId = currentUserProvider.getCurrentUserId();
         final var reservationUserId = reservationRepository.findUserIdById(reservationId)
                 .orElseThrow(() -> new ErrorCodeException(ErrorCode.RESERVATION_NOT_FOUND));
@@ -75,19 +83,24 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         machine.releaseIfHeld();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
+        final var penaltyResult = new CancellationPenaltyResult();
         if (applyPenalty) {
-            registerPenaltyAfterCommit(user, machine, reservationId);
+            registerPenaltyAfterCommit(user, machine, reservationId, penaltyResult);
         }
         log.info("Cancelled reservation reservationId={} userId={}", reservationId, userId);
 
-        return mapToCancellationResDto(applyPenalty);
+        return penaltyResult;
     }
 
-    private void registerPenaltyAfterCommit(final User user, final Machine machine, final Long reservationId) {
+    private void registerPenaltyAfterCommit(final User user,
+            final Machine machine,
+            final Long reservationId,
+            final CancellationPenaltyResult penaltyResult) {
         final Runnable apply = () -> {
             try {
-                applyPenalty(user, machine, reservationId);
+                penaltyResult.complete(applyPenalty(user, machine, reservationId));
             } catch (Exception e) {
+                penaltyResult.clear();
                 log.error("manual cancel penalty after commit failed userId={} reservationId={}",
                         user.getId(),
                         reservationId,
@@ -107,26 +120,60 @@ public class CancelReservationServiceImpl implements CancelReservationService {
         apply.run();
     }
 
-    private void applyPenalty(final User user, final Machine machine, final Long reservationId) {
+    private LocalDateTime applyPenalty(final User user, final Machine machine, final Long reservationId) {
         final Long userId = user.getId();
-        penaltyRedisUtil.applyCooldown(userId, machine.getType());
+        LocalDateTime penaltyExpiresAt = penaltyRedisUtil.applyCooldownAndGetExpiryTime(userId, machine.getType());
         penaltyRedisUtil.recordCancellation(userId);
         if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
             final RestrictionStatus previousBlockStatus = penaltyRedisUtil.checkBlock(user.getRoomNumber());
             // 차단 저장 실패는 PenaltyRedisUtil이 운영 알림으로 보고하며, 예약 취소 자체는 계속 진행한다
-            if (penaltyRedisUtil.applyBlock(user.getRoomNumber())) {
+            final LocalDateTime blockExpiresAt = penaltyRedisUtil.applyBlockAndGetExpiryTime(user.getRoomNumber());
+            if (blockExpiresAt != null) {
+                penaltyExpiresAt = later(penaltyExpiresAt, blockExpiresAt);
                 // 기존 차단 여부를 조회하지 못했다면 알림 누락보다 중복 발송이 낫다고 보고 발송한다
                 if (previousBlockStatus != RestrictionStatus.RESTRICTED) {
-                    reservationNotificationSupport.sendCancellationBlock(user, machine);
+                    sendCancellationBlockNotification(user, machine, reservationId);
                 }
                 log.warn("48h block applied roomNumber={}", user.getRoomNumber());
             }
         }
         log.info("manual cancel penalty applied userId={} reservationId={}", userId, reservationId);
+        return penaltyExpiresAt;
     }
 
-    private CancellationResDto mapToCancellationResDto(final boolean penaltyApplied) {
+    private void sendCancellationBlockNotification(final User user, final Machine machine, final Long reservationId) {
+        try {
+            reservationNotificationSupport.sendCancellationBlock(user, machine);
+        } catch (Exception e) {
+            log.error("manual cancel block notification failed userId={} reservationId={}",
+                    user.getId(),
+                    reservationId,
+                    e);
+        }
+    }
+
+    private static LocalDateTime later(final LocalDateTime current, final LocalDateTime candidate) {
+        if (candidate == null) {
+            return current;
+        }
+        return current == null || candidate.isAfter(current) ? candidate : current;
+    }
+
+    private CancellationResDto mapToCancellationResDto(final CancellationPenaltyResult penaltyResult) {
+        final boolean penaltyApplied = penaltyResult.penaltyExpiresAt != null;
         final String message = penaltyApplied ? "예약이 취소되었습니다. 5분간 동일 종류 기기 재예약이 제한됩니다." : "예약이 취소되었습니다.";
-        return new CancellationResDto(true, message, penaltyApplied, null);
+        return new CancellationResDto(true, message, penaltyApplied, penaltyResult.penaltyExpiresAt);
+    }
+
+    private static final class CancellationPenaltyResult {
+        private LocalDateTime penaltyExpiresAt;
+
+        private void complete(final LocalDateTime penaltyExpiresAt) {
+            this.penaltyExpiresAt = penaltyExpiresAt;
+        }
+
+        private void clear() {
+            this.penaltyExpiresAt = null;
+        }
     }
 }
