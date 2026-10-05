@@ -157,8 +157,8 @@ public class PenaltyRedisUtil {
      * </p>
      */
     public void applyCooldown(final Long userId, final MachineType machineType) {
+        final long ttlSeconds = PenaltyConstants.COOLDOWN_DURATION_MINUTES * 60L;
         try {
-            final long ttlSeconds = PenaltyConstants.COOLDOWN_DURATION_MINUTES * 60L;
             cooldownRedisRepository
                     .save(CooldownEntity.builder().id(cooldownKey(userId, machineType)).ttl(ttlSeconds).build());
             log.info("cooldown applied userId={} machineType={} expiresInMinutes={}",
