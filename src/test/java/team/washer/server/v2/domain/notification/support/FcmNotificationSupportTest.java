@@ -105,7 +105,7 @@ class FcmNotificationSupportTest {
 
             // Then
             then(deleteFcmTokenIfMatchesService).should(times(1)).execute(any(), eq("fcm-token"));
-            assertThat(user.getFcmToken()).isEqualTo("fcm-token");
+            assertThat(user.getFcmToken()).isNull();
         }
 
         @Test
@@ -121,6 +121,23 @@ class FcmNotificationSupportTest {
 
             // When & Then
             assertThatCode(() -> fcmNotificationSupport.send(user, "제목", "본문")).doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("무효 토큰 전송 실패 뒤에는 같은 사용자에게 다시 전송하지 않아야 한다")
+        void it_skips_repeated_sending_after_invalid_token_failure() throws Exception {
+            // Given
+            final User user = createUserWithToken();
+            final FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
+            given(exception.getMessagingErrorCode()).willReturn(MessagingErrorCode.UNREGISTERED);
+            given(firebaseMessaging.send(any(Message.class))).willThrow(exception);
+
+            // When
+            fcmNotificationSupport.send(user, "제목", "본문");
+            fcmNotificationSupport.send(user, "제목", "본문");
+
+            // Then
+            then(firebaseMessaging).should(times(1)).send(any(Message.class));
         }
 
         @Test

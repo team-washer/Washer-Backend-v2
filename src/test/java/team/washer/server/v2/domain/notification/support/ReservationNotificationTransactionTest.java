@@ -18,9 +18,13 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
+import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
+import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
+import org.springframework.transaction.interceptor.TransactionInterceptor;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -33,7 +37,6 @@ import team.washer.server.v2.domain.notification.repository.NotificationReposito
 import team.washer.server.v2.domain.notification.service.DeleteFcmTokenIfMatchesService;
 import team.washer.server.v2.domain.user.entity.User;
 
-@MockitoSettings
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationNotificationSupport 트랜잭션 동작은")
 class ReservationNotificationTransactionTest {
@@ -48,6 +51,7 @@ class ReservationNotificationTransactionTest {
     private DeleteFcmTokenIfMatchesService deleteFcmTokenIfMatchesService;
 
     private ReservationNotificationSupport reservationNotificationSupport;
+    private DataSourceTransactionManager transactionManager;
     private TransactionTemplate transactionTemplate;
 
     @BeforeEach
@@ -55,14 +59,23 @@ class ReservationNotificationTransactionTest {
         final var dataSource = new DriverManagerDataSource("jdbc:h2:mem:reservation-notification;DB_CLOSE_DELAY=-1",
                 "sa",
                 "");
-        transactionTemplate = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
-        final var fcmNotificationSupport = new FcmNotificationSupport(firebaseMessaging,
-                deleteFcmTokenIfMatchesService);
-        reservationNotificationSupport = new ReservationNotificationSupport(notificationRepository,
-                fcmNotificationSupport);
+        transactionManager = new DataSourceTransactionManager(dataSource);
+        transactionTemplate = new TransactionTemplate(transactionManager);
+        reservationNotificationSupport = createTransactionalReservationNotificationSupport();
         given(notificationRepository.save(any(Notification.class))).willAnswer(invocation -> invocation.getArgument(0));
         given(notificationRepository.countByUser(any(User.class))).willReturn(1L);
         lenient().when(firebaseMessaging.send(any(Message.class))).thenReturn("message-id");
+    }
+
+    private ReservationNotificationSupport createTransactionalReservationNotificationSupport() {
+        final var fcmNotificationSupport = new FcmNotificationSupport(firebaseMessaging,
+                deleteFcmTokenIfMatchesService);
+        final var target = new ReservationNotificationSupport(notificationRepository, fcmNotificationSupport);
+        final var proxyFactory = new ProxyFactory(target);
+        proxyFactory.setProxyTargetClass(true);
+        proxyFactory
+                .addAdvice(new TransactionInterceptor(transactionManager, new AnnotationTransactionAttributeSource()));
+        return (ReservationNotificationSupport) proxyFactory.getProxy();
     }
 
     private User createUser() {
@@ -84,21 +97,26 @@ class ReservationNotificationTransactionTest {
         @ValueSource(ints = {1, 24, 48})
         @DisplayName("각 예약 완료 알림을 정확히 한 번씩 전송해야 한다")
         void sends_each_completion_notification_once(final int notificationCount) throws Exception {
+            // Given
             final var user = createUser();
             final var machine = createMachine();
 
-            transactionTemplate.executeWithoutResult(status -> IntStream.range(0, notificationCount)
-                    .forEach(ignored -> reservationNotificationSupport.sendCompletion(user, machine)));
+            // When
+            IntStream.range(0, notificationCount).forEach(ignored -> transactionTemplate
+                    .executeWithoutResult(status -> reservationNotificationSupport.sendCompletion(user, machine)));
 
+            // Then
             then(firebaseMessaging).should(times(notificationCount)).send(any(Message.class));
         }
 
         @Test
         @DisplayName("모든 예약 알림 종류를 정확히 한 번씩 전송해야 한다")
         void sends_every_reservation_notification_once() throws Exception {
+            // Given
             final var user = createUser();
             final var machine = createMachine();
 
+            // When
             transactionTemplate.executeWithoutResult(status -> {
                 reservationNotificationSupport.sendCompletion(user, machine);
                 reservationNotificationSupport.sendInterruption(user, machine);
@@ -112,28 +130,70 @@ class ReservationNotificationTransactionTest {
                 reservationNotificationSupport.sendAdminPenalty(user, "테스트 사유");
             });
 
+            // Then
             then(firebaseMessaging).should(times(10)).send(any(Message.class));
         }
     }
 
-    @Test
-    @DisplayName("롤백하면 Firebase 메시지를 전송하지 않아야 한다")
-    void does_not_send_when_transaction_rolls_back() {
-        final var user = createUser();
+    @Nested
+    @DisplayName("롤백하면")
+    class Context_with_rollback {
 
-        transactionTemplate.executeWithoutResult(status -> {
-            reservationNotificationSupport.sendCompletion(user, createMachine());
-            status.setRollbackOnly();
-        });
+        @Test
+        @DisplayName("Firebase 메시지를 전송하지 않아야 한다")
+        void does_not_send_when_transaction_rolls_back() {
+            // Given
+            final var user = createUser();
 
-        then(firebaseMessaging).shouldHaveNoInteractions();
+            // When
+            transactionTemplate.executeWithoutResult(status -> {
+                reservationNotificationSupport.sendCompletion(user, createMachine());
+                status.setRollbackOnly();
+            });
+
+            // Then
+            then(firebaseMessaging).shouldHaveNoInteractions();
+        }
     }
 
-    @Test
-    @DisplayName("트랜잭션 밖에서 호출하면 Firebase 메시지를 한 번 전송해야 한다")
-    void sends_once_outside_transaction() throws Exception {
-        reservationNotificationSupport.sendCompletion(createUser(), createMachine());
+    @Nested
+    @DisplayName("트랜잭션 밖에서 호출하면")
+    class Context_without_transaction {
 
-        then(firebaseMessaging).should(times(1)).send(any(Message.class));
+        @Test
+        @DisplayName("Firebase 메시지를 한 번 전송해야 한다")
+        void sends_once_outside_transaction() throws Exception {
+            // When
+            reservationNotificationSupport.sendCompletion(createUser(), createMachine());
+
+            // Then
+            then(firebaseMessaging).should(times(1)).send(any(Message.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("바깥 트랜잭션의 커밋 콜백에서 호출하면")
+    class Context_with_after_commit_callback {
+
+        @Test
+        @DisplayName("REQUIRES_NEW 알림을 커밋한 뒤 Firebase 메시지를 한 번 전송해야 한다")
+        void sends_requires_new_notification_after_outer_commit() throws Exception {
+            // Given
+            final var user = createUser();
+            final var machine = createMachine();
+
+            // When
+            transactionTemplate.executeWithoutResult(status -> TransactionSynchronizationManager
+                    .registerSynchronization(new TransactionSynchronization() {
+
+                        @Override
+                        public void afterCommit() {
+                            reservationNotificationSupport.sendTimeoutWarning(user, machine);
+                        }
+                    }));
+
+            // Then
+            then(firebaseMessaging).should(times(1)).send(any(Message.class));
+        }
     }
 }
