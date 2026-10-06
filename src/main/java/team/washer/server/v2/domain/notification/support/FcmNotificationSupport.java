@@ -49,8 +49,8 @@ public class FcmNotificationSupport {
      * FCM 푸시 알림을 즉시 전송하고 Firebase가 발급한 메시지 ID를 반환한다.
      *
      * <p>
-     * {@link #send(User, String, String)}와 달리 트랜잭션 커밋을 기다리지 않고 바로 전송하며, 전송 실패를
-     * 호출자에게 전파한다. 발송 결과를 확인해야 하는 관리자 테스트 발송에서 사용한다. 무효 토큰({@code UNREGISTERED},
+     * {@link #send(User, String, String)}와 달리 전송 실패를 호출자에게 전파한다. 발송 결과를 확인해야 하는
+     * 관리자 테스트 발송에서 사용한다. 무효 토큰({@code UNREGISTERED},
      * {@code INVALID_ARGUMENT})은 예외를 던지기 전에 정리한다.
      * </p>
      *
