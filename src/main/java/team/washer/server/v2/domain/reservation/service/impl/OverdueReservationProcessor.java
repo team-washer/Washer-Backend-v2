@@ -5,8 +5,6 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +23,7 @@ import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.PenaltyConstants;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
+import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 /**
@@ -47,6 +46,7 @@ public class OverdueReservationProcessor {
     private final ReservationNotificationSupport reservationNotificationSupport;
     private final ReservationStartDecisionSupport reservationStartDecisionSupport;
     private final UserRepository userRepository;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     /**
      * 외부 API 호출 대상이 되는 만료 예약의 식별자와 기기 ID 쌍.
@@ -181,21 +181,13 @@ public class OverdueReservationProcessor {
 
     /** 커밋 이후 패널티 적용을 예약하고 트랜잭션이 없으면 즉시 실행합니다. */
     private void applyTimeoutPenaltyAfterCommit(final User user, final Machine machine) {
-        if (TransactionSynchronizationManager.isActualTransactionActive()
-                && TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    try {
-                        applyTimeoutPenalty(user, machine);
-                    } catch (Exception e) {
-                        log.error("timeout penalty after commit failed userId={}", user.getId(), e);
-                    }
-                }
-            });
-            return;
-        }
-        applyTimeoutPenalty(user, machine);
+        afterCommitExecutor.execute(() -> {
+            try {
+                applyTimeoutPenalty(user, machine);
+            } catch (Exception e) {
+                log.error("timeout penalty after commit failed userId={}", user.getId(), e);
+            }
+        });
     }
 
     /**
