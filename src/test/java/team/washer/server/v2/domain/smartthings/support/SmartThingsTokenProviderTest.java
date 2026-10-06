@@ -5,8 +5,10 @@ import static org.mockito.BDDMockito.*;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -235,6 +237,37 @@ class SmartThingsTokenProviderTest {
 
             // Then
             assertThat(smartThingsTokenProvider.getValidAccessToken()).isEqualTo("replacement-access");
+        }
+
+        @Test
+        @DisplayName("DB 조회 뒤 다른 요청이 게시한 새 토큰을 거절 토큰 처리로 덮어쓰지 않는다")
+        void preserves_new_token_published_after_database_read() throws Exception {
+            // Given
+            final var rejectedToken = token("rejected-access", LocalDateTime.now().plusHours(24));
+            final var replacementToken = token("replacement-access", LocalDateTime.now().plusHours(1));
+            final var newerToken = token("newer-access", LocalDateTime.now().plusHours(48));
+            final var databaseRead = new CountDownLatch(1);
+            final var allowReplacement = new CountDownLatch(1);
+            smartThingsTokenProvider.refresh(rejectedToken);
+            given(tokenRepository.findSingletonTokenWithLock()).willAnswer(invocation -> {
+                databaseRead.countDown();
+                if (!allowReplacement.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("새 토큰 게시 대기 시간이 초과되었습니다");
+                }
+                return Optional.of(replacementToken);
+            });
+
+            // When
+            try (var executor = Executors.newSingleThreadExecutor()) {
+                final var invalidation = executor.submit(() -> smartThingsTokenProvider.invalidate("rejected-access"));
+                assertThat(databaseRead.await(5, TimeUnit.SECONDS)).isTrue();
+                smartThingsTokenProvider.refresh(newerToken);
+                allowReplacement.countDown();
+                invalidation.get();
+            }
+
+            // Then
+            assertThat(smartThingsTokenProvider.getValidAccessToken()).isEqualTo("newer-access");
         }
 
         @Test
