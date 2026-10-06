@@ -128,6 +128,28 @@ class ProcessReservationLifecycleServiceTest {
     }
 
     @Test
+    @DisplayName("UNKNOWN 결과에서는 종료 claim을 유지한다")
+    void execute_ShouldKeepClaim_WhenShutdownResultIsUnknown() {
+        // Given
+        var runningStatus = buildDeviceStatus("2026-01-26T16:00:00Z");
+        when(reservationLifecycleProcessor.findReservedTargets()).thenReturn(List.of());
+        when(reservationLifecycleProcessor.findRunningTargets())
+                .thenReturn(List.of(buildRunningTarget(2L, "device-2", false)));
+        when(deviceStatusQuerySupport.queryDeviceStatus("device-2")).thenReturn(runningStatus);
+        when(reservationLifecycleProcessor.processRunningToCompleted(2L, runningStatus))
+                .thenReturn(Optional.of(new CompletedMachine(2L, "D-2F-L1", "device-2", false, "claim-token")));
+        when(deviceShutdownSupport
+                .shutdownAfterCompletion(eq("D-2F-L1"), eq("device-2"), eq(false), eq(runningStatus), any()))
+                .thenReturn(DeviceShutdownSupport.ShutdownResult.SKIPPED_UNKNOWN);
+
+        // When
+        processReservationLifecycleService.execute();
+
+        // Then
+        verify(machineShutdownClaimSupport, never()).release(any());
+    }
+
+    @Test
     @DisplayName("완료 후 전원 차단이 SmartThings 권한 오류로 실패하면 Discord로 알리고 남은 예약 처리를 중단한다")
     void execute_ShouldNotifyAndStop_WhenShutdownRejectedByPermission() {
         // Given

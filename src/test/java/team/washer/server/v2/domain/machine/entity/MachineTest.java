@@ -245,8 +245,8 @@ class MachineTest {
         }
 
         @Test
-        @DisplayName("복구 claim을 재점유하면 명령 진행 보호 시간이 갱신된다")
-        void it_renews_recovery_protection_when_reclaiming_command() {
+        @DisplayName("복구 claim을 재점유해도 미확정 명령의 보호 상태를 유지한다")
+        void it_keeps_unresolved_command_fence_when_reclaiming_command() {
             // Given
             var machine = createMachine();
             machine.claimShutdown();
@@ -258,8 +258,10 @@ class MachineTest {
             assertThat(machine.reclaimShutdownCommand()).isTrue();
 
             // Then
-            assertThat(machine.isShutdownCommandRecoveryReady()).isFalse();
+            assertThat(machine.getShutdownCommandStartedAt()).isNotNull();
+            assertThat(machine.isShutdownCommandRecoveryReady()).isTrue();
             assertThat(machine.hasActiveShutdownClaim()).isTrue();
+            assertThat(machine.isAvailable()).isFalse();
         }
     }
 }

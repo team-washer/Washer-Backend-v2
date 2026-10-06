@@ -125,12 +125,14 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         final var claim = new MachineShutdownClaimSupport.ShutdownClaim(completedMachine.machineId(),
                 completedMachine.shutdownClaimToken());
         try {
-            deviceShutdownSupport.shutdownAfterCompletion(completedMachine.machineName(),
+            var result = deviceShutdownSupport.shutdownAfterCompletion(completedMachine.machineName(),
                     completedMachine.deviceId(),
                     completedMachine.isWasher(),
                     status,
                     () -> machineShutdownClaimSupport.beginCommand(claim));
-            releaseClaim(claim, completedMachine);
+            if (result != DeviceShutdownSupport.ShutdownResult.SKIPPED_UNKNOWN) {
+                releaseClaim(claim, completedMachine);
+            }
             return true;
         } catch (ErrorCodeException e) {
             if (e.getErrorCode() != ErrorCode.SMARTTHINGS_PERMISSION_DENIED) {

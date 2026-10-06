@@ -275,14 +275,13 @@ public class Machine extends BaseEntity {
                 .isBefore(this.shutdownCommandStartedAt.plus(SHUTDOWN_COMMAND_RECOVERY_TIMEOUT));
     }
 
-    /** 외부 명령 결과가 확인되지 않은 claim을 다시 점유하고 복구 보호 시간을 갱신합니다. */
+    /** 외부 명령 결과가 확인되지 않은 claim을 다시 점유하되, 미확정 명령의 보호 상태는 유지합니다. */
     public boolean reclaimShutdownCommand() {
         if (!isShutdownCommandRecoveryReady()) {
             return false;
         }
         this.shutdownClaimToken = UUID.randomUUID().toString();
         this.shutdownClaimedAt = DateTimeUtil.nowInKorea();
-        this.shutdownCommandStartedAt = null;
         return true;
     }
 

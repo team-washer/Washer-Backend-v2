@@ -315,7 +315,7 @@ class ShutdownIdleMachinesServiceTest {
 
                 // Then
                 then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine), eq(EMPTY_STATUS), any());
-                then(machineShutdownClaimSupport).should().release(recoveredClaim);
+                then(machineShutdownClaimSupport).should(never()).release(recoveredClaim);
             }
 
             @Test
