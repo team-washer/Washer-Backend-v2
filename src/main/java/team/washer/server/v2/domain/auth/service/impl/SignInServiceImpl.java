@@ -44,7 +44,7 @@ public class SignInServiceImpl implements SignInService {
         try {
             oauthUser = oauthClient.getUserInfo(accessToken).getStudent();
         } catch (BadRequestException | UnauthorizedException e) {
-            logAuthenticationRejected("user_info", e, reqDto);
+            logAuthenticationRejected("user_info", e);
             throw invalidAuthenticationException();
         }
         if (oauthUser == null) {
@@ -75,19 +75,17 @@ public class SignInServiceImpl implements SignInService {
 
     private TokenResponse exchangeCodeForToken(final TokenReqDto reqDto) {
         try {
-            return oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri(), reqDto.codeVerifier());
+            return oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri());
         } catch (BadRequestException | UnauthorizedException e) {
-            logAuthenticationRejected("token_exchange", e, reqDto);
+            logAuthenticationRejected("token_exchange", e);
             throw invalidAuthenticationException();
         }
     }
 
-    private static void logAuthenticationRejected(final String operation, final Exception exception,
-            final TokenReqDto reqDto) {
-        log.warn("datagsm authentication rejected operation={} exception={} pkce={}",
+    private static void logAuthenticationRejected(final String operation, final Exception exception) {
+        log.warn("datagsm authentication rejected operation={} exception={}",
                 operation,
-                exception.getClass().getSimpleName(),
-                reqDto.codeVerifier() != null);
+                exception.getClass().getSimpleName());
     }
 
     private static ExpectedException invalidAuthenticationException() {
