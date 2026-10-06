@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -175,9 +176,11 @@ class ReservationNotificationTransactionTest {
     @DisplayName("바깥 트랜잭션의 커밋 콜백에서 호출하면")
     class Context_with_after_commit_callback {
 
-        @Test
+        @ParameterizedTest
+        @EnumSource(RequiresNewNotification.class)
         @DisplayName("REQUIRES_NEW 알림을 커밋한 뒤 Firebase 메시지를 한 번 전송해야 한다")
-        void sends_requires_new_notification_after_outer_commit() throws Exception {
+        void sends_requires_new_notification_after_outer_commit(final RequiresNewNotification notification)
+                throws Exception {
             // Given
             final var user = createUser();
             final var machine = createMachine();
@@ -188,12 +191,35 @@ class ReservationNotificationTransactionTest {
 
                         @Override
                         public void afterCommit() {
-                            reservationNotificationSupport.sendTimeoutWarning(user, machine);
+                            notification.send(reservationNotificationSupport, user, machine);
                         }
                     }));
 
             // Then
             then(firebaseMessaging).should(times(1)).send(any(Message.class));
         }
+    }
+
+    private enum RequiresNewNotification {
+        TIMEOUT_WARNING {
+            @Override
+            void send(final ReservationNotificationSupport support, final User user, final Machine machine) {
+                support.sendTimeoutWarning(user, machine);
+            }
+        },
+        AUTO_CANCELLATION {
+            @Override
+            void send(final ReservationNotificationSupport support, final User user, final Machine machine) {
+                support.sendAutoCancellation(user, machine);
+            }
+        },
+        CANCELLATION_BLOCK {
+            @Override
+            void send(final ReservationNotificationSupport support, final User user, final Machine machine) {
+                support.sendCancellationBlock(user, machine);
+            }
+        };
+
+        abstract void send(ReservationNotificationSupport support, User user, Machine machine);
     }
 }

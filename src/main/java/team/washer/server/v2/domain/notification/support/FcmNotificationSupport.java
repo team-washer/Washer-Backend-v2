@@ -33,6 +33,10 @@ public class FcmNotificationSupport {
 
     /**
      * FCM 푸시 알림을 즉시 전송한다. 커밋 후 전송 예약은 호출자가 담당한다.
+     *
+     * <p>
+     * 무효 토큰 오류가 발생하면 전달받은 {@code user}의 FCM 토큰도 비운다.
+     * </p>
      */
     public void send(final User user, final String title, final String body) {
         final Long userId = user.getId();
@@ -57,7 +61,7 @@ public class FcmNotificationSupport {
      * <p>
      * {@link #send(User, String, String)}와 달리 전송 실패를 호출자에게 전파한다. 발송 결과를 확인해야 하는 관리자
      * 테스트 발송에서 사용한다. 무효 토큰({@code UNREGISTERED}, {@code INVALID_ARGUMENT})은 예외를 던지기
-     * 전에 정리한다.
+     * 전에 정리하고 전달받은 {@code user}의 FCM 토큰도 비운다.
      * </p>
      *
      * @param user
@@ -112,7 +116,7 @@ public class FcmNotificationSupport {
         }
 
         log.warn("Removing invalid FCM token userId={} errorCode={}", userId, errorCode);
-        user.updateFcmToken(null);
+        user.clearFcmToken();
         try {
             deleteFcmTokenIfMatchesService.execute(userId, token);
         } catch (RuntimeException cleanupException) {
