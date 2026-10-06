@@ -5,13 +5,14 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
+import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsErrorMapper;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeignClient;
 
 /**
@@ -29,15 +30,28 @@ public class DeviceStatusQuerySupport {
      * 단일 기기의 SmartThings 상태를 조회한다. 외부 HTTP 호출이 DB 커넥션을 점유하지 않도록 트랜잭션 없이 수행한다.
      */
     public SmartThingsDeviceStatusResDto queryDeviceStatus(String deviceId) {
+        String accessToken = null;
         try {
-            var authorization = "Bearer " + tokenProvider.getValidAccessToken();
-            return feignClient.getDeviceStatus(authorization, deviceId);
-        } catch (ExpectedException e) {
-            log.error("smartthings token not found or invalid", e);
+            accessToken = tokenProvider.getValidAccessToken();
+            var authorization = "Bearer " + accessToken;
+            final var response = feignClient.getDeviceStatus(authorization, deviceId);
+            if (response == null || response.components() == null || response.components().get("main") == null) {
+                throw new ErrorCodeException(ErrorCode.SMARTTHINGS_RESPONSE_INVALID);
+            }
+            return response;
+        } catch (ErrorCodeException e) {
+            if (e.getErrorCode() == ErrorCode.SMARTTHINGS_TOKEN_INVALID) {
+                invalidateRejectedToken(accessToken);
+            }
+            log.warn("smartthings status query rejected errorCode={} deviceId={}", e.getErrorCode(), deviceId);
             throw e;
         } catch (Exception e) {
-            log.error("smartthings failed to query device status deviceId={}", deviceId, e);
-            throw new ExpectedException("기기 상태 조회에 실패했습니다: " + e.getMessage(), HttpStatus.BAD_GATEWAY);
+            final var mapped = SmartThingsErrorMapper.toStatusException(e);
+            log.error("smartthings status query failed deviceId={} errorCode={}", deviceId, mapped.getErrorCode());
+            if (mapped.getErrorCode() == ErrorCode.SMARTTHINGS_TOKEN_INVALID) {
+                invalidateRejectedToken(accessToken);
+            }
+            throw mapped;
         }
     }
 
@@ -56,7 +70,10 @@ public class DeviceStatusQuerySupport {
                 var status = queryDeviceStatus(deviceId);
                 return Map.entry(deviceId, status);
             } catch (Exception e) {
-                log.warn("Failed to query status for device: {}", deviceId, e);
+                var errorCode = e instanceof ErrorCodeException errorCodeException
+                        ? errorCodeException.getErrorCode()
+                        : ErrorCode.SMARTTHINGS_STATUS_UNAVAILABLE;
+                log.warn("smartthings bulk status query skipped deviceId={} errorCode={}", deviceId, errorCode, e);
                 return null;
             }
         })).toList();
@@ -69,5 +86,13 @@ public class DeviceStatusQuerySupport {
         log.info("Successfully queried status for {}/{} devices", results.size(), deviceIds.size());
 
         return results;
+    }
+
+    private void invalidateRejectedToken(final String accessToken) {
+        try {
+            tokenProvider.invalidate(accessToken);
+        } catch (Exception e) {
+            log.error("smartthings rejected token invalidation failed", e);
+        }
     }
 }

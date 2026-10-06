@@ -17,8 +17,11 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@RedisHash(value = "reservation:cooldown:user")
+@RedisHash(value = CooldownEntity.KEYSPACE)
 public class CooldownEntity {
+
+    /** 활성 쿨다운 ID를 모아 두는 Redis Repository keyspace 인덱스 키 */
+    public static final String KEYSPACE = "reservation:cooldown:user";
 
     /** {@code {userId}:{machineType}} 형식의 복합 키 */
     @Id

@@ -197,5 +197,16 @@ class ReservationDeviceStateVerifierTest {
             // When & Then
             assertServiceUnavailable(machine(MachineType.WASHER));
         }
+
+        @Test
+        @DisplayName("SmartThings 오류 코드는 예약 생성 경로에서도 그대로 전달한다")
+        void verifyNotOperating_ShouldPreserveSmartThingsErrorCode() {
+            // Given
+            var expected = new ErrorCodeException(ErrorCode.SMARTTHINGS_RATE_LIMITED);
+            given(deviceStatusQuerySupport.queryDeviceStatus(DEVICE_ID)).willThrow(expected);
+
+            // When & Then
+            assertThatThrownBy(() -> verifier.verifyNotOperating(machine(MachineType.WASHER))).isSameAs(expected);
+        }
     }
 }

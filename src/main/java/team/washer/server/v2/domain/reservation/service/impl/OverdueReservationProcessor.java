@@ -5,6 +5,8 @@ import java.util.List;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -154,7 +156,8 @@ public class OverdueReservationProcessor {
             return OverdueResult.CANCELLED_WITHOUT_PENALTY;
         }
 
-        applyTimeoutPenalty(user, machine);
+        user.updateLastCancellationTime(machine.getType());
+        applyTimeoutPenaltyAfterCommit(user, machine);
         return OverdueResult.CANCELLED;
     }
 
@@ -176,6 +179,25 @@ public class OverdueReservationProcessor {
         return !DateTimeUtil.nowInKorea().isBefore(unknownDeadline);
     }
 
+    /** 커밋 이후 패널티 적용을 예약하고 트랜잭션이 없으면 즉시 실행합니다. */
+    private void applyTimeoutPenaltyAfterCommit(final User user, final Machine machine) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    try {
+                        applyTimeoutPenalty(user, machine);
+                    } catch (Exception e) {
+                        log.error("timeout penalty after commit failed userId={}", user.getId(), e);
+                    }
+                }
+            });
+            return;
+        }
+        applyTimeoutPenalty(user, machine);
+    }
+
     /**
      * 타임아웃 취소 시 패널티를 적용합니다.
      * <p>
@@ -185,19 +207,20 @@ public class OverdueReservationProcessor {
      * 4. 48시간 내 {maxCount}회 초과 시 48h 블록 적용
      * </p>
      */
-    private void applyTimeoutPenalty(User user, Machine machine) {
+    private void applyTimeoutPenalty(final User user, final Machine machine) {
         final long userId = user.getId();
 
         penaltyRedisUtil.applyCooldown(userId, machine.getType());
         penaltyRedisUtil.recordCancellation(userId);
-        user.updateLastCancellationTime();
 
         if (!penaltyRedisUtil.hasWarning(userId)) {
             penaltyRedisUtil.applyWarning(userId);
-            reservationNotificationSupport.sendTimeoutWarning(user, machine);
+            sendPenaltyNotification(() -> reservationNotificationSupport.sendTimeoutWarning(user, machine),
+                    "timeout warning");
             log.info("timeout first warning applied userId={}", userId);
         } else {
-            reservationNotificationSupport.sendAutoCancellation(user, machine);
+            sendPenaltyNotification(() -> reservationNotificationSupport.sendAutoCancellation(user, machine),
+                    "auto cancellation");
             log.info("timeout penalty applied userId={}", userId);
         }
 
@@ -207,12 +230,21 @@ public class OverdueReservationProcessor {
             if (penaltyRedisUtil.applyBlock(user.getRoomNumber())) {
                 // 기존 차단 여부를 조회하지 못했다면 알림 누락보다 중복 발송이 낫다고 보고 발송한다
                 if (previousBlockStatus != RestrictionStatus.RESTRICTED) {
-                    reservationNotificationSupport.sendCancellationBlock(user, machine);
+                    sendPenaltyNotification(() -> reservationNotificationSupport.sendCancellationBlock(user, machine),
+                            "cancellation block");
                 }
                 log.warn("48h block applied roomNumber={} exceeded max cancellations {}",
                         user.getRoomNumber(),
                         PenaltyConstants.MAX_CANCELLATIONS_IN_48H);
             }
+        }
+    }
+
+    private void sendPenaltyNotification(final Runnable notification, final String notificationType) {
+        try {
+            notification.run();
+        } catch (RuntimeException e) {
+            log.error("timeout penalty notification failed type={}", notificationType, e);
         }
     }
 }

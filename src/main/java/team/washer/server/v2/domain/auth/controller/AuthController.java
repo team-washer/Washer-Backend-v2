@@ -31,7 +31,7 @@ public class AuthController {
     private final CheckTokenStatusService checkTokenStatusService;
 
     @PostMapping("/login")
-    @Operation(summary = "로그인", description = "DataGSM OAuth 인증 코드로 로그인합니다.")
+    @Operation(summary = "로그인", description = "DataGSM OAuth 인증 코드로 로그인합니다. PKCE 사용 시 같은 인증 요청의 codeVerifier를 함께 전달합니다.")
     public TokenResDto login(@Valid @RequestBody final TokenReqDto reqDto) {
         return signInService.execute(reqDto);
     }

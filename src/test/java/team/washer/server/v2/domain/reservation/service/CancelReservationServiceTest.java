@@ -13,6 +13,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -29,13 +31,17 @@ import team.washer.server.v2.domain.reservation.service.impl.CancelReservationSe
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.constants.PenaltyConstants;
 import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CancelReservationServiceImpl 클래스의")
 class CancelReservationServiceTest {
+
+    private static final LocalDateTime CANCELLED_AT = LocalDateTime.of(2026, 10, 5, 21, 0);
 
     @InjectMocks
     private CancelReservationServiceImpl cancelReservationService;
@@ -76,6 +82,7 @@ class CancelReservationServiceTest {
             machine.markAsInUse();
         }
         lenient().when(user.getId()).thenReturn(userId);
+        lenient().when(user.getLastCancellationAt()).thenReturn(CANCELLED_AT);
         final var reservation = Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now())
                 .status(status).build();
         lenient().when(reservationRepository.findUserIdById(anyLong())).thenReturn(Optional.of(userId));
@@ -113,12 +120,45 @@ class CancelReservationServiceTest {
                 assertThat(result).isNotNull();
                 assertThat(result.success()).isTrue();
                 assertThat(result.penaltyApplied()).isTrue();
+                assertThat(result.penaltyExpiresAt())
+                        .isEqualTo(CANCELLED_AT.plusMinutes(PenaltyConstants.COOLDOWN_DURATION_MINUTES));
                 assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
                 assertThat(reservation.getMachine().getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
                 then(penaltyRedisUtil).should(times(1)).applyCooldown(userId, MachineType.WASHER);
                 then(penaltyRedisUtil).should(times(1)).recordCancellation(userId);
                 then(reservationRepository).should(times(1)).save(reservation);
                 then(machineRepository).should(times(1)).save(reservation.getMachine());
+            }
+
+            @Test
+            @DisplayName("이번 취소로 기록한 취소 시각에 쿨다운 시간을 더한 패널티 만료 시각을 응답해야 한다")
+            void it_returns_cooldown_expiry_from_recorded_cancellation_time() {
+                // Given
+                var userId = 1L;
+                var reservationId = 10L;
+                var machine = createMachine();
+                var owner = User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(3).floor(3)
+                        .build();
+                var reservation = Reservation.builder().user(owner).machine(machine).reservedAt(LocalDateTime.now())
+                        .status(ReservationStatus.RESERVED).build();
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(reservationRepository.findUserIdById(reservationId)).willReturn(Optional.of(userId));
+                given(reservationRepository.findMachineIdById(reservationId)).willReturn(Optional.of(1L));
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(owner));
+                given(machineRepository.findByIdForUpdate(1L)).willReturn(Optional.of(machine));
+                given(reservationRepository.findByIdForUpdateWithoutRelations(reservationId))
+                        .willReturn(Optional.of(reservation));
+                var before = DateTimeUtil.nowInKorea();
+
+                // When
+                var result = cancelReservationService.execute(reservationId);
+
+                // Then
+                var after = DateTimeUtil.nowInKorea();
+                assertThat(owner.getLastCancellationAt()).isBetween(before, after);
+                assertThat(result.penaltyApplied()).isTrue();
+                assertThat(result.penaltyExpiresAt()).isEqualTo(
+                        owner.getLastCancellationAt().plusMinutes(PenaltyConstants.COOLDOWN_DURATION_MINUTES));
             }
         }
 
@@ -150,6 +190,7 @@ class CancelReservationServiceTest {
 
                 // Then
                 assertThat(result.penaltyApplied()).isFalse();
+                assertThat(result.penaltyExpiresAt()).isNull();
                 assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
                 assertThat(reservation.getMachine().getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
                 then(penaltyRedisUtil).shouldHaveNoInteractions();
@@ -373,6 +414,98 @@ class CancelReservationServiceTest {
                         .isInstanceOf(ErrorCodeException.class).hasMessage(ErrorCode.RESERVATION_NOT_FOUND.getMessage())
                         .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
                                 .isEqualTo(ErrorCode.RESERVATION_NOT_FOUND));
+            }
+        }
+
+        @Nested
+        @DisplayName("DB 트랜잭션 경계가 적용될 때")
+        class Context_with_transaction_synchronization {
+
+            @Test
+            @DisplayName("커밋 전에는 Redis 패널티를 기록하지 않는다")
+            void delaysPenaltyUntilCommit() {
+                final var userId = 1L;
+                final var reservation = createReservation(ReservationStatus.RESERVED, userId);
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(0L);
+                TransactionSynchronizationManager.initSynchronization();
+                TransactionSynchronizationManager.setActualTransactionActive(true);
+                try {
+                    cancelReservationService.execute(10L);
+
+                    then(penaltyRedisUtil).shouldHaveNoInteractions();
+                    TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
+                    then(penaltyRedisUtil).should().applyCooldown(userId, MachineType.WASHER);
+                    then(penaltyRedisUtil).should().recordCancellation(userId);
+                } finally {
+                    TransactionSynchronizationManager.clearSynchronization();
+                    TransactionSynchronizationManager.setActualTransactionActive(false);
+                }
+            }
+
+            @Test
+            @DisplayName("커밋 전에도 Redis 조회 없이 패널티 만료 시각을 응답한다")
+            void returnsPenaltyExpiryWithoutRedisLookup() {
+                final var userId = 1L;
+                createReservation(ReservationStatus.RESERVED, userId);
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                TransactionSynchronizationManager.initSynchronization();
+                TransactionSynchronizationManager.setActualTransactionActive(true);
+                try {
+                    final var result = cancelReservationService.execute(10L);
+
+                    assertThat(result.penaltyExpiresAt())
+                            .isEqualTo(CANCELLED_AT.plusMinutes(PenaltyConstants.COOLDOWN_DURATION_MINUTES));
+                    then(penaltyRedisUtil).shouldHaveNoInteractions();
+                } finally {
+                    TransactionSynchronizationManager.clearSynchronization();
+                    TransactionSynchronizationManager.setActualTransactionActive(false);
+                }
+            }
+
+            @Test
+            @DisplayName("DB 롤백 시 수동 취소 패널티를 기록하지 않는다")
+            void doesNotApplyPenaltyAfterRollback() {
+                final var userId = 1L;
+                createReservation(ReservationStatus.RESERVED, userId);
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                TransactionSynchronizationManager.initSynchronization();
+                TransactionSynchronizationManager.setActualTransactionActive(true);
+                try {
+                    cancelReservationService.execute(10L);
+
+                    TransactionSynchronizationManager.getSynchronizations()
+                            .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+                    then(penaltyRedisUtil).shouldHaveNoInteractions();
+                } finally {
+                    TransactionSynchronizationManager.clearSynchronization();
+                    TransactionSynchronizationManager.setActualTransactionActive(false);
+                }
+            }
+
+            @Test
+            @DisplayName("Redis 쿨다운 저장이 실패해도 DB 기준 패널티 만료 시각을 응답한다")
+            void returnsDatabaseBasedPenaltyExpiryAfterCooldownFailure() {
+                final var userId = 1L;
+                createReservation(ReservationStatus.RESERVED, userId);
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                willThrow(new RuntimeException("redis unavailable")).given(penaltyRedisUtil).applyCooldown(userId,
+                        MachineType.WASHER);
+                TransactionSynchronizationManager.initSynchronization();
+                TransactionSynchronizationManager.setActualTransactionActive(true);
+                try {
+                    final var result = cancelReservationService.execute(10L);
+
+                    assertThat(result.penaltyApplied()).isTrue();
+                    assertThat(result.penaltyExpiresAt())
+                            .isEqualTo(CANCELLED_AT.plusMinutes(PenaltyConstants.COOLDOWN_DURATION_MINUTES));
+
+                    assertThatCode(() -> TransactionSynchronizationManager.getSynchronizations()
+                            .forEach(sync -> sync.afterCommit())).doesNotThrowAnyException();
+                } finally {
+                    TransactionSynchronizationManager.clearSynchronization();
+                    TransactionSynchronizationManager.setActualTransactionActive(false);
+                }
             }
         }
     }

@@ -5,8 +5,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient;
+import team.themoment.datagsm.sdk.oauth.exception.BadRequestException;
+import team.themoment.datagsm.sdk.oauth.exception.UnauthorizedException;
 import team.themoment.datagsm.sdk.oauth.model.Student;
+import team.themoment.datagsm.sdk.oauth.model.TokenResponse;
 import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.TokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
@@ -23,6 +27,7 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Service
 @AllArgsConstructor
+@Slf4j
 public class SignInServiceImpl implements SignInService {
     private final DataGsmOAuthClient oauthClient;
     private final UserRegistrationSupport userRegistrationSupport;
@@ -33,8 +38,15 @@ public class SignInServiceImpl implements SignInService {
 
     @Override
     public TokenResDto execute(TokenReqDto reqDto) {
-        String accessToken = oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri()).getAccessToken();
-        Student oauthUser = oauthClient.getUserInfo(accessToken).getStudent();
+        final var tokenResponse = exchangeCodeForToken(reqDto);
+        final var accessToken = tokenResponse.getAccessToken();
+        final Student oauthUser;
+        try {
+            oauthUser = oauthClient.getUserInfo(accessToken).getStudent();
+        } catch (BadRequestException | UnauthorizedException e) {
+            logAuthenticationRejected("user_info", e, reqDto);
+            throw invalidAuthenticationException();
+        }
         if (oauthUser == null) {
             throw new ExpectedException("학생정보가 없는 DataGSM 계정입니다.", HttpStatus.BAD_REQUEST);
         }
@@ -50,7 +62,7 @@ public class SignInServiceImpl implements SignInService {
         if (withdrawnInDatabase || withdrawnStudentRedisUtil.isWithdrawnRecently(studentId)) {
             throw new ErrorCodeException(ErrorCode.WITHDRAWN_REJOIN_RESTRICTED);
         }
-        User user;
+        final User user;
         try {
             user = userRegistrationSupport.register(oauthUser);
         } catch (DataIntegrityViolationException e) {
@@ -59,5 +71,26 @@ public class SignInServiceImpl implements SignInService {
         }
 
         return tokenGenerationSupport.generate(user.getId(), user.getRole());
+    }
+
+    private TokenResponse exchangeCodeForToken(final TokenReqDto reqDto) {
+        try {
+            return oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri(), reqDto.codeVerifier());
+        } catch (BadRequestException | UnauthorizedException e) {
+            logAuthenticationRejected("token_exchange", e, reqDto);
+            throw invalidAuthenticationException();
+        }
+    }
+
+    private static void logAuthenticationRejected(final String operation, final Exception exception,
+            final TokenReqDto reqDto) {
+        log.warn("datagsm authentication rejected operation={} exception={} pkce={}",
+                operation,
+                exception.getClass().getSimpleName(),
+                reqDto.codeVerifier() != null);
+    }
+
+    private static ExpectedException invalidAuthenticationException() {
+        return new ExpectedException("인증 정보가 올바르지 않습니다. 다시 로그인해 주세요.", HttpStatus.UNAUTHORIZED);
     }
 }
