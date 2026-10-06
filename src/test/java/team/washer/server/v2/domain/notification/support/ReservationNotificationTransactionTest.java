@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.notification.support;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
@@ -7,6 +8,8 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +41,7 @@ import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.notification.repository.NotificationRepository;
 import team.washer.server.v2.domain.notification.service.DeleteFcmTokenIfMatchesService;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationNotificationSupport 트랜잭션 동작은")
@@ -53,6 +57,8 @@ class ReservationNotificationTransactionTest {
     private DeleteFcmTokenIfMatchesService deleteFcmTokenIfMatchesService;
 
     private ReservationNotificationSupport reservationNotificationSupport;
+    private AfterCommitExecutor afterCommitExecutor;
+    private Object saveConnectionHolder;
     private DataSourceTransactionManager transactionManager;
     private TransactionTemplate transactionTemplate;
 
@@ -64,7 +70,10 @@ class ReservationNotificationTransactionTest {
         transactionManager = new DataSourceTransactionManager(dataSource);
         transactionTemplate = new TransactionTemplate(transactionManager);
         reservationNotificationSupport = createTransactionalReservationNotificationSupport();
-        given(notificationRepository.save(any(Notification.class))).willAnswer(invocation -> invocation.getArgument(0));
+        given(notificationRepository.save(any(Notification.class))).willAnswer(invocation -> {
+            saveConnectionHolder = currentConnectionHolder();
+            return invocation.getArgument(0);
+        });
         given(notificationRepository.countByUser(any(User.class))).willReturn(1L);
         lenient().when(firebaseMessaging.send(any(Message.class))).thenReturn("message-id");
     }
@@ -73,7 +82,10 @@ class ReservationNotificationTransactionTest {
         final var fcmNotificationSupport = new FcmNotificationSupport(firebaseMessaging,
                 deleteFcmTokenIfMatchesService,
                 new SyncTaskExecutor());
-        final var target = new ReservationNotificationSupport(notificationRepository, fcmNotificationSupport);
+        afterCommitExecutor = new AfterCommitExecutor(transactionManager);
+        final var target = new ReservationNotificationSupport(notificationRepository,
+                fcmNotificationSupport,
+                afterCommitExecutor);
         final var proxyFactory = new ProxyFactory(target);
         proxyFactory.setProxyTargetClass(true);
         proxyFactory
@@ -200,6 +212,61 @@ class ReservationNotificationTransactionTest {
             // Then
             then(firebaseMessaging).should(times(1)).send(any(Message.class));
         }
+
+        @Test
+        @DisplayName("REQUIRED 알림도 Firebase 메시지를 한 번 전송해야 한다")
+        void sends_required_notification_registered_in_raw_after_commit_callback() throws Exception {
+            // Given
+            final var user = createUser();
+            final var machine = createMachine();
+
+            // When
+            transactionTemplate.executeWithoutResult(status -> TransactionSynchronizationManager
+                    .registerSynchronization(new TransactionSynchronization() {
+
+                        @Override
+                        public void afterCommit() {
+                            reservationNotificationSupport.sendCompletion(user, machine);
+                        }
+                    }));
+
+            // Then
+            then(firebaseMessaging).should(times(1)).send(any(Message.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("공용 커밋 후 경계의 작업에서 호출하면")
+    class Context_with_after_commit_executor_task {
+
+        @Test
+        @DisplayName("REQUIRED 알림을 새 트랜잭션에서 저장하고 커밋한 뒤 Firebase 메시지를 한 번 전송해야 한다")
+        void persists_required_notification_in_new_transaction_before_sending() throws Exception {
+            // Given
+            final var user = createUser();
+            final var machine = createMachine();
+            final var outerConnectionHolder = new AtomicReference<Object>();
+            final var committedBeforeSend = new AtomicBoolean();
+            given(firebaseMessaging.send(any(Message.class))).willAnswer(invocation -> {
+                committedBeforeSend.set(!TransactionSynchronizationManager.isActualTransactionActive());
+                return "message-id";
+            });
+
+            // When
+            transactionTemplate.executeWithoutResult(status -> {
+                outerConnectionHolder.set(currentConnectionHolder());
+                afterCommitExecutor.execute(() -> reservationNotificationSupport.sendCompletion(user, machine));
+            });
+
+            // Then
+            assertThat(saveConnectionHolder).isNotNull().isNotSameAs(outerConnectionHolder.get());
+            assertThat(committedBeforeSend).isTrue();
+            then(firebaseMessaging).should(times(1)).send(any(Message.class));
+        }
+    }
+
+    private Object currentConnectionHolder() {
+        return TransactionSynchronizationManager.getResource(transactionManager.getDataSource());
     }
 
     private enum RequiresNewNotification {
