@@ -6,7 +6,6 @@ import static org.mockito.BDDMockito.*;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -14,9 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.support.TransactionCallback;
-import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
@@ -34,13 +31,17 @@ import team.washer.server.v2.domain.reservation.service.impl.CancelReservationSe
 import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.constants.PenaltyConstants;
 import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
+import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CancelReservationServiceImpl 클래스의")
 class CancelReservationServiceTest {
+
+    private static final LocalDateTime CANCELLED_AT = LocalDateTime.of(2026, 10, 5, 21, 0);
 
     @InjectMocks
     private CancelReservationServiceImpl cancelReservationService;
@@ -69,17 +70,6 @@ class CancelReservationServiceTest {
     @Mock
     private User adminUser;
 
-    @Mock
-    private TransactionOperations transactionOperations;
-
-    @BeforeEach
-    void setUp() {
-        lenient().doAnswer(invocation -> {
-            final TransactionCallback<?> callback = invocation.getArgument(0);
-            return callback.doInTransaction(mock(TransactionStatus.class));
-        }).when(transactionOperations).execute(any());
-    }
-
     private Machine createMachine() {
         return Machine.builder().name("W-2F-L1").type(MachineType.WASHER).deviceId("device-1").floor(2)
                 .position(Position.LEFT).number(1).status(MachineStatus.NORMAL)
@@ -92,6 +82,7 @@ class CancelReservationServiceTest {
             machine.markAsInUse();
         }
         lenient().when(user.getId()).thenReturn(userId);
+        lenient().when(user.getLastCancellationAt()).thenReturn(CANCELLED_AT);
         final var reservation = Reservation.builder().user(user).machine(machine).reservedAt(LocalDateTime.now())
                 .status(status).build();
         lenient().when(reservationRepository.findUserIdById(anyLong())).thenReturn(Optional.of(userId));
@@ -100,7 +91,6 @@ class CancelReservationServiceTest {
         lenient().when(machineRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(machine));
         lenient().when(reservationRepository.findByIdForUpdateWithoutRelations(anyLong()))
                 .thenReturn(Optional.of(reservation));
-        lenient().when(penaltyRedisUtil.getPenaltyExpiryTime(userId)).thenReturn(LocalDateTime.of(2026, 10, 5, 21, 5));
         return reservation;
     }
 
@@ -130,7 +120,8 @@ class CancelReservationServiceTest {
                 assertThat(result).isNotNull();
                 assertThat(result.success()).isTrue();
                 assertThat(result.penaltyApplied()).isTrue();
-                assertThat(result.penaltyExpiresAt()).isEqualTo(LocalDateTime.of(2026, 10, 5, 21, 5));
+                assertThat(result.penaltyExpiresAt())
+                        .isEqualTo(CANCELLED_AT.plusMinutes(PenaltyConstants.COOLDOWN_DURATION_MINUTES));
                 assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
                 assertThat(reservation.getMachine().getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
                 then(penaltyRedisUtil).should(times(1)).applyCooldown(userId, MachineType.WASHER);
@@ -140,23 +131,34 @@ class CancelReservationServiceTest {
             }
 
             @Test
-            @DisplayName("커밋 후 저장한 쿨다운의 만료 시각을 응답한다")
-            void it_returns_expiry_after_commit() {
+            @DisplayName("이번 취소로 기록한 취소 시각에 쿨다운 시간을 더한 패널티 만료 시각을 응답해야 한다")
+            void it_returns_cooldown_expiry_from_recorded_cancellation_time() {
                 // Given
-                final var userId = 1L;
-                createReservation(ReservationStatus.RESERVED, userId);
-                final LocalDateTime expiresAt = LocalDateTime.of(2026, 10, 5, 21, 5);
+                var userId = 1L;
+                var reservationId = 10L;
+                var machine = createMachine();
+                var owner = User.builder().name("김철수").studentId("20210001").roomNumber("301").grade(3).floor(3)
+                        .build();
+                var reservation = Reservation.builder().user(owner).machine(machine).reservedAt(LocalDateTime.now())
+                        .status(ReservationStatus.RESERVED).build();
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(penaltyRedisUtil.getPenaltyExpiryTime(userId)).willReturn(expiresAt);
-                given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(0L);
+                given(reservationRepository.findUserIdById(reservationId)).willReturn(Optional.of(userId));
+                given(reservationRepository.findMachineIdById(reservationId)).willReturn(Optional.of(1L));
+                given(userRepository.findByIdForUpdate(userId)).willReturn(Optional.of(owner));
+                given(machineRepository.findByIdForUpdate(1L)).willReturn(Optional.of(machine));
+                given(reservationRepository.findByIdForUpdateWithoutRelations(reservationId))
+                        .willReturn(Optional.of(reservation));
+                var before = DateTimeUtil.nowInKorea();
 
                 // When
-                final var result = cancelReservationService.execute(10L);
+                var result = cancelReservationService.execute(reservationId);
 
                 // Then
+                var after = DateTimeUtil.nowInKorea();
+                assertThat(owner.getLastCancellationAt()).isBetween(before, after);
                 assertThat(result.penaltyApplied()).isTrue();
-                assertThat(result.penaltyExpiresAt()).isEqualTo(expiresAt);
-                then(penaltyRedisUtil).should().applyCooldown(userId, MachineType.WASHER);
+                assertThat(result.penaltyExpiresAt()).isEqualTo(
+                        owner.getLastCancellationAt().plusMinutes(PenaltyConstants.COOLDOWN_DURATION_MINUTES));
             }
         }
 
@@ -212,13 +214,11 @@ class CancelReservationServiceTest {
                 given(user.getRoomNumber()).willReturn("101");
                 given(penaltyRedisUtil.checkBlock("101")).willReturn(RestrictionStatus.NONE);
                 given(penaltyRedisUtil.applyBlock("101")).willReturn(true);
-                given(penaltyRedisUtil.getPenaltyExpiryTime(userId)).willReturn(LocalDateTime.of(2026, 10, 7, 21, 0));
 
                 // When
-                final var result = cancelReservationService.execute(reservationId);
+                cancelReservationService.execute(reservationId);
 
                 // Then
-                assertThat(result.penaltyExpiresAt()).isEqualTo(LocalDateTime.of(2026, 10, 7, 21, 0));
                 then(penaltyRedisUtil).should(times(1)).applyBlock("101");
                 then(reservationNotificationSupport).should(times(1)).sendCancellationBlock(user,
                         reservation.getMachine());
@@ -244,31 +244,6 @@ class CancelReservationServiceTest {
                 // Then
                 then(penaltyRedisUtil).should(times(1)).applyBlock("101");
                 then(reservationNotificationSupport).should(never()).sendCancellationBlock(any(), any());
-            }
-
-            @Test
-            @DisplayName("차단 알림이 실패해도 실제 적용된 패널티 만료 시각을 반환해야 한다")
-            void it_keeps_expiry_when_block_notification_fails() {
-                // Given
-                final var userId = 1L;
-                final var reservationId = 10L;
-                createReservation(ReservationStatus.RESERVED, userId);
-                final LocalDateTime blockExpiresAt = LocalDateTime.of(2026, 10, 7, 21, 0);
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                given(penaltyRedisUtil.getCancellationCount(userId)).willReturn(5L);
-                given(user.getRoomNumber()).willReturn("101");
-                given(penaltyRedisUtil.checkBlock("101")).willReturn(RestrictionStatus.NONE);
-                given(penaltyRedisUtil.applyBlock("101")).willReturn(true);
-                given(penaltyRedisUtil.getPenaltyExpiryTime(userId)).willReturn(blockExpiresAt);
-                willThrow(new RuntimeException("notification unavailable")).given(reservationNotificationSupport)
-                        .sendCancellationBlock(eq(user), any(Machine.class));
-
-                // When
-                final var result = cancelReservationService.execute(reservationId);
-
-                // Then
-                assertThat(result.penaltyApplied()).isTrue();
-                assertThat(result.penaltyExpiresAt()).isEqualTo(blockExpiresAt);
             }
         }
 
@@ -321,31 +296,6 @@ class CancelReservationServiceTest {
                 // Then
                 then(reservationNotificationSupport).should(times(1)).sendCancellationBlock(user,
                         reservation.getMachine());
-            }
-        }
-
-        @Nested
-        @DisplayName("Redis 쿨다운 저장에 실패할 때")
-        class Context_with_cooldown_apply_failure {
-
-            @Test
-            @DisplayName("패널티가 적용되지 않은 응답을 반환하고 예약 취소는 유지해야 한다")
-            void it_returns_no_penalty_expiry() {
-                // Given
-                final var userId = 1L;
-                final var reservation = createReservation(ReservationStatus.RESERVED, userId);
-                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
-                willThrow(new RuntimeException("redis unavailable")).given(penaltyRedisUtil).applyCooldown(userId,
-                        MachineType.WASHER);
-                given(penaltyRedisUtil.getPenaltyExpiryTime(userId)).willReturn(null);
-
-                // When
-                final var result = cancelReservationService.execute(10L);
-
-                // Then
-                assertThat(result.penaltyApplied()).isTrue();
-                assertThat(result.penaltyExpiresAt()).isNull();
-                assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.CANCELLED);
             }
         }
 
@@ -444,7 +394,6 @@ class CancelReservationServiceTest {
                                 .isEqualTo(ErrorCode.RESERVATION_STATE_INVALID));
                 then(reservationRepository).should(never()).save(any());
                 then(machineRepository).should(never()).save(any());
-                then(penaltyRedisUtil).should(never()).applyCooldown(anyLong(), any());
             }
         }
 
@@ -484,8 +433,30 @@ class CancelReservationServiceTest {
                 try {
                     cancelReservationService.execute(10L);
 
+                    then(penaltyRedisUtil).shouldHaveNoInteractions();
+                    TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
                     then(penaltyRedisUtil).should().applyCooldown(userId, MachineType.WASHER);
                     then(penaltyRedisUtil).should().recordCancellation(userId);
+                } finally {
+                    TransactionSynchronizationManager.clearSynchronization();
+                    TransactionSynchronizationManager.setActualTransactionActive(false);
+                }
+            }
+
+            @Test
+            @DisplayName("커밋 전에도 Redis 조회 없이 패널티 만료 시각을 응답한다")
+            void returnsPenaltyExpiryWithoutRedisLookup() {
+                final var userId = 1L;
+                createReservation(ReservationStatus.RESERVED, userId);
+                given(currentUserProvider.getCurrentUserId()).willReturn(userId);
+                TransactionSynchronizationManager.initSynchronization();
+                TransactionSynchronizationManager.setActualTransactionActive(true);
+                try {
+                    final var result = cancelReservationService.execute(10L);
+
+                    assertThat(result.penaltyExpiresAt())
+                            .isEqualTo(CANCELLED_AT.plusMinutes(PenaltyConstants.COOLDOWN_DURATION_MINUTES));
+                    then(penaltyRedisUtil).shouldHaveNoInteractions();
                 } finally {
                     TransactionSynchronizationManager.clearSynchronization();
                     TransactionSynchronizationManager.setActualTransactionActive(false);
@@ -503,7 +474,9 @@ class CancelReservationServiceTest {
                 try {
                     cancelReservationService.execute(10L);
 
-                    then(penaltyRedisUtil).should().applyCooldown(userId, MachineType.WASHER);
+                    TransactionSynchronizationManager.getSynchronizations()
+                            .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+                    then(penaltyRedisUtil).shouldHaveNoInteractions();
                 } finally {
                     TransactionSynchronizationManager.clearSynchronization();
                     TransactionSynchronizationManager.setActualTransactionActive(false);
@@ -511,8 +484,8 @@ class CancelReservationServiceTest {
             }
 
             @Test
-            @DisplayName("커밋 후 패널티 처리 실패가 성공한 취소를 실패 응답으로 바꾸지 않는다")
-            void doesNotPropagateAfterCommitPenaltyFailure() {
+            @DisplayName("Redis 쿨다운 저장이 실패해도 DB 기준 패널티 만료 시각을 응답한다")
+            void returnsDatabaseBasedPenaltyExpiryAfterCooldownFailure() {
                 final var userId = 1L;
                 createReservation(ReservationStatus.RESERVED, userId);
                 given(currentUserProvider.getCurrentUserId()).willReturn(userId);
@@ -521,7 +494,14 @@ class CancelReservationServiceTest {
                 TransactionSynchronizationManager.initSynchronization();
                 TransactionSynchronizationManager.setActualTransactionActive(true);
                 try {
-                    assertThatCode(() -> cancelReservationService.execute(10L)).doesNotThrowAnyException();
+                    final var result = cancelReservationService.execute(10L);
+
+                    assertThat(result.penaltyApplied()).isTrue();
+                    assertThat(result.penaltyExpiresAt())
+                            .isEqualTo(CANCELLED_AT.plusMinutes(PenaltyConstants.COOLDOWN_DURATION_MINUTES));
+
+                    assertThatCode(() -> TransactionSynchronizationManager.getSynchronizations()
+                            .forEach(sync -> sync.afterCommit())).doesNotThrowAnyException();
                 } finally {
                     TransactionSynchronizationManager.clearSynchronization();
                     TransactionSynchronizationManager.setActualTransactionActive(false);
