@@ -20,6 +20,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.aop.framework.ProxyFactory;
+import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.annotation.AnnotationTransactionAttributeSource;
@@ -70,7 +71,8 @@ class ReservationNotificationTransactionTest {
 
     private ReservationNotificationSupport createTransactionalReservationNotificationSupport() {
         final var fcmNotificationSupport = new FcmNotificationSupport(firebaseMessaging,
-                deleteFcmTokenIfMatchesService);
+                deleteFcmTokenIfMatchesService,
+                new SyncTaskExecutor());
         final var target = new ReservationNotificationSupport(notificationRepository, fcmNotificationSupport);
         final var proxyFactory = new ProxyFactory(target);
         proxyFactory.setProxyTargetClass(true);
