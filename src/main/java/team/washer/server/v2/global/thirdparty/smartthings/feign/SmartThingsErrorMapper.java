@@ -20,7 +20,10 @@ public final class SmartThingsErrorMapper {
     }
 
     public static HttpStatus toOAuthStatus(final int externalStatus) {
-        return externalStatus >= 400 && externalStatus < 500 ? HttpStatus.BAD_REQUEST : HttpStatus.BAD_GATEWAY;
+        return externalStatus == HttpStatus.REQUEST_TIMEOUT.value()
+                || externalStatus == HttpStatus.TOO_MANY_REQUESTS.value() || externalStatus >= 500
+                        ? HttpStatus.BAD_GATEWAY
+                        : HttpStatus.BAD_REQUEST;
     }
 
     private static ErrorCode resolve(final Throwable cause, final ErrorCode fallback) {

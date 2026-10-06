@@ -187,6 +187,36 @@ class RefreshSmartThingsTokenServiceTest {
             }
 
             @Test
+            @DisplayName("SmartThings OAuth 408 응답을 재시도 가능한 502로 변환한다")
+            void it_maps_timeout_to_bad_gateway() {
+                var expiredToken = createExpiredToken();
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(expiredToken));
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.refreshToken(anyString(), anyString()))
+                        .willThrow(new SmartThingsApiException(408));
+
+                assertThatThrownBy(refreshSmartThingsTokenService::execute).isInstanceOf(ExpectedException.class)
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_GATEWAY));
+            }
+
+            @Test
+            @DisplayName("SmartThings OAuth 429 응답을 재시도 가능한 502로 변환한다")
+            void it_maps_rate_limit_to_bad_gateway() {
+                var expiredToken = createExpiredToken();
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(expiredToken));
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.refreshToken(anyString(), anyString()))
+                        .willThrow(new SmartThingsApiException(429));
+
+                assertThatThrownBy(refreshSmartThingsTokenService::execute).isInstanceOf(ExpectedException.class)
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.BAD_GATEWAY));
+            }
+
+            @Test
             @DisplayName("SmartThings OAuth 5xx 응답을 외부 연동 실패인 502로 변환한다")
             void it_maps_external_server_error_to_bad_gateway() {
                 var expiredToken = createExpiredToken();
