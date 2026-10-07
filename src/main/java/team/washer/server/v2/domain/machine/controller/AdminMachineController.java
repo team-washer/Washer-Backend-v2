@@ -71,6 +71,7 @@ public class AdminMachineController {
     @PostMapping("/{id}/force-stop")
     @Operation(summary = "기기 강제 정지", description = "동작 중인 세탁기 또는 건조기를 SmartThings 명령으로 즉시 정지하고 활성 예약을 패널티 없이 취소합니다")
     @ApiResponses({
+            @ApiResponse(responseCode = "409", description = "기기 종료 처리 진행 중", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class))),
             @ApiResponse(responseCode = "502", description = "SmartThings 명령 실패", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class))),
             @ApiResponse(responseCode = "503", description = "SmartThings 명령 재시도 필요", content = @Content(schema = @Schema(implementation = CommonErrorResponseResDto.class)))})
     public ForceStopMachineResDto forceStopMachine(@Parameter(description = "기기 ID") @PathVariable @NotNull Long id) {
