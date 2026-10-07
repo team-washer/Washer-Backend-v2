@@ -2,7 +2,9 @@ package team.washer.server.v2.domain.reservation.service.impl;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -45,6 +47,8 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 @Slf4j
 public class ProcessReservationLifecycleServiceImpl implements ProcessReservationLifecycleService {
 
+    public static final String LIFECYCLE_RUN_ID_MDC_KEY = "lifecycleRunId";
+
     private final ReservationLifecycleProcessor reservationLifecycleProcessor;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
     private final DeviceShutdownSupport deviceShutdownSupport;
@@ -56,12 +60,18 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
 
     @Override
     public void execute() {
-        processReservedToRunning();
+        MDC.put(LIFECYCLE_RUN_ID_MDC_KEY, UUID.randomUUID().toString());
+        try {
+            processReservedToRunning();
 
-        var runningTargets = reservationLifecycleProcessor.findRunningTargets();
-        longRunningReservationMonitor.retainOnly(runningTargets.stream().map(RunningTarget::reservationId).toList());
-        processRunningToCompleted(runningTargets);
-        reportLongRunningReservations(runningTargets);
+            var runningTargets = reservationLifecycleProcessor.findRunningTargets();
+            longRunningReservationMonitor
+                    .retainOnly(runningTargets.stream().map(RunningTarget::reservationId).toList());
+            processRunningToCompleted(runningTargets);
+            reportLongRunningReservations(runningTargets);
+        } finally {
+            MDC.remove(LIFECYCLE_RUN_ID_MDC_KEY);
+        }
     }
 
     private void processReservedToRunning() {
@@ -70,7 +80,10 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                 var status = deviceStatusQuerySupport.queryDeviceStatus(target.deviceId());
                 reservationLifecycleProcessor.processReservedToRunning(target.reservationId(), status);
             } catch (Exception e) {
-                log.error("Failed to process RESERVED reservation: {}", target.reservationId(), e);
+                log.error("lifecycle event=reserved_processing_failed reservationId={} errorType={} errorCode={}",
+                        target.reservationId(),
+                        e.getClass().getSimpleName(),
+                        getErrorCode(e));
             }
         }
     }
@@ -83,8 +96,12 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                 longRunningReservationMonitor.recordQuerySuccess(target.reservationId());
             } catch (Exception e) {
                 var failures = longRunningReservationMonitor.recordQueryFailure(target.reservationId());
-                log.warn("running reservation status query failed reservationId={} deviceId={} consecutiveFailures={} "
-                        + "reason={}", target.reservationId(), target.deviceId(), failures, e.getMessage());
+                log.warn(
+                        "lifecycle event=status_query_failed reservationId={} consecutiveFailures={} errorType={} errorCode={}",
+                        target.reservationId(),
+                        failures,
+                        e.getClass().getSimpleName(),
+                        getErrorCode(e));
                 continue;
             }
             try {
@@ -94,7 +111,10 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     return;
                 }
             } catch (Exception e) {
-                log.error("Failed to process RUNNING reservation: {}", target.reservationId(), e);
+                log.error("lifecycle event=running_processing_failed reservationId={} errorType={} errorCode={}",
+                        target.reservationId(),
+                        e.getClass().getSimpleName(),
+                        getErrorCode(e));
             }
         }
     }
@@ -111,7 +131,7 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         try {
             longRunningReservationMonitor.report(longRunningTargets, DateTimeUtil.nowInKorea());
         } catch (Exception e) {
-            log.error("long running reservation report failed", e);
+            log.error("lifecycle event=long_running_report_failed errorType={}", e.getClass().getSimpleName());
         }
     }
 
@@ -125,52 +145,55 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         final var claim = new MachineShutdownClaimSupport.ShutdownClaim(completedMachine.machineId(),
                 completedMachine.shutdownClaimToken());
         try {
-            deviceShutdownSupport.shutdownAfterCompletion(completedMachine.machineName(),
+            final var shutdownResult = deviceShutdownSupport.shutdownAfterCompletion(completedMachine.machineName(),
                     completedMachine.deviceId(),
                     completedMachine.isWasher(),
                     status,
                     () -> machineShutdownClaimSupport.beginCommand(claim));
-            releaseClaim(claim, completedMachine);
+            final var claimReleased = releaseClaim(claim, completedMachine);
+            log.info("lifecycle event=shutdown_after_completion machineId={} outcome={} claimReleased={}",
+                    completedMachine.machineId(),
+                    shutdownResult,
+                    claimReleased);
             return true;
         } catch (ErrorCodeException e) {
             if (e.getErrorCode() != ErrorCode.SMARTTHINGS_PERMISSION_DENIED) {
                 if (SmartThingsErrorMapper.shouldReleaseCommandClaim(e)) {
                     releaseClaim(claim, completedMachine);
                 }
-                log.error("power off after completion failed machine={} deviceId={} errorCode={}",
-                        completedMachine.machineName(),
-                        completedMachine.deviceId(),
-                        e.getErrorCode(),
-                        e);
+                log.error("lifecycle event=shutdown_after_completion machineId={} outcome=failed errorCode={}",
+                        completedMachine.machineId(),
+                        e.getErrorCode());
                 return true;
             }
-            log.warn(
-                    "power off after completion SmartThings permission error detected, stopping batch. machine={} deviceId={} reason={}",
-                    completedMachine.machineName(),
-                    completedMachine.deviceId(),
-                    e.getMessage());
+            log.warn("lifecycle event=shutdown_after_completion machineId={} outcome=permission_denied errorCode={}",
+                    completedMachine.machineId(),
+                    e.getErrorCode());
             releaseClaim(claim, completedMachine);
             notifyPermissionError(completedMachine, e);
             return false;
         } catch (Exception e) {
-            log.error("power off after completion failed machine={} deviceId={} reason={}",
-                    completedMachine.machineName(),
-                    completedMachine.deviceId(),
-                    e.getMessage());
+            log.error("lifecycle event=shutdown_after_completion machineId={} outcome=unknown errorType={}",
+                    completedMachine.machineId(),
+                    e.getClass().getSimpleName());
             return true;
         }
     }
 
-    private void releaseClaim(MachineShutdownClaimSupport.ShutdownClaim claim, CompletedMachine completedMachine) {
+    private boolean releaseClaim(MachineShutdownClaimSupport.ShutdownClaim claim, CompletedMachine completedMachine) {
         try {
             machineShutdownClaimSupport.release(claim);
+            return true;
         } catch (Exception e) {
-            log.error("failed to release shutdown claim machine={} deviceId={} reason={}",
-                    completedMachine.machineName(),
-                    completedMachine.deviceId(),
-                    e.getMessage(),
-                    e);
+            log.error("lifecycle event=shutdown_claim_release_failed machineId={} errorType={}",
+                    completedMachine.machineId(),
+                    e.getClass().getSimpleName());
+            return false;
         }
+    }
+
+    private static Object getErrorCode(Exception exception) {
+        return exception instanceof ErrorCodeException errorCodeException ? errorCodeException.getErrorCode() : "none";
     }
 
     private void notifyPermissionError(CompletedMachine completedMachine, ErrorCodeException e) {
