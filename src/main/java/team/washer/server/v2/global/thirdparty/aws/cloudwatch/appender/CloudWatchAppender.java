@@ -35,6 +35,8 @@ import team.washer.server.v2.global.common.trace.TraceIdFilter;
  */
 public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent> {
 
+    private static final String LIFECYCLE_RUN_ID_MDC_KEY = "lifecycleRunId";
+
     private static final int CLOUDWATCH_MAX_BATCH_BYTES = 1_048_576;
     private static final int CLOUDWATCH_EVENT_OVERHEAD_BYTES = 26;
 
@@ -243,9 +245,11 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
         final var traceId = mdcPropertyMap == null ? null : mdcPropertyMap.get(TraceIdFilter.MDC_KEY);
         final var method = mdcPropertyMap == null ? null : mdcPropertyMap.get(TraceIdFilter.HTTP_METHOD_MDC_KEY);
         final var path = mdcPropertyMap == null ? null : mdcPropertyMap.get(TraceIdFilter.REQUEST_PATH_MDC_KEY);
+        final var lifecycleRunId = mdcPropertyMap == null ? null : mdcPropertyMap.get(LIFECYCLE_RUN_ID_MDC_KEY);
         appendField(builder, TraceIdFilter.MDC_KEY, traceId);
         appendField(builder, TraceIdFilter.HTTP_METHOD_MDC_KEY, method);
         appendField(builder, TraceIdFilter.REQUEST_PATH_MDC_KEY, path);
+        appendField(builder, LIFECYCLE_RUN_ID_MDC_KEY, lifecycleRunId);
         appendField(builder, "message", event.getFormattedMessage(), maxMessageLength);
 
         if (event.getThrowableProxy() != null) {

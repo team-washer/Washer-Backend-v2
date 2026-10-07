@@ -40,7 +40,7 @@ class CloudWatchAppenderTest {
                     new IllegalStateException(
                             "root cause Authorization: Basic dXNlcjpwYXNz, password=\"correct horse battery staple\", "
                                     + "access_token=access-secret {\"refresh_token\":\"refresh-secret\"}"),
-                    Map.of(TraceIdFilter.MDC_KEY, "trace-123"));
+                    Map.of(TraceIdFilter.MDC_KEY, "trace-123", "lifecycleRunId", "lifecycle-run-123"));
 
             // When
             ReflectionTestUtils.invokeMethod(appender, "flushBatch", List.of(event));
@@ -51,11 +51,11 @@ class CloudWatchAppenderTest {
             final var message = requestCaptor.getValue().logEvents().getFirst().message();
             assertThat(message).contains("level=\"ERROR\"").contains("logger=\"test.Logger\"")
                     .contains("traceId=\"trace-123\"").contains("exceptionType=\"java.lang.IllegalStateException\"")
-                    .contains("root cause").doesNotContain("dXNlcjpwYXNz")
-                    .doesNotContain("correct horse battery staple").doesNotContain("access-secret")
-                    .doesNotContain("refresh-secret").contains("Authorization: [REDACTED]")
-                    .contains("password=\\\"[REDACTED]\\\"").contains("access_token=[REDACTED]")
-                    .contains("{\\\"refresh_token\\\":\\\"[REDACTED]\\\"}");
+                    .contains("lifecycleRunId=\"lifecycle-run-123\"").contains("root cause")
+                    .doesNotContain("dXNlcjpwYXNz").doesNotContain("correct horse battery staple")
+                    .doesNotContain("access-secret").doesNotContain("refresh-secret")
+                    .contains("Authorization: [REDACTED]").contains("password=\\\"[REDACTED]\\\"")
+                    .contains("access_token=[REDACTED]").contains("{\\\"refresh_token\\\":\\\"[REDACTED]\\\"}");
         }
 
         @Test
