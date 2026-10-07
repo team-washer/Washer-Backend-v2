@@ -94,7 +94,8 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                         skippedCount++;
                         continue;
                     }
-                    releaseClaim = true;
+                    releaseClaim = result != DeviceShutdownSupport.ShutdownResult.SKIPPED_UNKNOWN
+                            || !claim.get().hasUnresolvedCommand();
                     if (result == DeviceShutdownSupport.ShutdownResult.POWERED_OFF && isOperating) {
                         operatingPoweredOff.add(machine.getName());
                         log.warn("operating device without active reservation powered off machine={} deviceId={}",

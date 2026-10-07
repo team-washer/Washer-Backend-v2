@@ -23,7 +23,11 @@ public class MachineShutdownClaimSupport {
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
 
-    public record ShutdownClaim(Long machineId, String token) {
+    public record ShutdownClaim(Long machineId, String token, boolean hasUnresolvedCommand) {
+
+        public ShutdownClaim(final Long machineId, final String token) {
+            this(machineId, token, false);
+        }
     }
 
     /**
@@ -49,7 +53,7 @@ public class MachineShutdownClaimSupport {
             return claim;
         }
         if (machine.reclaimShutdownCommand()) {
-            return Optional.of(new ShutdownClaim(machine.getId(), machine.getShutdownClaimToken()));
+            return Optional.of(new ShutdownClaim(machine.getId(), machine.getShutdownClaimToken(), true));
         }
         return Optional.empty();
     }
