@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.auth.service.impl;
 
+import java.io.IOException;
 import java.util.regex.Pattern;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -11,8 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient;
 import team.themoment.datagsm.sdk.oauth.exception.BadRequestException;
 import team.themoment.datagsm.sdk.oauth.exception.DataGsmException;
-import team.themoment.datagsm.sdk.oauth.exception.RateLimitException;
-import team.themoment.datagsm.sdk.oauth.exception.ServerErrorException;
 import team.themoment.datagsm.sdk.oauth.exception.UnauthorizedException;
 import team.themoment.datagsm.sdk.oauth.model.Student;
 import team.themoment.datagsm.sdk.oauth.model.TokenResponse;
@@ -47,17 +46,24 @@ public class SignInServiceImpl implements SignInService {
     public TokenResDto execute(TokenReqDto reqDto) {
         final var pkce = reqDto.codeVerifier() != null;
         final var tokenResponse = exchangeCodeForToken(reqDto);
+        if (tokenResponse == null || tokenResponse.getAccessToken() == null) {
+            throw new ErrorCodeException(ErrorCode.SERVICE_UNAVAILABLE);
+        }
         final var accessToken = tokenResponse.getAccessToken();
         final Student oauthUser;
         try {
-            oauthUser = oauthClient.getUserInfo(accessToken).getStudent();
+            final var userInfo = oauthClient.getUserInfo(accessToken);
+            if (userInfo == null) {
+                throw new ErrorCodeException(ErrorCode.SERVICE_UNAVAILABLE);
+            }
+            oauthUser = userInfo.getStudent();
         } catch (BadRequestException | UnauthorizedException e) {
             logAuthenticationRejected("user_info", e, pkce);
             throw invalidAuthenticationException();
         } catch (DataGsmException e) {
             throw mapTransientAuthenticationFailure("user_info", e, pkce);
         }
-        if (oauthUser == null) {
+        if (oauthUser == null || oauthUser.getStudentNumber() == null) {
             throw new ExpectedException("학생정보가 없는 DataGSM 계정입니다.", HttpStatus.BAD_REQUEST);
         }
 
@@ -106,21 +112,33 @@ public class SignInServiceImpl implements SignInService {
     private static RuntimeException mapTransientAuthenticationFailure(final String operation,
             final DataGsmException exception,
             final boolean pkce) {
-        if (!isTransientAuthenticationFailure(exception)) {
-            return exception;
-        }
         final var status = exception.hasStatusCode() ? String.valueOf(exception.getStatusCode()) : "none";
-        log.warn("datagsm authentication temporarily unavailable operation={} exception={} status={} pkce={}",
+        final var cause = exception.getCause() == null ? "none" : exception.getCause().getClass().getSimpleName();
+        if (!isTransientAuthenticationFailure(exception)) {
+            log.error("datagsm authentication provider failure operation={} exception={} status={} cause={} pkce={}",
+                    operation,
+                    exception.getClass().getSimpleName(),
+                    status,
+                    cause,
+                    pkce);
+            return new ErrorCodeException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+        log.warn("datagsm authentication temporarily unavailable operation={} exception={} status={} cause={} pkce={}",
                 operation,
                 exception.getClass().getSimpleName(),
                 status,
+                cause,
                 pkce);
         return new ErrorCodeException(ErrorCode.SERVICE_UNAVAILABLE);
     }
 
     private static boolean isTransientAuthenticationFailure(final DataGsmException exception) {
-        return exception instanceof RateLimitException || exception instanceof ServerErrorException
-                || exception.getStatusCode() == HttpStatus.REQUEST_TIMEOUT.value() || !exception.hasStatusCode();
+        if (!exception.hasStatusCode()) {
+            return exception.getCause() instanceof IOException;
+        }
+        final var statusCode = exception.getStatusCode();
+        return statusCode == HttpStatus.REQUEST_TIMEOUT.value() || statusCode == HttpStatus.TOO_MANY_REQUESTS.value()
+                || statusCode >= HttpStatus.INTERNAL_SERVER_ERROR.value();
     }
 
     private static void logAuthenticationRejected(final String operation,

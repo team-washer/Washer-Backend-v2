@@ -339,20 +339,20 @@ class SignInServiceImplTest {
             }
 
             @Test
-            @DisplayName("403 응답은 기존처럼 일시 장애로 변환하지 않아야 한다")
-            void it_does_not_map_forbidden_to_service_unavailable() {
+            @DisplayName("403 응답 원문은 노출하지 않고 내부 오류로 변환해야 한다")
+            void it_maps_forbidden_to_internal_server_error() {
                 // Given
                 final var reqDto = createReqDto();
                 given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
                         .willThrow(new ForbiddenException("forbidden"));
 
                 // When & Then
-                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ForbiddenException.class);
+                assertInternalServerError(() -> signInService.execute(reqDto));
             }
 
             @Test
-            @DisplayName("404 응답은 기존처럼 일시 장애로 변환하지 않아야 한다")
-            void it_does_not_map_not_found_to_service_unavailable() {
+            @DisplayName("404 응답 원문은 노출하지 않고 내부 오류로 변환해야 한다")
+            void it_maps_not_found_to_internal_server_error() {
                 // Given
                 final var reqDto = createReqDto();
                 given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
@@ -361,7 +361,7 @@ class SignInServiceImplTest {
                 given(oauthClient.getUserInfo("oauth-access-token")).willThrow(new NotFoundException("not found"));
 
                 // When & Then
-                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(NotFoundException.class);
+                assertInternalServerError(() -> signInService.execute(reqDto));
             }
         }
 
@@ -408,6 +408,22 @@ class SignInServiceImplTest {
             }
 
             @Test
+            @DisplayName("PKCE 토큰 교환의 일반 5xx 응답을 SERVICE_UNAVAILABLE로 변환해야 한다")
+            void it_maps_pkce_token_exchange_unclassified_server_error_to_service_unavailable() {
+                // Given
+                final var codeVerifier = "A".repeat(43);
+                final var reqDto = createReqDto(codeVerifier);
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willThrow(new DataGsmException("provider server error", 521));
+
+                // When & Then
+                assertServiceUnavailable(() -> signInService.execute(reqDto));
+                then(oauthClient).should(times(1))
+                        .exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier);
+                then(oauthClient).should(never()).exchangeCodeForToken("auth-code-123", "https://example.com/callback");
+            }
+
+            @Test
             @DisplayName("사용자 정보 조회의 연결 실패는 SERVICE_UNAVAILABLE로 변환해야 한다")
             void it_maps_user_info_connection_failure_to_service_unavailable() {
                 // Given
@@ -432,6 +448,20 @@ class SignInServiceImplTest {
 
                 // When & Then
                 assertServiceUnavailable(() -> signInService.execute(reqDto));
+            }
+
+            @Test
+            @DisplayName("상태 코드 없는 파싱 오류는 일시 장애로 변환하지 않아야 한다")
+            void it_does_not_map_parse_failure_to_service_unavailable() {
+                // Given
+                final var reqDto = createReqDto();
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback")).willThrow(
+                        new DataGsmException("provider response", new IllegalArgumentException("parse failed")));
+
+                // When & Then
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ErrorCodeException.class)
+                        .extracting(exception -> ((ErrorCodeException) exception).getErrorCode())
+                        .isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR);
             }
 
             @Test
@@ -629,6 +659,13 @@ class SignInServiceImplTest {
                 final var errorCodeException = (ErrorCodeException) exception;
                 assertThat(errorCodeException.getErrorCode()).isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
                 assertThat(errorCodeException.getUserMessage()).isEqualTo(ErrorCode.SERVICE_UNAVAILABLE.getMessage());
+            });
+        }
+
+        private void assertInternalServerError(final ThrowingCallable callable) {
+            assertThatThrownBy(callable).isInstanceOf(ErrorCodeException.class).satisfies(exception -> {
+                final var errorCodeException = (ErrorCodeException) exception;
+                assertThat(errorCodeException.getErrorCode()).isEqualTo(ErrorCode.INTERNAL_SERVER_ERROR);
             });
         }
     }
