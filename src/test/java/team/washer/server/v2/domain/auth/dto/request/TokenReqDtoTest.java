@@ -106,21 +106,26 @@ class TokenReqDtoTest {
         @DisplayName("유효한 codeVerifier가 있을 때")
         class Context_with_valid_code_verifier {
 
-            @Test
+            @ParameterizedTest
+            @MethodSource("validCodeVerifiers")
             @DisplayName("원본 verifier를 서비스에 전달해야 한다")
-            void it_binds_pkce_login_json() throws Exception {
+            void it_binds_pkce_login_json(final String codeVerifier) throws Exception {
                 // Given
-                final var request = new TokenReqDto("auth-code-123",
-                        "https://example.com/callback",
-                        VALID_CODE_VERIFIER);
+                final var request = new TokenReqDto("auth-code-123", "https://example.com/callback", codeVerifier);
                 willReturn(new TokenResDto("access.token", 3600L, "refresh.token")).given(signInService)
                         .execute(request);
 
                 // When & Then
                 mockMvc.perform(post(LOGIN_PATH).contentType(MediaType.APPLICATION_JSON).content("""
                         {"authCode":"auth-code-123","redirectUri":"https://example.com/callback","codeVerifier":"%s"}
-                        """.formatted(VALID_CODE_VERIFIER))).andExpect(status().isOk());
+                        """.formatted(codeVerifier))).andExpect(status().isOk());
                 then(signInService).should().execute(request);
+            }
+
+            private static Stream<Arguments> validCodeVerifiers() {
+                return Stream.of(Arguments.of(VALID_CODE_VERIFIER),
+                        Arguments.of("A".repeat(128)),
+                        Arguments.of("A".repeat(39) + "-._~"));
             }
         }
 

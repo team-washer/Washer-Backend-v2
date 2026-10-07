@@ -160,12 +160,11 @@ class SignInServiceImplTest {
             void it_does_not_downgrade_non_null_verifier() {
                 // Given
                 final var reqDto = createReqDto("");
-                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", ""))
-                        .willThrow(new BadRequestException("invalid code verifier"));
 
                 // When & Then
-                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class);
-                then(oauthClient).should(never()).exchangeCodeForToken("auth-code-123", "https://example.com/callback");
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class).satisfies(
+                        e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+                then(oauthClient).shouldHaveNoInteractions();
             }
 
             @Test
@@ -187,7 +186,7 @@ class SignInServiceImplTest {
 
                     // Then
                     assertThat(appender.list).singleElement().satisfies(event -> {
-                        assertThat(event.getFormattedMessage()).contains("operation=token_exchange")
+                        assertThat(event.getFormattedMessage()).contains("operation=token_exchange", "pkce=true")
                                 .doesNotContain("auth-code-123", codeVerifier, "invalid code verifier");
                     });
                 } finally {
@@ -234,7 +233,7 @@ class SignInServiceImplTest {
 
                     // Then
                     assertThat(appender.list).singleElement().satisfies(event -> {
-                        assertThat(event.getFormattedMessage()).contains("operation=token_exchange")
+                        assertThat(event.getFormattedMessage()).contains("operation=token_exchange", "pkce=false")
                                 .doesNotContain("auth-code-123", "invalid authorization code");
                     });
                 } finally {
@@ -259,6 +258,40 @@ class SignInServiceImplTest {
                         .hasMessage("인증 정보가 올바르지 않습니다. 다시 로그인해 주세요.")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.UNAUTHORIZED));
+            }
+
+            @Test
+            @DisplayName("PKCE 사용자 정보 조회 거절 로그에는 PKCE 여부만 포함되어야 한다")
+            void it_logs_pkce_user_info_rejection_without_authentication_values() {
+                // Given
+                final var codeVerifier = "A".repeat(43);
+                final var reqDto = createReqDto(codeVerifier);
+                final var logger = (Logger) LoggerFactory.getLogger(SignInServiceImpl.class);
+                final var appender = new ListAppender<ILoggingEvent>();
+                appender.start();
+                logger.addAppender(appender);
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token"))
+                        .willThrow(new UnauthorizedException("invalid access token"));
+
+                try {
+                    // When
+                    assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class);
+
+                    // Then
+                    assertThat(appender.list).singleElement().satisfies(event -> {
+                        assertThat(event.getFormattedMessage()).contains("operation=user_info", "pkce=true")
+                                .doesNotContain("auth-code-123",
+                                        codeVerifier,
+                                        "oauth-access-token",
+                                        "invalid access token");
+                    });
+                } finally {
+                    logger.detachAppender(appender);
+                    appender.stop();
+                }
             }
         }
 
