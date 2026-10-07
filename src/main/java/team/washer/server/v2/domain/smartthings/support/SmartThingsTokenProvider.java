@@ -123,11 +123,11 @@ public class SmartThingsTokenProvider {
     }
 
     /**
-     * 거절된 토큰이 캐시에 남아 있을 때만 DB의 확정 토큰으로 교체한다.
+     * 거절된 토큰이 캐시에 남아 있거나 캐시와 DB 토큰이 같을 때만 DB의 확정 토큰으로 교체한다.
      *
      * <p>
-     * 401 처리에서는 만료 시각이 아니라 실제로 거절된 토큰을 기준으로 비교해야 한다. 다른 요청이 이미 새 토큰을 반영한 경우에는 그 값을
-     * 보존한다.
+     * 401 처리에서는 만료 시각이 아니라 실제로 거절된 토큰을 기준으로 비교해야 한다. 같은 토큰이면 DB의 단축된 만료 시각을 반영하고,
+     * 다른 요청이 이미 새 토큰을 반영한 경우에는 그 값을 보존한다.
      * </p>
      */
     private void replaceRejectedCachedToken(final String rejectedAccessToken, final CachedToken replacement) {
