@@ -74,7 +74,11 @@ class SignInServiceImplTest {
     private Student student;
 
     private TokenReqDto createReqDto() {
-        return new TokenReqDto("auth-code-123", "https://example.com/callback");
+        return createReqDto(null);
+    }
+
+    private TokenReqDto createReqDto(final String codeVerifier) {
+        return new TokenReqDto("auth-code-123", "https://example.com/callback", codeVerifier);
     }
 
     private User createUser() {
@@ -122,6 +126,113 @@ class SignInServiceImplTest {
         }
 
         @Nested
+        @DisplayName("유효한 PKCE code verifier로 기존 사용자가 로그인할 때")
+        class Context_with_pkce_code_verifier {
+
+            @Test
+            @DisplayName("원본 verifier로 3인자 토큰 교환만 수행해야 한다")
+            void it_exchanges_token_with_pkce_overload() {
+                // Given
+                final var codeVerifier = "A".repeat(43);
+                final var reqDto = createReqDto(codeVerifier);
+                final var expectedTokens = new TokenResDto("access.token", 3600L, "refresh.token");
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
+                given(userInfoResponse.getStudent()).willReturn(student);
+                given(student.getStudentNumber()).willReturn(20210001);
+                given(existingUserSignInSupport.generateIfExistingUser("20210001"))
+                        .willReturn(Optional.of(expectedTokens));
+
+                // When
+                final var result = signInService.execute(reqDto);
+
+                // Then
+                assertThat(result).isEqualTo(expectedTokens);
+                then(oauthClient).should(times(1))
+                        .exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier);
+                then(oauthClient).should(never()).exchangeCodeForToken("auth-code-123", "https://example.com/callback");
+            }
+
+            @Test
+            @DisplayName("PKCE 로그인 성공 로그에는 PKCE 여부만 포함되어야 한다")
+            void it_logs_pkce_success_without_authentication_values() {
+                // Given
+                final var codeVerifier = "A".repeat(43);
+                final var reqDto = createReqDto(codeVerifier);
+                final var expectedTokens = new TokenResDto("access.token", 3600L, "refresh.token");
+                final var logger = (Logger) LoggerFactory.getLogger(SignInServiceImpl.class);
+                final var appender = new ListAppender<ILoggingEvent>();
+                appender.start();
+                logger.addAppender(appender);
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
+                given(userInfoResponse.getStudent()).willReturn(student);
+                given(student.getStudentNumber()).willReturn(20210001);
+                given(existingUserSignInSupport.generateIfExistingUser("20210001"))
+                        .willReturn(Optional.of(expectedTokens));
+
+                try {
+                    // When
+                    final var result = signInService.execute(reqDto);
+
+                    // Then
+                    assertThat(result).isEqualTo(expectedTokens);
+                    assertThat(appender.list).singleElement().satisfies(event -> {
+                        assertThat(event.getFormattedMessage()).contains("pkce=true")
+                                .doesNotContain("auth-code-123", codeVerifier, "oauth-access-token");
+                    });
+                } finally {
+                    logger.detachAppender(appender);
+                    appender.stop();
+                }
+            }
+
+            @Test
+            @DisplayName("빈 verifier는 2인자 레거시 토큰 교환으로 fallback하지 않아야 한다")
+            void it_does_not_downgrade_non_null_verifier() {
+                // Given
+                final var reqDto = createReqDto("");
+
+                // When & Then
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class).satisfies(
+                        e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+                then(oauthClient).shouldHaveNoInteractions();
+            }
+
+            @Test
+            @DisplayName("PKCE 토큰 교환 거부 로그에 verifier와 인증 코드가 없어야 한다")
+            void it_logs_pkce_rejection_without_authentication_values() {
+                // Given
+                final var codeVerifier = "A".repeat(43);
+                final var reqDto = createReqDto(codeVerifier);
+                final var logger = (Logger) LoggerFactory.getLogger(SignInServiceImpl.class);
+                final var appender = new ListAppender<ILoggingEvent>();
+                appender.start();
+                logger.addAppender(appender);
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willThrow(new UnauthorizedException("invalid code verifier"));
+
+                try {
+                    // When
+                    assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class);
+
+                    // Then
+                    assertThat(appender.list).singleElement().satisfies(event -> {
+                        assertThat(event.getFormattedMessage()).contains("operation=token_exchange", "pkce=true")
+                                .doesNotContain("auth-code-123", codeVerifier, "invalid code verifier");
+                    });
+                } finally {
+                    logger.detachAppender(appender);
+                    appender.stop();
+                }
+            }
+        }
+
+        @Nested
         @DisplayName("DataGSM 인증 정보가 유효하지 않을 때")
         class Context_with_invalid_datagsm_authentication {
 
@@ -158,7 +269,7 @@ class SignInServiceImplTest {
 
                     // Then
                     assertThat(appender.list).singleElement().satisfies(event -> {
-                        assertThat(event.getFormattedMessage()).contains("operation=token_exchange")
+                        assertThat(event.getFormattedMessage()).contains("operation=token_exchange", "pkce=false")
                                 .doesNotContain("auth-code-123", "invalid authorization code");
                     });
                 } finally {
@@ -183,6 +294,40 @@ class SignInServiceImplTest {
                         .hasMessage("인증 정보가 올바르지 않습니다. 다시 로그인해 주세요.")
                         .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
                                 .isEqualTo(HttpStatus.UNAUTHORIZED));
+            }
+
+            @Test
+            @DisplayName("PKCE 사용자 정보 조회 거절 로그에는 PKCE 여부만 포함되어야 한다")
+            void it_logs_pkce_user_info_rejection_without_authentication_values() {
+                // Given
+                final var codeVerifier = "A".repeat(43);
+                final var reqDto = createReqDto(codeVerifier);
+                final var logger = (Logger) LoggerFactory.getLogger(SignInServiceImpl.class);
+                final var appender = new ListAppender<ILoggingEvent>();
+                appender.start();
+                logger.addAppender(appender);
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token"))
+                        .willThrow(new UnauthorizedException("invalid access token"));
+
+                try {
+                    // When
+                    assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class);
+
+                    // Then
+                    assertThat(appender.list).singleElement().satisfies(event -> {
+                        assertThat(event.getFormattedMessage()).contains("operation=user_info", "pkce=true")
+                                .doesNotContain("auth-code-123",
+                                        codeVerifier,
+                                        "oauth-access-token",
+                                        "invalid access token");
+                    });
+                } finally {
+                    logger.detachAppender(appender);
+                    appender.stop();
+                }
             }
         }
 

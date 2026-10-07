@@ -84,7 +84,7 @@ repository/  entity/  dto/request/  dto/response/  enums/  support/
 
 ```
 1. 앱이 DataGSM(학교 계정 서비스)에서 받은 인증코드를 보냄
-      POST /api/v2/auth/login  { authCode, redirectUri }
+      POST /api/v2/auth/login  { authCode, redirectUri, codeVerifier? }
                 ↓
 2. 서버가 DataGSM에 그 코드를 주고 "이 학생 누구야?" 물어봄
       → 학번, 이름, 학년, 호실 정보를 받음

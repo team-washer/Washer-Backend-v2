@@ -1,5 +1,7 @@
 package team.washer.server.v2.domain.auth.service.impl;
 
+import java.util.regex.Pattern;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,8 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 @AllArgsConstructor
 @Slf4j
 public class SignInServiceImpl implements SignInService {
+    private static final Pattern CODE_VERIFIER_PATTERN = Pattern.compile(TokenReqDto.CODE_VERIFIER_REGEX);
+
     private final DataGsmOAuthClient oauthClient;
     private final UserRegistrationSupport userRegistrationSupport;
     private final ExistingUserSignInSupport existingUserSignInSupport;
@@ -38,18 +42,21 @@ public class SignInServiceImpl implements SignInService {
 
     @Override
     public TokenResDto execute(TokenReqDto reqDto) {
+        final var pkce = reqDto.codeVerifier() != null;
         final var tokenResponse = exchangeCodeForToken(reqDto);
         final var accessToken = tokenResponse.getAccessToken();
         final Student oauthUser;
         try {
             oauthUser = oauthClient.getUserInfo(accessToken).getStudent();
         } catch (BadRequestException | UnauthorizedException e) {
-            logAuthenticationRejected("user_info", e);
+            logAuthenticationRejected("user_info", e, pkce);
             throw invalidAuthenticationException();
         }
         if (oauthUser == null) {
             throw new ExpectedException("학생정보가 없는 DataGSM 계정입니다.", HttpStatus.BAD_REQUEST);
         }
+
+        logAuthenticationSucceeded(pkce);
 
         final String studentId = oauthUser.getStudentNumber().toString();
         final var existingUserTokens = existingUserSignInSupport.generateIfExistingUser(studentId);
@@ -74,18 +81,32 @@ public class SignInServiceImpl implements SignInService {
     }
 
     private TokenResponse exchangeCodeForToken(final TokenReqDto reqDto) {
+        final var codeVerifier = reqDto.codeVerifier();
+        if (codeVerifier != null && !CODE_VERIFIER_PATTERN.matcher(codeVerifier).matches()) {
+            throw new ExpectedException(TokenReqDto.CODE_VERIFIER_FORMAT_MESSAGE, HttpStatus.BAD_REQUEST);
+        }
         try {
+            if (codeVerifier != null) {
+                return oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri(), codeVerifier);
+            }
             return oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri());
         } catch (BadRequestException | UnauthorizedException e) {
-            logAuthenticationRejected("token_exchange", e);
+            logAuthenticationRejected("token_exchange", e, codeVerifier != null);
             throw invalidAuthenticationException();
         }
     }
 
-    private static void logAuthenticationRejected(final String operation, final Exception exception) {
-        log.warn("datagsm authentication rejected operation={} exception={}",
+    private static void logAuthenticationRejected(final String operation,
+            final Exception exception,
+            final boolean pkce) {
+        log.warn("datagsm authentication rejected operation={} exception={} pkce={}",
                 operation,
-                exception.getClass().getSimpleName());
+                exception.getClass().getSimpleName(),
+                pkce);
+    }
+
+    private static void logAuthenticationSucceeded(final boolean pkce) {
+        log.info("datagsm authentication succeeded pkce={}", pkce);
     }
 
     private static ExpectedException invalidAuthenticationException() {
