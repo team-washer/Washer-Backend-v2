@@ -79,6 +79,7 @@ public class SmartThingsTokenProvider {
 
         token.invalidateAccessToken();
         clearCachedToken(rejectedAccessToken);
+        clearRejectedTokenAfterCommit(rejectedAccessToken);
         log.warn("smartthings access token invalidated after upstream rejection");
     }
 
@@ -107,6 +108,20 @@ public class SmartThingsTokenProvider {
                 cached -> cached != null && cached.accessToken().equals(rejectedAccessToken) ? null : cached);
     }
 
+    private void clearRejectedTokenAfterCommit(final String rejectedAccessToken) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+
+            @Override
+            public void afterCommit() {
+                clearCachedToken(rejectedAccessToken);
+            }
+        });
+    }
+
     /**
      * 거절된 토큰이 캐시에 남아 있을 때만 DB의 확정 토큰으로 교체한다.
      *
@@ -116,8 +131,8 @@ public class SmartThingsTokenProvider {
      * </p>
      */
     private void replaceRejectedCachedToken(final String rejectedAccessToken, final CachedToken replacement) {
-        cache.updateAndGet(
-                cached -> cached == null || cached.accessToken().equals(rejectedAccessToken) ? replacement : cached);
+        cache.updateAndGet(cached -> cached == null || cached.accessToken().equals(rejectedAccessToken)
+                || cached.accessToken().equals(replacement.accessToken()) ? replacement : cached);
     }
 
     private record CachedToken(String accessToken, LocalDateTime expiresAt) {

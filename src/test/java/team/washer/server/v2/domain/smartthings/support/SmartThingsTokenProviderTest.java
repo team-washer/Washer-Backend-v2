@@ -183,6 +183,30 @@ class SmartThingsTokenProviderTest {
         }
 
         @Test
+        @DisplayName("커밋 전에 다시 게시된 거절 토큰도 커밋 뒤 캐시에서 제거한다")
+        void clears_rejected_token_republished_before_commit() throws Exception {
+            // Given
+            final var rejectedToken = token("rejected-access");
+            final var databaseToken = token("rejected-access");
+            smartThingsTokenProvider.refresh(rejectedToken);
+            given(tokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(databaseToken));
+            given(tokenRepository.findSingletonToken()).willReturn(Optional.of(databaseToken));
+            beginTransaction();
+
+            // When
+            smartThingsTokenProvider.invalidate("rejected-access");
+            try (var executor = Executors.newSingleThreadExecutor()) {
+                executor.submit(() -> smartThingsTokenProvider.refresh(rejectedToken)).get(5, TimeUnit.SECONDS);
+            }
+            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+
+            // Then
+            assertThatThrownBy(smartThingsTokenProvider::getValidAccessToken).isInstanceOf(ErrorCodeException.class)
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.SMARTTHINGS_TOKEN_INVALID));
+        }
+
+        @Test
         @DisplayName("다른 인스턴스가 갱신한 최신 토큰은 과거 401 응답으로 무효화하지 않는다")
         void preserves_newer_token_after_stale_rejection() {
             final var currentToken = token("new-access");
@@ -222,7 +246,7 @@ class SmartThingsTokenProviderTest {
             final var barrier = new CyclicBarrier(2);
             smartThingsTokenProvider.refresh(rejectedToken);
             given(tokenRepository.findSingletonTokenWithLock()).willAnswer(invocation -> {
-                barrier.await();
+                barrier.await(5, TimeUnit.SECONDS);
                 return Optional.of(replacementToken);
             });
 
@@ -231,8 +255,8 @@ class SmartThingsTokenProviderTest {
                 final var first = executor.submit(() -> smartThingsTokenProvider.invalidate("rejected-access"));
                 final var second = executor.submit(() -> smartThingsTokenProvider.invalidate("rejected-access"));
 
-                first.get();
-                second.get();
+                first.get(5, TimeUnit.SECONDS);
+                second.get(5, TimeUnit.SECONDS);
             }
 
             // Then
@@ -298,7 +322,7 @@ class SmartThingsTokenProviderTest {
             given(tokenRepository.findSingletonToken()).willReturn(Optional.of(invalidatedToken));
 
             // When
-            smartThingsTokenProvider.invalidate("new-access");
+            smartThingsTokenProvider.invalidate("old-access");
 
             // Then
             assertThatThrownBy(smartThingsTokenProvider::getValidAccessToken).isInstanceOf(ErrorCodeException.class)
