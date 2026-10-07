@@ -71,7 +71,18 @@ public class MachineShutdownClaimSupport {
      */
     @Transactional
     public Optional<ShutdownClaim> claimForForceStop(final Long machineId) {
-        return machineRepository.findByIdForUpdate(machineId).flatMap(this::claimLockedMachine);
+        final var machine = machineRepository.findByIdForUpdate(machineId).orElse(null);
+        if (machine == null) {
+            return Optional.empty();
+        }
+        final var claim = claimLockedMachine(machine);
+        if (claim.isPresent()) {
+            return claim;
+        }
+        if (machine.reclaimShutdownCommand()) {
+            return Optional.of(new ShutdownClaim(machine.getId(), machine.getShutdownClaimToken(), true));
+        }
+        return Optional.empty();
     }
 
     /**
