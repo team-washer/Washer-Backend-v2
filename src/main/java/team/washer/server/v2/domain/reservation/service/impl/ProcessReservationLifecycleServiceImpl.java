@@ -80,9 +80,10 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                 var status = deviceStatusQuerySupport.queryDeviceStatus(target.deviceId());
                 reservationLifecycleProcessor.processReservedToRunning(target.reservationId(), status);
             } catch (Exception e) {
-                log.error("lifecycle event=reserved_processing_failed reservationId={} errorType={}",
+                log.error("lifecycle event=reserved_processing_failed reservationId={} errorType={} errorCode={}",
                         target.reservationId(),
-                        e.getClass().getSimpleName());
+                        e.getClass().getSimpleName(),
+                        getErrorCode(e));
             }
         }
     }
@@ -95,10 +96,12 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                 longRunningReservationMonitor.recordQuerySuccess(target.reservationId());
             } catch (Exception e) {
                 var failures = longRunningReservationMonitor.recordQueryFailure(target.reservationId());
-                log.warn("lifecycle event=status_query_failed reservationId={} consecutiveFailures={} errorType={}",
+                log.warn(
+                        "lifecycle event=status_query_failed reservationId={} consecutiveFailures={} errorType={} errorCode={}",
                         target.reservationId(),
                         failures,
-                        e.getClass().getSimpleName());
+                        e.getClass().getSimpleName(),
+                        getErrorCode(e));
                 continue;
             }
             try {
@@ -108,9 +111,10 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
                     return;
                 }
             } catch (Exception e) {
-                log.error("lifecycle event=running_processing_failed reservationId={} errorType={}",
+                log.error("lifecycle event=running_processing_failed reservationId={} errorType={} errorCode={}",
                         target.reservationId(),
-                        e.getClass().getSimpleName());
+                        e.getClass().getSimpleName(),
+                        getErrorCode(e));
             }
         }
     }
@@ -141,14 +145,16 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         final var claim = new MachineShutdownClaimSupport.ShutdownClaim(completedMachine.machineId(),
                 completedMachine.shutdownClaimToken());
         try {
-            deviceShutdownSupport.shutdownAfterCompletion(completedMachine.machineName(),
+            final var shutdownResult = deviceShutdownSupport.shutdownAfterCompletion(completedMachine.machineName(),
                     completedMachine.deviceId(),
                     completedMachine.isWasher(),
                     status,
                     () -> machineShutdownClaimSupport.beginCommand(claim));
-            releaseClaim(claim, completedMachine);
-            log.info("lifecycle event=shutdown_after_completion machineId={} outcome=completed claimReleased=true",
-                    completedMachine.machineId());
+            final var claimReleased = releaseClaim(claim, completedMachine);
+            log.info("lifecycle event=shutdown_after_completion machineId={} outcome={} claimReleased={}",
+                    completedMachine.machineId(),
+                    shutdownResult,
+                    claimReleased);
             return true;
         } catch (ErrorCodeException e) {
             if (e.getErrorCode() != ErrorCode.SMARTTHINGS_PERMISSION_DENIED) {
@@ -174,14 +180,20 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
         }
     }
 
-    private void releaseClaim(MachineShutdownClaimSupport.ShutdownClaim claim, CompletedMachine completedMachine) {
+    private boolean releaseClaim(MachineShutdownClaimSupport.ShutdownClaim claim, CompletedMachine completedMachine) {
         try {
             machineShutdownClaimSupport.release(claim);
+            return true;
         } catch (Exception e) {
             log.error("lifecycle event=shutdown_claim_release_failed machineId={} errorType={}",
                     completedMachine.machineId(),
                     e.getClass().getSimpleName());
+            return false;
         }
+    }
+
+    private static Object getErrorCode(Exception exception) {
+        return exception instanceof ErrorCodeException errorCodeException ? errorCodeException.getErrorCode() : "none";
     }
 
     private void notifyPermissionError(CompletedMachine completedMachine, ErrorCodeException e) {

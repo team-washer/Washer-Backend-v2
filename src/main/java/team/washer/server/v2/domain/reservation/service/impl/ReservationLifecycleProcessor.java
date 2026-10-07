@@ -227,7 +227,7 @@ public class ReservationLifecycleProcessor {
             return Optional.empty();
         }
         if (machineStateDetectionSupport.isPaused(status, isWasher)) {
-            processPaused(reservation, machine);
+            processPaused(reservation, machine, status, isWasher, interruptionCountBefore);
             return Optional.empty();
         }
         processRunning(reservation, machine, status, isWasher, interruptionCountBefore);
@@ -281,14 +281,34 @@ public class ReservationLifecycleProcessor {
                 reservation.getId());
     }
 
-    private void processPaused(Reservation reservation, Machine machine) {
+    private void processPaused(Reservation reservation,
+            Machine machine,
+            SmartThingsDeviceStatusResDto status,
+            boolean isWasher,
+            int interruptionCountBefore) {
         if (reservation.getInterruptionCount() > 0) {
             reservation.clearInterruptionCount();
             reservationRepository.save(reservation);
+            logLifecycleEvent("interruption_count_reset",
+                    reservation,
+                    machine,
+                    status,
+                    isWasher,
+                    "paused_state_observed",
+                    interruptionCountBefore,
+                    0);
         }
         if (reservation.getPausedAt() == null) {
             reservation.markAsPaused();
             reservationRepository.save(reservation);
+            logLifecycleEvent("pause_started",
+                    reservation,
+                    machine,
+                    status,
+                    isWasher,
+                    "paused_state_observed",
+                    interruptionCountBefore,
+                    reservation.getInterruptionCount());
             log.info("Reservation {} pause started, tracking pause time", reservation.getId());
             return;
         }
@@ -304,6 +324,15 @@ public class ReservationLifecycleProcessor {
         machineRepository.save(machine);
 
         reservationNotificationSupport.sendPauseTimeout(reservation.getUser(), machine);
+
+        logLifecycleEvent("reservation_cancelled",
+                reservation,
+                machine,
+                status,
+                isWasher,
+                "pause_timeout",
+                interruptionCountBefore,
+                reservation.getInterruptionCount());
 
         log.warn("Reservation {} cancelled due to prolonged pause ({}min+), no penalty applied (RUNNING → CANCELLED)",
                 reservation.getId(),
@@ -328,7 +357,9 @@ public class ReservationLifecycleProcessor {
                     machine,
                     status,
                     isWasher,
-                    "running_state_observed",
+                    status != null && status.getOperatingState(isWasher) == MachineOperatingState.UNKNOWN
+                            ? "unknown_state_observed"
+                            : "running_state_observed",
                     interruptionCountBefore,
                     0);
         }
@@ -432,11 +463,10 @@ public class ReservationLifecycleProcessor {
             String decisionReason,
             int interruptionCountBefore,
             int interruptionCountAfter) {
-        log.info(
-                "lifecycle event={} reservationId={} machineId={} machineType={} reservationStatus={} switchState={} "
-                        + "machineState={} machineStateTimestamp={} jobState={} jobStateTimestamp={} completionTime={} "
-                        + "reservationStartedAt={} expectedCompletionTime={} interruptionCountBefore={} "
-                        + "interruptionCountAfter={} shutdownClaimed={} shutdownCommandStartedAt={} decisionReason={}",
+        log.info("lifecycle event={} reservationId={} machineId={} machineType={} reservationStatus={} switchState={} "
+                + "machineState={} machineStateTimestamp={} jobState={} jobStateTimestamp={} reportedCompletionTime={} "
+                + "reservationStartedAt={} expectedCompletionTime={} interruptionCountBefore={} "
+                + "interruptionCountAfter={} shutdownClaimed={} shutdownCommandStartedAt={} decisionReason={}",
                 event,
                 reservation.getId(),
                 machine.getId(),
@@ -452,7 +482,7 @@ public class ReservationLifecycleProcessor {
                 reservation.getExpectedCompletionTime(),
                 interruptionCountBefore,
                 interruptionCountAfter,
-                machine.getShutdownClaimToken() != null,
+                machine.hasActiveShutdownClaim(),
                 machine.getShutdownCommandStartedAt(),
                 decisionReason);
     }

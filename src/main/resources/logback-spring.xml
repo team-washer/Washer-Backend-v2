@@ -8,7 +8,7 @@
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
             <layout class="team.washer.server.v2.global.common.logging.SensitiveLogMaskingLayout">
-                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId:-}] [%X{httpMethod:-}] [%X{requestPath:-}] %-5level %logger{36} - %msg%n</pattern>
+                <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId:-}] [%X{httpMethod:-}] [%X{requestPath:-}] [%X{lifecycleRunId:-}] %-5level %logger{36} - %msg%n</pattern>
             </layout>
         </encoder>
     </appender>
