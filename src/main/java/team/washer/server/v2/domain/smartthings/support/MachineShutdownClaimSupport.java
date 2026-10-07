@@ -23,7 +23,11 @@ public class MachineShutdownClaimSupport {
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
 
-    public record ShutdownClaim(Long machineId, String token) {
+    public record ShutdownClaim(Long machineId, String token, boolean hasUnresolvedCommand) {
+
+        public ShutdownClaim(final Long machineId, final String token) {
+            this(machineId, token, false);
+        }
     }
 
     /**
@@ -49,7 +53,7 @@ public class MachineShutdownClaimSupport {
             return claim;
         }
         if (machine.reclaimShutdownCommand()) {
-            return Optional.of(new ShutdownClaim(machine.getId(), machine.getShutdownClaimToken()));
+            return Optional.of(new ShutdownClaim(machine.getId(), machine.getShutdownClaimToken(), true));
         }
         return Optional.empty();
     }
@@ -77,14 +81,6 @@ public class MachineShutdownClaimSupport {
     public boolean beginCommand(final ShutdownClaim claim) {
         return machineRepository.findByIdForUpdate(claim.machineId())
                 .map(machine -> machine.beginShutdownCommand(claim.token())).orElse(false);
-    }
-
-    /** 복구한 claim에 이전 외부 명령의 미확정 결과가 남아 있는지 확인합니다. */
-    @Transactional(readOnly = true)
-    public boolean hasUnresolvedCommand(final ShutdownClaim claim) {
-        return machineRepository.findById(claim.machineId()).map(
-                machine -> machine.ownsActiveShutdownClaim(claim.token()) && machine.hasUnresolvedShutdownCommand())
-                .orElse(false);
     }
 
     /** 외부 호출이 끝난 뒤 같은 세대의 claim만 해제합니다. */

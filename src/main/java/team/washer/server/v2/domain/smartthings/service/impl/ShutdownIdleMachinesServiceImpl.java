@@ -86,7 +86,6 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                     skippedCount++;
                     continue;
                 }
-                var hasUnresolvedCommand = machineShutdownClaimSupport.hasUnresolvedCommand(claim.get());
                 var releaseClaim = false;
                 try {
                     var result = deviceShutdownSupport
@@ -96,7 +95,7 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                         continue;
                     }
                     releaseClaim = result != DeviceShutdownSupport.ShutdownResult.SKIPPED_UNKNOWN
-                            || !hasUnresolvedCommand;
+                            || !claim.get().hasUnresolvedCommand();
                     if (result == DeviceShutdownSupport.ShutdownResult.POWERED_OFF && isOperating) {
                         operatingPoweredOff.add(machine.getName());
                         log.warn("operating device without active reservation powered off machine={} deviceId={}",

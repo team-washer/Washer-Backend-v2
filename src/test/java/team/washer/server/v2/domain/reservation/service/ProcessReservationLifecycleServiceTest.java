@@ -128,8 +128,8 @@ class ProcessReservationLifecycleServiceTest {
     }
 
     @Test
-    @DisplayName("UNKNOWN 결과에서는 종료 claim을 유지한다")
-    void execute_ShouldKeepClaim_WhenShutdownResultIsUnknown() {
+    @DisplayName("UNKNOWN 결과여도 신규 종료 claim은 해제한다")
+    void execute_ShouldReleaseClaim_WhenShutdownResultIsUnknown() {
         // Given
         var runningStatus = buildDeviceStatus("2026-01-26T16:00:00Z");
         when(reservationLifecycleProcessor.findReservedTargets()).thenReturn(List.of());

@@ -305,9 +305,8 @@ class ShutdownIdleMachinesServiceTest {
                 // Given
                 var machine = createMachine(1L, "W-2F-L1", "device-1");
                 givenSingleIdleMachine(machine);
-                var recoveredClaim = new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token");
+                var recoveredClaim = new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token", true);
                 given(machineShutdownClaimSupport.claimIdleMachine(1L)).willReturn(Optional.of(recoveredClaim));
-                given(machineShutdownClaimSupport.hasUnresolvedCommand(recoveredClaim)).willReturn(true);
                 given(deviceShutdownSupport.shutdown(eq(machine), eq(EMPTY_STATUS), any()))
                         .willReturn(ShutdownResult.SKIPPED_UNKNOWN);
 
@@ -327,7 +326,6 @@ class ShutdownIdleMachinesServiceTest {
                 givenSingleIdleMachine(machine);
                 var newClaim = new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token");
                 given(machineShutdownClaimSupport.claimIdleMachine(1L)).willReturn(Optional.of(newClaim));
-                given(machineShutdownClaimSupport.hasUnresolvedCommand(newClaim)).willReturn(false);
                 given(deviceShutdownSupport.shutdown(eq(machine), eq(EMPTY_STATUS), any()))
                         .willReturn(ShutdownResult.SKIPPED_UNKNOWN);
 
