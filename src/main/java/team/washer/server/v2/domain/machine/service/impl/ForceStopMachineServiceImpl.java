@@ -26,6 +26,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
@@ -39,40 +40,55 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
     private final SendDeviceCommandService sendDeviceCommandService;
     private final ReservationNotificationSupport reservationNotificationSupport;
+    private final MachineShutdownClaimSupport machineShutdownClaimSupport;
     private final TransactionTemplate transactionTemplate;
 
     @Override
     public ForceStopMachineResDto execute(Long machineId) {
         final var machine = machineRepository.findById(machineId)
                 .orElseThrow(() -> new ErrorCodeException(ErrorCode.MACHINE_NOT_FOUND));
-        final var status = deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
-        final var previousMachineState = status.getOperatingState(machine.isWasher());
-        final var forceStopResult = forceStop(machine, status, previousMachineState);
-        final var updateResult = updateMachineAndReservation(machineId, forceStopResult);
+        final var shutdownClaim = machineShutdownClaimSupport.claimForForceStop(machineId)
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.MACHINE_SHUTDOWN_IN_PROGRESS));
+        var commandStarted = false;
 
-        log.info("machine force stop processed machineId={} deviceId={} result={} cancelledReservationId={}",
-                updateResult.machineId(),
-                updateResult.deviceId(),
-                forceStopResult,
-                updateResult.cancelledReservationId());
+        try {
+            final var status = deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
+            final var previousMachineState = status.getOperatingState(machine.isWasher());
+            final var forceStopResult = determineForceStopResult(status, previousMachineState);
+            if (forceStopResult == ForceStopResult.STOPPED) {
+                if (!machineShutdownClaimSupport.beginCommand(shutdownClaim)) {
+                    throw new ErrorCodeException(ErrorCode.MACHINE_SHUTDOWN_IN_PROGRESS);
+                }
+                commandStarted = true;
+                sendStopCommand(machine);
+            }
+            final var updateResult = updateMachineAndReservation(machineId, forceStopResult, shutdownClaim);
 
-        return new ForceStopMachineResDto(updateResult.machineId(),
-                updateResult.machineName(),
-                updateResult.machineType(),
-                updateResult.deviceId(),
-                forceStopResult,
-                previousMachineState,
-                updateResult.cancelledReservationId(),
-                updateResult.cancelledReservationId() != null,
-                updateResult.availability());
+            log.info("machine force stop processed machineId={} deviceId={} result={} cancelledReservationId={}",
+                    updateResult.machineId(),
+                    updateResult.deviceId(),
+                    forceStopResult,
+                    updateResult.cancelledReservationId());
+
+            return new ForceStopMachineResDto(updateResult.machineId(),
+                    updateResult.machineName(),
+                    updateResult.machineType(),
+                    updateResult.deviceId(),
+                    forceStopResult,
+                    previousMachineState,
+                    updateResult.cancelledReservationId(),
+                    updateResult.cancelledReservationId() != null,
+                    updateResult.availability());
+        } catch (Exception e) {
+            if (!commandStarted) {
+                machineShutdownClaimSupport.release(shutdownClaim);
+            }
+            throw e;
+        }
     }
 
-    private ForceStopResult forceStop(Machine machine,
-            SmartThingsDeviceStatusResDto status,
+    private ForceStopResult determineForceStopResult(SmartThingsDeviceStatusResDto status,
             MachineOperatingState machineState) {
-        if (!machine.isWasher() && !machine.isDryer()) {
-            throw new ErrorCodeException(ErrorCode.MACHINE_UNAVAILABLE);
-        }
         if (status.isSwitchOff() || machineState == MachineOperatingState.STOP) {
             return ForceStopResult.ALREADY_STOPPED;
         }
@@ -80,15 +96,23 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
             throw new ErrorCodeException(ErrorCode.SMARTTHINGS_RESPONSE_INVALID);
         }
 
-        if (machine.isWasher()) {
-            sendDeviceCommandService.execute(machine.getDeviceId(), SmartThingsCommandReqDto.stopWasher());
-            return ForceStopResult.STOPPED;
-        }
-        sendDeviceCommandService.execute(machine.getDeviceId(), SmartThingsCommandReqDto.stopDryer());
         return ForceStopResult.STOPPED;
     }
 
-    private UpdateResult updateMachineAndReservation(Long machineId, ForceStopResult forceStopResult) {
+    private void sendStopCommand(Machine machine) {
+        if (!machine.isWasher() && !machine.isDryer()) {
+            throw new ErrorCodeException(ErrorCode.MACHINE_UNAVAILABLE);
+        }
+        if (machine.isWasher()) {
+            sendDeviceCommandService.execute(machine.getDeviceId(), SmartThingsCommandReqDto.stopWasher());
+            return;
+        }
+        sendDeviceCommandService.execute(machine.getDeviceId(), SmartThingsCommandReqDto.stopDryer());
+    }
+
+    private UpdateResult updateMachineAndReservation(Long machineId,
+            ForceStopResult forceStopResult,
+            MachineShutdownClaimSupport.ShutdownClaim shutdownClaim) {
         return transactionTemplate.execute(status -> {
             final var machine = machineRepository.findByIdForUpdate(machineId)
                     .orElseThrow(() -> new ErrorCodeException(ErrorCode.MACHINE_NOT_FOUND));
@@ -98,6 +122,7 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
 
             syncMachineAvailability(machine, activeReservation.orElse(null), cancelledReservationId != null);
             final var savedMachine = machineRepository.save(machine);
+            machineShutdownClaimSupport.release(shutdownClaim);
 
             return new UpdateResult(savedMachine.getId(),
                     savedMachine.getName(),
