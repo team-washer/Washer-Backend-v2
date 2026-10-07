@@ -262,17 +262,34 @@ public class Machine extends BaseEntity {
 
     /** 외부 전원 차단 명령을 시작해 claim 만료로부터 보호되는 상태로 전환한다. */
     public boolean beginShutdownCommand(final String claimToken) {
-        if (!ownsActiveShutdownClaim(claimToken) || this.shutdownCommandStartedAt != null) {
+        if (!ownsActiveShutdownClaim(claimToken)
+                || (this.shutdownCommandStartedAt != null && !isReclaimedShutdownCommandClaim())) {
             return false;
         }
         this.shutdownCommandStartedAt = DateTimeUtil.nowInKorea();
         return true;
     }
 
+    /** 미확정 명령을 재점유한 claim인지 확인합니다. */
+    private boolean isReclaimedShutdownCommandClaim() {
+        return this.shutdownCommandStartedAt != null && this.shutdownClaimedAt != null
+                && this.shutdownCommandStartedAt.isBefore(this.shutdownClaimedAt);
+    }
+
+    /** 현재 claim에 외부 결과가 아직 확인되지 않은 전원 차단 명령이 있는지 확인합니다. */
+    public boolean hasUnresolvedShutdownCommand() {
+        return this.shutdownInProgress && this.shutdownCommandStartedAt != null;
+    }
+
     /** 외부 명령 결과가 확인되지 않은 claim을 다시 확인할 수 있는 시점인지 반환한다. */
     public boolean isShutdownCommandRecoveryReady() {
-        return this.shutdownCommandStartedAt != null && !DateTimeUtil.nowInKorea()
-                .isBefore(this.shutdownCommandStartedAt.plus(SHUTDOWN_COMMAND_RECOVERY_TIMEOUT));
+        if (this.shutdownCommandStartedAt == null) {
+            return false;
+        }
+        var recoveryStartAt = isReclaimedShutdownCommandClaim()
+                ? this.shutdownClaimedAt
+                : this.shutdownCommandStartedAt;
+        return !DateTimeUtil.nowInKorea().isBefore(recoveryStartAt.plus(SHUTDOWN_COMMAND_RECOVERY_TIMEOUT));
     }
 
     /** 외부 명령 결과가 확인되지 않은 claim을 다시 점유하되, 미확정 명령의 보호 상태는 유지합니다. */

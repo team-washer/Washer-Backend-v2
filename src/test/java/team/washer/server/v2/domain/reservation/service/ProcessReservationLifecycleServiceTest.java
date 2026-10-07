@@ -146,7 +146,7 @@ class ProcessReservationLifecycleServiceTest {
         processReservationLifecycleService.execute();
 
         // Then
-        verify(machineShutdownClaimSupport, never()).release(any());
+        verify(machineShutdownClaimSupport).release(new MachineShutdownClaimSupport.ShutdownClaim(2L, "claim-token"));
     }
 
     @Test

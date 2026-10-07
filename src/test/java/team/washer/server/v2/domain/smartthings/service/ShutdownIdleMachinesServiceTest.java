@@ -307,6 +307,7 @@ class ShutdownIdleMachinesServiceTest {
                 givenSingleIdleMachine(machine);
                 var recoveredClaim = new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token");
                 given(machineShutdownClaimSupport.claimIdleMachine(1L)).willReturn(Optional.of(recoveredClaim));
+                given(machineShutdownClaimSupport.hasUnresolvedCommand(recoveredClaim)).willReturn(true);
                 given(deviceShutdownSupport.shutdown(eq(machine), eq(EMPTY_STATUS), any()))
                         .willReturn(ShutdownResult.SKIPPED_UNKNOWN);
 
@@ -316,6 +317,25 @@ class ShutdownIdleMachinesServiceTest {
                 // Then
                 then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine), eq(EMPTY_STATUS), any());
                 then(machineShutdownClaimSupport).should(never()).release(recoveredClaim);
+            }
+
+            @Test
+            @DisplayName("신규 claim의 상태가 UNKNOWN이면 claim을 해제한다")
+            void it_releases_new_claim_when_status_is_unknown() {
+                // Given
+                var machine = createMachine(1L, "W-2F-L1", "device-1");
+                givenSingleIdleMachine(machine);
+                var newClaim = new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token");
+                given(machineShutdownClaimSupport.claimIdleMachine(1L)).willReturn(Optional.of(newClaim));
+                given(machineShutdownClaimSupport.hasUnresolvedCommand(newClaim)).willReturn(false);
+                given(deviceShutdownSupport.shutdown(eq(machine), eq(EMPTY_STATUS), any()))
+                        .willReturn(ShutdownResult.SKIPPED_UNKNOWN);
+
+                // When
+                shutdownIdleMachinesService.execute();
+
+                // Then
+                then(machineShutdownClaimSupport).should().release(newClaim);
             }
 
             @Test

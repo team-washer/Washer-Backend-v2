@@ -445,6 +445,7 @@ class ReservationCreationConcurrencyTest {
                 assertThat(machine.reclaimShutdownCommand()).isTrue();
                 return new ShutdownClaimData(newUser.getId(), machine.getId(), null, machine.getDeviceId());
             });
+            expireShutdownClaim(data.machineId());
 
             // When
             final var result = reserveAsUser(data.newUserId(), data.machineId());

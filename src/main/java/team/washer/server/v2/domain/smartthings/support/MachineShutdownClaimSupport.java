@@ -79,6 +79,14 @@ public class MachineShutdownClaimSupport {
                 .map(machine -> machine.beginShutdownCommand(claim.token())).orElse(false);
     }
 
+    /** 복구한 claim에 이전 외부 명령의 미확정 결과가 남아 있는지 확인합니다. */
+    @Transactional(readOnly = true)
+    public boolean hasUnresolvedCommand(final ShutdownClaim claim) {
+        return machineRepository.findById(claim.machineId()).map(
+                machine -> machine.ownsActiveShutdownClaim(claim.token()) && machine.hasUnresolvedShutdownCommand())
+                .orElse(false);
+    }
+
     /** 외부 호출이 끝난 뒤 같은 세대의 claim만 해제합니다. */
     @Transactional
     public void release(final ShutdownClaim claim) {
