@@ -74,7 +74,11 @@ class SignInServiceImplTest {
     private Student student;
 
     private TokenReqDto createReqDto() {
-        return new TokenReqDto("auth-code-123", "https://example.com/callback");
+        return createReqDto(null);
+    }
+
+    private TokenReqDto createReqDto(final String codeVerifier) {
+        return new TokenReqDto("auth-code-123", "https://example.com/callback", codeVerifier);
     }
 
     private User createUser() {
@@ -118,6 +122,78 @@ class SignInServiceImplTest {
                         .exchangeCodeForToken(anyString(), anyString(), ArgumentMatchers.<String>any());
                 then(userRegistrationSupport).shouldHaveNoInteractions();
                 then(withdrawnStudentRedisUtil).shouldHaveNoInteractions();
+            }
+        }
+
+        @Nested
+        @DisplayName("유효한 PKCE code verifier로 기존 사용자가 로그인할 때")
+        class Context_with_pkce_code_verifier {
+
+            @Test
+            @DisplayName("원본 verifier로 3인자 토큰 교환만 수행해야 한다")
+            void it_exchanges_token_with_pkce_overload() {
+                // Given
+                final var codeVerifier = "A".repeat(43);
+                final var reqDto = createReqDto(codeVerifier);
+                final var expectedTokens = new TokenResDto("access.token", 3600L, "refresh.token");
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
+                given(userInfoResponse.getStudent()).willReturn(student);
+                given(student.getStudentNumber()).willReturn(20210001);
+                given(existingUserSignInSupport.generateIfExistingUser("20210001"))
+                        .willReturn(Optional.of(expectedTokens));
+
+                // When
+                final var result = signInService.execute(reqDto);
+
+                // Then
+                assertThat(result).isEqualTo(expectedTokens);
+                then(oauthClient).should(times(1))
+                        .exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier);
+                then(oauthClient).should(never()).exchangeCodeForToken("auth-code-123", "https://example.com/callback");
+            }
+
+            @Test
+            @DisplayName("빈 verifier는 2인자 레거시 토큰 교환으로 fallback하지 않아야 한다")
+            void it_does_not_downgrade_non_null_verifier() {
+                // Given
+                final var reqDto = createReqDto("");
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", ""))
+                        .willThrow(new BadRequestException("invalid code verifier"));
+
+                // When & Then
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class);
+                then(oauthClient).should(never()).exchangeCodeForToken("auth-code-123", "https://example.com/callback");
+            }
+
+            @Test
+            @DisplayName("PKCE 토큰 교환 거부 로그에 verifier와 인증 코드가 없어야 한다")
+            void it_logs_pkce_rejection_without_authentication_values() {
+                // Given
+                final var codeVerifier = "A".repeat(43);
+                final var reqDto = createReqDto(codeVerifier);
+                final var logger = (Logger) LoggerFactory.getLogger(SignInServiceImpl.class);
+                final var appender = new ListAppender<ILoggingEvent>();
+                appender.start();
+                logger.addAppender(appender);
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willThrow(new UnauthorizedException("invalid code verifier"));
+
+                try {
+                    // When
+                    assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ExpectedException.class);
+
+                    // Then
+                    assertThat(appender.list).singleElement().satisfies(event -> {
+                        assertThat(event.getFormattedMessage()).contains("operation=token_exchange")
+                                .doesNotContain("auth-code-123", codeVerifier, "invalid code verifier");
+                    });
+                } finally {
+                    logger.detachAppender(appender);
+                    appender.stop();
+                }
             }
         }
 

@@ -75,6 +75,9 @@ public class SignInServiceImpl implements SignInService {
 
     private TokenResponse exchangeCodeForToken(final TokenReqDto reqDto) {
         try {
+            if (reqDto.codeVerifier() != null) {
+                return oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri(), reqDto.codeVerifier());
+            }
             return oauthClient.exchangeCodeForToken(reqDto.authCode(), reqDto.redirectUri());
         } catch (BadRequestException | UnauthorizedException e) {
             logAuthenticationRejected("token_exchange", e);
