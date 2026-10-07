@@ -3,8 +3,11 @@ package team.washer.server.v2.domain.auth.service;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
 import java.util.Optional;
 
+import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -22,6 +25,11 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient;
 import team.themoment.datagsm.sdk.oauth.exception.BadRequestException;
+import team.themoment.datagsm.sdk.oauth.exception.DataGsmException;
+import team.themoment.datagsm.sdk.oauth.exception.ForbiddenException;
+import team.themoment.datagsm.sdk.oauth.exception.NotFoundException;
+import team.themoment.datagsm.sdk.oauth.exception.RateLimitException;
+import team.themoment.datagsm.sdk.oauth.exception.ServerErrorException;
 import team.themoment.datagsm.sdk.oauth.exception.UnauthorizedException;
 import team.themoment.datagsm.sdk.oauth.model.Student;
 import team.themoment.datagsm.sdk.oauth.model.TokenResponse;
@@ -329,6 +337,127 @@ class SignInServiceImplTest {
                     appender.stop();
                 }
             }
+
+            @Test
+            @DisplayName("403 응답은 기존처럼 일시 장애로 변환하지 않아야 한다")
+            void it_does_not_map_forbidden_to_service_unavailable() {
+                // Given
+                final var reqDto = createReqDto();
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                        .willThrow(new ForbiddenException("forbidden"));
+
+                // When & Then
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(ForbiddenException.class);
+            }
+
+            @Test
+            @DisplayName("404 응답은 기존처럼 일시 장애로 변환하지 않아야 한다")
+            void it_does_not_map_not_found_to_service_unavailable() {
+                // Given
+                final var reqDto = createReqDto();
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token")).willThrow(new NotFoundException("not found"));
+
+                // When & Then
+                assertThatThrownBy(() -> signInService.execute(reqDto)).isInstanceOf(NotFoundException.class);
+            }
+        }
+
+        @Nested
+        @DisplayName("DataGSM 일시 장애가 발생할 때")
+        class Context_with_transient_datagsm_failure {
+
+            @Test
+            @DisplayName("토큰 교환의 408 응답은 SERVICE_UNAVAILABLE로 변환해야 한다")
+            void it_maps_token_exchange_timeout_response_to_service_unavailable() {
+                // Given
+                final var reqDto = createReqDto();
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                        .willThrow(new DataGsmException("provider response", HttpStatus.REQUEST_TIMEOUT.value()));
+
+                // When & Then
+                assertServiceUnavailable(() -> signInService.execute(reqDto));
+            }
+
+            @Test
+            @DisplayName("사용자 정보 조회의 429 응답은 SERVICE_UNAVAILABLE로 변환해야 한다")
+            void it_maps_user_info_rate_limit_to_service_unavailable() {
+                // Given
+                final var reqDto = createReqDto();
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token")).willThrow(new RateLimitException("rate limit"));
+
+                // When & Then
+                assertServiceUnavailable(() -> signInService.execute(reqDto));
+            }
+
+            @Test
+            @DisplayName("토큰 교환의 5xx 응답은 SERVICE_UNAVAILABLE로 변환해야 한다")
+            void it_maps_token_exchange_server_error_to_service_unavailable() {
+                // Given
+                final var reqDto = createReqDto();
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                        .willThrow(new ServerErrorException("provider server error"));
+
+                // When & Then
+                assertServiceUnavailable(() -> signInService.execute(reqDto));
+            }
+
+            @Test
+            @DisplayName("사용자 정보 조회의 연결 실패는 SERVICE_UNAVAILABLE로 변환해야 한다")
+            void it_maps_user_info_connection_failure_to_service_unavailable() {
+                // Given
+                final var reqDto = createReqDto();
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token"))
+                        .willThrow(new DataGsmException("connection failed", new ConnectException("refused")));
+
+                // When & Then
+                assertServiceUnavailable(() -> signInService.execute(reqDto));
+            }
+
+            @Test
+            @DisplayName("토큰 교환의 읽기 timeout은 SERVICE_UNAVAILABLE로 변환해야 한다")
+            void it_maps_token_exchange_read_timeout_to_service_unavailable() {
+                // Given
+                final var reqDto = createReqDto();
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                        .willThrow(new DataGsmException("read failed", new SocketTimeoutException("read timed out")));
+
+                // When & Then
+                assertServiceUnavailable(() -> signInService.execute(reqDto));
+            }
+
+            @Test
+            @DisplayName("일시 장애 로그와 응답에는 외부 오류 원문을 포함하지 않아야 한다")
+            void it_does_not_expose_provider_error_details() {
+                // Given
+                final var reqDto = createReqDto();
+                final var logger = (Logger) LoggerFactory.getLogger(SignInServiceImpl.class);
+                final var appender = new ListAppender<ILoggingEvent>();
+                appender.start();
+                logger.addAppender(appender);
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback"))
+                        .willThrow(new RateLimitException("provider-secret-response"));
+
+                try {
+                    // When & Then
+                    assertServiceUnavailable(() -> signInService.execute(reqDto));
+                    assertThat(appender.list).singleElement().satisfies(event -> {
+                        assertThat(event.getFormattedMessage()).contains("operation=token_exchange", "status=429")
+                                .doesNotContain("auth-code-123", "provider-secret-response");
+                    });
+                } finally {
+                    logger.detachAppender(appender);
+                    appender.stop();
+                }
+            }
         }
 
         @Nested
@@ -493,6 +622,14 @@ class SignInServiceImplTest {
             assertThatThrownBy(() -> signInService.execute(reqDto))
                     .isInstanceOf(org.springframework.data.redis.RedisConnectionFailureException.class);
             then(userRegistrationSupport).shouldHaveNoInteractions();
+        }
+
+        private void assertServiceUnavailable(final ThrowingCallable callable) {
+            assertThatThrownBy(callable).isInstanceOf(ErrorCodeException.class).satisfies(exception -> {
+                final var errorCodeException = (ErrorCodeException) exception;
+                assertThat(errorCodeException.getErrorCode()).isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
+                assertThat(errorCodeException.getUserMessage()).isEqualTo(ErrorCode.SERVICE_UNAVAILABLE.getMessage());
+            });
         }
     }
 }

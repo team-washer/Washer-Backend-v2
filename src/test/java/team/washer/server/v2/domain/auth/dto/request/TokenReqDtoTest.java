@@ -2,6 +2,7 @@ package team.washer.server.v2.domain.auth.dto.request;
 
 import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willReturn;
+import static org.mockito.BDDMockito.willThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -33,6 +34,8 @@ import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
 import team.washer.server.v2.domain.auth.service.CheckTokenStatusService;
 import team.washer.server.v2.domain.auth.service.RefreshTokenService;
 import team.washer.server.v2.domain.auth.service.SignInService;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.common.error.handler.GlobalExceptionHandler;
 import team.washer.server.v2.global.common.trace.TraceIdFilter;
 import team.washer.server.v2.global.security.config.DomainAuthorizationConfig;
@@ -156,6 +159,21 @@ class TokenReqDtoTest {
                         Arguments.of("A".repeat(42) + "+"));
             }
         }
+    }
+
+    @Test
+    @DisplayName("DataGSM 일시 장애는 기존 오류 wrapper와 trace ID로 응답해야 한다")
+    void it_returns_service_unavailable_error_contract() throws Exception {
+        // Given
+        willThrow(new ErrorCodeException(ErrorCode.SERVICE_UNAVAILABLE)).given(signInService)
+                .execute(new TokenReqDto("auth-code-123", "https://example.com/callback", null));
+
+        // When & Then
+        mockMvc.perform(post(LOGIN_PATH).contentType(MediaType.APPLICATION_JSON).content("""
+                {"authCode":"auth-code-123","redirectUri":"https://example.com/callback"}
+                """)).andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.data.errorCode").value("SERVICE_UNAVAILABLE"))
+                .andExpect(header().exists(TraceIdFilter.TRACE_ID_HEADER));
     }
 
     @TestConfiguration

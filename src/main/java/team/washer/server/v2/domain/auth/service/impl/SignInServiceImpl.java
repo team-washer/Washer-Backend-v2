@@ -10,6 +10,9 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.themoment.datagsm.sdk.oauth.DataGsmOAuthClient;
 import team.themoment.datagsm.sdk.oauth.exception.BadRequestException;
+import team.themoment.datagsm.sdk.oauth.exception.DataGsmException;
+import team.themoment.datagsm.sdk.oauth.exception.RateLimitException;
+import team.themoment.datagsm.sdk.oauth.exception.ServerErrorException;
 import team.themoment.datagsm.sdk.oauth.exception.UnauthorizedException;
 import team.themoment.datagsm.sdk.oauth.model.Student;
 import team.themoment.datagsm.sdk.oauth.model.TokenResponse;
@@ -51,6 +54,8 @@ public class SignInServiceImpl implements SignInService {
         } catch (BadRequestException | UnauthorizedException e) {
             logAuthenticationRejected("user_info", e, pkce);
             throw invalidAuthenticationException();
+        } catch (DataGsmException e) {
+            throw mapTransientAuthenticationFailure("user_info", e, pkce);
         }
         if (oauthUser == null) {
             throw new ExpectedException("학생정보가 없는 DataGSM 계정입니다.", HttpStatus.BAD_REQUEST);
@@ -93,7 +98,29 @@ public class SignInServiceImpl implements SignInService {
         } catch (BadRequestException | UnauthorizedException e) {
             logAuthenticationRejected("token_exchange", e, codeVerifier != null);
             throw invalidAuthenticationException();
+        } catch (DataGsmException e) {
+            throw mapTransientAuthenticationFailure("token_exchange", e, codeVerifier != null);
         }
+    }
+
+    private static RuntimeException mapTransientAuthenticationFailure(final String operation,
+            final DataGsmException exception,
+            final boolean pkce) {
+        if (!isTransientAuthenticationFailure(exception)) {
+            return exception;
+        }
+        final var status = exception.hasStatusCode() ? String.valueOf(exception.getStatusCode()) : "none";
+        log.warn("datagsm authentication temporarily unavailable operation={} exception={} status={} pkce={}",
+                operation,
+                exception.getClass().getSimpleName(),
+                status,
+                pkce);
+        return new ErrorCodeException(ErrorCode.SERVICE_UNAVAILABLE);
+    }
+
+    private static boolean isTransientAuthenticationFailure(final DataGsmException exception) {
+        return exception instanceof RateLimitException || exception instanceof ServerErrorException
+                || exception.getStatusCode() == HttpStatus.REQUEST_TIMEOUT.value() || !exception.hasStatusCode();
     }
 
     private static void logAuthenticationRejected(final String operation,
