@@ -156,6 +156,42 @@ class SignInServiceImplTest {
             }
 
             @Test
+            @DisplayName("PKCE 로그인 성공 로그에는 PKCE 여부만 포함되어야 한다")
+            void it_logs_pkce_success_without_authentication_values() {
+                // Given
+                final var codeVerifier = "A".repeat(43);
+                final var reqDto = createReqDto(codeVerifier);
+                final var expectedTokens = new TokenResDto("access.token", 3600L, "refresh.token");
+                final var logger = (Logger) LoggerFactory.getLogger(SignInServiceImpl.class);
+                final var appender = new ListAppender<ILoggingEvent>();
+                appender.start();
+                logger.addAppender(appender);
+                given(oauthClient.exchangeCodeForToken("auth-code-123", "https://example.com/callback", codeVerifier))
+                        .willReturn(tokenResponse);
+                given(tokenResponse.getAccessToken()).willReturn("oauth-access-token");
+                given(oauthClient.getUserInfo("oauth-access-token")).willReturn(userInfoResponse);
+                given(userInfoResponse.getStudent()).willReturn(student);
+                given(student.getStudentNumber()).willReturn(20210001);
+                given(existingUserSignInSupport.generateIfExistingUser("20210001"))
+                        .willReturn(Optional.of(expectedTokens));
+
+                try {
+                    // When
+                    final var result = signInService.execute(reqDto);
+
+                    // Then
+                    assertThat(result).isEqualTo(expectedTokens);
+                    assertThat(appender.list).singleElement().satisfies(event -> {
+                        assertThat(event.getFormattedMessage()).contains("pkce=true")
+                                .doesNotContain("auth-code-123", codeVerifier, "oauth-access-token");
+                    });
+                } finally {
+                    logger.detachAppender(appender);
+                    appender.stop();
+                }
+            }
+
+            @Test
             @DisplayName("빈 verifier는 2인자 레거시 토큰 교환으로 fallback하지 않아야 한다")
             void it_does_not_downgrade_non_null_verifier() {
                 // Given

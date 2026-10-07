@@ -31,7 +31,7 @@ import team.washer.server.v2.global.util.DateTimeUtil;
 @AllArgsConstructor
 @Slf4j
 public class SignInServiceImpl implements SignInService {
-    private static final Pattern CODE_VERIFIER_PATTERN = Pattern.compile("^[A-Za-z0-9._~-]{43,128}$");
+    private static final Pattern CODE_VERIFIER_PATTERN = Pattern.compile(TokenReqDto.CODE_VERIFIER_REGEX);
 
     private final DataGsmOAuthClient oauthClient;
     private final UserRegistrationSupport userRegistrationSupport;
@@ -55,6 +55,8 @@ public class SignInServiceImpl implements SignInService {
         if (oauthUser == null) {
             throw new ExpectedException("학생정보가 없는 DataGSM 계정입니다.", HttpStatus.BAD_REQUEST);
         }
+
+        logAuthenticationSucceeded(pkce);
 
         final String studentId = oauthUser.getStudentNumber().toString();
         final var existingUserTokens = existingUserSignInSupport.generateIfExistingUser(studentId);
@@ -81,7 +83,7 @@ public class SignInServiceImpl implements SignInService {
     private TokenResponse exchangeCodeForToken(final TokenReqDto reqDto) {
         final var codeVerifier = reqDto.codeVerifier();
         if (codeVerifier != null && !CODE_VERIFIER_PATTERN.matcher(codeVerifier).matches()) {
-            throw new ExpectedException("code verifier 형식이 올바르지 않습니다", HttpStatus.BAD_REQUEST);
+            throw new ExpectedException(TokenReqDto.CODE_VERIFIER_FORMAT_MESSAGE, HttpStatus.BAD_REQUEST);
         }
         try {
             if (codeVerifier != null) {
@@ -101,6 +103,10 @@ public class SignInServiceImpl implements SignInService {
                 operation,
                 exception.getClass().getSimpleName(),
                 pkce);
+    }
+
+    private static void logAuthenticationSucceeded(final boolean pkce) {
+        log.info("datagsm authentication succeeded pkce={}", pkce);
     }
 
     private static ExpectedException invalidAuthenticationException() {
