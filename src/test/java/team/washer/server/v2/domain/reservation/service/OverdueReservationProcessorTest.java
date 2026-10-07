@@ -9,6 +9,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -25,7 +26,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -45,6 +48,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
+import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
@@ -74,6 +78,9 @@ class OverdueReservationProcessorTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Spy
+    private AfterCommitExecutor afterCommitExecutor = new AfterCommitExecutor(mock(PlatformTransactionManager.class));
 
     @Mock
     private Reservation reservation;

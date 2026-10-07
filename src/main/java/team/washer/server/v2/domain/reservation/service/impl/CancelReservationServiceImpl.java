@@ -4,8 +4,6 @@ import java.time.LocalDateTime;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +21,7 @@ import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.PenaltyConstants;
 import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
+import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @Slf4j
@@ -36,6 +35,7 @@ public class CancelReservationServiceImpl implements CancelReservationService {
     private final ReservationNotificationSupport reservationNotificationSupport;
     private final CurrentUserProvider currentUserProvider;
     private final UserRepository userRepository;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     @Override
     @Transactional
@@ -86,7 +86,7 @@ public class CancelReservationServiceImpl implements CancelReservationService {
     }
 
     private void registerPenaltyAfterCommit(final User user, final Machine machine, final Long reservationId) {
-        final Runnable apply = () -> {
+        afterCommitExecutor.execute(() -> {
             try {
                 applyPenalty(user, machine, reservationId);
             } catch (Exception e) {
@@ -95,18 +95,7 @@ public class CancelReservationServiceImpl implements CancelReservationService {
                         reservationId,
                         e);
             }
-        };
-        if (TransactionSynchronizationManager.isActualTransactionActive()
-                && TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    apply.run();
-                }
-            });
-            return;
-        }
-        apply.run();
+        });
     }
 
     private void applyPenalty(final User user, final Machine machine, final Long reservationId) {

@@ -5,8 +5,6 @@ import java.time.LocalDateTime;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +12,7 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.notification.repository.NotificationRepository;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 
 /**
  * 예약 관련 알림 전송을 담당하는 지원 컴포넌트.
@@ -27,6 +26,7 @@ public class ReservationNotificationSupport {
 
     private final NotificationRepository notificationRepository;
     private final FcmNotificationSupport fcmNotificationSupport;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     /**
      * 세탁/건조 완료 알림을 전송한다.
@@ -122,23 +122,7 @@ public class ReservationNotificationSupport {
         notificationRepository.save(notification);
         enforceNotificationLimit(user);
         log.info("Notification persisted userId={} type={}", user.getId(), notification.getType());
-        sendAfterCommit(user, notification, fcmTitle);
-    }
-
-    private void sendAfterCommit(final User user, final Notification notification, final String fcmTitle) {
-        if (TransactionSynchronizationManager.isActualTransactionActive()
-                && TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-
-                @Override
-                public void afterCommit() {
-                    sendFcm(user, notification, fcmTitle);
-                }
-            });
-            return;
-        }
-
-        sendFcm(user, notification, fcmTitle);
+        afterCommitExecutor.execute(() -> sendFcm(user, notification, fcmTitle));
     }
 
     private void sendFcm(final User user, final Notification notification, final String fcmTitle) {
