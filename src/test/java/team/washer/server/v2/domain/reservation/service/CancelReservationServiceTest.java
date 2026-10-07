@@ -12,7 +12,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -34,6 +36,7 @@ import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.PenaltyConstants;
 import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
+import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
@@ -63,6 +66,9 @@ class CancelReservationServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Spy
+    private AfterCommitExecutor afterCommitExecutor = new AfterCommitExecutor(mock(PlatformTransactionManager.class));
 
     @Mock
     private User user;

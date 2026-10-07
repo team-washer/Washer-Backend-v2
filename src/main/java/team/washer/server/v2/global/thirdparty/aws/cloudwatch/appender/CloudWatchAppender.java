@@ -23,6 +23,7 @@ import software.amazon.awssdk.services.cloudwatchlogs.model.PutLogEventsRequest;
 import software.amazon.awssdk.services.cloudwatchlogs.model.PutRetentionPolicyRequest;
 import software.amazon.awssdk.services.cloudwatchlogs.model.ResourceAlreadyExistsException;
 import software.amazon.awssdk.services.cloudwatchlogs.model.ResourceNotFoundException;
+import team.washer.server.v2.domain.reservation.service.impl.ProcessReservationLifecycleServiceImpl;
 import team.washer.server.v2.global.common.logging.SensitiveLogSanitizer;
 import team.washer.server.v2.global.common.trace.TraceIdFilter;
 
@@ -243,9 +244,13 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
         final var traceId = mdcPropertyMap == null ? null : mdcPropertyMap.get(TraceIdFilter.MDC_KEY);
         final var method = mdcPropertyMap == null ? null : mdcPropertyMap.get(TraceIdFilter.HTTP_METHOD_MDC_KEY);
         final var path = mdcPropertyMap == null ? null : mdcPropertyMap.get(TraceIdFilter.REQUEST_PATH_MDC_KEY);
+        final var lifecycleRunId = mdcPropertyMap == null
+                ? null
+                : mdcPropertyMap.get(ProcessReservationLifecycleServiceImpl.LIFECYCLE_RUN_ID_MDC_KEY);
         appendField(builder, TraceIdFilter.MDC_KEY, traceId);
         appendField(builder, TraceIdFilter.HTTP_METHOD_MDC_KEY, method);
         appendField(builder, TraceIdFilter.REQUEST_PATH_MDC_KEY, path);
+        appendField(builder, ProcessReservationLifecycleServiceImpl.LIFECYCLE_RUN_ID_MDC_KEY, lifecycleRunId);
         appendField(builder, "message", event.getFormattedMessage(), maxMessageLength);
 
         if (event.getThrowableProxy() != null) {

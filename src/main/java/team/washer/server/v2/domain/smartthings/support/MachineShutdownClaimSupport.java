@@ -23,7 +23,11 @@ public class MachineShutdownClaimSupport {
     private final MachineRepository machineRepository;
     private final ReservationRepository reservationRepository;
 
-    public record ShutdownClaim(Long machineId, String token) {
+    public record ShutdownClaim(Long machineId, String token, boolean hasUnresolvedCommand) {
+
+        public ShutdownClaim(final Long machineId, final String token) {
+            this(machineId, token, false);
+        }
     }
 
     /**
@@ -49,7 +53,34 @@ public class MachineShutdownClaimSupport {
             return claim;
         }
         if (machine.reclaimShutdownCommand()) {
-            return Optional.of(new ShutdownClaim(machine.getId(), machine.getShutdownClaimToken()));
+            return Optional.of(new ShutdownClaim(machine.getId(), machine.getShutdownClaimToken(), true));
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * 관리자 강제 정지 명령 전에 기기를 보호합니다.
+     *
+     * <p>
+     * 강제 정지는 활성 예약을 취소하는 작업이므로, 유휴 기기 전용 claim과 달리 활성 예약의 존재 여부를 확인하지 않습니다. 명령 결과가
+     * 확정되기 전에는 신규 예약이 들어오지 않도록 기기 행을 잠근 상태에서 claim을 획득합니다.
+     *
+     * @param machineId
+     *            대상 기기 ID
+     * @return 획득한 claim. 이미 다른 종료 작업이 진행 중이면 비어 있음
+     */
+    @Transactional
+    public Optional<ShutdownClaim> claimForForceStop(final Long machineId) {
+        final var machine = machineRepository.findByIdForUpdate(machineId).orElse(null);
+        if (machine == null) {
+            return Optional.empty();
+        }
+        final var claim = claimLockedMachine(machine);
+        if (claim.isPresent()) {
+            return claim;
+        }
+        if (machine.reclaimShutdownCommand()) {
+            return Optional.of(new ShutdownClaim(machine.getId(), machine.getShutdownClaimToken(), true));
         }
         return Optional.empty();
     }

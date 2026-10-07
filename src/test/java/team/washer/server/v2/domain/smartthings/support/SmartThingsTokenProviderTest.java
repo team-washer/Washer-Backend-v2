@@ -5,6 +5,10 @@ import static org.mockito.BDDMockito.*;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +47,11 @@ class SmartThingsTokenProviderTest {
     private SmartThingsToken token(final String accessToken) {
         return SmartThingsToken.builder().accessToken(accessToken).refreshToken("refresh-token")
                 .expiresAt(LocalDateTime.now().plusHours(1)).build();
+    }
+
+    private SmartThingsToken token(final String accessToken, final LocalDateTime expiresAt) {
+        return SmartThingsToken.builder().accessToken(accessToken).refreshToken("refresh-token").expiresAt(expiresAt)
+                .build();
     }
 
     private SmartThingsToken createOldToken() {
@@ -174,6 +183,30 @@ class SmartThingsTokenProviderTest {
         }
 
         @Test
+        @DisplayName("커밋 전에 다시 게시된 거절 토큰도 커밋 뒤 캐시에서 제거한다")
+        void clears_rejected_token_republished_before_commit() throws Exception {
+            // Given
+            final var rejectedToken = token("rejected-access");
+            final var databaseToken = token("rejected-access");
+            smartThingsTokenProvider.refresh(rejectedToken);
+            given(tokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(databaseToken));
+            given(tokenRepository.findSingletonToken()).willReturn(Optional.of(databaseToken));
+            beginTransaction();
+
+            // When
+            smartThingsTokenProvider.invalidate("rejected-access");
+            try (var executor = Executors.newSingleThreadExecutor()) {
+                executor.submit(() -> smartThingsTokenProvider.refresh(rejectedToken)).get(5, TimeUnit.SECONDS);
+            }
+            TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+
+            // Then
+            assertThatThrownBy(smartThingsTokenProvider::getValidAccessToken).isInstanceOf(ErrorCodeException.class)
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.SMARTTHINGS_TOKEN_INVALID));
+        }
+
+        @Test
         @DisplayName("다른 인스턴스가 갱신한 최신 토큰은 과거 401 응답으로 무효화하지 않는다")
         void preserves_newer_token_after_stale_rejection() {
             final var currentToken = token("new-access");
@@ -186,6 +219,79 @@ class SmartThingsTokenProviderTest {
             assertThat(provider.getValidAccessToken()).isEqualTo("new-access");
             assertThat(currentToken.isValid()).isTrue();
             then(tokenRepository).should(never()).findSingletonToken();
+        }
+
+        @Test
+        @DisplayName("거절된 캐시 토큰보다 DB 토큰의 만료 시각이 이르더라도 DB 토큰으로 교체한다")
+        void replaces_rejected_token_even_when_replacement_expires_earlier() {
+            // Given
+            final var rejectedToken = token("rejected-access", LocalDateTime.now().plusHours(24));
+            final var replacementToken = token("replacement-access", LocalDateTime.now().plusHours(1));
+            smartThingsTokenProvider.refresh(rejectedToken);
+            given(tokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(replacementToken));
+
+            // When
+            smartThingsTokenProvider.invalidate("rejected-access");
+
+            // Then
+            assertThat(smartThingsTokenProvider.getValidAccessToken()).isEqualTo("replacement-access");
+        }
+
+        @Test
+        @DisplayName("동시에 거절된 이전 토큰을 무효화해도 최종 캐시에 거절된 토큰을 남기지 않는다")
+        void removes_rejected_token_when_multiple_requests_receive_unauthorized() throws Exception {
+            // Given
+            final var rejectedToken = token("rejected-access", LocalDateTime.now().plusHours(24));
+            final var replacementToken = token("replacement-access", LocalDateTime.now().plusHours(1));
+            final var barrier = new CyclicBarrier(2);
+            smartThingsTokenProvider.refresh(rejectedToken);
+            given(tokenRepository.findSingletonTokenWithLock()).willAnswer(invocation -> {
+                barrier.await(5, TimeUnit.SECONDS);
+                return Optional.of(replacementToken);
+            });
+
+            // When
+            try (var executor = Executors.newFixedThreadPool(2)) {
+                final var first = executor.submit(() -> smartThingsTokenProvider.invalidate("rejected-access"));
+                final var second = executor.submit(() -> smartThingsTokenProvider.invalidate("rejected-access"));
+
+                first.get(5, TimeUnit.SECONDS);
+                second.get(5, TimeUnit.SECONDS);
+            }
+
+            // Then
+            assertThat(smartThingsTokenProvider.getValidAccessToken()).isEqualTo("replacement-access");
+        }
+
+        @Test
+        @DisplayName("DB 조회 뒤 다른 요청이 게시한 새 토큰을 거절 토큰 처리로 덮어쓰지 않는다")
+        void preserves_new_token_published_after_database_read() throws Exception {
+            // Given
+            final var rejectedToken = token("rejected-access", LocalDateTime.now().plusHours(24));
+            final var replacementToken = token("replacement-access", LocalDateTime.now().plusHours(1));
+            final var newerToken = token("newer-access", LocalDateTime.now().plusHours(48));
+            final var databaseRead = new CountDownLatch(1);
+            final var allowReplacement = new CountDownLatch(1);
+            smartThingsTokenProvider.refresh(rejectedToken);
+            given(tokenRepository.findSingletonTokenWithLock()).willAnswer(invocation -> {
+                databaseRead.countDown();
+                if (!allowReplacement.await(5, TimeUnit.SECONDS)) {
+                    throw new IllegalStateException("새 토큰 게시 대기 시간이 초과되었습니다");
+                }
+                return Optional.of(replacementToken);
+            });
+
+            // When
+            try (var executor = Executors.newSingleThreadExecutor()) {
+                final var invalidation = executor.submit(() -> smartThingsTokenProvider.invalidate("rejected-access"));
+                assertThat(databaseRead.await(5, TimeUnit.SECONDS)).isTrue();
+                smartThingsTokenProvider.refresh(newerToken);
+                allowReplacement.countDown();
+                invalidation.get();
+            }
+
+            // Then
+            assertThat(smartThingsTokenProvider.getValidAccessToken()).isEqualTo("newer-access");
         }
 
         @Test
@@ -207,7 +313,7 @@ class SmartThingsTokenProviderTest {
 
         @Test
         @DisplayName("다른 인스턴스가 DB에서 무효화한 같은 토큰은 캐시의 늦은 만료 시각을 유지하지 않아야 한다")
-        void applies_shortened_expiry_of_same_token() {
+        void applies_shortened_expiry_of_rejected_token() {
             // Given
             smartThingsTokenProvider.refresh(createNewToken());
             final var invalidatedToken = createNewToken();

@@ -427,6 +427,75 @@ class ReservationCreationConcurrencyTest {
 
             assertReservationCount(0);
         }
+
+        @Test
+        @DisplayName("복구한 미확정 종료 명령은 일반 lease가 만료되어도 신규 예약을 막는다")
+        void recoveredUnresolvedCommand_preventsNewReservationAfterLeaseExpiry() {
+            final var data = transactionTemplate.execute(status -> {
+                final var newUser = saveUser("2204", "404", UserRole.USER);
+                final var machine = saveMachine("washer-claim-3", MachineType.WASHER, Position.LEFT, 3);
+                final var claimToken = machine.claimShutdown().orElseThrow();
+                assertThat(machine.beginShutdownCommand(claimToken)).isTrue();
+                ReflectionTestUtils.setField(machine,
+                        "shutdownClaimedAt",
+                        DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_CLAIM_TIMEOUT).minusSeconds(1));
+                ReflectionTestUtils.setField(machine,
+                        "shutdownCommandStartedAt",
+                        DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_COMMAND_RECOVERY_TIMEOUT).minusSeconds(1));
+                assertThat(machine.reclaimShutdownCommand()).isTrue();
+                return new ShutdownClaimData(newUser.getId(), machine.getId(), null, machine.getDeviceId());
+            });
+            expireShutdownClaim(data.machineId());
+
+            // When
+            final var result = reserveAsUser(data.newUserId(), data.machineId());
+
+            // Then
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.throwable()).isInstanceOf(ErrorCodeException.class).hasMessageContaining("종료 처리 중입니다");
+            assertThat(((ErrorCodeException) result.throwable()).getErrorCode())
+                    .isEqualTo(ErrorCode.MACHINE_SHUTDOWN_IN_PROGRESS);
+            assertReservationCount(0);
+        }
+
+        @Test
+        @DisplayName("복구 상태 조회가 UNKNOWN이면 미확정 종료 명령의 fence를 유지한다")
+        void recoveredUnresolvedCommand_keepsFenceWhenStatusIsUnknown() {
+            final var data = transactionTemplate.execute(status -> {
+                final var newUser = saveUser("2205", "405", UserRole.USER);
+                final var machine = saveMachine("washer-claim-4", MachineType.WASHER, Position.RIGHT, 4);
+                final var claimToken = machine.claimShutdown().orElseThrow();
+                assertThat(machine.beginShutdownCommand(claimToken)).isTrue();
+                ReflectionTestUtils.setField(machine,
+                        "shutdownClaimedAt",
+                        DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_CLAIM_TIMEOUT).minusSeconds(1));
+                ReflectionTestUtils.setField(machine,
+                        "shutdownCommandStartedAt",
+                        DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_COMMAND_RECOVERY_TIMEOUT).minusSeconds(1));
+                return new ShutdownClaimData(newUser.getId(), machine.getId(), null, machine.getDeviceId());
+            });
+            final var deviceStatus = new SmartThingsDeviceStatusResDto(Map.of());
+            given(deviceStatusQuerySupport.queryAllDevicesStatus(List.of(data.deviceId())))
+                    .willReturn(Map.of(data.deviceId(), deviceStatus));
+            given(deviceShutdownSupport.shutdown(any(), eq(deviceStatus), any()))
+                    .willReturn(DeviceShutdownSupport.ShutdownResult.SKIPPED_UNKNOWN);
+
+            // When
+            shutdownIdleMachinesService.execute();
+            final var result = reserveAsUser(data.newUserId(), data.machineId());
+
+            // Then
+            assertThat(result.isSuccess()).isFalse();
+            assertThat(result.throwable()).isInstanceOf(ErrorCodeException.class).hasMessageContaining("종료 처리 중입니다");
+            assertThat(((ErrorCodeException) result.throwable()).getErrorCode())
+                    .isEqualTo(ErrorCode.MACHINE_SHUTDOWN_IN_PROGRESS);
+            transactionTemplate.executeWithoutResult(status -> {
+                final var machine = machineRepository.findById(data.machineId()).orElseThrow();
+                assertThat(machine.getShutdownCommandStartedAt()).isNotNull();
+                assertThat(machine.hasActiveShutdownClaim()).isTrue();
+            });
+            assertReservationCount(0);
+        }
     }
 
     private ReservationAttemptResult reserveAsUser(final Long userId, final Long machineId) {

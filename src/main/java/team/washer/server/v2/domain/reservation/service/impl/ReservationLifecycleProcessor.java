@@ -20,6 +20,7 @@ import team.washer.server.v2.domain.reservation.repository.ReservationRepository
 import team.washer.server.v2.domain.reservation.support.ReservationCompletionDecisionSupport;
 import team.washer.server.v2.domain.reservation.support.ReservationStartDecisionSupport;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.domain.user.repository.UserRepository;
@@ -168,6 +169,7 @@ public class ReservationLifecycleProcessor {
             return Optional.empty();
         }
         var isWasher = machine.isWasher();
+        var interruptionCountBefore = reservation.getInterruptionCount();
 
         var decision = completionDecisionSupport.decide(reservation, status, isWasher);
         if (decision.isCompleted()) {
@@ -176,9 +178,23 @@ public class ReservationLifecycleProcessor {
                 log.info("completion shutdown claim unavailable reservationId={} machineId={}",
                         reservationId,
                         machineId);
+                logLifecycleEvent("completion_claim_unavailable",
+                        reservation,
+                        machine,
+                        status,
+                        isWasher,
+                        decision.reason(),
+                        interruptionCountBefore,
+                        interruptionCountBefore);
                 return Optional.empty();
             }
-            completeReservation(reservation, machine, decision.completionTime(), decision.reason());
+            completeReservation(reservation,
+                    machine,
+                    status,
+                    isWasher,
+                    decision.completionTime(),
+                    decision.reason(),
+                    interruptionCountBefore);
             return Optional.of(new CompletedMachine(machineId,
                     machine.getName(),
                     machine.getDeviceId(),
@@ -186,23 +202,43 @@ public class ReservationLifecycleProcessor {
                     claim.get().token()));
         }
         if (decision.isDeferred()) {
-            logCompletionDeferred(reservation, decision.reason(), decision.completionTime());
+            logCompletionDeferred(reservation,
+                    machine,
+                    status,
+                    isWasher,
+                    decision.reason(),
+                    decision.completionTime(),
+                    interruptionCountBefore);
             return Optional.empty();
         }
 
+        if (status != null && status.getOperatingState(isWasher) == MachineOperatingState.UNKNOWN) {
+            logLifecycleEvent("operating_state_unknown",
+                    reservation,
+                    machine,
+                    status,
+                    isWasher,
+                    "unknown_operating_state",
+                    interruptionCountBefore,
+                    interruptionCountBefore);
+        }
         if (machineStateDetectionSupport.isInterrupted(status, isWasher)) {
-            processInterruption(reservation, machine);
+            processInterruption(reservation, machine, status, isWasher, interruptionCountBefore);
             return Optional.empty();
         }
         if (machineStateDetectionSupport.isPaused(status, isWasher)) {
-            processPaused(reservation, machine);
+            processPaused(reservation, machine, status, isWasher, interruptionCountBefore);
             return Optional.empty();
         }
-        processRunning(reservation, status, isWasher);
+        processRunning(reservation, machine, status, isWasher, interruptionCountBefore);
         return Optional.empty();
     }
 
-    private void processInterruption(Reservation reservation, Machine machine) {
+    private void processInterruption(Reservation reservation,
+            Machine machine,
+            SmartThingsDeviceStatusResDto status,
+            boolean isWasher,
+            int interruptionCountBefore) {
         // 사이클 단계 전환 중 순간적으로 보고되는 정지를 진짜 중단으로 오판하지 않도록, 연속으로 중단이
         // 감지될 때만 취소를 확정한다.
         reservation.incrementInterruptionCount();
@@ -212,6 +248,14 @@ public class ReservationLifecycleProcessor {
                     reservation.getId(),
                     reservation.getInterruptionCount(),
                     ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD);
+            logLifecycleEvent("interruption_candidate",
+                    reservation,
+                    machine,
+                    status,
+                    isWasher,
+                    "interruption_candidate",
+                    interruptionCountBefore,
+                    reservation.getInterruptionCount());
             return;
         }
 
@@ -223,19 +267,48 @@ public class ReservationLifecycleProcessor {
 
         reservationNotificationSupport.sendInterruption(reservation.getUser(), machine);
 
+        logLifecycleEvent("reservation_cancelled",
+                reservation,
+                machine,
+                status,
+                isWasher,
+                "confirmed_interruption",
+                interruptionCountBefore,
+                reservation.getInterruptionCount());
+
         log.warn(
                 "Reservation {} cancelled due to confirmed machine interruption, no penalty applied (RUNNING → CANCELLED)",
                 reservation.getId());
     }
 
-    private void processPaused(Reservation reservation, Machine machine) {
+    private void processPaused(Reservation reservation,
+            Machine machine,
+            SmartThingsDeviceStatusResDto status,
+            boolean isWasher,
+            int interruptionCountBefore) {
         if (reservation.getInterruptionCount() > 0) {
             reservation.clearInterruptionCount();
             reservationRepository.save(reservation);
+            logLifecycleEvent("interruption_count_reset",
+                    reservation,
+                    machine,
+                    status,
+                    isWasher,
+                    "paused_state_observed",
+                    interruptionCountBefore,
+                    0);
         }
         if (reservation.getPausedAt() == null) {
             reservation.markAsPaused();
             reservationRepository.save(reservation);
+            logLifecycleEvent("pause_started",
+                    reservation,
+                    machine,
+                    status,
+                    isWasher,
+                    "paused_state_observed",
+                    interruptionCountBefore,
+                    reservation.getInterruptionCount());
             log.info("Reservation {} pause started, tracking pause time", reservation.getId());
             return;
         }
@@ -252,6 +325,15 @@ public class ReservationLifecycleProcessor {
 
         reservationNotificationSupport.sendPauseTimeout(reservation.getUser(), machine);
 
+        logLifecycleEvent("reservation_cancelled",
+                reservation,
+                machine,
+                status,
+                isWasher,
+                "pause_timeout",
+                interruptionCountBefore,
+                reservation.getInterruptionCount());
+
         log.warn("Reservation {} cancelled due to prolonged pause ({}min+), no penalty applied (RUNNING → CANCELLED)",
                 reservation.getId(),
                 ReservationConstants.PAUSE_TIMEOUT_MINUTES);
@@ -261,11 +343,25 @@ public class ReservationLifecycleProcessor {
      * 기기가 정상 진행 중일 때 디바운스 카운터와 일시정지 추적을 정리하고, 기기가 보고한 완료 예정 시각을 반영한다. 저장된 완료 예정 시각은
      * 완료 후 세탁기 배수 유예의 기준이 되며, 상한을 벗어난 이상치는 엔티티가 거부한다.
      */
-    private void processRunning(Reservation reservation, SmartThingsDeviceStatusResDto status, boolean isWasher) {
+    private void processRunning(Reservation reservation,
+            Machine machine,
+            SmartThingsDeviceStatusResDto status,
+            boolean isWasher,
+            int interruptionCountBefore) {
         var changed = false;
         if (reservation.getInterruptionCount() > 0) {
             reservation.clearInterruptionCount();
             changed = true;
+            logLifecycleEvent("interruption_count_reset",
+                    reservation,
+                    machine,
+                    status,
+                    isWasher,
+                    status != null && status.getOperatingState(isWasher) == MachineOperatingState.UNKNOWN
+                            ? "unknown_state_observed"
+                            : "running_state_observed",
+                    interruptionCountBefore,
+                    0);
         }
         if (reservation.getPausedAt() != null) {
             reservation.clearPausedAt();
@@ -302,8 +398,11 @@ public class ReservationLifecycleProcessor {
      */
     private void completeReservation(Reservation reservation,
             Machine machine,
+            SmartThingsDeviceStatusResDto status,
+            boolean isWasher,
             LocalDateTime completionTime,
-            String reason) {
+            String reason,
+            int interruptionCountBefore) {
         reservation.complete();
         reservation.clearInterruptionCount();
         reservation.clearPausedAt();
@@ -322,9 +421,23 @@ public class ReservationLifecycleProcessor {
                 machine.getName(),
                 completionTime,
                 reservation.getExpectedCompletionTime());
+        logLifecycleEvent("reservation_completed",
+                reservation,
+                machine,
+                status,
+                isWasher,
+                reason,
+                interruptionCountBefore,
+                reservation.getInterruptionCount());
     }
 
-    private void logCompletionDeferred(Reservation reservation, String reason, LocalDateTime completionTime) {
+    private void logCompletionDeferred(Reservation reservation,
+            Machine machine,
+            SmartThingsDeviceStatusResDto status,
+            boolean isWasher,
+            String reason,
+            LocalDateTime completionTime,
+            int interruptionCountBefore) {
         log.info(
                 "completion deferred reason={} reservationId={} startTime={} expectedCompletionTime={} completionTime={}",
                 reason,
@@ -332,6 +445,46 @@ public class ReservationLifecycleProcessor {
                 reservation.getStartTime(),
                 reservation.getExpectedCompletionTime(),
                 completionTime);
+        logLifecycleEvent("completion_deferred",
+                reservation,
+                machine,
+                status,
+                isWasher,
+                reason,
+                interruptionCountBefore,
+                interruptionCountBefore);
+    }
+
+    private void logLifecycleEvent(String event,
+            Reservation reservation,
+            Machine machine,
+            SmartThingsDeviceStatusResDto status,
+            boolean isWasher,
+            String decisionReason,
+            int interruptionCountBefore,
+            int interruptionCountAfter) {
+        log.info("lifecycle event={} reservationId={} machineId={} machineType={} reservationStatus={} switchState={} "
+                + "machineState={} machineStateTimestamp={} jobState={} jobStateTimestamp={} reportedCompletionTime={} "
+                + "reservationStartedAt={} expectedCompletionTime={} interruptionCountBefore={} "
+                + "interruptionCountAfter={} shutdownClaimed={} shutdownCommandStartedAt={} decisionReason={}",
+                event,
+                reservation.getId(),
+                machine.getId(),
+                machine.getType(),
+                reservation.getStatus(),
+                status == null ? null : status.getSwitchStatus(),
+                status == null ? null : status.getOperatingState(isWasher),
+                status == null ? null : status.getOperatingStateTimestamp(isWasher),
+                status == null ? null : status.getJobState(isWasher),
+                status == null ? null : status.getJobStateTimestamp(isWasher),
+                status == null ? null : getCompletionTime(status, isWasher),
+                reservation.getStartTime(),
+                reservation.getExpectedCompletionTime(),
+                interruptionCountBefore,
+                interruptionCountAfter,
+                machine.hasActiveShutdownClaim(),
+                machine.getShutdownCommandStartedAt(),
+                decisionReason);
     }
 
     private String getCompletionTime(SmartThingsDeviceStatusResDto status, boolean isWasher) {
