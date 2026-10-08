@@ -21,11 +21,14 @@ final class OperationalAlertDeduplicator {
         this.maximumEntries = maximumEntries;
     }
 
-    synchronized Decision register(final String key) {
+    synchronized Decision reserve(final String key) {
         final var now = clock.instant();
         final var previous = entries.get(key);
+        if (previous != null && previous.deliveryPending()) {
+            return Decision.suppressed();
+        }
         if (previous != null && now.isBefore(previous.sentAt().plus(suppressionWindow))) {
-            entries.put(key, new Entry(previous.sentAt(), previous.suppressedCount() + 1));
+            entries.put(key, new Entry(previous.sentAt(), previous.suppressedCount() + 1, false));
             return Decision.suppressed();
         }
 
@@ -35,12 +38,28 @@ final class OperationalAlertDeduplicator {
         }
 
         final var suppressedCount = previous == null ? 0 : previous.suppressedCount();
-        entries.put(key, new Entry(now, 0));
+        entries.put(key, new Entry(null, suppressedCount, true));
         return Decision.send(suppressedCount);
     }
 
+    synchronized void markDelivered(final String key) {
+        final var pending = entries.get(key);
+        if (pending == null || !pending.deliveryPending()) {
+            return;
+        }
+        entries.put(key, new Entry(clock.instant(), 0, false));
+    }
+
+    synchronized void releaseFailedDelivery(final String key) {
+        final var pending = entries.get(key);
+        if (pending != null && pending.deliveryPending()) {
+            entries.remove(key);
+        }
+    }
+
     private void removeExpired(final Instant now) {
-        entries.entrySet().removeIf(entry -> !now.isBefore(entry.getValue().sentAt().plus(suppressionWindow)));
+        entries.entrySet().removeIf(entry -> !entry.getValue().deliveryPending()
+                && !now.isBefore(entry.getValue().sentAt().plus(suppressionWindow)));
     }
 
     record Decision(boolean shouldSend, boolean dropped, long suppressedCount) {
@@ -57,6 +76,6 @@ final class OperationalAlertDeduplicator {
         }
     }
 
-    private record Entry(Instant sentAt, long suppressedCount) {
+    private record Entry(Instant sentAt, long suppressedCount, boolean deliveryPending) {
     }
 }

@@ -73,6 +73,23 @@ class DiscordErrorNotificationServiceTest {
             // When & Then
             service.notifyError(new IllegalStateException("service failure"), "작업 실패", Map.of());
         }
+
+        @Test
+        @DisplayName("전송 실패 뒤 같은 이벤트는 다시 전송을 시도한다")
+        void retriesSameEventAfterDiscordDeliveryFailure() {
+            // Given
+            final DiscordWebhookClient client = mock(DiscordWebhookClient.class);
+            org.mockito.Mockito.doThrow(new IllegalStateException("webhook failure")).doNothing().when(client)
+                    .sendMessage(org.mockito.ArgumentMatchers.any());
+            final var service = service(client);
+
+            // When
+            service.notifyError(new IllegalStateException("first"), "작업 실패", Map.of("Operation", "lifecycle"));
+            service.notifyError(new IllegalStateException("second"), "작업 실패", Map.of("Operation", "lifecycle"));
+
+            // Then
+            then(client).should(org.mockito.Mockito.times(2)).sendMessage(org.mockito.ArgumentMatchers.any());
+        }
     }
 
     @Nested

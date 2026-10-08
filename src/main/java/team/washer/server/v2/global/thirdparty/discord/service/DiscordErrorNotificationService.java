@@ -70,7 +70,8 @@ public class DiscordErrorNotificationService {
     @Async(AsyncConfig.OPERATIONAL_ALERT_TASK_EXECUTOR)
     public void notifyError(final Throwable exception, final String context, final Map<String, Object> additionalInfo) {
         final var event = createEvent(exception, additionalInfo);
-        final var decision = deduplicator.register(deduplicationKey(event));
+        final var deduplicationKey = deduplicationKey(event);
+        final var decision = deduplicator.reserve(deduplicationKey);
         if (!decision.shouldSend()) {
             if (decision.dropped()) {
                 log.warn("operational alert dropped eventType={} reason=deduplication_capacity", event.eventType());
@@ -80,11 +81,13 @@ public class DiscordErrorNotificationService {
         try {
             final var embed = createErrorEmbed(event, decision.suppressedCount());
             discordWebhookClient.sendMessage(DiscordWebhookPayload.embedMessage(embed));
+            deduplicator.markDelivered(deduplicationKey);
             log.info("operational alert sent eventType={} exceptionType={} fieldCount={}",
                     event.eventType(),
                     event.exceptionType(),
                     embed.getFields().size());
         } catch (final Exception sendException) {
+            deduplicator.releaseFailedDelivery(deduplicationKey);
             log.error("operational alert delivery failed eventType={} exceptionType={} sendExceptionType={}",
                     event.eventType(),
                     event.exceptionType(),

@@ -24,10 +24,11 @@ class OperationalAlertDeduplicatorTest {
         final var deduplicator = new OperationalAlertDeduplicator(clock, Duration.ofMinutes(10), 2);
 
         // When
-        final var first = deduplicator.register("same");
-        final var suppressed = deduplicator.register("same");
+        final var first = deduplicator.reserve("same");
+        deduplicator.markDelivered("same");
+        final var suppressed = deduplicator.reserve("same");
         clock.advance(Duration.ofMinutes(10));
-        final var retried = deduplicator.register("same");
+        final var retried = deduplicator.reserve("same");
 
         // Then
         assertThat(first.shouldSend()).isTrue();
@@ -45,8 +46,8 @@ class OperationalAlertDeduplicatorTest {
                 ZoneOffset.UTC), Duration.ofMinutes(10), 1);
 
         // When
-        deduplicator.register("first");
-        final var dropped = deduplicator.register("second");
+        deduplicator.reserve("first");
+        final var dropped = deduplicator.reserve("second");
 
         // Then
         assertThat(dropped.shouldSend()).isFalse();
@@ -71,7 +72,7 @@ class OperationalAlertDeduplicatorTest {
                 futures.add(executor.submit(() -> {
                     ready.countDown();
                     start.await();
-                    return deduplicator.register("same");
+                    return deduplicator.reserve("same");
                 }));
             }
             ready.await();
