@@ -171,8 +171,7 @@ class ProcessReservationLifecycleServiceTest {
         processReservationLifecycleService.execute();
 
         // Then
-        verify(discordErrorNotificationService, times(1))
-                .notifyError(any(ErrorCodeException.class), eq("예약 완료 기기 종료 - SmartThings 권한 오류"), any());
+        verify(discordErrorNotificationService, times(1)).notifyError(any(ErrorCodeException.class), any());
         verify(machineShutdownClaimSupport, times(1)).release(any());
         verify(deviceStatusQuerySupport, never()).queryDeviceStatus("device-3");
         verify(reservationLifecycleProcessor, never()).processRunningToCompleted(eq(3L), any());
