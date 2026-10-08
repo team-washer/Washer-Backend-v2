@@ -1,7 +1,6 @@
 package team.washer.server.v2.global.thirdparty.discord.config;
 
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 import feign.Request;
 import feign.Retryer;
@@ -9,7 +8,6 @@ import feign.Retryer;
 /**
  * Discord Webhook 호출의 대기 시간을 제한합니다.
  */
-@Configuration
 public class DiscordFeignConfig {
 
     public static final int CONNECT_TIMEOUT_MILLIS = 3000;
