@@ -77,9 +77,9 @@ public class SmartThingsTokenProvider {
             return;
         }
 
+        final var rejectedMarker = markRejectedCachedToken(rejectedAccessToken, token.getVersion());
         token.invalidateAccessToken();
-        clearCachedToken(rejectedAccessToken);
-        clearRejectedTokenAfterCommit(rejectedAccessToken);
+        clearRejectedMarkerOnRollback(rejectedMarker);
         log.warn("smartthings access token invalidated after upstream rejection");
     }
 
@@ -93,6 +93,9 @@ public class SmartThingsTokenProvider {
         log.debug("smartthings token cache loaded from db generation={} expiresAt={}",
                 published.generation(),
                 published.expiresAt());
+        if (!published.isValid()) {
+            throw new ErrorCodeException(ErrorCode.SMARTTHINGS_TOKEN_INVALID);
+        }
         return published.accessToken();
     }
 
@@ -110,7 +113,25 @@ public class SmartThingsTokenProvider {
                 cached -> cached != null && cached.accessToken().equals(rejectedAccessToken) ? null : cached);
     }
 
-    private void clearRejectedTokenAfterCommit(final String rejectedAccessToken) {
+    private CachedToken markRejectedCachedToken(final String rejectedAccessToken, final Long generation) {
+        while (true) {
+            final var cached = cache.get();
+            if (cached != null && !cached.accessToken().equals(rejectedAccessToken)) {
+                return null;
+            }
+            final var marker = cached == null || CachedToken.rejected(rejectedAccessToken, generation).isNewerThan(cached)
+                    ? CachedToken.rejected(rejectedAccessToken, generation)
+                    : cached.asRejected();
+            if (cache.compareAndSet(cached, marker)) {
+                return marker;
+            }
+        }
+    }
+
+    private void clearRejectedMarkerOnRollback(final CachedToken rejectedMarker) {
+        if (rejectedMarker == null) {
+            return;
+        }
         if (!TransactionSynchronizationManager.isActualTransactionActive()
                 || !TransactionSynchronizationManager.isSynchronizationActive()) {
             return;
@@ -118,8 +139,10 @@ public class SmartThingsTokenProvider {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
 
             @Override
-            public void afterCommit() {
-                clearCachedToken(rejectedAccessToken);
+            public void afterCompletion(final int status) {
+                if (status == STATUS_ROLLED_BACK) {
+                    cache.compareAndSet(rejectedMarker, null);
+                }
             }
         });
     }
@@ -156,6 +179,16 @@ public class SmartThingsTokenProvider {
 
         private boolean isNewerThan(final CachedToken other) {
             return generation > other.generation();
+        }
+
+        private CachedToken asRejected() {
+            return new CachedToken(accessToken, LocalDateTime.MIN, generation);
+        }
+
+        private static CachedToken rejected(final String accessToken, final Long generation) {
+            return new CachedToken(accessToken,
+                    LocalDateTime.MIN,
+                    Objects.requireNonNull(generation, "영속화된 SmartThings 토큰의 version이 필요합니다"));
         }
     }
 }

@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,9 +57,13 @@ public class ExchangeSmartThingsTokenServiceImpl implements ExchangeSmartThingsT
             log.warn("SmartThings token exchange rejected status={}", e.getStatus());
             throw new ExpectedException("SmartThings 토큰 교환에 실패했습니다.",
                     SmartThingsErrorMapper.toOAuthStatus(e.getStatus()));
+        } catch (DataAccessException e) {
+            log.error("Failed to persist exchanged SmartThings token", e);
+            throw new ExpectedException("SmartThings 토큰 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         } catch (Exception e) {
             log.error("Failed to exchange SmartThings token", e);
-            throw new ExpectedException("SmartThings 토큰 교환에 실패했습니다: " + e.getMessage(), HttpStatus.BAD_GATEWAY);
+            throw new ExpectedException("SmartThings 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY);
         }
     }
 
