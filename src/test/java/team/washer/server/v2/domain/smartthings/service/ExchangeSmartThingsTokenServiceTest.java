@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.*;
+import static org.mockito.Mockito.inOrder;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -75,7 +76,26 @@ class ExchangeSmartThingsTokenServiceTest {
                 exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri");
 
                 // Then
-                then(smartThingsTokenRepository).should(times(1)).save(any(SmartThingsToken.class));
+                final var order = inOrder(smartThingsTokenRepository, smartThingsTokenProvider);
+                order.verify(smartThingsTokenRepository).saveAndFlush(any(SmartThingsToken.class));
+                order.verify(smartThingsTokenProvider).refresh(any(SmartThingsToken.class));
+            }
+
+            @Test
+            @DisplayName("토큰 저장 flush가 실패하면 캐시 갱신을 호출하지 않는다")
+            void it_does_not_refresh_cache_when_token_flush_fails() {
+                // Given
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.exchangeToken(anyString(), anyString())).willReturn(createTokenResponse());
+                given(smartThingsTokenRepository.findSingletonToken()).willReturn(Optional.empty());
+                willThrow(new RuntimeException("database failure")).given(smartThingsTokenRepository)
+                        .saveAndFlush(any(SmartThingsToken.class));
+
+                // When & Then
+                assertThatThrownBy(() -> exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri"))
+                        .isInstanceOf(ExpectedException.class);
+                then(smartThingsTokenProvider).should(never()).refresh(any(SmartThingsToken.class));
             }
         }
 
@@ -99,7 +119,7 @@ class ExchangeSmartThingsTokenServiceTest {
                 exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri");
 
                 // Then
-                then(smartThingsTokenRepository).should(times(1)).save(existingToken);
+                then(smartThingsTokenRepository).should(times(1)).saveAndFlush(existingToken);
                 assertThat(existingToken.getAccessToken()).isEqualTo("new-access-token");
                 assertThat(existingToken.getRefreshToken()).isEqualTo("new-refresh-token");
             }
