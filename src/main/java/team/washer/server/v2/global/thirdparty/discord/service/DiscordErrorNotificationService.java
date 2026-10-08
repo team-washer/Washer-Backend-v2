@@ -10,15 +10,17 @@ import java.util.Set;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.info.GitProperties;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
-import team.washer.server.v2.global.common.logging.SensitiveLogSanitizer;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
+import team.washer.server.v2.global.common.logging.SensitiveLogSanitizer;
 import team.washer.server.v2.global.config.AsyncConfig;
 import team.washer.server.v2.global.thirdparty.discord.data.DiscordEmbed;
 import team.washer.server.v2.global.thirdparty.discord.data.DiscordField;
@@ -36,57 +38,85 @@ public class DiscordErrorNotificationService {
     private static final int MAX_FIELD_LENGTH = 256;
     private static final int MAXIMUM_DEDUPLICATION_ENTRIES = 1000;
     private static final Duration SUPPRESSION_WINDOW = Duration.ofMinutes(10);
-    private static final Set<String> SAFE_ADDITIONAL_INFO_KEYS = Set
-            .of("HTTP Method",
-                    "Request Path",
-                    "Trace ID",
-                    "Error Code",
-                    "Operation",
-                    "Reservation ID",
-                    "Machine ID",
-                    "감지된 기기",
-                    "조치 필요",
-                    "Penalty Type",
-                    "Target");
+    private static final Set<String> SAFE_ADDITIONAL_INFO_KEYS = Set.of("HTTP Method",
+            "Request Path",
+            "Trace ID",
+            "Error Code",
+            "Operation",
+            "Reservation ID",
+            "Machine ID",
+            "감지된 기기",
+            "조치 필요",
+            "Penalty Type",
+            "Target");
 
     private final DiscordWebhookClient discordWebhookClient;
     private final String environment;
     private final String deploymentCommit;
     private final Clock clock;
     private final OperationalAlertDeduplicator deduplicator;
+    private final TaskExecutor operationalAlertTaskExecutor;
 
     @Autowired
     public DiscordErrorNotificationService(final DiscordWebhookClient discordWebhookClient,
             final Environment environment,
-            final ObjectProvider<GitProperties> gitPropertiesProvider) {
+            final ObjectProvider<GitProperties> gitPropertiesProvider,
+            @Qualifier(AsyncConfig.OPERATIONAL_ALERT_TASK_EXECUTOR) final TaskExecutor operationalAlertTaskExecutor) {
         this(discordWebhookClient, activeEnvironment(environment), abbreviatedCommit(gitPropertiesProvider),
-                Clock.systemUTC());
+                Clock.systemUTC(), operationalAlertTaskExecutor);
     }
 
     DiscordErrorNotificationService(final DiscordWebhookClient discordWebhookClient,
             final String environment,
             final String deploymentCommit,
             final Clock clock) {
+        this(discordWebhookClient, environment, deploymentCommit, clock, Runnable::run);
+    }
+
+    DiscordErrorNotificationService(final DiscordWebhookClient discordWebhookClient,
+            final String environment,
+            final String deploymentCommit,
+            final Clock clock,
+            final TaskExecutor operationalAlertTaskExecutor) {
         this.discordWebhookClient = discordWebhookClient;
         this.environment = environment;
         this.deploymentCommit = deploymentCommit;
         this.clock = clock;
         deduplicator = new OperationalAlertDeduplicator(clock, SUPPRESSION_WINDOW, MAXIMUM_DEDUPLICATION_ENTRIES);
+        this.operationalAlertTaskExecutor = operationalAlertTaskExecutor;
     }
 
-    @Async(AsyncConfig.OPERATIONAL_ALERT_TASK_EXECUTOR)
-    public void notifyError(final Throwable exception, final String context, final Map<String, Object> additionalInfo) {
+    public void notifyError(final Throwable exception, final Map<String, Object> additionalInfo) {
         final var event = createEvent(exception, additionalInfo);
         final var deduplicationKey = deduplicationKey(event);
         final var decision = deduplicator.reserve(deduplicationKey);
         if (!decision.shouldSend()) {
             if (decision.dropped()) {
-                log.warn("operational alert dropped eventType={} reason=deduplication_capacity", event.eventType());
+                log.warn("operational alert dropped eventType={} traceId={} reason=deduplication_capacity",
+                        event.eventType(),
+                        event.correlationId());
             }
             return;
         }
         try {
-            final var embed = createErrorEmbed(event, decision.suppressedCount());
+            operationalAlertTaskExecutor.execute(() -> deliver(event, deduplicationKey, decision.suppressedCount()));
+        } catch (final TaskRejectedException rejectedException) {
+            deduplicator.releaseFailedDelivery(deduplicationKey);
+            log.error("operational alert delivery rejected eventType={} exceptionType={} traceId={} rejectionType={}",
+                    event.eventType(),
+                    event.exceptionType(),
+                    event.correlationId(),
+                    rejectedException.getClass().getSimpleName());
+        }
+    }
+
+    public void notifyError(final Throwable exception) {
+        notifyError(exception, Map.of());
+    }
+
+    private void deliver(final OperationalAlertEvent event, final String deduplicationKey, final long suppressedCount) {
+        try {
+            final var embed = createErrorEmbed(event, suppressedCount);
             discordWebhookClient.sendMessage(DiscordWebhookPayload.embedMessage(embed));
             deduplicator.markDelivered(deduplicationKey);
             log.info("operational alert sent eventType={} exceptionType={} traceId={} fieldCount={}",
@@ -102,11 +132,6 @@ public class DiscordErrorNotificationService {
                     event.correlationId(),
                     sendException.getClass().getSimpleName());
         }
-    }
-
-    @Async(AsyncConfig.OPERATIONAL_ALERT_TASK_EXECUTOR)
-    public void notifyError(final Throwable exception) {
-        notifyError(exception, null, Map.of());
     }
 
     private OperationalAlertEvent createEvent(final Throwable exception, final Map<String, Object> additionalInfo) {
@@ -147,8 +172,8 @@ public class DiscordErrorNotificationService {
         final var description = event.correlationId() == null || event.correlationId().isBlank()
                 ? "CloudWatch에서 발생 시각과 이벤트 정보를 확인해 주세요."
                 : "CloudWatch에서 Trace ID로 상세 정보를 확인해 주세요.";
-        return DiscordEmbed.builder().title("운영 오류 알림").description(description)
-                .color(EmbedColor.ERROR.getColor()).fields(fields).timestamp(event.occurredAt().toString()).build();
+        return DiscordEmbed.builder().title("운영 오류 알림").description(description).color(EmbedColor.ERROR.getColor())
+                .fields(fields).timestamp(event.occurredAt().toString()).build();
     }
 
     private static void addField(final List<DiscordField> fields, final String name, final String value) {
@@ -173,9 +198,12 @@ public class DiscordErrorNotificationService {
                 event.exceptionType(),
                 nullToEmpty(event.errorCode()),
                 nullToEmpty(event.operation()),
+                nullToEmpty(event.metadata().get("HTTP Method")),
                 nullToEmpty(event.metadata().get("Request Path")),
                 nullToEmpty(event.metadata().get("Reservation ID")),
-                nullToEmpty(event.metadata().get("Machine ID")));
+                nullToEmpty(event.metadata().get("Machine ID")),
+                nullToEmpty(event.metadata().get("감지된 기기")),
+                nullToEmpty(event.metadata().get("Penalty Type")));
     }
 
     private Map<String, String> safeAdditionalInfo(final Map<String, Object> additionalInfo) {

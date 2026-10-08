@@ -135,9 +135,10 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                         e.getMessage());
                 if (discordErrorNotificationService != null) {
                     discordErrorNotificationService.notifyError(e,
-                            "유휴 기기 종료 스케줄러 - SmartThings 권한 오류",
                             Map.of("Operation",
                                     "idle_machine_shutdown_permission_error",
+                                    "Machine ID",
+                                    machine.getId(),
                                     "감지된 기기",
                                     machine.getName(),
                                     "조치 필요",

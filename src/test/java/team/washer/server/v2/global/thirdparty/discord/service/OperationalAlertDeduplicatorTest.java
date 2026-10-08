@@ -88,6 +88,28 @@ class OperationalAlertDeduplicatorTest {
         assertThat(decisions).filteredOn(OperationalAlertDeduplicator.Decision::shouldSend).hasSize(1);
     }
 
+    @Test
+    @DisplayName("전송 대기 중 억제 횟수를 보존하고 전송 실패 뒤 재시도 대기 시간을 적용한다")
+    void preservesSuppressedCountAndBacksOffAfterDeliveryFailure() {
+        // Given
+        final var clock = new MutableClock(Instant.parse("2026-10-08T00:00:00Z"));
+        final var deduplicator = new OperationalAlertDeduplicator(clock, Duration.ofMinutes(10), 2);
+
+        // When
+        deduplicator.reserve("same");
+        final var pendingSuppressed = deduplicator.reserve("same");
+        deduplicator.releaseFailedDelivery("same");
+        final var retrySuppressed = deduplicator.reserve("same");
+        clock.advance(Duration.ofMinutes(1));
+        final var retry = deduplicator.reserve("same");
+
+        // Then
+        assertThat(pendingSuppressed.shouldSend()).isFalse();
+        assertThat(retrySuppressed.shouldSend()).isFalse();
+        assertThat(retry.shouldSend()).isTrue();
+        assertThat(retry.suppressedCount()).isEqualTo(2);
+    }
+
     private static final class MutableClock extends Clock {
         private Instant instant;
 

@@ -5,6 +5,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
@@ -37,7 +38,6 @@ class DiscordErrorNotificationServiceTest {
 
             // When
             service.notifyError(exception,
-                    "context-secret",
                     Map.of("HTTP Method",
                             "POST",
                             "Request Path",
@@ -57,8 +57,7 @@ class DiscordErrorNotificationServiceTest {
             assertThat(json).contains("POST").contains("trace-123").contains("6fb9c512").doesNotContain("basic-secret")
                     .doesNotContain("refresh-secret").doesNotContain("authorization-code")
                     .doesNotContain("access-secret").doesNotContain("Stack Trace")
-                    .doesNotContain("IllegalStateException:").doesNotContain("java.lang.IllegalStateException")
-                    .doesNotContain("context-secret");
+                    .doesNotContain("IllegalStateException:").doesNotContain("java.lang.IllegalStateException");
         }
 
         @Test
@@ -71,7 +70,7 @@ class DiscordErrorNotificationServiceTest {
             final var service = service(client);
 
             // When & Then
-            service.notifyError(new IllegalStateException("service failure"), "작업 실패", Map.of());
+            service.notifyError(new IllegalStateException("service failure"), Map.of());
         }
 
         @Test
@@ -81,11 +80,14 @@ class DiscordErrorNotificationServiceTest {
             final DiscordWebhookClient client = mock(DiscordWebhookClient.class);
             org.mockito.Mockito.doThrow(new IllegalStateException("webhook failure")).doNothing().when(client)
                     .sendMessage(org.mockito.ArgumentMatchers.any());
-            final var service = service(client);
+            final var clock = new MutableClock(Instant.parse("2026-10-08T00:00:00Z"));
+            final var service = service(client, clock);
 
             // When
-            service.notifyError(new IllegalStateException("first"), "작업 실패", Map.of("Operation", "lifecycle"));
-            service.notifyError(new IllegalStateException("second"), "작업 실패", Map.of("Operation", "lifecycle"));
+            service.notifyError(new IllegalStateException("first"), Map.of("Operation", "lifecycle"));
+            service.notifyError(new IllegalStateException("second"), Map.of("Operation", "lifecycle"));
+            clock.advance(Duration.ofMinutes(1));
+            service.notifyError(new IllegalStateException("third"), Map.of("Operation", "lifecycle"));
 
             // Then
             then(client).should(org.mockito.Mockito.times(2)).sendMessage(org.mockito.ArgumentMatchers.any());
@@ -104,8 +106,8 @@ class DiscordErrorNotificationServiceTest {
             final var service = service(client);
 
             // When
-            service.notifyError(new IllegalStateException("first"), "scheduler", Map.of("Operation", "lifecycle"));
-            service.notifyError(new IllegalStateException("second"), "scheduler", Map.of("Operation", "lifecycle"));
+            service.notifyError(new IllegalStateException("first"), Map.of("Operation", "lifecycle"));
+            service.notifyError(new IllegalStateException("second"), Map.of("Operation", "lifecycle"));
 
             // Then
             then(client).should().sendMessage(org.mockito.ArgumentMatchers.any());
@@ -119,8 +121,8 @@ class DiscordErrorNotificationServiceTest {
             final var service = service(client);
 
             // When
-            service.notifyError(new IllegalStateException(), "scheduler", Map.of("Operation", "lifecycle"));
-            service.notifyError(new IllegalStateException(), "scheduler", Map.of("Operation", "device_sync"));
+            service.notifyError(new IllegalStateException(), Map.of("Operation", "lifecycle"));
+            service.notifyError(new IllegalStateException(), Map.of("Operation", "device_sync"));
 
             // Then
             then(client).should(org.mockito.Mockito.times(2)).sendMessage(org.mockito.ArgumentMatchers.any());
@@ -128,9 +130,37 @@ class DiscordErrorNotificationServiceTest {
     }
 
     private static DiscordErrorNotificationService service(final DiscordWebhookClient client) {
-        return new DiscordErrorNotificationService(client,
-                "test",
-                "6fb9c512",
-                Clock.fixed(Instant.parse("2026-10-08T00:00:00Z"), ZoneOffset.UTC));
+        return service(client, Clock.fixed(Instant.parse("2026-10-08T00:00:00Z"), ZoneOffset.UTC));
+    }
+
+    private static DiscordErrorNotificationService service(final DiscordWebhookClient client, final Clock clock) {
+        return new DiscordErrorNotificationService(client, "test", "6fb9c512", clock);
+    }
+
+    private static final class MutableClock extends Clock {
+        private Instant instant;
+
+        private MutableClock(final Instant instant) {
+            this.instant = instant;
+        }
+
+        @Override
+        public ZoneOffset getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(final java.time.ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
+        }
+
+        private void advance(final Duration duration) {
+            instant = instant.plus(duration);
+        }
     }
 }

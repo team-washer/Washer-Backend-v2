@@ -16,6 +16,7 @@ class AsyncConfigTest {
 
         // When
         final var executor = config.operationalAlertTaskExecutor();
+        executor.initialize();
 
         // Then
         try {

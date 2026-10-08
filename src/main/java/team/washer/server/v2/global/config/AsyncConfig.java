@@ -1,6 +1,7 @@
 package team.washer.server.v2.global.config;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -63,10 +64,12 @@ public class AsyncConfig {
         executor.setDaemon(true);
         executor.setWaitForTasksToCompleteOnShutdown(false);
         executor.setAwaitTerminationSeconds(OPERATIONAL_ALERT_AWAIT_TERMINATION_SECONDS);
-        executor.setRejectedExecutionHandler((task, threadPool) -> log.warn(
-                "operational alert rejected reason=queue_capacity activeCount={} queueSize={}",
-                threadPool.getActiveCount(),
-                threadPool.getQueue().size()));
+        executor.setRejectedExecutionHandler((task, threadPool) -> {
+            log.warn("operational alert rejected reason=queue_capacity activeCount={} queueSize={}",
+                    threadPool.getActiveCount(),
+                    threadPool.getQueue().size());
+            throw new RejectedExecutionException("Operational alert executor queue is full");
+        });
         return executor;
     }
 
