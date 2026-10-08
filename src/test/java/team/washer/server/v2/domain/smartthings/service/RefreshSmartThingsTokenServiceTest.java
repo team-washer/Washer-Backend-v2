@@ -84,7 +84,7 @@ class RefreshSmartThingsTokenServiceTest {
                 refreshSmartThingsTokenService.execute();
 
                 // Then
-                then(smartThingsTokenRepository).should(times(1)).save(expiredToken);
+                then(smartThingsTokenRepository).should(times(1)).saveAndFlush(expiredToken);
                 then(smartThingsTokenProvider).should(times(1)).refresh(expiredToken);
                 assertThat(expiredToken.getAccessToken()).isEqualTo("new-access");
                 assertThat(expiredToken.getRefreshToken()).isEqualTo("new-refresh");
@@ -107,7 +107,7 @@ class RefreshSmartThingsTokenServiceTest {
 
                 // Then
                 then(smartThingsOAuthClient).shouldHaveNoInteractions();
-                then(smartThingsTokenRepository).should(never()).save(any(SmartThingsToken.class));
+                then(smartThingsTokenRepository).should(never()).saveAndFlush(any(SmartThingsToken.class));
             }
         }
 

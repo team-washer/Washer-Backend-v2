@@ -45,23 +45,26 @@ class SmartThingsTokenProviderTest {
     }
 
     private SmartThingsToken token(final String accessToken) {
-        return SmartThingsToken.builder().accessToken(accessToken).refreshToken("refresh-token")
-                .expiresAt(LocalDateTime.now().plusHours(1)).build();
+        return token(accessToken, LocalDateTime.now().plusHours(1), 1L);
     }
 
     private SmartThingsToken token(final String accessToken, final LocalDateTime expiresAt) {
+        return token(accessToken, expiresAt, 1L);
+    }
+
+    private SmartThingsToken token(final String accessToken, final LocalDateTime expiresAt, final long version) {
         return SmartThingsToken.builder().accessToken(accessToken).refreshToken("refresh-token").expiresAt(expiresAt)
-                .build();
+                .version(version).build();
     }
 
     private SmartThingsToken createOldToken() {
         return SmartThingsToken.builder().accessToken("old-access").refreshToken("old-refresh")
-                .expiresAt(LocalDateTime.now().plusHours(1)).build();
+                .expiresAt(LocalDateTime.now().plusHours(1)).version(1L).build();
     }
 
     private SmartThingsToken createNewToken() {
         return SmartThingsToken.builder().accessToken("new-access").refreshToken("new-refresh")
-                .expiresAt(LocalDateTime.now().plusHours(24)).build();
+                .expiresAt(LocalDateTime.now().plusHours(24)).version(2L).build();
     }
 
     private void beginTransaction() {
@@ -144,8 +147,8 @@ class SmartThingsTokenProviderTest {
             @DisplayName("조회한 이전 토큰으로 덮어쓰지 않고 새 토큰을 반환해야 한다")
             void it_keeps_newer_token() {
                 // Given
-                final var oldToken = createOldToken();
-                final var newToken = createNewToken();
+                final var oldToken = token("old-access", LocalDateTime.now().plusHours(24), 1L);
+                final var newToken = token("new-access", LocalDateTime.now().plusHours(1), 2L);
                 given(tokenRepository.findSingletonToken()).willAnswer(invocation -> {
                     smartThingsTokenProvider.refresh(newToken);
                     return Optional.of(oldToken);
@@ -158,6 +161,27 @@ class SmartThingsTokenProviderTest {
                 assertThat(accessToken).isEqualTo("new-access");
                 assertThat(smartThingsTokenProvider.getValidAccessToken()).isEqualTo("new-access");
                 then(tokenRepository).should(times(1)).findSingletonToken();
+            }
+
+            @Test
+            @DisplayName("commit 순서와 다르게 callback이 실행되어도 더 높은 세대의 토큰을 유지한다")
+            void it_keeps_higher_generation_after_out_of_order_after_commit_callbacks() throws Exception {
+                // Given
+                final var firstCommittedToken = token("first-access", LocalDateTime.now().plusHours(24), 2L);
+                final var laterCommittedToken = token("later-access", LocalDateTime.now().plusHours(1), 3L);
+                beginTransaction();
+                smartThingsTokenProvider.refresh(firstCommittedToken);
+                final var synchronization = TransactionSynchronizationManager.getSynchronizations().getFirst();
+
+                // When
+                try (var executor = Executors.newSingleThreadExecutor()) {
+                    executor.submit(() -> smartThingsTokenProvider.refresh(laterCommittedToken)).get(5,
+                            TimeUnit.SECONDS);
+                }
+                synchronization.afterCommit();
+
+                // Then
+                assertThat(smartThingsTokenProvider.getValidAccessToken()).isEqualTo("later-access");
             }
         }
     }
@@ -226,7 +250,7 @@ class SmartThingsTokenProviderTest {
         void replaces_rejected_token_even_when_replacement_expires_earlier() {
             // Given
             final var rejectedToken = token("rejected-access", LocalDateTime.now().plusHours(24));
-            final var replacementToken = token("replacement-access", LocalDateTime.now().plusHours(1));
+            final var replacementToken = token("replacement-access", LocalDateTime.now().plusHours(1), 2L);
             smartThingsTokenProvider.refresh(rejectedToken);
             given(tokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(replacementToken));
 
@@ -242,7 +266,7 @@ class SmartThingsTokenProviderTest {
         void removes_rejected_token_when_multiple_requests_receive_unauthorized() throws Exception {
             // Given
             final var rejectedToken = token("rejected-access", LocalDateTime.now().plusHours(24));
-            final var replacementToken = token("replacement-access", LocalDateTime.now().plusHours(1));
+            final var replacementToken = token("replacement-access", LocalDateTime.now().plusHours(1), 2L);
             final var barrier = new CyclicBarrier(2);
             smartThingsTokenProvider.refresh(rejectedToken);
             given(tokenRepository.findSingletonTokenWithLock()).willAnswer(invocation -> {
@@ -268,8 +292,8 @@ class SmartThingsTokenProviderTest {
         void preserves_new_token_published_after_database_read() throws Exception {
             // Given
             final var rejectedToken = token("rejected-access", LocalDateTime.now().plusHours(24));
-            final var replacementToken = token("replacement-access", LocalDateTime.now().plusHours(1));
-            final var newerToken = token("newer-access", LocalDateTime.now().plusHours(48));
+            final var replacementToken = token("replacement-access", LocalDateTime.now().plusHours(1), 2L);
+            final var newerToken = token("newer-access", LocalDateTime.now().plusHours(48), 3L);
             final var databaseRead = new CountDownLatch(1);
             final var allowReplacement = new CountDownLatch(1);
             smartThingsTokenProvider.refresh(rejectedToken);

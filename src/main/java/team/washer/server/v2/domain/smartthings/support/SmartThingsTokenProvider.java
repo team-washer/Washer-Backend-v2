@@ -1,6 +1,7 @@
 package team.washer.server.v2.domain.smartthings.support;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.springframework.stereotype.Component;
@@ -42,7 +43,7 @@ public class SmartThingsTokenProvider {
      *            저장한 토큰
      */
     public void refresh(final SmartThingsToken token) {
-        final var refreshed = new CachedToken(token.getAccessToken(), token.getExpiresAt());
+        final var refreshed = CachedToken.from(token);
         if (TransactionSynchronizationManager.isActualTransactionActive()
                 && TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -72,8 +73,7 @@ public class SmartThingsTokenProvider {
             return;
         }
         if (!token.getAccessToken().equals(rejectedAccessToken)) {
-            replaceRejectedCachedToken(rejectedAccessToken,
-                    new CachedToken(token.getAccessToken(), token.getExpiresAt()));
+            replaceRejectedCachedToken(rejectedAccessToken, CachedToken.from(token));
             return;
         }
 
@@ -89,8 +89,10 @@ public class SmartThingsTokenProvider {
         if (!token.isValid()) {
             throw new ErrorCodeException(ErrorCode.SMARTTHINGS_TOKEN_INVALID);
         }
-        final var published = publish(new CachedToken(token.getAccessToken(), token.getExpiresAt()));
-        log.debug("smartthings token cache loaded from db expiresAt={}", published.expiresAt());
+        final var published = publish(CachedToken.from(token));
+        log.debug("smartthings token cache loaded from db generation={} expiresAt={}",
+                published.generation(),
+                published.expiresAt());
         return published.accessToken();
     }
 
@@ -98,9 +100,9 @@ public class SmartThingsTokenProvider {
      * 서로 다른 토큰이면 만료 시각이 더 늦은 토큰만 캐시에 남긴다. 먼저 조회한 이전 토큰이 나중에 확정된 토큰을 덮어쓰지 않도록 한다. 같은
      * 토큰이면 무효화로 앞당겨진 만료 시각도 반영한다.
      */
+    // 캐시 게시 순서는 만료 시각이 아닌 DB commit version으로만 판단한다.
     private CachedToken publish(final CachedToken candidate) {
-        return cache.updateAndGet(current -> current != null && !current.accessToken().equals(candidate.accessToken())
-                && current.expiresLaterThan(candidate) ? current : candidate);
+        return cache.updateAndGet(current -> current == null || candidate.isNewerThan(current) ? candidate : current);
     }
 
     private void clearCachedToken(final String rejectedAccessToken) {
@@ -132,10 +134,12 @@ public class SmartThingsTokenProvider {
      */
     private void replaceRejectedCachedToken(final String rejectedAccessToken, final CachedToken replacement) {
         cache.updateAndGet(cached -> cached == null || cached.accessToken().equals(rejectedAccessToken)
-                || cached.accessToken().equals(replacement.accessToken()) ? replacement : cached);
+                || cached.accessToken().equals(replacement.accessToken()) || replacement.isNewerThan(cached)
+                        ? replacement
+                        : cached);
     }
 
-    private record CachedToken(String accessToken, LocalDateTime expiresAt) {
+    private record CachedToken(String accessToken, LocalDateTime expiresAt, long generation) {
 
         private static final int EXPIRY_BUFFER_MINUTES = 5;
 
@@ -144,8 +148,14 @@ public class SmartThingsTokenProvider {
                     && expiresAt.isAfter(LocalDateTime.now().plusMinutes(EXPIRY_BUFFER_MINUTES));
         }
 
-        private boolean expiresLaterThan(final CachedToken other) {
-            return expiresAt != null && other.expiresAt() != null && expiresAt.isAfter(other.expiresAt());
+        private static CachedToken from(final SmartThingsToken token) {
+            return new CachedToken(token.getAccessToken(),
+                    token.getExpiresAt(),
+                    Objects.requireNonNull(token.getVersion(), "영속화된 SmartThings 토큰의 version이 필요합니다."));
+        }
+
+        private boolean isNewerThan(final CachedToken other) {
+            return generation > other.generation();
         }
     }
 }

@@ -74,7 +74,7 @@ public class RefreshSmartThingsTokenServiceImpl implements RefreshSmartThingsTok
     private void updateToken(SmartThingsToken token, SmartThingsTokenExchangeResDto response) {
         var expiresAt = LocalDateTime.now().plusSeconds(response.expiresIn());
         token.updateTokens(response.accessToken(), response.refreshToken(), expiresAt);
-        smartThingsTokenRepository.save(token);
+        smartThingsTokenRepository.saveAndFlush(token);
         smartThingsTokenProvider.refresh(token);
     }
 }

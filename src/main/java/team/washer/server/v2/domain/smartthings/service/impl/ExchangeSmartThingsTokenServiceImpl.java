@@ -76,12 +76,12 @@ public class ExchangeSmartThingsTokenServiceImpl implements ExchangeSmartThingsT
         if (existingToken.isPresent()) {
             var token = existingToken.get();
             token.updateTokens(response.accessToken(), response.refreshToken(), expiresAt);
-            smartThingsTokenRepository.save(token);
+            smartThingsTokenRepository.saveAndFlush(token);
             smartThingsTokenProvider.refresh(token);
         } else {
             var newToken = SmartThingsToken.builder().accessToken(response.accessToken())
                     .refreshToken(response.refreshToken()).expiresAt(expiresAt).build();
-            smartThingsTokenRepository.save(newToken);
+            smartThingsTokenRepository.saveAndFlush(newToken);
             smartThingsTokenProvider.refresh(newToken);
         }
     }
