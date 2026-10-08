@@ -127,6 +127,24 @@ class DiscordErrorNotificationServiceTest {
             // Then
             then(client).should(org.mockito.Mockito.times(2)).sendMessage(org.mockito.ArgumentMatchers.any());
         }
+
+        @Test
+        @DisplayName("같은 작업의 HTTP 메서드와 기기 내부 ID가 다르면 각각 전송한다")
+        void sendsEventsWithDifferentMethodOrMachineIdIndependently() {
+            // Given
+            final DiscordWebhookClient client = mock(DiscordWebhookClient.class);
+            final var service = service(client);
+
+            // When
+            service.notifyError(new IllegalStateException(), Map.of("Operation", "machine_sync", "HTTP Method", "GET"));
+            service.notifyError(new IllegalStateException(),
+                    Map.of("Operation", "machine_sync", "HTTP Method", "POST"));
+            service.notifyError(new IllegalStateException(), Map.of("Operation", "machine_shutdown", "Machine ID", 1L));
+            service.notifyError(new IllegalStateException(), Map.of("Operation", "machine_shutdown", "Machine ID", 2L));
+
+            // Then
+            then(client).should(org.mockito.Mockito.times(4)).sendMessage(org.mockito.ArgumentMatchers.any());
+        }
     }
 
     private static DiscordErrorNotificationService service(final DiscordWebhookClient client) {
