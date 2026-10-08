@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.global.common.logging.SensitiveLogSanitizer;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.config.AsyncConfig;
 import team.washer.server.v2.global.thirdparty.discord.data.DiscordEmbed;
 import team.washer.server.v2.global.thirdparty.discord.data.DiscordField;
@@ -36,7 +37,17 @@ public class DiscordErrorNotificationService {
     private static final int MAXIMUM_DEDUPLICATION_ENTRIES = 1000;
     private static final Duration SUPPRESSION_WINDOW = Duration.ofMinutes(10);
     private static final Set<String> SAFE_ADDITIONAL_INFO_KEYS = Set
-            .of("HTTP Method", "Request Path", "Trace ID", "Error Code", "Operation", "Reservation ID", "Machine ID");
+            .of("HTTP Method",
+                    "Request Path",
+                    "Trace ID",
+                    "Error Code",
+                    "Operation",
+                    "Reservation ID",
+                    "Machine ID",
+                    "감지된 기기",
+                    "조치 필요",
+                    "Penalty Type",
+                    "Target");
 
     private final DiscordWebhookClient discordWebhookClient;
     private final String environment;
@@ -50,10 +61,6 @@ public class DiscordErrorNotificationService {
             final ObjectProvider<GitProperties> gitPropertiesProvider) {
         this(discordWebhookClient, activeEnvironment(environment), abbreviatedCommit(gitPropertiesProvider),
                 Clock.systemUTC());
-    }
-
-    public DiscordErrorNotificationService(final DiscordWebhookClient discordWebhookClient) {
-        this(discordWebhookClient, "unknown", "unknown", Clock.systemUTC());
     }
 
     DiscordErrorNotificationService(final DiscordWebhookClient discordWebhookClient,
@@ -82,15 +89,17 @@ public class DiscordErrorNotificationService {
             final var embed = createErrorEmbed(event, decision.suppressedCount());
             discordWebhookClient.sendMessage(DiscordWebhookPayload.embedMessage(embed));
             deduplicator.markDelivered(deduplicationKey);
-            log.info("operational alert sent eventType={} exceptionType={} fieldCount={}",
+            log.info("operational alert sent eventType={} exceptionType={} traceId={} fieldCount={}",
                     event.eventType(),
                     event.exceptionType(),
+                    event.correlationId(),
                     embed.getFields().size());
         } catch (final Exception sendException) {
             deduplicator.releaseFailedDelivery(deduplicationKey);
-            log.error("operational alert delivery failed eventType={} exceptionType={} sendExceptionType={}",
+            log.error("operational alert delivery failed eventType={} exceptionType={} traceId={} sendExceptionType={}",
                     event.eventType(),
                     event.exceptionType(),
+                    event.correlationId(),
                     sendException.getClass().getSimpleName());
         }
     }
@@ -112,7 +121,9 @@ public class DiscordErrorNotificationService {
                 deploymentCommit,
                 correlationId,
                 operation == null ? eventType : operation,
-                errorCode,
+                errorCode == null && exception instanceof ErrorCodeException errorCodeException
+                        ? errorCodeException.getErrorCode().name()
+                        : errorCode,
                 exception.getClass().getSimpleName(),
                 Map.copyOf(safeInfo));
     }
@@ -133,7 +144,10 @@ public class DiscordErrorNotificationService {
             fields.add(DiscordField.builder().name("Suppressed Count").value(Long.toString(suppressedCount))
                     .inline(true).build());
         }
-        return DiscordEmbed.builder().title("Operational alert").description("Inspect CloudWatch with Trace ID.")
+        final var description = event.correlationId() == null || event.correlationId().isBlank()
+                ? "CloudWatch에서 발생 시각과 이벤트 정보를 확인해 주세요."
+                : "CloudWatch에서 Trace ID로 상세 정보를 확인해 주세요.";
+        return DiscordEmbed.builder().title("운영 오류 알림").description(description)
                 .color(EmbedColor.ERROR.getColor()).fields(fields).timestamp(event.occurredAt().toString()).build();
     }
 

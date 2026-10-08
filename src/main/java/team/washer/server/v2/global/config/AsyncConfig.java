@@ -34,7 +34,7 @@ public class AsyncConfig {
      */
     @Bean(name = FCM_TASK_EXECUTOR)
     public ThreadPoolTaskExecutor fcmTaskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        final var executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(FCM_POOL_SIZE);
         executor.setMaxPoolSize(FCM_POOL_SIZE);
         executor.setAllowCoreThreadTimeOut(true);
@@ -55,7 +55,7 @@ public class AsyncConfig {
      */
     @Bean(name = OPERATIONAL_ALERT_TASK_EXECUTOR)
     public ThreadPoolTaskExecutor operationalAlertTaskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        final var executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(1);
         executor.setQueueCapacity(OPERATIONAL_ALERT_QUEUE_CAPACITY);
@@ -67,13 +67,12 @@ public class AsyncConfig {
                 "operational alert rejected reason=queue_capacity activeCount={} queueSize={}",
                 threadPool.getActiveCount(),
                 threadPool.getQueue().size()));
-        executor.initialize();
         return executor;
     }
 
     @Bean(name = "taskExecutor")
     public Executor taskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        final var executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(5);
         executor.setQueueCapacity(100);

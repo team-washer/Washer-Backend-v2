@@ -31,6 +31,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.HandlerMapping;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import feign.RetryableException;
@@ -379,7 +380,11 @@ public class GlobalExceptionHandler {
         final Map<String, Object> requestInfo = new HashMap<>();
         requestInfo.put("Operation", "http_request");
         requestInfo.put("HTTP Method", request.getMethod());
-        requestInfo.put("Request Path", request.getRequestURI());
+        final var requestPattern = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        requestInfo.put("Request Path", requestPattern instanceof String pattern ? pattern : request.getRequestURI());
+        if (ex instanceof ErrorCodeException errorCodeException) {
+            requestInfo.put("Error Code", errorCodeException.getErrorCode().name());
+        }
         final var traceId = TraceIdFilter.currentTraceId();
         if (traceId != null) {
             requestInfo.put("Trace ID", traceId);

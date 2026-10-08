@@ -476,7 +476,9 @@ public class PenaltyRedisUtil {
         log.error("penalty apply failed event=penalty_apply_failed penaltyType={}", penaltyType, e);
         try {
             discordErrorNotificationServiceProvider.ifAvailable(service -> service
-                    .notifyError(e, "자동 패널티 저장 실패", Map.of("Penalty Type", penaltyType, "Target", target)));
+                    .notifyError(e,
+                            "자동 패널티 저장 실패",
+                            Map.of("Operation", "penalty_apply_failure", "Penalty Type", penaltyType, "Target", target)));
         } catch (Exception notifyException) {
             log.error("penalty failure notification failed penaltyType={}", penaltyType, notifyException);
         }
