@@ -377,6 +377,7 @@ public class GlobalExceptionHandler {
             return;
         }
         final Map<String, Object> requestInfo = new HashMap<>();
+        requestInfo.put("Operation", "http_request");
         requestInfo.put("HTTP Method", request.getMethod());
         requestInfo.put("Request Path", request.getRequestURI());
         final var traceId = TraceIdFilter.currentTraceId();
