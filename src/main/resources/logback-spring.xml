@@ -5,6 +5,10 @@
     <springProperty scope="context" name="CW_REGION" source="aws.cloudwatch.region" defaultValue="ap-northeast-2"/>
     <springProperty scope="context" name="CW_ACCESS_KEY" source="aws.cloudwatch.access-key"/>
     <springProperty scope="context" name="CW_SECRET_KEY" source="aws.cloudwatch.secret-key"/>
+    <springProperty scope="context" name="CW_QUEUE_CAPACITY" source="aws.cloudwatch.queue-capacity"
+                    defaultValue="10000"/>
+    <springProperty scope="context" name="CW_DISCARD_THRESHOLD_PERCENT"
+                    source="aws.cloudwatch.discard-threshold-percent" defaultValue="20"/>
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
             <layout class="team.washer.server.v2.global.common.logging.SensitiveLogMaskingLayout">
@@ -20,6 +24,8 @@
         <region>${CW_REGION}</region>
         <accessKey>${CW_ACCESS_KEY}</accessKey>
         <secretKey>${CW_SECRET_KEY}</secretKey>
+        <queueCapacity>${CW_QUEUE_CAPACITY}</queueCapacity>
+        <discardThresholdPercent>${CW_DISCARD_THRESHOLD_PERCENT}</discardThresholdPercent>
     </appender>
     <springProfile name="stage,prod">
         <root level="INFO">
