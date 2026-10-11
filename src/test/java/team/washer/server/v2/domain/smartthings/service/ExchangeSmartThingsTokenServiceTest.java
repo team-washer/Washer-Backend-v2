@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 
 import team.themoment.sdk.exception.ExpectedException;
@@ -70,7 +71,7 @@ class ExchangeSmartThingsTokenServiceTest {
                 given(smartThingsEnvironment.clientId()).willReturn("client-id");
                 given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
                 given(smartThingsOAuthClient.exchangeToken(anyString(), anyString())).willReturn(createTokenResponse());
-                given(smartThingsTokenRepository.findSingletonToken()).willReturn(Optional.empty());
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.empty());
 
                 // When
                 exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri");
@@ -88,13 +89,15 @@ class ExchangeSmartThingsTokenServiceTest {
                 given(smartThingsEnvironment.clientId()).willReturn("client-id");
                 given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
                 given(smartThingsOAuthClient.exchangeToken(anyString(), anyString())).willReturn(createTokenResponse());
-                given(smartThingsTokenRepository.findSingletonToken()).willReturn(Optional.empty());
-                willThrow(new RuntimeException("database failure")).given(smartThingsTokenRepository)
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.empty());
+                willThrow(new DataIntegrityViolationException("database failure")).given(smartThingsTokenRepository)
                         .saveAndFlush(any(SmartThingsToken.class));
 
                 // When & Then
                 assertThatThrownBy(() -> exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri"))
-                        .isInstanceOf(ExpectedException.class);
+                        .isInstanceOf(ExpectedException.class).hasMessage("SmartThings 토큰 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.")
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR));
                 then(smartThingsTokenProvider).should(never()).refresh(any(SmartThingsToken.class));
             }
         }
@@ -113,7 +116,7 @@ class ExchangeSmartThingsTokenServiceTest {
                 given(smartThingsEnvironment.clientId()).willReturn("client-id");
                 given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
                 given(smartThingsOAuthClient.exchangeToken(anyString(), anyString())).willReturn(createTokenResponse());
-                given(smartThingsTokenRepository.findSingletonToken()).willReturn(Optional.of(existingToken));
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(existingToken));
 
                 // When
                 exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri");

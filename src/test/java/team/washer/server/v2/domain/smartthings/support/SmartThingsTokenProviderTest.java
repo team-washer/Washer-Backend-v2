@@ -132,36 +132,6 @@ class SmartThingsTokenProviderTest {
                 // Then
                 assertThat(smartThingsTokenProvider.getValidAccessToken()).isEqualTo("old-access");
             }
-        }
-    }
-
-    @Nested
-    @DisplayName("getValidAccessToken 메서드는")
-    class Describe_getValidAccessToken {
-
-        @Nested
-        @DisplayName("DB 조회 중 더 늦게 만료되는 토큰이 먼저 캐시에 반영되면")
-        class Context_with_newer_token_published_during_reload {
-
-            @Test
-            @DisplayName("조회한 이전 토큰으로 덮어쓰지 않고 새 토큰을 반환해야 한다")
-            void it_keeps_newer_token() {
-                // Given
-                final var oldToken = token("old-access", LocalDateTime.now().plusHours(24), 1L);
-                final var newToken = token("new-access", LocalDateTime.now().plusHours(1), 2L);
-                given(tokenRepository.findSingletonToken()).willAnswer(invocation -> {
-                    smartThingsTokenProvider.refresh(newToken);
-                    return Optional.of(oldToken);
-                });
-
-                // When
-                final var accessToken = smartThingsTokenProvider.getValidAccessToken();
-
-                // Then
-                assertThat(accessToken).isEqualTo("new-access");
-                assertThat(smartThingsTokenProvider.getValidAccessToken()).isEqualTo("new-access");
-                then(tokenRepository).should(times(1)).findSingletonToken();
-            }
 
             @Test
             @DisplayName("commit 순서와 다르게 callback이 실행되어도 더 높은 세대의 토큰을 유지한다")
@@ -183,6 +153,37 @@ class SmartThingsTokenProviderTest {
                 // Then
                 assertThat(smartThingsTokenProvider.getValidAccessToken()).isEqualTo("later-access");
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("getValidAccessToken 메서드는")
+    class Describe_getValidAccessToken {
+
+        @Nested
+        @DisplayName("DB 조회 중 더 높은 세대의 토큰이 먼저 캐시에 반영되면")
+        class Context_with_higher_generation_token_published_during_reload {
+
+            @Test
+            @DisplayName("조회한 이전 토큰으로 덮어쓰지 않고 새 토큰을 반환해야 한다")
+            void it_keeps_newer_token() {
+                // Given
+                final var oldToken = token("old-access", LocalDateTime.now().plusHours(24), 1L);
+                final var newToken = token("new-access", LocalDateTime.now().plusHours(1), 2L);
+                given(tokenRepository.findSingletonToken()).willAnswer(invocation -> {
+                    smartThingsTokenProvider.refresh(newToken);
+                    return Optional.of(oldToken);
+                });
+
+                // When
+                final var accessToken = smartThingsTokenProvider.getValidAccessToken();
+
+                // Then
+                assertThat(accessToken).isEqualTo("new-access");
+                assertThat(smartThingsTokenProvider.getValidAccessToken()).isEqualTo("new-access");
+                then(tokenRepository).should(times(1)).findSingletonToken();
+            }
+
         }
     }
 
@@ -223,6 +224,26 @@ class SmartThingsTokenProviderTest {
                 executor.submit(() -> smartThingsTokenProvider.refresh(rejectedToken)).get(5, TimeUnit.SECONDS);
             }
             TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+
+            // Then
+            assertThatThrownBy(smartThingsTokenProvider::getValidAccessToken).isInstanceOf(ErrorCodeException.class)
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.SMARTTHINGS_TOKEN_INVALID));
+        }
+
+        @Test
+        @DisplayName("무효화 뒤 늦게 도착한 낮은 세대 토큰은 캐시에 다시 게시하지 않는다")
+        void does_not_publish_stale_token_after_invalidation() {
+            // Given
+            final var staleToken = token("rejected-access", LocalDateTime.now().plusHours(24), 5L);
+            final var rejectedToken = token("rejected-access", LocalDateTime.now().plusHours(24), 6L);
+            smartThingsTokenProvider.refresh(staleToken);
+            given(tokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(rejectedToken));
+            given(tokenRepository.findSingletonToken()).willReturn(Optional.of(rejectedToken));
+
+            // When
+            smartThingsTokenProvider.invalidate("rejected-access");
+            smartThingsTokenProvider.refresh(staleToken);
 
             // Then
             assertThatThrownBy(smartThingsTokenProvider::getValidAccessToken).isInstanceOf(ErrorCodeException.class)
@@ -340,7 +361,7 @@ class SmartThingsTokenProviderTest {
         void applies_shortened_expiry_of_rejected_token() {
             // Given
             smartThingsTokenProvider.refresh(createNewToken());
-            final var invalidatedToken = createNewToken();
+            final var invalidatedToken = token("new-access", LocalDateTime.now().plusHours(24), 3L);
             invalidatedToken.invalidateAccessToken();
             given(tokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(invalidatedToken));
             given(tokenRepository.findSingletonToken()).willReturn(Optional.of(invalidatedToken));

@@ -76,7 +76,7 @@ public class ExchangeSmartThingsTokenServiceImpl implements ExchangeSmartThingsT
     private void saveOrUpdateToken(SmartThingsTokenExchangeResDto response) {
         var expiresAt = LocalDateTime.now().plusSeconds(response.expiresIn());
 
-        var existingToken = smartThingsTokenRepository.findSingletonToken();
+        var existingToken = smartThingsTokenRepository.findSingletonTokenWithLock();
 
         if (existingToken.isPresent()) {
             var token = existingToken.get();

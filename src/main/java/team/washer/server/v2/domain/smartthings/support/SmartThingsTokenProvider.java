@@ -43,22 +43,19 @@ public class SmartThingsTokenProvider {
      *            저장한 토큰
      */
     public void refresh(final SmartThingsToken token) {
-        final var refreshed = CachedToken.from(token);
         if (TransactionSynchronizationManager.isActualTransactionActive()
                 && TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
 
                 @Override
                 public void afterCommit() {
-                    publish(refreshed);
-                    log.debug("smartthings token cache refreshed after commit expiresAt={}", refreshed.expiresAt());
+                    publishAfterPersistence(token, true);
                 }
             });
             return;
         }
 
-        publish(refreshed);
-        log.debug("smartthings token cache refreshed expiresAt={}", refreshed.expiresAt());
+        publishAfterPersistence(token, false);
     }
 
     @Transactional
@@ -99,13 +96,28 @@ public class SmartThingsTokenProvider {
         return published.accessToken();
     }
 
-    /**
-     * 서로 다른 토큰이면 만료 시각이 더 늦은 토큰만 캐시에 남긴다. 먼저 조회한 이전 토큰이 나중에 확정된 토큰을 덮어쓰지 않도록 한다. 같은
-     * 토큰이면 무효화로 앞당겨진 만료 시각도 반영한다.
-     */
-    // 캐시 게시 순서는 만료 시각이 아닌 DB commit version으로만 판단한다.
+    /** DB에 확정된 version이 더 높은 토큰만 캐시에 게시합니다. */
     private CachedToken publish(final CachedToken candidate) {
         return cache.updateAndGet(current -> current == null || candidate.isNewerThan(current) ? candidate : current);
+    }
+
+    private void publishAfterPersistence(final SmartThingsToken token, final boolean afterCommit) {
+        try {
+            final var candidate = CachedToken.from(token);
+            final var published = publish(candidate);
+            if (!published.equals(candidate)) {
+                log.info("smartthings token cache publish skipped candidateGeneration={} cachedGeneration={}",
+                        candidate.generation(),
+                        published.generation());
+                return;
+            }
+            log.debug("smartthings token cache refreshed afterCommit={} generation={} expiresAt={}",
+                    afterCommit,
+                    candidate.generation(),
+                    candidate.expiresAt());
+        } catch (RuntimeException e) {
+            log.error("smartthings token cache refresh failed after persistence afterCommit={}", afterCommit, e);
+        }
     }
 
     private void clearCachedToken(final String rejectedAccessToken) {
@@ -119,9 +131,8 @@ public class SmartThingsTokenProvider {
             if (cached != null && !cached.accessToken().equals(rejectedAccessToken)) {
                 return null;
             }
-            final var marker = cached == null || CachedToken.rejected(rejectedAccessToken, generation).isNewerThan(cached)
-                    ? CachedToken.rejected(rejectedAccessToken, generation)
-                    : cached.asRejected();
+            final var rejected = CachedToken.rejected(rejectedAccessToken, generation);
+            final var marker = cached == null || rejected.isNewerThan(cached) ? rejected : cached.asRejected();
             if (cache.compareAndSet(cached, marker)) {
                 return marker;
             }
@@ -147,19 +158,10 @@ public class SmartThingsTokenProvider {
         });
     }
 
-    /**
-     * 거절된 토큰이 캐시에 남아 있거나 캐시와 DB 토큰이 같을 때만 DB의 확정 토큰으로 교체한다.
-     *
-     * <p>
-     * 401 처리에서는 만료 시각이 아니라 실제로 거절된 토큰을 기준으로 비교해야 한다. 같은 토큰이면 DB의 단축된 만료 시각을 반영하고,
-     * 다른 요청이 이미 새 토큰을 반영한 경우에는 그 값을 보존한다.
-     * </p>
-     */
+    /** 거절된 토큰을 유지 중이거나 DB version이 더 높은 경우에만 DB의 확정 토큰으로 교체합니다. */
     private void replaceRejectedCachedToken(final String rejectedAccessToken, final CachedToken replacement) {
         cache.updateAndGet(cached -> cached == null || cached.accessToken().equals(rejectedAccessToken)
-                || cached.accessToken().equals(replacement.accessToken()) || replacement.isNewerThan(cached)
-                        ? replacement
-                        : cached);
+                || replacement.isNewerThan(cached) ? replacement : cached);
     }
 
     private record CachedToken(String accessToken, LocalDateTime expiresAt, long generation) {
