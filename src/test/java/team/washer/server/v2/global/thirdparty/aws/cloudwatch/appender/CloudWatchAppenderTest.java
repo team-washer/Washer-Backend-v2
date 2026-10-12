@@ -3,11 +3,14 @@ package team.washer.server.v2.global.thirdparty.aws.cloudwatch.appender;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -29,6 +32,7 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.LoggingEvent;
 import ch.qos.logback.classic.spi.ThrowableProxy;
+import software.amazon.awssdk.core.RequestOverrideConfiguration;
 import software.amazon.awssdk.services.cloudwatchlogs.CloudWatchLogsClient;
 import software.amazon.awssdk.services.cloudwatchlogs.model.PutLogEventsRequest;
 import software.amazon.awssdk.services.cloudwatchlogs.model.PutLogEventsResponse;
@@ -211,6 +215,28 @@ class CloudWatchAppenderTest {
                     logEvent -> assertThat(logEvent.message()).contains("cloudwatch appender dropped log events")
                             .contains("queueCapacity=2").contains("droppedLowPriority=").contains("saturationCount="));
         }
+
+        @Test
+        @DisplayName("요약 전송이 실패하면 다음 배치에서 드롭 수치를 다시 보고한다")
+        void reportsDropStatisticsAgainAfterFailedSend() {
+            // Given
+            final var client = mock(CloudWatchLogsClient.class);
+            when(client.putLogEvents(any(PutLogEventsRequest.class))).thenThrow(new IllegalStateException("전송 실패"))
+                    .thenReturn(PutLogEventsResponse.builder().build());
+            final var appender = startedAppender(client, 2);
+            IntStream.range(0, 20).forEach(index -> appender.append(event(Level.INFO, "info index=" + index)));
+            ReflectionTestUtils.invokeMethod(appender, "flushBatch", List.of(event(Level.ERROR, "failed")));
+
+            // When
+            ReflectionTestUtils.invokeMethod(appender, "flushBatch", List.of(event(Level.ERROR, "retried")));
+
+            // Then
+            final var requestCaptor = ArgumentCaptor.forClass(PutLogEventsRequest.class);
+            verify(client, times(2)).putLogEvents(requestCaptor.capture());
+            assertThat(requestCaptor.getAllValues().get(1).logEvents())
+                    .anySatisfy(logEvent -> assertThat(logEvent.message())
+                            .contains("cloudwatch appender dropped log events").contains("droppedLowPriority=18"));
+        }
     }
 
     @Nested
@@ -253,9 +279,84 @@ class CloudWatchAppenderTest {
             final var elapsed = System.currentTimeMillis() - startedAt;
 
             // Then
-            assertThat(elapsed).isLessThan(5_000);
+            assertThat(elapsed).isLessThan(1_000);
             assertThat(appender.getQueueSize()).isZero();
             assertThat(appender.getDiscardedOnShutdownCount()).isGreaterThan(1_000);
+        }
+
+        @Test
+        @DisplayName("종료 중 전송에는 남은 종료 기한 이하의 호출 제한 시간을 적용한다")
+        void appliesShutdownDeadlineToRequests() {
+            // Given
+            final var client = mock(CloudWatchLogsClient.class);
+            final var appender = startedAppender(client, 100);
+            appender.setShutdownTimeoutMillis(300);
+            IntStream.range(0, 5).forEach(index -> appender.append(event(Level.ERROR, "pending index=" + index)));
+
+            // When
+            appender.stop();
+
+            // Then
+            final var requestCaptor = ArgumentCaptor.forClass(PutLogEventsRequest.class);
+            verify(client).putLogEvents(requestCaptor.capture());
+            assertThat(requestCaptor.getValue().overrideConfiguration()
+                    .flatMap(RequestOverrideConfiguration::apiCallTimeout)).hasValueSatisfying(
+                            limit -> assertThat(limit).isPositive().isLessThanOrEqualTo(Duration.ofMillis(300)));
+        }
+
+        @Test
+        @DisplayName("writer가 전송 중이면 종료 기한이 지나도 client를 닫거나 동시에 전송하지 않는다")
+        void leavesClientToWriterWhenSendOutlivesDeadline() throws Exception {
+            // Given
+            final var release = new CountDownLatch(1);
+            final var sentRequests = Collections.synchronizedList(new ArrayList<PutLogEventsRequest>());
+            final var client = stalledClient(release, sentRequests);
+            final var appender = startedAppender(client, 100);
+            final var writer = startWriterBlockedInSend(appender, client);
+
+            // When
+            final var startedAt = System.currentTimeMillis();
+            appender.stop();
+            final var elapsed = System.currentTimeMillis() - startedAt;
+
+            // Then
+            assertThat(elapsed).isLessThan(2_000);
+            assertThat(writer.isAlive()).isTrue();
+            verify(client, times(1)).putLogEvents(any(PutLogEventsRequest.class));
+            verify(client, never()).close();
+
+            release.countDown();
+            writer.join(10_000);
+            verify(client).close();
+            assertThat(appender.getQueueSize()).isZero();
+            assertThat(sentEventCount(sentRequests) + appender.getDiscardedOnShutdownCount()).isEqualTo(40);
+        }
+
+        @Test
+        @DisplayName("종료 스레드가 interrupt되어도 전송 중인 writer와 동시에 전송하지 않는다")
+        void doesNotSendConcurrentlyWhenStoppingThreadIsInterrupted() throws Exception {
+            // Given
+            final var release = new CountDownLatch(1);
+            final var sentRequests = Collections.synchronizedList(new ArrayList<PutLogEventsRequest>());
+            final var client = stalledClient(release, sentRequests);
+            final var appender = startedAppender(client, 100);
+            final var writer = startWriterBlockedInSend(appender, client);
+
+            // When
+            Thread.currentThread().interrupt();
+            appender.stop();
+            final var interrupted = Thread.interrupted();
+
+            // Then
+            assertThat(interrupted).isTrue();
+            verify(client, times(1)).putLogEvents(any(PutLogEventsRequest.class));
+            verify(client, never()).close();
+
+            release.countDown();
+            writer.join(10_000);
+            verify(client).close();
+            assertThat(appender.getQueueSize()).isZero();
+            assertThat(sentEventCount(sentRequests) + appender.getDiscardedOnShutdownCount()).isEqualTo(40);
         }
 
         @Test
@@ -335,6 +436,24 @@ class CloudWatchAppenderTest {
         ReflectionTestUtils.setField(appender, "writerThread", writer);
         writer.start();
         return writer;
+    }
+
+    /**
+     * writer가 첫 배치(10건)를 전송하다 멈춰 있고 큐에 30건이 남아 있는 상태를 만든다.
+     */
+    private Thread startWriterBlockedInSend(final CloudWatchAppender appender, final CloudWatchLogsClient client) {
+        appender.setMaxBatchSize(10);
+        appender.setShutdownTimeoutMillis(300);
+        final var writer = startWriter(appender);
+        IntStream.range(0, 10).forEach(index -> appender.append(event(Level.ERROR, "sending index=" + index)));
+        verify(client, timeout(5_000)).putLogEvents(any(PutLogEventsRequest.class));
+        IntStream.range(0, 30).forEach(index -> appender.append(event(Level.ERROR, "queued index=" + index)));
+        return writer;
+    }
+
+    private long sentEventCount(final List<PutLogEventsRequest> sentRequests) {
+        return sentRequests.stream().flatMap(request -> request.logEvents().stream())
+                .filter(logEvent -> logEvent.message().contains("index=")).count();
     }
 
     /**
