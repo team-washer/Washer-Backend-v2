@@ -1,6 +1,7 @@
 package team.washer.server.v2.global.thirdparty.aws.cloudwatch.appender;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import ch.qos.logback.classic.Level;
@@ -17,6 +19,7 @@ import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.UnsynchronizedAppenderBase;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.awscore.AwsRequest;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.cloudwatchlogs.CloudWatchLogsClient;
 import software.amazon.awssdk.services.cloudwatchlogs.model.CreateLogGroupRequest;
@@ -84,6 +87,9 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
     private final AtomicLong saturationCount = new AtomicLong();
     private final AtomicLong reportedDropCount = new AtomicLong();
     private final AtomicLong lastSaturationWarnMillis = new AtomicLong();
+    private final AtomicBoolean shutdownCompleted = new AtomicBoolean();
+    /** 종료 기한(epoch millis). {@code 0}이면 종료 중이 아니다. */
+    private volatile long shutdownDeadlineMillis;
 
     @SuppressWarnings("FieldMayBeFinal")
     private volatile boolean running = false;
@@ -109,6 +115,8 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
 
         actualLogStreamName = logStreamNamePrefix + UUID.randomUUID();
         initializeQueue();
+        shutdownDeadlineMillis = 0;
+        shutdownCompleted.set(false);
 
         try {
             cloudWatchClient = CloudWatchLogsClient.builder().region(Region.of(region)).credentialsProvider(
@@ -132,20 +140,47 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
 
     @Override
     public void stop() {
-        running = false;
         // writer 종료 대기와 잔여 flush가 각각 타임아웃을 쓰지 않도록 종료 전체에 하나의 기한을 적용한다
         final var shutdownDeadline = System.currentTimeMillis() + Math.max(0, shutdownTimeoutMillis);
-        if (writerThread != null) {
-            writerThread.interrupt();
+        shutdownDeadlineMillis = shutdownDeadline;
+        running = false;
+        final var writer = writerThread;
+        if (writer != null) {
+            writer.interrupt();
             try {
-                writerThread.join(Math.max(1, remainingMillis(shutdownDeadline)));
+                writer.join(Math.max(1, remainingMillis(shutdownDeadline)));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
 
+        if (writer != null && writer.isAlive()) {
+            // writer가 아직 전송 중이면 같은 client로 동시에 전송하거나 client를 닫지 않는다.
+            // 잔여 큐 정리와 client 종료는 진행 중인 전송을 끝낸 writer가 이어서 수행한다
+            addWarn("Writer thread still running at shutdown deadline, leaving remaining flush and client close to it");
+        } else {
+            completeShutdown(shutdownDeadline);
+        }
+
+        super.stop();
+        addInfo("CloudWatchAppender stopped " + dropStatistics());
+    }
+
+    /**
+     * 잔여 큐를 기한 안에서 전송하고 client를 닫는다.
+     *
+     * <p>
+     * 전송과 client 종료가 겹치지 않도록 writer가 살아 있는 동안에는 writer만 호출하며, 한 번만 수행된다.
+     *
+     * @param deadlineMillis
+     *            종료 처리를 마쳐야 하는 시각(epoch millis)
+     */
+    private void completeShutdown(final long deadlineMillis) {
+        if (!shutdownCompleted.compareAndSet(false, true)) {
+            return;
+        }
         try {
-            flushRemaining(shutdownDeadline);
+            flushRemaining(deadlineMillis);
         } catch (Exception e) {
             addError("Error flushing logs during shutdown", e);
         }
@@ -157,9 +192,6 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
                 addError("Error closing CloudWatch client", e);
             }
         }
-
-        super.stop();
-        addInfo("CloudWatchAppender stopped " + dropStatistics());
     }
 
     @Override
@@ -259,7 +291,8 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
 
     private void initializeLogGroup() {
         try {
-            cloudWatchClient.createLogGroup(CreateLogGroupRequest.builder().logGroupName(logGroupName).build());
+            cloudWatchClient.createLogGroup(
+                    withShutdownTimeout(CreateLogGroupRequest.builder().logGroupName(logGroupName)).build());
             addInfo("Created log group=" + logGroupName);
         } catch (ResourceAlreadyExistsException ignored) {
             addInfo("Log group already exists logGroup=" + logGroupName);
@@ -270,8 +303,8 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
 
         if (retentionTimeDays > 0) {
             try {
-                cloudWatchClient.putRetentionPolicy(PutRetentionPolicyRequest.builder().logGroupName(logGroupName)
-                        .retentionInDays(retentionTimeDays).build());
+                cloudWatchClient.putRetentionPolicy(withShutdownTimeout(PutRetentionPolicyRequest.builder()
+                        .logGroupName(logGroupName).retentionInDays(retentionTimeDays)).build());
                 addInfo("Set retention policy days=" + retentionTimeDays + " logGroup=" + logGroupName);
             } catch (Exception e) {
                 addError("Failed to set retention policy logGroup=" + logGroupName, e);
@@ -281,8 +314,9 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
 
     private void initializeLogStream() {
         try {
-            cloudWatchClient.createLogStream(CreateLogStreamRequest.builder().logGroupName(logGroupName)
-                    .logStreamName(actualLogStreamName).build());
+            cloudWatchClient.createLogStream(withShutdownTimeout(
+                    CreateLogStreamRequest.builder().logGroupName(logGroupName).logStreamName(actualLogStreamName))
+                    .build());
             addInfo("Created log stream=" + actualLogStreamName);
         } catch (ResourceAlreadyExistsException ignored) {
             addInfo("Log stream already exists stream=" + actualLogStreamName);
@@ -326,13 +360,21 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
             }
         }
 
+        // 종료 단계의 전송이 SDK의 interrupt 검사로 중단되지 않도록 stop()이 남긴 interrupt 상태를 지운다
+        Thread.interrupted();
+        final var shutdownDeadline = shutdownDeadlineMillis;
         if (!batch.isEmpty()) {
-            try {
-                flushBatch(batch);
-            } catch (Exception e) {
-                addError("Error flushing final batch", e);
+            if (remainingMillis(shutdownDeadline) == 0) {
+                discardedOnShutdownCount.addAndGet(batch.size());
+            } else {
+                try {
+                    flushBatch(batch);
+                } catch (Exception e) {
+                    addError("Error flushing final batch", e);
+                }
             }
         }
+        completeShutdown(shutdownDeadline);
     }
 
     /**
@@ -383,30 +425,39 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
                 + discardedOnShutdownCount.get() + " saturationCount=" + saturationCount.get();
     }
 
+    /** 요약 이벤트와 그 요약이 보고하는 누적 드롭 수. */
+    private record DropSummary(long reportedTotal, InputLogEvent event) {
+    }
+
     /**
      * 드롭·포화 수치를 CloudWatch에서도 볼 수 있도록 요약 이벤트로 만든다.
      *
      * @return 새로 보고할 드롭이 없으면 {@code null}
      */
-    private InputLogEvent createDropSummaryEvent() {
+    private DropSummary createDropSummary() {
         final var total = totalDroppedCount();
         if (total <= reportedDropCount.get()) {
             return null;
         }
-        reportedDropCount.set(total);
 
         final var builder = new StringBuilder();
         appendField(builder, "level", Level.WARN.levelStr);
         appendField(builder, "logger", CloudWatchAppender.class.getName());
         appendField(builder, "thread", Thread.currentThread().getName());
         appendField(builder, "message", "cloudwatch appender dropped log events " + dropStatistics());
-        return InputLogEvent.builder().timestamp(System.currentTimeMillis()).message(builder.toString()).build();
+        return new DropSummary(total,
+                InputLogEvent.builder().timestamp(System.currentTimeMillis()).message(builder.toString()).build());
+    }
+
+    /** 요약 전송이 성공한 뒤에만 보고 완료로 기록해, 전송에 실패한 드롭 수치가 다음 배치에서 다시 보고되게 한다. */
+    private void markDropsReported(final DropSummary summary) {
+        reportedDropCount.accumulateAndGet(summary.reportedTotal(), Math::max);
     }
 
     private void flushDropSummary() {
-        final var summary = createDropSummaryEvent();
-        if (summary != null) {
-            sendBatch(List.of(summary));
+        final var summary = createDropSummary();
+        if (summary != null && sendBatch(List.of(summary.event()))) {
+            markDropsReported(summary);
         }
     }
 
@@ -490,14 +541,17 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
             logEvents
                     .add(InputLogEvent.builder().timestamp(event.getTimeStamp()).message(formatMessage(event)).build());
         }
-        final var dropSummary = createDropSummaryEvent();
+        final var dropSummary = createDropSummary();
         if (dropSummary != null) {
-            logEvents.add(dropSummary);
+            logEvents.add(dropSummary.event());
         }
         logEvents.sort(Comparator.comparingLong(InputLogEvent::timestamp));
 
         for (final var logBatch : splitByByteLimit(logEvents)) {
-            sendBatch(logBatch);
+            final var sent = sendBatch(logBatch);
+            if (sent && dropSummary != null && logBatch.contains(dropSummary.event())) {
+                markDropsReported(dropSummary);
+            }
         }
     }
 
@@ -523,12 +577,27 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
         return batches;
     }
 
-    private void sendBatch(final List<InputLogEvent> logEvents) {
+    /**
+     * 종료 중에는 남은 기한만큼만 기다리도록 해 외부 호출이 종료 기한을 넘기지 않게 한다.
+     */
+    private <B extends AwsRequest.Builder> B withShutdownTimeout(final B builder) {
+        final var deadline = shutdownDeadlineMillis;
+        if (deadline > 0) {
+            final var timeout = Duration.ofMillis(Math.max(1, remainingMillis(deadline)));
+            builder.overrideConfiguration(config -> config.apiCallTimeout(timeout));
+        }
+        return builder;
+    }
+
+    /**
+     * @return 전송에 성공했으면 {@code true}
+     */
+    private boolean sendBatch(final List<InputLogEvent> logEvents) {
         for (int attempt = 0; attempt < maxRetries; attempt++) {
             try {
-                cloudWatchClient.putLogEvents(PutLogEventsRequest.builder().logGroupName(logGroupName)
-                        .logStreamName(actualLogStreamName).logEvents(logEvents).build());
-                return;
+                cloudWatchClient.putLogEvents(withShutdownTimeout(PutLogEventsRequest.builder()
+                        .logGroupName(logGroupName).logStreamName(actualLogStreamName).logEvents(logEvents)).build());
+                return true;
             } catch (ResourceNotFoundException e) {
                 addError("Log group or stream not found, attempting to recreate attempt=" + (attempt + 1), e);
                 try {
@@ -542,9 +611,10 @@ public class CloudWatchAppender extends UnsynchronizedAppenderBase<ILoggingEvent
                 }
             } catch (Exception e) {
                 addError("Failed to send log events to CloudWatch attempt=" + (attempt + 1), e);
-                return;
+                return false;
             }
         }
+        return false;
     }
 
     // ---- Logback XML 프로퍼티 주입용 setter ----
