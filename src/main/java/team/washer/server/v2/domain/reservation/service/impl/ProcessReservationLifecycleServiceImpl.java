@@ -201,8 +201,11 @@ public class ProcessReservationLifecycleServiceImpl implements ProcessReservatio
             return;
         }
         discordErrorNotificationService.notifyError(e,
-                "예약 완료 기기 종료 - SmartThings 권한 오류",
-                Map.of("감지된 기기",
+                Map.of("Operation",
+                        "completed_machine_shutdown_permission_error",
+                        "Machine ID",
+                        completedMachine.machineId(),
+                        "감지된 기기",
                         completedMachine.machineName(),
                         "조치 필요",
                         "SmartThings OAuth 재인증 또는 x:devices:* 스코프 확인"));

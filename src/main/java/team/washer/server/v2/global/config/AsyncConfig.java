@@ -1,21 +1,28 @@
 package team.washer.server.v2.global.config;
 
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Configuration
 @EnableAsync
 public class AsyncConfig {
 
     public static final String FCM_TASK_EXECUTOR = "fcmTaskExecutor";
+    public static final String OPERATIONAL_ALERT_TASK_EXECUTOR = "operationalAlertTaskExecutor";
 
     private static final int FCM_POOL_SIZE = 4;
     private static final int FCM_QUEUE_CAPACITY = 200;
     private static final int FCM_AWAIT_TERMINATION_SECONDS = 20;
+    private static final int OPERATIONAL_ALERT_QUEUE_CAPACITY = 100;
+    private static final int OPERATIONAL_ALERT_AWAIT_TERMINATION_SECONDS = 5;
 
     /**
      * FCM 전송 전용 실행기.
@@ -28,7 +35,7 @@ public class AsyncConfig {
      */
     @Bean(name = FCM_TASK_EXECUTOR)
     public ThreadPoolTaskExecutor fcmTaskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        final var executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(FCM_POOL_SIZE);
         executor.setMaxPoolSize(FCM_POOL_SIZE);
         executor.setAllowCoreThreadTimeOut(true);
@@ -40,9 +47,35 @@ public class AsyncConfig {
         return executor;
     }
 
+    /**
+     * 운영 오류 알림 전용 실행기입니다.
+     *
+     * <p>
+     * Discord가 느리거나 사용할 수 없어도 요청과 스케줄러의 핵심 처리를 지연시키지 않기 위해 포화 작업은 버립니다.
+     * </p>
+     */
+    @Bean(name = OPERATIONAL_ALERT_TASK_EXECUTOR)
+    public ThreadPoolTaskExecutor operationalAlertTaskExecutor() {
+        final var executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(OPERATIONAL_ALERT_QUEUE_CAPACITY);
+        executor.setThreadNamePrefix("OperationalAlert-");
+        executor.setDaemon(true);
+        executor.setWaitForTasksToCompleteOnShutdown(false);
+        executor.setAwaitTerminationSeconds(OPERATIONAL_ALERT_AWAIT_TERMINATION_SECONDS);
+        executor.setRejectedExecutionHandler((task, threadPool) -> {
+            log.warn("operational alert rejected reason=queue_capacity activeCount={} queueSize={}",
+                    threadPool.getActiveCount(),
+                    threadPool.getQueue().size());
+            throw new RejectedExecutionException("Operational alert executor queue is full");
+        });
+        return executor;
+    }
+
     @Bean(name = "taskExecutor")
     public Executor taskExecutor() {
-        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        final var executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(2);
         executor.setMaxPoolSize(5);
         executor.setQueueCapacity(100);
