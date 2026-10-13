@@ -3,11 +3,9 @@ package team.washer.server.v2.domain.machine.service.impl;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.dto.response.MachineDeviceStatusResDto;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
@@ -15,6 +13,8 @@ import team.washer.server.v2.domain.machine.service.QueryMachineDeviceStatusServ
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 /**
@@ -35,11 +35,11 @@ public class QueryMachineDeviceStatusServiceImpl implements QueryMachineDeviceSt
     @Override
     public MachineDeviceStatusResDto execute(Long userId, Long machineId) {
         final var user = userRepository.findById(userId)
-                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.USER_NOT_FOUND));
         user.validateFloorRestriction();
 
         final var machine = machineRepository.findById(machineId)
-                .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.MACHINE_NOT_FOUND));
 
         final var deviceStatus = deviceStatusQuerySupport.queryDeviceStatus(machine.getDeviceId());
         return mapToDto(machine, deviceStatus);

@@ -18,6 +18,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.jwt.provider.JwtTokenProvider;
 
 @Component
@@ -59,7 +60,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             SecurityContextHolder.getContext().setAuthentication(authentication);
 
             filterChain.doFilter(request, response);
-        } catch (final ExpectedException e) {
+        } catch (final ErrorCodeException | ExpectedException e) {
             // 컨트롤러 오류와 같은 응답 형식(오류 코드·추적 ID)을 쓰도록 전역 예외 처리기에 위임한다
             handlerExceptionResolver.resolveException(request, response, null, e);
         }

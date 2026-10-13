@@ -17,11 +17,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.ForceStopResult;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -44,7 +42,10 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
+import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
@@ -70,10 +71,16 @@ class ForceStopMachineServiceTest {
     private ReservationNotificationSupport reservationNotificationSupport;
 
     @Mock
+    private MachineShutdownClaimSupport machineShutdownClaimSupport;
+
+    @Mock
     private TransactionTemplate transactionTemplate;
 
     @BeforeEach
     void setUp() {
+        lenient().when(machineShutdownClaimSupport.claimForForceStop(anyLong())).thenAnswer(invocation -> Optional
+                .of(new MachineShutdownClaimSupport.ShutdownClaim(invocation.getArgument(0), "force-stop-claim")));
+        lenient().when(machineShutdownClaimSupport.beginCommand(any())).thenReturn(true);
         lenient().when(transactionTemplate.execute(any())).thenAnswer(invocation -> {
             TransactionCallback<?> callback = invocation.getArgument(0);
             return callback.doInTransaction(null);
@@ -175,6 +182,65 @@ class ForceStopMachineServiceTest {
                 then(reservationRepository).should(times(1)).save(reservation);
                 then(machineRepository).should(times(1)).save(machine);
                 then(reservationNotificationSupport).should(times(1)).sendForceStop(reservation.getUser(), machine);
+                then(machineShutdownClaimSupport).should(times(1)).beginCommand(any());
+                then(machineShutdownClaimSupport).should(times(1)).release(any());
+            }
+        }
+
+        @Nested
+        @DisplayName("외부 정지 명령 뒤 DB 반영이 실패하면")
+        class Context_when_database_update_fails_after_command {
+
+            @Test
+            @DisplayName("미확정 종료 claim을 유지하여 신규 예약을 차단한다")
+            void it_keeps_shutdown_claim() {
+                // Given
+                var machineId = 1L;
+                var machine = createMachine(MachineType.WASHER, MachineStatus.NORMAL, MachineAvailability.IN_USE);
+                var status = washerStatus("run");
+                setId(machine, machineId);
+
+                given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
+                given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
+                willThrow(new IllegalStateException("database write failed")).given(transactionTemplate).execute(any());
+
+                // When & Then
+                assertThatThrownBy(() -> forceStopMachineService.execute(machineId))
+                        .isInstanceOf(IllegalStateException.class).hasMessage("database write failed");
+
+                then(sendDeviceCommandService).should(times(1)).execute(eq("device-1"), any());
+                then(machineShutdownClaimSupport).should(times(1)).beginCommand(any());
+                then(machineShutdownClaimSupport).should(never()).release(any());
+            }
+        }
+
+        @Nested
+        @DisplayName("외부 정지 명령 결과가 불명확하면")
+        class Context_when_command_result_is_unknown {
+
+            @Test
+            @DisplayName("미확정 종료 claim을 유지하여 신규 예약을 차단한다")
+            void it_keeps_shutdown_claim() {
+                // Given
+                var machineId = 1L;
+                var machine = createMachine(MachineType.WASHER, MachineStatus.NORMAL, MachineAvailability.IN_USE);
+                var status = washerStatus("run");
+                setId(machine, machineId);
+
+                given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
+                given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
+                willThrow(new ErrorCodeException(ErrorCode.SMARTTHINGS_COMMAND_UNAVAILABLE))
+                        .given(sendDeviceCommandService).execute(eq("device-1"), any());
+
+                // When & Then
+                assertThatThrownBy(() -> forceStopMachineService.execute(machineId))
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.SMARTTHINGS_COMMAND_UNAVAILABLE));
+
+                then(transactionTemplate).should(never()).execute(any());
+                then(machineShutdownClaimSupport).should(times(1)).beginCommand(any());
+                then(machineShutdownClaimSupport).should(never()).release(any());
             }
         }
 
@@ -371,8 +437,9 @@ class ForceStopMachineServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> forceStopMachineService.execute(machineId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("기기 동작 상태를 확인할 수 없습니다")
-                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.BAD_GATEWAY);
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.SMARTTHINGS_RESPONSE_INVALID));
 
                 then(sendDeviceCommandService).shouldHaveNoInteractions();
                 then(transactionTemplate).should(never()).execute(any());
@@ -396,13 +463,14 @@ class ForceStopMachineServiceTest {
 
                 given(machineRepository.findById(machineId)).willReturn(Optional.of(machine));
                 given(deviceStatusQuerySupport.queryDeviceStatus("device-1")).willReturn(status);
-                willThrow(new ExpectedException("기기 명령 전송에 실패했습니다", HttpStatus.BAD_GATEWAY))
+                willThrow(new ErrorCodeException(ErrorCode.SMARTTHINGS_COMMAND_UNAVAILABLE))
                         .given(sendDeviceCommandService).execute(eq("device-1"), any(SmartThingsCommandReqDto.class));
 
                 // When & Then
                 assertThatThrownBy(() -> forceStopMachineService.execute(machineId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("기기 명령 전송에 실패했습니다")
-                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.BAD_GATEWAY);
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.SMARTTHINGS_COMMAND_UNAVAILABLE));
 
                 then(transactionTemplate).should(never()).execute(any());
                 then(reservationRepository).shouldHaveNoInteractions();
@@ -456,8 +524,9 @@ class ForceStopMachineServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> forceStopMachineService.execute(machineId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("기기를 찾을 수 없습니다")
-                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.NOT_FOUND);
+                        .isInstanceOf(ErrorCodeException.class)
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.MACHINE_NOT_FOUND));
 
                 then(deviceStatusQuerySupport).shouldHaveNoInteractions();
                 then(sendDeviceCommandService).shouldHaveNoInteractions();

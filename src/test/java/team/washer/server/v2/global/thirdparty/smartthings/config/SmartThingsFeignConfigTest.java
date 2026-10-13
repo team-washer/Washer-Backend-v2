@@ -18,5 +18,6 @@ class SmartThingsFeignConfigTest {
 
         // Then
         assertThat(maximumRequestLifetime).isLessThan(Machine.SHUTDOWN_CLAIM_TIMEOUT.toMillis());
+        assertThat(maximumRequestLifetime).isLessThan(Machine.SHUTDOWN_COMMAND_RECOVERY_TIMEOUT.toMillis());
     }
 }

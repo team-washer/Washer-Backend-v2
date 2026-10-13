@@ -14,7 +14,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
@@ -22,6 +24,7 @@ import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.notification.repository.NotificationRepository;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationNotificationSupport 클래스는")
@@ -35,6 +38,9 @@ class ReservationNotificationSupportTest {
 
     @Mock
     private FcmNotificationSupport fcmNotificationSupport;
+
+    @Spy
+    private AfterCommitExecutor afterCommitExecutor = new AfterCommitExecutor(mock(PlatformTransactionManager.class));
 
     @AfterEach
     void clearTransactionSynchronization() {

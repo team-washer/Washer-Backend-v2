@@ -15,9 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.http.HttpStatus;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineStatus;
@@ -29,6 +27,8 @@ import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.QueryMachineReservationHistoryServiceImpl;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("QueryMachineReservationHistoryServiceImpl 클래스의")
@@ -102,9 +102,9 @@ class QueryMachineReservationHistoryServiceTest {
                 // When & Then
                 assertThatThrownBy(
                         () -> queryMachineReservationHistoryService.execute(machineId, null, null, null, pageable))
-                        .isInstanceOf(ExpectedException.class).hasMessage("존재하지 않는 기기입니다")
-                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
-                                .isEqualTo(HttpStatus.NOT_FOUND));
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("기기를 찾을 수 없습니다")
+                        .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                                .isEqualTo(ErrorCode.MACHINE_NOT_FOUND));
 
                 then(reservationRepository).shouldHaveNoInteractions();
             }

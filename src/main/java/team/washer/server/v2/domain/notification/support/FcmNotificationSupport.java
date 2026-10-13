@@ -1,8 +1,9 @@
 package team.washer.server.v2.domain.notification.support;
 
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.core.task.TaskRejectedException;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.google.firebase.messaging.AndroidConfig;
 import com.google.firebase.messaging.AndroidNotification;
@@ -17,24 +18,38 @@ import com.google.firebase.messaging.Notification;
 import com.google.firebase.messaging.WebpushConfig;
 import com.google.firebase.messaging.WebpushNotification;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.notification.service.DeleteFcmTokenIfMatchesService;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.config.AsyncConfig;
 
 /**
  * FCM 푸시 알림 전송을 담당하는 지원 컴포넌트.
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class FcmNotificationSupport {
 
     private final FirebaseMessaging firebaseMessaging;
     private final DeleteFcmTokenIfMatchesService deleteFcmTokenIfMatchesService;
+    private final TaskExecutor fcmTaskExecutor;
+
+    public FcmNotificationSupport(final FirebaseMessaging firebaseMessaging,
+            final DeleteFcmTokenIfMatchesService deleteFcmTokenIfMatchesService,
+            @Qualifier(AsyncConfig.FCM_TASK_EXECUTOR) final TaskExecutor fcmTaskExecutor) {
+        this.firebaseMessaging = firebaseMessaging;
+        this.deleteFcmTokenIfMatchesService = deleteFcmTokenIfMatchesService;
+        this.fcmTaskExecutor = fcmTaskExecutor;
+    }
 
     /**
-     * FCM 푸시 알림을 전송한다.
+     * FCM 푸시 알림 전송을 전용 실행기에 넘긴다. 커밋 후 전송 예약은 호출자가 담당한다.
+     *
+     * <p>
+     * 호출 스레드에서는 사용자 식별자와 토큰만 읽고 Firebase 호출은 전용 스레드에서 수행하므로, 호출자가 점유한 DB 연결이 전송
+     * 시간만큼 묶이지 않는다. 대기열이 가득 찼거나 실행기가 종료 중이면 전송을 버리고 경고 로그만 남긴다. 무효 토큰 오류가 발생하면 저장된
+     * 토큰을 조건부 삭제하되, 다른 스레드가 소유한 {@code user} 엔티티는 변경하지 않는다.
+     * </p>
      */
     public void send(final User user, final String title, final String body) {
         final Long userId = user.getId();
@@ -44,28 +59,30 @@ public class FcmNotificationSupport {
             return;
         }
 
-        if (TransactionSynchronizationManager.isActualTransactionActive()
-                && TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-
-                @Override
-                public void afterCommit() {
-                    sendNow(userId, token, title, body);
-                }
-            });
-            return;
+        try {
+            fcmTaskExecutor.execute(() -> sendQuietly(userId, token, title, body));
+        } catch (TaskRejectedException e) {
+            log.warn("FCM notification dropped executor rejected task userId={}", userId);
         }
+    }
 
-        sendNow(userId, token, title, body);
+    private void sendQuietly(final Long userId, final String token, final String title, final String body) {
+        try {
+            dispatch(userId, token, title, body);
+        } catch (FirebaseMessagingException e) {
+            // dispatch에서 이미 로그와 토큰 정리를 수행했으므로 예약 알림 흐름에서는 삼킨다.
+        } catch (RuntimeException e) {
+            log.error("Failed to prepare or send FCM notification userId={}", userId, e);
+        }
     }
 
     /**
      * FCM 푸시 알림을 즉시 전송하고 Firebase가 발급한 메시지 ID를 반환한다.
      *
      * <p>
-     * {@link #send(User, String, String)}와 달리 트랜잭션 커밋을 기다리지 않고 바로 전송하며, 전송 실패를
-     * 호출자에게 전파한다. 발송 결과를 확인해야 하는 관리자 테스트 발송에서 사용한다. 무효 토큰({@code UNREGISTERED},
-     * {@code INVALID_ARGUMENT})은 예외를 던지기 전에 정리한다.
+     * {@link #send(User, String, String)}와 달리 전송 실패를 호출자에게 전파한다. 발송 결과를 확인해야 하는 관리자
+     * 테스트 발송에서 사용한다. 무효 토큰({@code UNREGISTERED}, {@code INVALID_ARGUMENT})은 예외를 던지기
+     * 전에 정리하고 전달받은 {@code user}의 FCM 토큰도 비운다.
      * </p>
      *
      * @param user
@@ -80,21 +97,13 @@ public class FcmNotificationSupport {
      */
     public String sendAndGetMessageId(final User user, final String title, final String body)
             throws FirebaseMessagingException {
-        return dispatch(user.getId(), user.getFcmToken(), title, body);
-    }
-
-    private void sendNow(final Long userId, final String token, final String title, final String body) {
-        if (token == null || token.isBlank()) {
-            log.info("FCM token not found skipping notification userId={}", userId);
-            return;
-        }
-
         try {
-            dispatch(userId, token, title, body);
+            return dispatch(user.getId(), user.getFcmToken(), title, body);
         } catch (FirebaseMessagingException e) {
-            // dispatch에서 이미 로그와 토큰 정리를 수행했으므로 예약 알림 흐름에서는 삼킨다.
-        } catch (RuntimeException e) {
-            log.error("Failed to prepare or send FCM notification userId={}", userId, e);
+            if (isInvalidToken(e.getMessagingErrorCode())) {
+                user.clearFcmToken();
+            }
+            throw e;
         }
     }
 
@@ -123,8 +132,12 @@ public class FcmNotificationSupport {
         }
     }
 
+    private boolean isInvalidToken(final MessagingErrorCode errorCode) {
+        return errorCode == MessagingErrorCode.UNREGISTERED || errorCode == MessagingErrorCode.INVALID_ARGUMENT;
+    }
+
     private void deleteTokenIfInvalid(final Long userId, final String token, final MessagingErrorCode errorCode) {
-        if (errorCode != MessagingErrorCode.UNREGISTERED && errorCode != MessagingErrorCode.INVALID_ARGUMENT) {
+        if (!isInvalidToken(errorCode)) {
             return;
         }
 

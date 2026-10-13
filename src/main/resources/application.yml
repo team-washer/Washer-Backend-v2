@@ -72,6 +72,8 @@ sdk:
       - "/v3/api-docs/**"
       - "/swagger-ui/**"
       - "/api/v2/admin/smartthings/oauth/**"
+      - "/api/v2/auth/login"
+      - "/api/v2/auth/refresh"
   swagger:
     enabled: true
     title: "Washer API"

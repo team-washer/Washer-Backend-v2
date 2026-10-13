@@ -30,7 +30,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.auth.dto.request.RefreshTokenReqDto;
 import team.washer.server.v2.domain.auth.dto.response.TokenResDto;
 import team.washer.server.v2.domain.auth.entity.redis.RefreshTokenEntity;
@@ -39,6 +38,7 @@ import team.washer.server.v2.domain.auth.support.TokenGenerationSupport;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.domain.user.repository.UserRepository;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.security.jwt.config.JwtEnvironment;
 import team.washer.server.v2.global.security.jwt.dto.JwtPayload;
 import team.washer.server.v2.global.security.jwt.provider.JwtTokenProvider;
@@ -239,8 +239,9 @@ class RefreshTokenRedisStructureTest {
         barrier.await();
         try {
             return Optional.of(refreshTokenService.execute(new RefreshTokenReqDto(oldToken)));
-        } catch (final ExpectedException exception) {
-            assertThat(exception.getStatusCode()).isEqualTo(org.springframework.http.HttpStatus.UNAUTHORIZED);
+        } catch (final ErrorCodeException exception) {
+            assertThat(exception.getErrorCode().getStatus())
+                    .isEqualTo(org.springframework.http.HttpStatus.UNAUTHORIZED);
             return Optional.empty();
         }
     }

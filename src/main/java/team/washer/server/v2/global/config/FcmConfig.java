@@ -40,7 +40,10 @@ public class FcmConfig {
             final var credentialStream = new ByteArrayInputStream(
                     fcmProperties.serviceAccountJson().getBytes(StandardCharsets.UTF_8));
             final var credentials = GoogleCredentials.fromStream(credentialStream);
-            final var options = FirebaseOptions.builder().setCredentials(credentials).build();
+            // SDK 기본값은 제한 시간이 없어 Firebase 지연 시 전송 스레드가 무기한 묶일 수 있다
+            final var options = FirebaseOptions.builder().setCredentials(credentials)
+                    .setConnectTimeout(Math.toIntExact(fcmProperties.connectTimeout().toMillis()))
+                    .setReadTimeout(Math.toIntExact(fcmProperties.readTimeout().toMillis())).build();
             FirebaseApp.initializeApp(options);
         }
 

@@ -1,5 +1,7 @@
 package team.washer.server.v2.domain.smartthings.support;
 
+import java.util.function.BooleanSupplier;
+
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
@@ -38,7 +40,9 @@ public class DeviceShutdownSupport {
         /** 배수 중일 수 있는 작동 중 세탁기라 전원을 차단하지 않음 */
         SKIPPED_WASHER_DRAINING,
         /** 기기 상태를 알 수 없어 종료하지 않음 */
-        SKIPPED_UNKNOWN
+        SKIPPED_UNKNOWN,
+        /** 외부 명령 직전에 claim을 확보하지 못해 종료하지 않음 */
+        SKIPPED_CLAIM_LOST
     }
 
     /**
@@ -47,6 +51,16 @@ public class DeviceShutdownSupport {
      * @return 종료 처리 결과
      */
     public ShutdownResult shutdown(Machine machine, SmartThingsDeviceStatusResDto status) {
+        return shutdown(machine, status, () -> true);
+    }
+
+    /** claim을 확보한 직후 유휴 기기의 전원을 차단한다. */
+    public ShutdownResult shutdown(Machine machine,
+            SmartThingsDeviceStatusResDto status,
+            BooleanSupplier beginCommand) {
+        return powerOff(machine.getName(), machine.getDeviceId(), machine.isWasher(), status, beginCommand);
+    }
+
     /**
      * 예약 완료 후 기기 전원을 차단한다. 건조기는 작동 중이어도 즉시 차단해 구김방지 단계 진입을 막고, 세탁기는 작동 중이면 배수 중일 수
      * 있으므로 차단하지 않는다.
@@ -61,6 +75,15 @@ public class DeviceShutdownSupport {
             String deviceId,
             boolean isWasher,
             SmartThingsDeviceStatusResDto status) {
+        return shutdownAfterCompletion(machineName, deviceId, isWasher, status, () -> true);
+    }
+
+    /** claim을 확보한 직후 완료 기기의 전원을 차단한다. */
+    public ShutdownResult shutdownAfterCompletion(String machineName,
+            String deviceId,
+            boolean isWasher,
+            SmartThingsDeviceStatusResDto status,
+            BooleanSupplier beginCommand) {
         if (isWasher && isOperating(status, true)) {
             log.info("washer still operating after completion, defer power off machine={} deviceId={} machineState={}",
                     machineName,
@@ -68,7 +91,7 @@ public class DeviceShutdownSupport {
                     status.getOperatingState(true));
             return ShutdownResult.SKIPPED_WASHER_DRAINING;
         }
-        return powerOff(machineName, deviceId, isWasher, status);
+        return powerOff(machineName, deviceId, isWasher, status, beginCommand);
     }
 
     /**
@@ -81,8 +104,40 @@ public class DeviceShutdownSupport {
         var machineState = status.getOperatingState(isWasher);
         return machineState == MachineOperatingState.RUN || machineState == MachineOperatingState.PAUSE;
     }
+
+    /**
+     * 기기 전원을 차단한다.
+     *
+     */
+    private ShutdownResult powerOff(String machineName,
+            String deviceId,
+            boolean isWasher,
+            SmartThingsDeviceStatusResDto status,
+            BooleanSupplier beginCommand) {
+        if (status == null) {
+            log.warn("device status unknown, skip shutdown machine={} deviceId={}", machineName, deviceId);
+            return ShutdownResult.SKIPPED_UNKNOWN;
         }
 
+        if (status.isSwitchOff()) {
+            log.info("device already powered off, skip command machine={} deviceId={}", machineName, deviceId);
+            return ShutdownResult.POWERED_OFF;
+        }
+
+        // machineState를 읽을 수 없으면 사용 중인지 판단할 근거가 없다. 만료된 RESERVED 예약도 같은 이유로
+        // 시작 여부 판정이 보류되므로(OverdueReservationProcessor), 여기서도 전원을 차단하지 않는다.
+        if (status.getOperatingState(isWasher) == MachineOperatingState.UNKNOWN) {
+            log.warn("device machine state unknown, skip shutdown machine={} deviceId={} switchStatus={}",
+                    machineName,
+                    deviceId,
+                    status.getSwitchStatus());
+            return ShutdownResult.SKIPPED_UNKNOWN;
+        }
+
+        if (!beginCommand.getAsBoolean()) {
+            log.warn("shutdown claim lost before command machine={} deviceId={}", machineName, deviceId);
+            return ShutdownResult.SKIPPED_CLAIM_LOST;
+        }
         sendDeviceCommandService.execute(deviceId, SmartThingsCommandReqDto.powerOff());
         log.info("device powered off machine={} deviceId={} machineState={}",
                 machineName,

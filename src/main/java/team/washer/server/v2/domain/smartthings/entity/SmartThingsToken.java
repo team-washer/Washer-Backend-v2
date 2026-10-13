@@ -57,6 +57,11 @@ public class SmartThingsToken {
         this.expiresAt = expiresAt;
     }
 
+    /** 외부 서비스에서 거절된 액세스 토큰을 만료 처리합니다. */
+    public void invalidateAccessToken() {
+        this.expiresAt = LocalDateTime.now();
+    }
+
     public boolean isExpiredOrExpiringSoon() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime expiryThreshold = now.plusMinutes(EXPIRY_BUFFER_MINUTES);

@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.reservation.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -21,7 +22,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.slf4j.LoggerFactory;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
@@ -107,6 +112,14 @@ class ReservationLifecycleProcessorTest {
                 dryerOpState,
                 null,
                 null);
+        return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
+    }
+
+    private SmartThingsDeviceStatusResDto buildRunningStatus() {
+        var machineState = new SmartThingsDeviceStatusResDto.AttributeState("run", "2026-09-22T00:00:00Z", null);
+        var jobState = new SmartThingsDeviceStatusResDto.AttributeState("wash", "2026-09-22T00:00:00Z", null);
+        var washerOpState = new SmartThingsDeviceStatusResDto.WasherOperatingState(machineState, jobState, null);
+        var componentStatus = new SmartThingsDeviceStatusResDto.ComponentStatus(washerOpState, null, null, null);
         return new SmartThingsDeviceStatusResDto(Map.of("main", componentStatus));
     }
 
@@ -534,6 +547,61 @@ class ReservationLifecycleProcessorTest {
             assertThat(result).isEmpty();
             verify(reservation, never()).complete();
             verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+        }
+
+        @Test
+        @DisplayName("정상 진행 polling에는 lifecycle INFO 로그를 추가하지 않는다")
+        void shouldNotLogLifecycleInfo_WhenMachineIsRunningNormally() {
+            // Given
+            final var logger = (Logger) LoggerFactory.getLogger(ReservationLifecycleProcessor.class);
+            final var appender = new ListAppender<ILoggingEvent>();
+            appender.start();
+            logger.addAppender(appender);
+            try {
+                var deviceStatus = buildRunningStatus();
+                givenRunningReservation();
+                givenCompletionDecision(CompletionDecision.notCompleted());
+                when(machine.isWasher()).thenReturn(true);
+                when(machineStateDetectionSupport.isInterrupted(eq(deviceStatus), anyBoolean())).thenReturn(false);
+                when(machineStateDetectionSupport.isPaused(eq(deviceStatus), anyBoolean())).thenReturn(false);
+
+                // When
+                reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+
+                // Then
+                assertThat(appender.list).noneMatch(event -> event.getFormattedMessage().contains("lifecycle event="));
+            } finally {
+                logger.detachAppender(appender);
+            }
+        }
+
+        @Test
+        @DisplayName("UNKNOWN 상태에는 판정 근거만 기록하고 상태 전이는 바꾸지 않는다")
+        void shouldLogUnknownDecisionWithoutChangingState() {
+            // Given
+            final var logger = (Logger) LoggerFactory.getLogger(ReservationLifecycleProcessor.class);
+            final var appender = new ListAppender<ILoggingEvent>();
+            appender.start();
+            logger.addAppender(appender);
+            try {
+                var deviceStatus = buildDeviceStatus(null);
+                givenRunningReservation();
+                givenCompletionDecision(CompletionDecision.notCompleted());
+                when(machineStateDetectionSupport.isInterrupted(eq(deviceStatus), anyBoolean())).thenReturn(false);
+                when(machineStateDetectionSupport.isPaused(eq(deviceStatus), anyBoolean())).thenReturn(false);
+
+                // When
+                reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
+
+                // Then
+                assertThat(appender.list).extracting(ILoggingEvent::getFormattedMessage)
+                        .anyMatch(message -> message.contains("event=operating_state_unknown")
+                                && message.contains("decisionReason=unknown_operating_state"));
+                verify(reservation, never()).complete();
+                verify(reservation, never()).cancel();
+            } finally {
+                logger.detachAppender(appender);
+            }
         }
     }
 }

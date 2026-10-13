@@ -220,5 +220,55 @@ class MachineTest {
             assertThat(machine.releaseShutdown(currentToken)).isTrue();
             assertThat(machine.isShutdownInProgress()).isFalse();
         }
+
+        @Test
+        @DisplayName("외부 명령이 시작된 claim은 lease가 만료되어도 신규 예약에 기기를 내주지 않는다")
+        void it_keeps_machine_fenced_after_command_started() {
+            // Given
+            var machine = createMachine();
+            var claimToken = machine.claimShutdown().orElseThrow();
+            assertThat(machine.beginShutdownCommand(claimToken)).isTrue();
+            var expiredAt = DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_CLAIM_TIMEOUT).minusSeconds(1);
+            ReflectionTestUtils.setField(machine, "shutdownClaimedAt", expiredAt);
+            ReflectionTestUtils.setField(machine,
+                    "shutdownCommandStartedAt",
+                    DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_COMMAND_RECOVERY_TIMEOUT).minusSeconds(1));
+
+            // When
+            machine.recoverExpiredShutdownClaim();
+
+            // Then
+            assertThat(machine.hasActiveShutdownClaim()).isTrue();
+            assertThat(machine.isAvailable()).isFalse();
+            assertThat(machine.isShutdownCommandRecoveryReady()).isTrue();
+            assertThat(machine.isShutdownInProgress()).isTrue();
+        }
+
+        @Test
+        @DisplayName("복구 claim을 재점유해도 미확정 명령의 보호 상태를 유지한다")
+        void it_restarts_command_once_with_reclaimed_claim() {
+            // Given
+            var machine = createMachine();
+            machine.claimShutdown();
+            ReflectionTestUtils.setField(machine,
+                    "shutdownClaimedAt",
+                    DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_CLAIM_TIMEOUT).minusSeconds(1));
+            ReflectionTestUtils.setField(machine,
+                    "shutdownCommandStartedAt",
+                    DateTimeUtil.nowInKorea().minus(Machine.SHUTDOWN_COMMAND_RECOVERY_TIMEOUT).minusSeconds(1));
+
+            // When
+            assertThat(machine.reclaimShutdownCommand()).isTrue();
+            var reclaimedToken = machine.getShutdownClaimToken();
+
+            // Then
+            assertThat(machine.getShutdownCommandStartedAt()).isNotNull();
+            assertThat(machine.isShutdownCommandRecoveryReady()).isFalse();
+            assertThat(machine.hasActiveShutdownClaim()).isTrue();
+            assertThat(machine.isAvailable()).isFalse();
+            assertThat(machine.beginShutdownCommand(reclaimedToken)).isTrue();
+            assertThat(machine.beginShutdownCommand(reclaimedToken)).isFalse();
+            assertThat(machine.isShutdownCommandRecoveryReady()).isFalse();
+        }
     }
 }

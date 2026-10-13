@@ -15,5 +15,5 @@ public record AdminDashboardResDto(@Schema(description = "활성 예약 수", ex
 
         @Schema(description = "고장 상태 기기 수", example = "2") Long malfunctionMachines,
 
-        @Schema(description = "세탁 정지된 학생 수", example = "1") Long suspendedStudents) {
+        @Schema(description = "현재 예약 생성이 제한된 학생 수 (쿨다운·호실 차단·세탁 금지 대상, 중복 제외)", example = "1") Long suspendedStudents) {
 }

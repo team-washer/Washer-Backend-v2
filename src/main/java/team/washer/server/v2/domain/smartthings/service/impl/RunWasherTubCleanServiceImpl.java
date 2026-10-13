@@ -17,11 +17,12 @@ import team.washer.server.v2.domain.reservation.repository.ReservationRepository
 import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
 import team.washer.server.v2.domain.smartthings.enums.MachineOperatingState;
-import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.service.RunWasherTubCleanService;
 import team.washer.server.v2.domain.smartthings.service.SendDeviceCommandService;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.smartthings.support.WasherTubCleanMachineGuard;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsTubCleanEnvironment;
 
 @Service
@@ -71,7 +72,15 @@ public class RunWasherTubCleanServiceImpl implements RunWasherTubCleanService {
 
                 sendCommand(target.get());
                 started.add(target.get().machineName());
-            } catch (SmartThingsPermissionException e) {
+            } catch (ErrorCodeException e) {
+                if (e.getErrorCode() != ErrorCode.SMARTTHINGS_PERMISSION_DENIED) {
+                    failed.add(machine.getName());
+                    log.error("washer tub clean failed machine={} errorCode={}",
+                            machine.getName(),
+                            e.getErrorCode(),
+                            e);
+                    continue;
+                }
                 log.warn("washer tub clean stopped because SmartThings permission is denied machine={} reason={}",
                         machine.getName(),
                         e.getMessage());

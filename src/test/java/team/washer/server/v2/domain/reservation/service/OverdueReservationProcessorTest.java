@@ -1,11 +1,15 @@
 package team.washer.server.v2.domain.reservation.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -22,7 +26,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
@@ -40,6 +48,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
+import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
@@ -69,6 +78,9 @@ class OverdueReservationProcessorTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Spy
+    private AfterCommitExecutor afterCommitExecutor = new AfterCommitExecutor(mock(PlatformTransactionManager.class));
 
     @Mock
     private Reservation reservation;
@@ -403,6 +415,31 @@ class OverdueReservationProcessorTest {
             verify(reservationRepository, times(1)).save(reservation);
             verify(reservationNotificationSupport, never()).sendCancellationBlock(any(), any());
         }
+
+        @Test
+        @DisplayName("패널티 알림 실패가 이후 48시간 차단 판정을 건너뛰지 않게 한다")
+        void shouldApplyBlockWhenPenaltyNotificationFails() {
+            // Given
+            var deviceStatus = buildDeviceStatus(null);
+            givenReservedReservation();
+            when(reservationStartDecisionSupport.decide(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
+                    .thenReturn(StartDecision.IDLE);
+            when(user.getId()).thenReturn(1L);
+            when(user.getRoomNumber()).thenReturn("101");
+            when(penaltyRedisUtil.hasWarning(1L)).thenReturn(false);
+            when(penaltyRedisUtil.getCancellationCount(1L)).thenReturn(5L);
+            when(penaltyRedisUtil.checkBlock("101")).thenReturn(RestrictionStatus.NONE);
+            when(penaltyRedisUtil.applyBlock("101")).thenReturn(true);
+            willThrow(new RuntimeException("notification unavailable")).given(reservationNotificationSupport)
+                    .sendTimeoutWarning(user, machine);
+
+            // When
+            final var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, deviceStatus);
+
+            // Then
+            assertThat(result).isEqualTo(OverdueResult.CANCELLED);
+            verify(penaltyRedisUtil).applyBlock("101");
+        }
     }
 
     @Nested
@@ -461,6 +498,77 @@ class OverdueReservationProcessorTest {
             verify(reservationNotificationSupport, never()).sendAutoCancellation(any(), any());
             verify(reservationNotificationSupport, never()).sendTimeoutWarning(any(), any());
         }
+    }
+
+    @Nested
+    @DisplayName("DB 트랜잭션 경계가 적용될 때")
+    class TransactionSynchronizationContext {
+
+        @Test
+        @DisplayName("만료 취소의 Redis 패널티는 DB 커밋 이후에만 기록한다")
+        void delaysTimeoutPenaltyUntilCommit() {
+            givenReservedReservation();
+            when(machine.isCleaning()).thenReturn(true);
+            when(user.getId()).thenReturn(1L);
+            lenient().when(user.getRoomNumber()).thenReturn("101");
+            lenient().when(penaltyRedisUtil.getCancellationCount(1L)).thenReturn(0L);
+            TransactionSynchronizationManager.initSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(true);
+            try {
+                final var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, buildDeviceStatus(null));
+
+                assertThat(result).isEqualTo(OverdueResult.CANCELLED);
+                verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
+                TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCommit());
+                verify(penaltyRedisUtil).applyCooldown(1L, null);
+                verify(penaltyRedisUtil).recordCancellation(1L);
+            } finally {
+                TransactionSynchronizationManager.clearSynchronization();
+                TransactionSynchronizationManager.setActualTransactionActive(false);
+            }
+        }
+
+        @Test
+        @DisplayName("DB 롤백 시 만료 취소의 Redis 패널티를 기록하지 않는다")
+        void doesNotApplyTimeoutPenaltyAfterRollback() {
+            givenReservedReservation();
+            when(machine.isCleaning()).thenReturn(true);
+            TransactionSynchronizationManager.initSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(true);
+            try {
+                final var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, buildDeviceStatus(null));
+
+                assertThat(result).isEqualTo(OverdueResult.CANCELLED);
+                TransactionSynchronizationManager.getSynchronizations()
+                        .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+                verifyNoInteractions(penaltyRedisUtil);
+            } finally {
+                TransactionSynchronizationManager.clearSynchronization();
+                TransactionSynchronizationManager.setActualTransactionActive(false);
+            }
+        }
+
+        @Test
+        @DisplayName("커밋 후 만료 패널티 처리 실패가 만료 취소 호출자에게 전파되지 않는다")
+        void doesNotPropagateTimeoutPenaltyFailureAfterCommit() {
+            givenReservedReservation();
+            when(machine.isCleaning()).thenReturn(true);
+            when(user.getId()).thenReturn(1L);
+            willThrow(new RuntimeException("redis unavailable")).given(penaltyRedisUtil).applyCooldown(1L, null);
+            TransactionSynchronizationManager.initSynchronization();
+            TransactionSynchronizationManager.setActualTransactionActive(true);
+            try {
+                final var result = overdueReservationProcessor.processOverdue(RESERVATION_ID, buildDeviceStatus(null));
+
+                assertThat(result).isEqualTo(OverdueResult.CANCELLED);
+                assertThatCode(() -> TransactionSynchronizationManager.getSynchronizations()
+                        .forEach(sync -> sync.afterCommit())).doesNotThrowAnyException();
+            } finally {
+                TransactionSynchronizationManager.clearSynchronization();
+                TransactionSynchronizationManager.setActualTransactionActive(false);
+            }
+        }
+
     }
 
     @Nested

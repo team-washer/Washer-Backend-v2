@@ -30,12 +30,13 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
-import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.service.impl.ShutdownIdleMachinesServiceImpl;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport.ShutdownResult;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @ExtendWith(MockitoExtension.class)
@@ -91,6 +92,7 @@ class ShutdownIdleMachinesServiceTest {
         lenient().when(machineShutdownClaimSupport.claimIdleMachine(machine.getId()))
                 .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(machine.getId(), "claim-token")));
         lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
+        lenient().when(machineShutdownClaimSupport.beginCommand(any())).thenReturn(true);
     }
 
     @Nested
@@ -132,13 +134,14 @@ class ShutdownIdleMachinesServiceTest {
                 lenient().when(machineShutdownClaimSupport.claimIdleMachine(1L))
                         .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token")));
                 lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
-                given(deviceShutdownSupport.shutdown(eq(machine), any())).willReturn(ShutdownResult.POWERED_OFF);
+                lenient().when(machineShutdownClaimSupport.beginCommand(any())).thenReturn(true);
+                given(deviceShutdownSupport.shutdown(eq(machine), any(), any())).willReturn(ShutdownResult.POWERED_OFF);
 
                 // When
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine), any());
+                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine), any(), any());
             }
 
             @Test
@@ -156,7 +159,7 @@ class ShutdownIdleMachinesServiceTest {
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(deviceShutdownSupport).should(never()).shutdown(any(), any());
+                then(deviceShutdownSupport).should(never()).shutdown(any(), any(), any());
             }
         }
 
@@ -221,13 +224,14 @@ class ShutdownIdleMachinesServiceTest {
                         MachineAvailability.AVAILABLE);
                 givenSingleIdleMachine(machine);
                 given(deviceShutdownSupport.isOperating(EMPTY_STATUS, false)).willReturn(true);
-                given(deviceShutdownSupport.shutdown(machine, EMPTY_STATUS)).willReturn(ShutdownResult.POWERED_OFF);
+                given(deviceShutdownSupport.shutdown(eq(machine), eq(EMPTY_STATUS), any()))
+                        .willReturn(ShutdownResult.POWERED_OFF);
 
                 // When
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(deviceShutdownSupport).should(times(1)).shutdown(machine, EMPTY_STATUS);
+                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine), eq(EMPTY_STATUS), any());
                 then(reservationRepository).should(never())
                         .findFirstByMachineIdAndStatusOrderByActualCompletionTimeDesc(any(), any());
             }
@@ -253,7 +257,7 @@ class ShutdownIdleMachinesServiceTest {
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(deviceShutdownSupport).should(never()).shutdown(any(), any());
+                then(deviceShutdownSupport).should(never()).shutdown(any(), any(), any());
             }
 
             @Test
@@ -267,13 +271,14 @@ class ShutdownIdleMachinesServiceTest {
                 given(reservationRepository.findFirstByMachineIdAndStatusOrderByActualCompletionTimeDesc(1L,
                         ReservationStatus.COMPLETED))
                         .willReturn(Optional.of(completedReservation(now.minusMinutes(6), now.minusMinutes(1))));
-                given(deviceShutdownSupport.shutdown(machine, EMPTY_STATUS)).willReturn(ShutdownResult.POWERED_OFF);
+                given(deviceShutdownSupport.shutdown(eq(machine), eq(EMPTY_STATUS), any()))
+                        .willReturn(ShutdownResult.POWERED_OFF);
 
                 // When
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(deviceShutdownSupport).should(times(1)).shutdown(machine, EMPTY_STATUS);
+                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine), eq(EMPTY_STATUS), any());
             }
 
             @Test
@@ -291,7 +296,44 @@ class ShutdownIdleMachinesServiceTest {
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(deviceShutdownSupport).should(never()).shutdown(any(), any());
+                then(deviceShutdownSupport).should(never()).shutdown(any(), any(), any());
+            }
+
+            @Test
+            @DisplayName("이전 명령의 결과가 UNKNOWN이면 회수한 claim을 즉시 해제하지 않는다")
+            void it_keeps_recovered_claim_when_status_is_unknown() {
+                // Given
+                var machine = createMachine(1L, "W-2F-L1", "device-1");
+                givenSingleIdleMachine(machine);
+                var recoveredClaim = new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token", true);
+                given(machineShutdownClaimSupport.claimIdleMachine(1L)).willReturn(Optional.of(recoveredClaim));
+                given(deviceShutdownSupport.shutdown(eq(machine), eq(EMPTY_STATUS), any()))
+                        .willReturn(ShutdownResult.SKIPPED_UNKNOWN);
+
+                // When
+                shutdownIdleMachinesService.execute();
+
+                // Then
+                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine), eq(EMPTY_STATUS), any());
+                then(machineShutdownClaimSupport).should(never()).release(recoveredClaim);
+            }
+
+            @Test
+            @DisplayName("신규 claim의 상태가 UNKNOWN이면 claim을 해제한다")
+            void it_releases_new_claim_when_status_is_unknown() {
+                // Given
+                var machine = createMachine(1L, "W-2F-L1", "device-1");
+                givenSingleIdleMachine(machine);
+                var newClaim = new MachineShutdownClaimSupport.ShutdownClaim(1L, "claim-token");
+                given(machineShutdownClaimSupport.claimIdleMachine(1L)).willReturn(Optional.of(newClaim));
+                given(deviceShutdownSupport.shutdown(eq(machine), eq(EMPTY_STATUS), any()))
+                        .willReturn(ShutdownResult.SKIPPED_UNKNOWN);
+
+                // When
+                shutdownIdleMachinesService.execute();
+
+                // Then
+                then(machineShutdownClaimSupport).should().release(newClaim);
             }
 
             @Test
@@ -303,13 +345,14 @@ class ShutdownIdleMachinesServiceTest {
                 given(deviceShutdownSupport.isOperating(EMPTY_STATUS, true)).willReturn(true);
                 given(reservationRepository.findFirstByMachineIdAndStatusOrderByActualCompletionTimeDesc(1L,
                         ReservationStatus.COMPLETED)).willReturn(Optional.empty());
-                given(deviceShutdownSupport.shutdown(machine, EMPTY_STATUS)).willReturn(ShutdownResult.POWERED_OFF);
+                given(deviceShutdownSupport.shutdown(eq(machine), eq(EMPTY_STATUS), any()))
+                        .willReturn(ShutdownResult.POWERED_OFF);
 
                 // When
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(deviceShutdownSupport).should(times(1)).shutdown(machine, EMPTY_STATUS);
+                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine), eq(EMPTY_STATUS), any());
             }
         }
 
@@ -332,15 +375,16 @@ class ShutdownIdleMachinesServiceTest {
                 lenient().when(machineShutdownClaimSupport.claimIdleMachine(2L))
                         .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(2L, "claim-token-2")));
                 lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
-                willThrow(new SmartThingsPermissionException("권한 없음")).given(deviceShutdownSupport)
-                        .shutdown(eq(machine1), any());
+                lenient().when(machineShutdownClaimSupport.beginCommand(any())).thenReturn(true);
+                willThrow(new ErrorCodeException(ErrorCode.SMARTTHINGS_PERMISSION_DENIED)).given(deviceShutdownSupport)
+                        .shutdown(eq(machine1), any(), any());
 
                 // When
                 shutdownIdleMachinesService.execute();
 
                 // Then
-                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine1), any());
-                then(deviceShutdownSupport).should(never()).shutdown(eq(machine2), any());
+                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine1), any(), any());
+                then(deviceShutdownSupport).should(never()).shutdown(eq(machine2), any(), any());
             }
         }
 
@@ -363,14 +407,33 @@ class ShutdownIdleMachinesServiceTest {
                 lenient().when(machineShutdownClaimSupport.claimIdleMachine(2L))
                         .thenReturn(Optional.of(new MachineShutdownClaimSupport.ShutdownClaim(2L, "claim-token-2")));
                 lenient().when(machineShutdownClaimSupport.isActive(any())).thenReturn(true);
-                willThrow(new RuntimeException("일시적 오류")).given(deviceShutdownSupport).shutdown(eq(machine1), any());
-                given(deviceShutdownSupport.shutdown(eq(machine2), any())).willReturn(ShutdownResult.POWERED_OFF);
+                lenient().when(machineShutdownClaimSupport.beginCommand(any())).thenReturn(true);
+                willThrow(new RuntimeException("일시적 오류")).given(deviceShutdownSupport)
+                        .shutdown(eq(machine1), any(), any());
+                given(deviceShutdownSupport.shutdown(eq(machine2), any(), any()))
+                        .willReturn(ShutdownResult.POWERED_OFF);
 
                 // When
                 assertThatCode(() -> shutdownIdleMachinesService.execute()).doesNotThrowAnyException();
 
                 // Then
-                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine2), any());
+                then(deviceShutdownSupport).should(times(1)).shutdown(eq(machine2), any(), any());
+            }
+
+            @Test
+            @DisplayName("명령이 확실히 거절되면 SmartThings 오류여도 claim을 해제한다")
+            void it_releasesClaimWhenCommandIsDefinitelyRejected() {
+                // Given
+                var machine = createMachine(1L, "W-2F-L1", "device-1");
+                givenSingleIdleMachine(machine);
+                willThrow(new ErrorCodeException(ErrorCode.SMARTTHINGS_RATE_LIMITED)).given(deviceShutdownSupport)
+                        .shutdown(eq(machine), eq(EMPTY_STATUS), any());
+
+                // When
+                shutdownIdleMachinesService.execute();
+
+                // Then
+                then(machineShutdownClaimSupport).should().release(any());
             }
         }
     }

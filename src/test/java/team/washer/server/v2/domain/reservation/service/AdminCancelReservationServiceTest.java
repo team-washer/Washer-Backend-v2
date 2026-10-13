@@ -13,9 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
 
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
 import team.washer.server.v2.domain.machine.enums.MachineStatus;
@@ -27,6 +25,7 @@ import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.AdminCancelReservationServiceImpl;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("AdminCancelReservationServiceImpl 클래스의")
@@ -145,8 +144,9 @@ class AdminCancelReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> adminCancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("이미 완료된 예약은 취소할 수 없습니다")
-                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.BAD_REQUEST);
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("이미 완료된 예약은 취소할 수 없습니다")
+                        .extracting(e -> ((ErrorCodeException) e).getErrorCode())
+                        .isEqualTo(team.washer.server.v2.global.common.error.code.ErrorCode.RESERVATION_STATE_INVALID);
 
                 then(reservationRepository).should(times(1)).findById(reservationId);
                 then(reservationRepository).should(never()).save(any(Reservation.class));
@@ -168,8 +168,9 @@ class AdminCancelReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> adminCancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("이미 취소된 예약입니다")
-                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.BAD_REQUEST);
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("이미 취소된 예약입니다")
+                        .extracting(e -> ((ErrorCodeException) e).getErrorCode())
+                        .isEqualTo(team.washer.server.v2.global.common.error.code.ErrorCode.RESERVATION_STATE_INVALID);
 
                 then(reservationRepository).should(times(1)).findById(reservationId);
                 then(reservationRepository).should(never()).save(any(Reservation.class));
@@ -190,8 +191,9 @@ class AdminCancelReservationServiceTest {
 
                 // When & Then
                 assertThatThrownBy(() -> adminCancelReservationService.execute(reservationId))
-                        .isInstanceOf(ExpectedException.class).hasMessage("예약을 찾을 수 없습니다")
-                        .hasFieldOrPropertyWithValue("statusCode", HttpStatus.NOT_FOUND);
+                        .isInstanceOf(ErrorCodeException.class).hasMessage("예약을 찾을 수 없습니다")
+                        .extracting(e -> ((ErrorCodeException) e).getErrorCode())
+                        .isEqualTo(team.washer.server.v2.global.common.error.code.ErrorCode.RESERVATION_NOT_FOUND);
 
                 then(reservationRepository).should(times(1)).findById(reservationId);
                 then(reservationRepository).should(never()).save(any(Reservation.class));

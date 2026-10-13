@@ -17,11 +17,11 @@ Label names must match the repository exactly (verify with `gh label list`).
 
 | Label                    | Reason                                                    |
 |--------------------------|-----------------------------------------------------------|
+| `위험도: 긴급`, `위험도: 높음`, `위험도: 보통`, `위험도: 낮음`, `위험도: 정리` | Issue-only risk labels — never auto-assigned to PRs |
 | `무효`                     | Issues only                                               |
 | `중복됨`                    | Issues only                                               |
 | `중지됨`                    | Applied manually when blocked by another PR/issue         |
 | `harness sync:하네스 동기화`  | Automation-managed — never auto-assigned                  |
-| `bug:버그`                 | Legacy duplicate of `버그` — use `버그` instead              |
 
 ## Quick Decision
 

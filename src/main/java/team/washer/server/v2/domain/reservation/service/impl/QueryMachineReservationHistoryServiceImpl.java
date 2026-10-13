@@ -5,12 +5,10 @@ import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
-import team.themoment.sdk.exception.ExpectedException;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.dto.response.MachineReservationHistoryPageResDto;
 import team.washer.server.v2.domain.reservation.dto.response.MachineReservationHistoryResDto;
@@ -18,6 +16,8 @@ import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.QueryMachineReservationHistoryService;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 
 @Service
 @RequiredArgsConstructor
@@ -35,7 +35,7 @@ public class QueryMachineReservationHistoryServiceImpl implements QueryMachineRe
             final Pageable pageable) {
 
         if (!machineRepository.existsById(machineId)) {
-            throw new ExpectedException("존재하지 않는 기기입니다", HttpStatus.NOT_FOUND);
+            throw new ErrorCodeException(ErrorCode.MACHINE_NOT_FOUND);
         }
 
         final Page<Reservation> reservations = reservationRepository

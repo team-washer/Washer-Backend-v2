@@ -13,13 +13,15 @@ import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
-import team.washer.server.v2.domain.smartthings.exception.SmartThingsPermissionException;
 import team.washer.server.v2.domain.smartthings.service.ShutdownIdleMachinesService;
 import team.washer.server.v2.domain.smartthings.support.DeviceShutdownSupport;
 import team.washer.server.v2.domain.smartthings.support.DeviceStatusQuerySupport;
 import team.washer.server.v2.domain.smartthings.support.MachineShutdownClaimSupport;
 import team.washer.server.v2.global.common.constants.ReservationConstants;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
+import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsErrorMapper;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 /**
@@ -69,6 +71,7 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
         var failed = new ArrayList<String>();
 
         for (var machine : idleCandidates) {
+            MachineShutdownClaimSupport.ShutdownClaim claimForRelease = null;
             try {
                 var status = statusMap.get(machine.getDeviceId());
                 var isOperating = deviceShutdownSupport.isOperating(status, machine.isWasher());
@@ -78,39 +81,55 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                 }
 
                 final var claim = machineShutdownClaimSupport.claimIdleMachine(machine.getId());
+                claimForRelease = claim.orElse(null);
                 if (claim.isEmpty()) {
                     skippedCount++;
                     continue;
                 }
+                var releaseClaim = false;
                 try {
-                    if (!machineShutdownClaimSupport.isActive(claim.get())) {
+                    var result = deviceShutdownSupport
+                            .shutdown(machine, status, () -> machineShutdownClaimSupport.beginCommand(claim.get()));
+                    if (result == DeviceShutdownSupport.ShutdownResult.SKIPPED_CLAIM_LOST) {
                         skippedCount++;
                         continue;
                     }
-                    var result = deviceShutdownSupport.shutdown(machine, status);
-                    if (result != DeviceShutdownSupport.ShutdownResult.POWERED_OFF) {
-                        continue;
-                    }
-                    if (isOperating) {
+                    releaseClaim = result != DeviceShutdownSupport.ShutdownResult.SKIPPED_UNKNOWN
+                            || !claim.get().hasUnresolvedCommand();
+                    if (result == DeviceShutdownSupport.ShutdownResult.POWERED_OFF && isOperating) {
                         operatingPoweredOff.add(machine.getName());
                         log.warn("operating device without active reservation powered off machine={} deviceId={}",
                                 machine.getName(),
                                 machine.getDeviceId());
-                    } else {
+                    } else if (result == DeviceShutdownSupport.ShutdownResult.POWERED_OFF) {
                         poweredOff.add(machine.getName());
                     }
                 } finally {
-                    try {
-                        machineShutdownClaimSupport.release(claim.get());
-                    } catch (Exception e) {
-                        log.error("failed to release idle shutdown claim machine={} deviceId={} reason={}",
-                                machine.getName(),
-                                machine.getDeviceId(),
-                                e.getMessage(),
-                                e);
+                    if (releaseClaim) {
+                        try {
+                            machineShutdownClaimSupport.release(claim.get());
+                        } catch (Exception e) {
+                            log.error("failed to release idle shutdown claim machine={} deviceId={} reason={}",
+                                    machine.getName(),
+                                    machine.getDeviceId(),
+                                    e.getMessage(),
+                                    e);
+                        }
                     }
                 }
-            } catch (SmartThingsPermissionException e) {
+            } catch (ErrorCodeException e) {
+                if (e.getErrorCode() != ErrorCode.SMARTTHINGS_PERMISSION_DENIED) {
+                    if (SmartThingsErrorMapper.shouldReleaseCommandClaim(e)) {
+                        releaseClaim(claimForRelease, machine);
+                    }
+                    failed.add(machine.getName());
+                    log.error("idle shutdown failed to turn off machine={} errorCode={}",
+                            machine.getName(),
+                            e.getErrorCode(),
+                            e);
+                    continue;
+                }
+                releaseClaim(claimForRelease, machine);
                 log.warn("idle shutdown SmartThings permission error detected, stopping batch. machine={} reason={}",
                         machine.getName(),
                         e.getMessage());
@@ -142,6 +161,21 @@ public class ShutdownIdleMachinesServiceImpl implements ShutdownIdleMachinesServ
                     skippedCount,
                     failed.size(),
                     failed.isEmpty() ? "" : " " + failed);
+        }
+    }
+
+    private void releaseClaim(final MachineShutdownClaimSupport.ShutdownClaim claim, final Machine machine) {
+        if (claim == null) {
+            return;
+        }
+        try {
+            machineShutdownClaimSupport.release(claim);
+        } catch (Exception e) {
+            log.error("failed to release idle shutdown claim machine={} deviceId={} reason={}",
+                    machine.getName(),
+                    machine.getDeviceId(),
+                    e.getMessage(),
+                    e);
         }
     }
 

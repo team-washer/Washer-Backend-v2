@@ -7,12 +7,10 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.springframework.http.HttpStatus;
-
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
-import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.malfunction.entity.MalfunctionReport;
 import team.washer.server.v2.domain.notification.entity.Notification;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
@@ -20,6 +18,8 @@ import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.global.common.constants.NotificationConstants;
 import team.washer.server.v2.global.common.constants.TimeRestrictionConstants;
 import team.washer.server.v2.global.common.entity.BaseEntity;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.util.DateTimeUtil;
 
 @Entity
@@ -74,6 +74,10 @@ public class User extends BaseEntity {
     @Column(name = "last_cancellation_at")
     private LocalDateTime lastCancellationAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "last_cancellation_machine_type", length = 20)
+    private MachineType lastCancellationMachineType;
+
     @Size(max = NotificationConstants.FCM_TOKEN_MAX_LENGTH, message = "FCM 토큰은 4096자를 초과할 수 없습니다")
     @Column(name = "fcm_token", length = NotificationConstants.FCM_TOKEN_MAX_LENGTH)
     private String fcmToken;
@@ -126,8 +130,9 @@ public class User extends BaseEntity {
     /**
      * 마지막 취소 시각을 현재 시각으로 갱신합니다.
      */
-    public void updateLastCancellationTime() {
+    public void updateLastCancellationTime(final MachineType machineType) {
         this.lastCancellationAt = DateTimeUtil.nowInKorea();
+        this.lastCancellationMachineType = machineType;
     }
 
     /**
@@ -135,6 +140,7 @@ public class User extends BaseEntity {
      */
     public void clearLastCancellationTime() {
         this.lastCancellationAt = null;
+        this.lastCancellationMachineType = null;
     }
 
     /**
@@ -161,8 +167,12 @@ public class User extends BaseEntity {
      *            패널티 지속 시간 (분)
      * @return 패널티 기간 내 취소 이력 존재 여부
      */
-    public boolean hasRecentCancellation(int penaltyMinutes) {
+    public boolean hasRecentCancellation(final MachineType machineType, final int penaltyMinutes) {
         if (this.lastCancellationAt == null) {
+            return false;
+        }
+        // 기존 데이터는 기기 유형이 없으므로 만료 전까지 모든 기기 유형에 보수적으로 적용합니다.
+        if (this.lastCancellationMachineType != null && this.lastCancellationMachineType != machineType) {
             return false;
         }
         LocalDateTime penaltyExpiry = this.lastCancellationAt.plusMinutes(penaltyMinutes);
@@ -192,9 +202,8 @@ public class User extends BaseEntity {
                     return;
                 }
                 if (time.isBefore(TimeRestrictionConstants.WEEKDAY_START_TIME)) {
-                    throw new ExpectedException(
-                            String.format("%s 이후에만 예약할 수 있습니다", TimeRestrictionConstants.WEEKDAY_START_TIME),
-                            HttpStatus.BAD_REQUEST);
+                    throw new ErrorCodeException(ErrorCode.RESERVATION_TIME_RESTRICTED,
+                            String.format("%s 이후에만 예약할 수 있습니다", TimeRestrictionConstants.WEEKDAY_START_TIME));
                 }
             }
             case SUNDAY -> {
@@ -203,8 +212,8 @@ public class User extends BaseEntity {
                 }
                 final LocalTime gradeStartTime = resolveSundayGradeStartTime();
                 if (time.isBefore(gradeStartTime)) {
-                    throw new ExpectedException(String.format("%d학년은 %s 이후에만 예약할 수 있습니다", this.grade, gradeStartTime),
-                            HttpStatus.BAD_REQUEST);
+                    throw new ErrorCodeException(ErrorCode.RESERVATION_TIME_RESTRICTED,
+                            String.format("%d학년은 %s 이후에만 예약할 수 있습니다", this.grade, gradeStartTime));
                 }
             }
             default -> {
@@ -230,7 +239,7 @@ public class User extends BaseEntity {
      */
     public void validateFloorRestriction() {
         if (this.floor == 5) {
-            throw new ExpectedException("1~4층 기숙사생이 아니라면 서비스를 이용할 수 없습니다.", HttpStatus.UNAVAILABLE_FOR_LEGAL_REASONS);
+            throw new ErrorCodeException(ErrorCode.USER_FLOOR_RESTRICTED);
         }
     }
 
@@ -243,8 +252,8 @@ public class User extends BaseEntity {
     public void validateNotPenalized(final LocalDateTime penaltyExpiresAt) {
         if (penaltyExpiresAt != null && DateTimeUtil.nowInKorea().isBefore(penaltyExpiresAt)) {
             final long remainingMinutes = Duration.between(DateTimeUtil.nowInKorea(), penaltyExpiresAt).toMinutes();
-            throw new ExpectedException(String.format("현재 예약이 제한되어 있습니다. 제한 해제까지 %d분 남았습니다.", remainingMinutes),
-                    HttpStatus.BAD_REQUEST);
+            throw new ErrorCodeException(ErrorCode.USER_PENALTY_ACTIVE,
+                    String.format("현재 예약이 제한되어 있습니다. 제한 해제까지 %d분 남았습니다.", remainingMinutes));
         }
     }
 

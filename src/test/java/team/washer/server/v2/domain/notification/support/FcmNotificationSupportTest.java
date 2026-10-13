@@ -3,6 +3,10 @@ package team.washer.server.v2.domain.notification.support;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -10,7 +14,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.task.SyncTaskExecutor;
+import org.springframework.core.task.TaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import com.google.firebase.messaging.FirebaseMessaging;
@@ -20,6 +28,7 @@ import com.google.firebase.messaging.MessagingErrorCode;
 
 import team.washer.server.v2.domain.notification.service.DeleteFcmTokenIfMatchesService;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.config.AsyncConfig;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("FcmNotificationSupport 클래스는")
@@ -33,6 +42,9 @@ class FcmNotificationSupportTest {
 
     @Mock
     private DeleteFcmTokenIfMatchesService deleteFcmTokenIfMatchesService;
+
+    @Spy
+    private TaskExecutor fcmTaskExecutor = new SyncTaskExecutor();
 
     @AfterEach
     void clearTransactionSynchronization() {
@@ -105,7 +117,6 @@ class FcmNotificationSupportTest {
 
             // Then
             then(deleteFcmTokenIfMatchesService).should(times(1)).execute(any(), eq("fcm-token"));
-            assertThat(user.getFcmToken()).isEqualTo("fcm-token");
         }
 
         @Test
@@ -124,8 +135,24 @@ class FcmNotificationSupportTest {
         }
 
         @Test
-        @DisplayName("트랜잭션 안에서 호출되면 커밋 이후에 전송해야 한다")
-        void it_sends_after_transaction_commit_when_transaction_is_active() throws Exception {
+        @DisplayName("무효 토큰 오류가 발생해도 전달받은 사용자 엔티티는 변경하지 않아야 한다")
+        void it_does_not_mutate_user_entity_on_invalid_token_failure() throws Exception {
+            // Given
+            final User user = createUserWithToken();
+            final FirebaseMessagingException exception = mock(FirebaseMessagingException.class);
+            given(exception.getMessagingErrorCode()).willReturn(MessagingErrorCode.UNREGISTERED);
+            given(firebaseMessaging.send(any(Message.class))).willThrow(exception);
+
+            // When
+            fcmNotificationSupport.send(user, "제목", "본문");
+
+            // Then
+            assertThat(user.getFcmToken()).isEqualTo("fcm-token");
+        }
+
+        @Test
+        @DisplayName("트랜잭션 안에서 호출되어도 즉시 전송해야 한다")
+        void it_sends_immediately_when_transaction_is_active() throws Exception {
             // Given
             final User user = createUserWithToken();
             given(firebaseMessaging.send(any(Message.class))).willReturn("message-id");
@@ -136,18 +163,13 @@ class FcmNotificationSupportTest {
             fcmNotificationSupport.send(user, "제목", "본문");
 
             // Then
-            then(firebaseMessaging).should(never()).send(any(Message.class));
-            final var synchronizations = TransactionSynchronizationManager.getSynchronizations();
-            assertThat(synchronizations).hasSize(1);
-
-            synchronizations.getFirst().afterCommit();
-
             then(firebaseMessaging).should(times(1)).send(any(Message.class));
+            assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
         }
 
         @Test
-        @DisplayName("커밋 이후 전송에서 런타임 예외가 발생해도 호출자에게 전파하지 않아야 한다")
-        void it_does_not_propagate_runtime_exception_after_transaction_commit() throws Exception {
+        @DisplayName("트랜잭션 안에서 전송 중 런타임 예외가 발생해도 호출자에게 전파하지 않아야 한다")
+        void it_does_not_propagate_runtime_exception_when_transaction_is_active() throws Exception {
             // Given
             final User user = createUserWithToken();
             willThrow(new IllegalStateException("Firebase unavailable")).given(firebaseMessaging)
@@ -159,8 +181,7 @@ class FcmNotificationSupportTest {
             fcmNotificationSupport.send(user, "제목", "본문");
 
             // Then
-            final var synchronizations = TransactionSynchronizationManager.getSynchronizations();
-            assertThatCode(() -> synchronizations.getFirst().afterCommit()).doesNotThrowAnyException();
+            assertThat(TransactionSynchronizationManager.getSynchronizations()).isEmpty();
         }
     }
 
@@ -212,6 +233,114 @@ class FcmNotificationSupportTest {
             // When & Then
             assertThatThrownBy(() -> fcmNotificationSupport.sendAndGetMessageId(user, "제목", "본문")).isSameAs(exception);
             then(deleteFcmTokenIfMatchesService).should(times(1)).execute(any(), eq("fcm-token"));
+            assertThat(user.getFcmToken()).isNull();
+        }
+    }
+
+    @Nested
+    @DisplayName("전용 실행기로 전송할 때는")
+    class Describe_dedicated_executor {
+
+        private ThreadPoolTaskExecutor executor;
+
+        @AfterEach
+        void shutdownExecutor() {
+            if (executor != null) {
+                executor.shutdown();
+            }
+        }
+
+        private FcmNotificationSupport createSupport(final ThreadPoolTaskExecutor taskExecutor) {
+            executor = taskExecutor;
+            executor.initialize();
+            return new FcmNotificationSupport(firebaseMessaging, deleteFcmTokenIfMatchesService, executor);
+        }
+
+        private ThreadPoolTaskExecutor createSingleSlotExecutor() {
+            final var taskExecutor = new ThreadPoolTaskExecutor();
+            taskExecutor.setCorePoolSize(1);
+            taskExecutor.setMaxPoolSize(1);
+            taskExecutor.setQueueCapacity(1);
+            taskExecutor.setWaitForTasksToCompleteOnShutdown(true);
+            taskExecutor.setAwaitTerminationSeconds(5);
+            return taskExecutor;
+        }
+
+        @Test
+        @DisplayName("Firebase 호출을 호출 스레드가 아닌 FCM 전용 스레드에서 수행해야 한다")
+        void it_sends_on_dedicated_thread() throws Exception {
+            // Given
+            final var support = createSupport(new AsyncConfig().fcmTaskExecutor());
+            final var sendingThreadName = new CompletableFuture<String>();
+            given(firebaseMessaging.send(any(Message.class))).willAnswer(invocation -> {
+                sendingThreadName.complete(Thread.currentThread().getName());
+                return "message-id";
+            });
+
+            // When
+            support.send(createUserWithToken(), "제목", "본문");
+
+            // Then
+            assertThat(sendingThreadName.get(5, TimeUnit.SECONDS)).startsWith("Fcm-")
+                    .isNotEqualTo(Thread.currentThread().getName());
+        }
+
+        @Test
+        @DisplayName("Firebase 응답이 지연되어도 호출자를 기다리게 하지 않아야 한다")
+        void it_does_not_block_caller_while_firebase_is_slow() throws Exception {
+            // Given
+            final var support = createSupport(createSingleSlotExecutor());
+            final var firebaseEntered = new CountDownLatch(1);
+            final var releaseFirebase = new CountDownLatch(1);
+            given(firebaseMessaging.send(any(Message.class))).willAnswer(invocation -> {
+                firebaseEntered.countDown();
+                releaseFirebase.await(5, TimeUnit.SECONDS);
+                return "message-id";
+            });
+
+            // When
+            support.send(createUserWithToken(), "제목", "본문");
+
+            // Then
+            assertThat(firebaseEntered.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(releaseFirebase.getCount()).isEqualTo(1);
+            releaseFirebase.countDown();
+        }
+
+        @Test
+        @DisplayName("대기열이 가득 차면 예외 없이 초과 전송을 버려야 한다")
+        void it_drops_notification_when_queue_is_full() throws Exception {
+            // Given
+            final var support = createSupport(createSingleSlotExecutor());
+            final var releaseFirebase = new CountDownLatch(1);
+            given(firebaseMessaging.send(any(Message.class))).willAnswer(invocation -> {
+                releaseFirebase.await(5, TimeUnit.SECONDS);
+                return "message-id";
+            });
+            final User user = createUserWithToken();
+
+            // When & Then
+            assertThatCode(() -> {
+                support.send(user, "실행 중", "본문");
+                support.send(user, "대기 중", "본문");
+                support.send(user, "초과", "본문");
+            }).doesNotThrowAnyException();
+
+            releaseFirebase.countDown();
+            executor.shutdown();
+            then(firebaseMessaging).should(times(2)).send(any(Message.class));
+        }
+
+        @Test
+        @DisplayName("실행기가 종료된 뒤에는 예외 없이 전송을 버려야 한다")
+        void it_drops_notification_after_executor_shutdown() throws Exception {
+            // Given
+            final var support = createSupport(createSingleSlotExecutor());
+            executor.shutdown();
+
+            // When & Then
+            assertThatCode(() -> support.send(createUserWithToken(), "제목", "본문")).doesNotThrowAnyException();
+            then(firebaseMessaging).should(never()).send(any(Message.class));
         }
     }
 }

@@ -96,8 +96,9 @@ class ReservationDeviceStateVerifierTest {
 
             // When & Then
             assertThatThrownBy(() -> verifier.verifyNotOperating(machine(MachineType.WASHER)))
-                    .isInstanceOf(ExpectedException.class).hasMessageContaining("작동 중")
-                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+                    .isInstanceOf(ErrorCodeException.class).hasMessageContaining("작동 중")
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_IN_USE));
         }
 
         @Test
@@ -128,8 +129,9 @@ class ReservationDeviceStateVerifierTest {
 
             // When & Then
             assertThatThrownBy(() -> verifier.verifyNotOperating(machine(MachineType.DRYER)))
-                    .isInstanceOf(ExpectedException.class)
-                    .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+                    .isInstanceOf(ErrorCodeException.class)
+                    .satisfies(e -> assertThat(((ErrorCodeException) e).getErrorCode())
+                            .isEqualTo(ErrorCode.MACHINE_IN_USE));
         }
 
         @Test
@@ -194,6 +196,17 @@ class ReservationDeviceStateVerifierTest {
 
             // When & Then
             assertServiceUnavailable(machine(MachineType.WASHER));
+        }
+
+        @Test
+        @DisplayName("SmartThings 오류 코드는 예약 생성 경로에서도 그대로 전달한다")
+        void verifyNotOperating_ShouldPreserveSmartThingsErrorCode() {
+            // Given
+            var expected = new ErrorCodeException(ErrorCode.SMARTTHINGS_RATE_LIMITED);
+            given(deviceStatusQuerySupport.queryDeviceStatus(DEVICE_ID)).willThrow(expected);
+
+            // When & Then
+            assertThatThrownBy(() -> verifier.verifyNotOperating(machine(MachineType.WASHER))).isSameAs(expected);
         }
     }
 }

@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -44,11 +45,75 @@ class GlobalExceptionHandlerTest {
             assertThat(body.getMessage()).isEqualTo("예약 제한 정보를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.");
             assertThat(body.getData().errorCode()).isEqualTo("RESERVATION_RESTRICTION_UNAVAILABLE");
         }
+
+        @Test
+        @DisplayName("도메인 오류의 기존 message를 유지하면서 원인별 오류 코드를 응답한다")
+        void it_preserves_domain_message_with_specific_error_code() {
+            // Given
+            var exception = new ErrorCodeException(ErrorCode.RESERVATION_COOLDOWN_ACTIVE, "예약 취소 후 5분간 세탁기 예약이 제한됩니다");
+            var request = new MockHttpServletRequest("POST", "/api/v2/reservations");
+
+            // When
+            var response = globalExceptionHandler.errorCodeException(exception, request);
+
+            // Then
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+            assertThat(response.getBody()).isNotNull();
+            assertThat(response.getBody().getMessage()).isEqualTo("예약 취소 후 5분간 세탁기 예약이 제한됩니다");
+            assertThat(response.getBody().getData().errorCode()).isEqualTo("RESERVATION_COOLDOWN_ACTIVE");
+        }
+
+        @Test
+        @DisplayName("원인 예외의 내부 메시지를 사용자 응답에 노출하지 않는다")
+        void it_does_not_expose_cause_message_to_client() {
+            // Given
+            var exception = new ErrorCodeException(ErrorCode.USER_NOT_FOUND,
+                    "사용자에게 안전한 메시지",
+                    new IllegalStateException("secret-internal-detail"));
+            var request = new MockHttpServletRequest("GET", "/api/v2/users/me");
+
+            // When
+            var response = globalExceptionHandler.errorCodeException(exception, request);
+
+            // Then
+            assertThat(response.getBody()).isNotNull();
+            assertThat(response.getBody().getMessage()).isEqualTo("사용자에게 안전한 메시지");
+            assertThat(response.getBody().getMessage()).doesNotContain("secret-internal-detail");
+        }
     }
 
     @Nested
     @DisplayName("예외 운영 로그는")
     class Describe_operational_logging {
+
+        @Test
+        @DisplayName("요청 오류 로그에 원본 입력값과 예외 메시지를 남기지 않는다")
+        void doesNotLogRawClientInput() {
+            // Given
+            final var logger = (Logger) LoggerFactory.getLogger(GlobalExceptionHandler.class);
+            final var appender = new ListAppender<ILoggingEvent>();
+            appender.start();
+            logger.addAppender(appender);
+            final var rawValue = "sensitive-input";
+            final var exception = new MethodArgumentTypeMismatchException(rawValue,
+                    Long.class,
+                    "machineId",
+                    null,
+                    new IllegalArgumentException(rawValue));
+
+            try {
+                // When
+                globalExceptionHandler.methodArgumentTypeMismatchException(exception);
+
+                // Then
+                final var event = appender.list.stream().filter(item -> item.getLevel().toString().equals("WARN"))
+                        .findFirst().orElseThrow();
+                assertThat(event.getFormattedMessage()).contains("fields=[machineId]").doesNotContain(rawValue)
+                        .doesNotContain("IllegalArgumentException");
+            } finally {
+                logger.detachAppender(appender);
+            }
+        }
 
         @Test
         @DisplayName("비예상 예외에 요청 진단 정보와 원인 stack trace를 남긴다")

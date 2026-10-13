@@ -1,12 +1,13 @@
 package team.washer.server.v2.domain.reservation.service.impl;
 
-import org.springframework.http.HttpStatus;
+import java.time.LocalDateTime;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.dto.response.CancellationResDto;
@@ -18,6 +19,9 @@ import team.washer.server.v2.domain.reservation.util.PenaltyRedisUtil;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.domain.user.repository.UserRepository;
 import team.washer.server.v2.global.common.constants.PenaltyConstants;
+import team.washer.server.v2.global.common.error.code.ErrorCode;
+import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
+import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 import team.washer.server.v2.global.security.provider.CurrentUserProvider;
 
 @Slf4j
@@ -31,67 +35,93 @@ public class CancelReservationServiceImpl implements CancelReservationService {
     private final ReservationNotificationSupport reservationNotificationSupport;
     private final CurrentUserProvider currentUserProvider;
     private final UserRepository userRepository;
+    private final AfterCommitExecutor afterCommitExecutor;
 
     @Override
     @Transactional
     public CancellationResDto execute(final Long reservationId) {
         final var userId = currentUserProvider.getCurrentUserId();
         final var reservationUserId = reservationRepository.findUserIdById(reservationId)
-                .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.RESERVATION_NOT_FOUND));
 
         if (!reservationUserId.equals(userId)) {
-            throw new ExpectedException("예약을 취소할 권한이 없습니다", HttpStatus.FORBIDDEN);
+            throw new ErrorCodeException(ErrorCode.RESERVATION_ACCESS_DENIED, "예약을 취소할 권한이 없습니다");
         }
 
         final var machineId = reservationRepository.findMachineIdById(reservationId)
-                .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.RESERVATION_NOT_FOUND));
         userRepository.findRoomUserIdsByUserIdForUpdate(reservationUserId);
         final User user = userRepository.findByIdForUpdate(reservationUserId)
-                .orElseThrow(() -> new ExpectedException("사용자를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.USER_NOT_FOUND));
         final var machine = machineRepository.findByIdForUpdate(machineId)
-                .orElseThrow(() -> new ExpectedException("기기를 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.MACHINE_NOT_FOUND));
         final Reservation reservation = reservationRepository.findByIdForUpdateWithoutRelations(reservationId)
-                .orElseThrow(() -> new ExpectedException("예약을 찾을 수 없습니다", HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ErrorCodeException(ErrorCode.RESERVATION_NOT_FOUND));
 
         if (reservation.isRunning()) {
-            throw new ExpectedException("이미 기기 사용이 시작되어 예약을 취소할 수 없습니다. 최신 상태를 확인해주세요.", HttpStatus.CONFLICT);
+            throw new ErrorCodeException(ErrorCode.RESERVATION_CANCELLATION_CONFLICT,
+                    "이미 기기 사용이 시작되어 예약을 취소할 수 없습니다. 최신 상태를 확인해주세요.");
         }
 
         if (!reservation.isReserved()) {
-            throw new ExpectedException("취소할 수 있는 상태의 예약이 아닙니다", HttpStatus.BAD_REQUEST);
+            throw new ErrorCodeException(ErrorCode.RESERVATION_STATE_INVALID, "취소할 수 있는 상태의 예약이 아닙니다");
         }
 
         // 수동 취소 시 패널티 적용. 단, 관리자 대리 예약은 본인이 요청한 것이 아니므로 면제한다
         final boolean applyPenalty = !reservation.isProxyReservation();
         if (applyPenalty) {
-            penaltyRedisUtil.applyCooldown(userId, machine.getType());
-            penaltyRedisUtil.recordCancellation(userId);
-            user.updateLastCancellationTime();
-            if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
-                final RestrictionStatus previousBlockStatus = penaltyRedisUtil.checkBlock(user.getRoomNumber());
-                // 차단 저장 실패는 PenaltyRedisUtil이 운영 알림으로 보고하며, 예약 취소 자체는 계속 진행한다
-                if (penaltyRedisUtil.applyBlock(user.getRoomNumber())) {
-                    // 기존 차단 여부를 조회하지 못했다면 알림 누락보다 중복 발송이 낫다고 보고 발송한다
-                    if (previousBlockStatus != RestrictionStatus.RESTRICTED) {
-                        reservationNotificationSupport.sendCancellationBlock(user, machine);
-                    }
-                    log.warn("48h block applied roomNumber={}", user.getRoomNumber());
-                }
-            }
-            log.info("manual cancel penalty applied userId={} reservationId={}", userId, reservationId);
+            user.updateLastCancellationTime(machine.getType());
         }
 
         reservation.cancel();
         machine.releaseIfHeld();
         reservationRepository.save(reservation);
         machineRepository.save(machine);
+        if (applyPenalty) {
+            registerPenaltyAfterCommit(user, machine, reservationId);
+        }
         log.info("Cancelled reservation reservationId={} userId={}", reservationId, userId);
 
-        return mapToCancellationResDto(applyPenalty);
+        return mapToCancellationResDto(applyPenalty, user);
     }
 
-    private CancellationResDto mapToCancellationResDto(final boolean penaltyApplied) {
+    private void registerPenaltyAfterCommit(final User user, final Machine machine, final Long reservationId) {
+        afterCommitExecutor.execute(() -> {
+            try {
+                applyPenalty(user, machine, reservationId);
+            } catch (Exception e) {
+                log.error("manual cancel penalty after commit failed userId={} reservationId={}",
+                        user.getId(),
+                        reservationId,
+                        e);
+            }
+        });
+    }
+
+    private void applyPenalty(final User user, final Machine machine, final Long reservationId) {
+        final Long userId = user.getId();
+        penaltyRedisUtil.applyCooldown(userId, machine.getType());
+        penaltyRedisUtil.recordCancellation(userId);
+        if (penaltyRedisUtil.getCancellationCount(userId) > PenaltyConstants.MAX_CANCELLATIONS_IN_48H) {
+            final RestrictionStatus previousBlockStatus = penaltyRedisUtil.checkBlock(user.getRoomNumber());
+            // 차단 저장 실패는 PenaltyRedisUtil이 운영 알림으로 보고하며, 예약 취소 자체는 계속 진행한다
+            if (penaltyRedisUtil.applyBlock(user.getRoomNumber())) {
+                // 기존 차단 여부를 조회하지 못했다면 알림 누락보다 중복 발송이 낫다고 보고 발송한다
+                if (previousBlockStatus != RestrictionStatus.RESTRICTED) {
+                    reservationNotificationSupport.sendCancellationBlock(user, machine);
+                }
+                log.warn("48h block applied roomNumber={}", user.getRoomNumber());
+            }
+        }
+        log.info("manual cancel penalty applied userId={} reservationId={}", userId, reservationId);
+    }
+
+    private CancellationResDto mapToCancellationResDto(final boolean penaltyApplied, final User user) {
         final String message = penaltyApplied ? "예약이 취소되었습니다. 5분간 동일 종류 기기 재예약이 제한됩니다." : "예약이 취소되었습니다.";
-        return new CancellationResDto(true, message, penaltyApplied, null);
+        // Redis 패널티는 커밋 후에 기록되므로 TTL을 조회하지 않고, 같은 트랜잭션에서 기록한 취소 시각으로 쿨다운 만료 시각을 계산한다
+        final LocalDateTime penaltyExpiresAt = penaltyApplied
+                ? user.getLastCancellationAt().plusMinutes(PenaltyConstants.COOLDOWN_DURATION_MINUTES)
+                : null;
+        return new CancellationResDto(true, message, penaltyApplied, penaltyExpiresAt);
     }
 }
