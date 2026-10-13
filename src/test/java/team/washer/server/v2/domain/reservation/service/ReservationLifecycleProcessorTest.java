@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -29,7 +30,7 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
+import team.washer.server.v2.domain.notification.support.ReservationLifecycleNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
 import team.washer.server.v2.domain.reservation.service.impl.ReservationLifecycleProcessor;
@@ -70,7 +71,7 @@ class ReservationLifecycleProcessorTest {
     private ReservationStartDecisionSupport reservationStartDecisionSupport;
 
     @Mock
-    private ReservationNotificationSupport reservationNotificationSupport;
+    private ReservationLifecycleNotificationSupport reservationLifecycleNotificationSupport;
 
     @Mock
     private MachineShutdownClaimSupport machineShutdownClaimSupport;
@@ -147,7 +148,8 @@ class ReservationLifecycleProcessorTest {
             // Then
             verify(reservation, times(1)).start(any(LocalDateTime.class));
             verify(reservationRepository, times(1)).save(reservation);
-            verify(reservationNotificationSupport, times(1)).sendStarted(user, machine, expectedCompletionTime);
+            verify(reservationLifecycleNotificationSupport, times(1))
+                    .sendStartedAfterCommit(any(), eq(user), eq(machine), eq(expectedCompletionTime));
         }
 
         @Test
@@ -189,7 +191,8 @@ class ReservationLifecycleProcessorTest {
 
             // Then
             verify(reservation, times(1)).start(dryerCompletionTime);
-            verify(reservationNotificationSupport, times(1)).sendStarted(user, machine, dryerCompletionTime);
+            verify(reservationLifecycleNotificationSupport, times(1))
+                    .sendStartedAfterCommit(any(), eq(user), eq(machine), eq(dryerCompletionTime));
         }
 
         @Test
@@ -210,7 +213,8 @@ class ReservationLifecycleProcessorTest {
 
             // Then
             verify(reservation, times(1)).start(any(LocalDateTime.class));
-            verify(reservationNotificationSupport, times(1)).sendStarted(user, machine, null);
+            verify(reservationLifecycleNotificationSupport, times(1))
+                    .sendStartedAfterCommit(any(), eq(user), eq(machine), isNull());
         }
 
         @Test
@@ -290,7 +294,8 @@ class ReservationLifecycleProcessorTest {
             verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
-            verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
+            verify(reservationLifecycleNotificationSupport, times(1))
+                    .sendCompletionAfterCommit(any(), eq(user), eq(machine));
             assertThat(result).contains(new CompletedMachine(2L, "W-2F-L1", "device-1", true, "claim-token"));
         }
 
@@ -309,7 +314,7 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, never()).complete();
             verify(reservationRepository, never()).save(reservation);
             verify(machineStateDetectionSupport, never()).isInterrupted(any(), anyBoolean());
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            verify(reservationLifecycleNotificationSupport, never()).sendCompletionAfterCommit(any(), any(), any());
             assertThat(result).isEmpty();
         }
 
@@ -333,7 +338,7 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, never()).clearInterruptionCount();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, never()).save(machine);
-            verify(reservationNotificationSupport, never()).sendInterruption(any(), any());
+            verify(reservationLifecycleNotificationSupport, never()).sendInterruptionAfterCommit(any(), any(), any());
         }
 
         @Test
@@ -358,9 +363,10 @@ class ReservationLifecycleProcessorTest {
             verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
-            verify(reservationNotificationSupport, times(1)).sendInterruption(user, machine);
+            verify(reservationLifecycleNotificationSupport, times(1))
+                    .sendInterruptionAfterCommit(any(), eq(user), eq(machine));
             verify(reservation, never()).complete();
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            verify(reservationLifecycleNotificationSupport, never()).sendCompletionAfterCommit(any(), any(), any());
         }
 
         @Test
@@ -383,7 +389,7 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, times(1)).markAsPaused();
             verify(reservationRepository, times(1)).save(reservation);
             verify(reservation, never()).cancel();
-            verify(reservationNotificationSupport, never()).sendPauseTimeout(any(), any());
+            verify(reservationLifecycleNotificationSupport, never()).sendPauseTimeoutAfterCommit(any(), any(), any());
         }
 
         @Test
@@ -409,7 +415,8 @@ class ReservationLifecycleProcessorTest {
             verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
-            verify(reservationNotificationSupport, times(1)).sendPauseTimeout(user, machine);
+            verify(reservationLifecycleNotificationSupport, times(1))
+                    .sendPauseTimeoutAfterCommit(any(), eq(user), eq(machine));
             verify(reservation, never()).complete();
             verify(reservation, never()).markAsPaused();
         }
@@ -436,7 +443,7 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, never()).cancel();
             verify(reservation, times(1)).updateExpectedCompletionTime(any(LocalDateTime.class));
             verify(reservationRepository, times(1)).save(reservation);
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            verify(reservationLifecycleNotificationSupport, never()).sendCompletionAfterCommit(any(), any(), any());
         }
 
         @Test
@@ -546,7 +553,7 @@ class ReservationLifecycleProcessorTest {
             // Then
             assertThat(result).isEmpty();
             verify(reservation, never()).complete();
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            verify(reservationLifecycleNotificationSupport, never()).sendCompletionAfterCommit(any(), any(), any());
         }
 
         @Test

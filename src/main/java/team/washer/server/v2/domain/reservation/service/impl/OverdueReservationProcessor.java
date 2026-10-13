@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
+import team.washer.server.v2.domain.notification.support.ReservationLifecycleNotificationSupport;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
@@ -44,6 +45,7 @@ public class OverdueReservationProcessor {
     private final MachineRepository machineRepository;
     private final PenaltyRedisUtil penaltyRedisUtil;
     private final ReservationNotificationSupport reservationNotificationSupport;
+    private final ReservationLifecycleNotificationSupport reservationLifecycleNotificationSupport;
     private final ReservationStartDecisionSupport reservationStartDecisionSupport;
     private final UserRepository userRepository;
     private final AfterCommitExecutor afterCommitExecutor;
@@ -128,7 +130,8 @@ public class OverdueReservationProcessor {
             machine.markAsInUse();
             reservationRepository.save(reservation);
             machineRepository.save(machine);
-            reservationNotificationSupport.sendStarted(user, machine, expectedCompletionTime);
+            reservationLifecycleNotificationSupport
+                    .sendStartedAfterCommit(reservation.getId(), user, machine, expectedCompletionTime);
             return OverdueResult.AUTO_STARTED;
         }
         if (startDecision == StartDecision.UNKNOWN) {

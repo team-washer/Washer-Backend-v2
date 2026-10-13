@@ -119,7 +119,12 @@ public class ReservationNotificationSupport {
     }
 
     private void persistAndSend(final User user, final Notification notification, final String fcmTitle) {
-        notificationRepository.save(notification);
+        try {
+            notificationRepository.save(notification);
+        } catch (RuntimeException e) {
+            logPersistenceFailure("save", user, notification, e);
+            throw e;
+        }
         enforceNotificationLimit(user);
         log.info("Notification persisted userId={} type={}", user.getId(), notification.getType());
         afterCommitExecutor.execute(() -> sendFcm(user, notification, fcmTitle));
@@ -134,11 +139,36 @@ public class ReservationNotificationSupport {
     }
 
     private void enforceNotificationLimit(final User user) {
-        final long count = notificationRepository.countByUser(user);
+        final long count;
+        try {
+            count = notificationRepository.countByUser(user);
+        } catch (RuntimeException e) {
+            logPersistenceFailure("count", user, null, e);
+            throw e;
+        }
         if (count > MAX_NOTIFICATIONS_PER_USER) {
-            final int deleted = notificationRepository.deleteOldestByUserExceedingLimit(user,
-                    MAX_NOTIFICATIONS_PER_USER);
+            final int deleted;
+            try {
+                deleted = notificationRepository.deleteOldestByUserExceedingLimit(user, MAX_NOTIFICATIONS_PER_USER);
+            } catch (RuntimeException e) {
+                logPersistenceFailure("cleanup", user, null, e);
+                throw e;
+            }
             log.info("Excess notifications removed userId={} deletedCount={}", user.getId(), deleted);
         }
+    }
+
+    private void logPersistenceFailure(final String stage,
+            final User user,
+            final Notification notification,
+            final RuntimeException e) {
+        log.error(
+                "notification persistence failed stage={} notificationType={} userId={} machineId={} exceptionType={}",
+                stage,
+                notification == null ? null : notification.getType(),
+                user.getId(),
+                notification == null || notification.getMachine() == null ? null : notification.getMachine().getId(),
+                e.getClass().getSimpleName(),
+                e);
     }
 }

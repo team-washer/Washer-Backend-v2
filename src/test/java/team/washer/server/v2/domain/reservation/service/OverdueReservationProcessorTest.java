@@ -34,6 +34,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
+import team.washer.server.v2.domain.notification.support.ReservationLifecycleNotificationSupport;
 import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
@@ -72,6 +73,9 @@ class OverdueReservationProcessorTest {
 
     @Mock
     private ReservationNotificationSupport reservationNotificationSupport;
+
+    @Mock
+    private ReservationLifecycleNotificationSupport reservationLifecycleNotificationSupport;
 
     @Mock
     private ReservationStartDecisionSupport reservationStartDecisionSupport;
@@ -197,7 +201,7 @@ class OverdueReservationProcessorTest {
             verifyNoInteractions(reservationStartDecisionSupport);
             verify(reservation, never()).start(any());
             verify(machine, never()).markAsInUse();
-            verify(reservationNotificationSupport, never()).sendStarted(any(), any(), any());
+            verify(reservationLifecycleNotificationSupport, never()).sendStartedAfterCommit(any(), any(), any(), any());
             verify(reservation, times(1)).cancel();
             verify(machine, times(1)).releaseIfHeld();
         }
@@ -226,7 +230,10 @@ class OverdueReservationProcessorTest {
             verify(reservationRepository).save(reservation);
             verify(machine, never()).releaseIfHeld();
             verify(machineRepository, never()).save(machine);
-            verifyNoInteractions(reservationStartDecisionSupport, penaltyRedisUtil, reservationNotificationSupport);
+            verifyNoInteractions(reservationStartDecisionSupport,
+                    penaltyRedisUtil,
+                    reservationNotificationSupport,
+                    reservationLifecycleNotificationSupport);
         }
 
         @Test
@@ -245,8 +252,8 @@ class OverdueReservationProcessorTest {
             assertThat(result).isEqualTo(OverdueResult.AUTO_STARTED);
             verify(reservation, times(1)).start(any(LocalDateTime.class));
             verify(reservationRepository, times(1)).save(reservation);
-            verify(reservationNotificationSupport, times(1))
-                    .sendStarted(eq(user), eq(machine), any(LocalDateTime.class));
+            verify(reservationLifecycleNotificationSupport, times(1))
+                    .sendStartedAfterCommit(any(), eq(user), eq(machine), any(LocalDateTime.class));
             verify(reservation, never()).cancel();
             verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
         }
@@ -267,8 +274,8 @@ class OverdueReservationProcessorTest {
             // Then
             assertThat(result).isEqualTo(OverdueResult.AUTO_STARTED);
             verify(reservation, times(1)).start(LocalDateTime.of(2026, 1, 27, 1, 0));
-            verify(reservationNotificationSupport, times(1))
-                    .sendStarted(user, machine, LocalDateTime.of(2026, 1, 27, 1, 0));
+            verify(reservationLifecycleNotificationSupport, times(1))
+                    .sendStartedAfterCommit(any(), eq(user), eq(machine), eq(LocalDateTime.of(2026, 1, 27, 1, 0)));
         }
 
         @Test
@@ -291,7 +298,8 @@ class OverdueReservationProcessorTest {
             verify(machineRepository, times(1)).save(machine);
             verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
             verify(penaltyRedisUtil, never()).recordCancellation(any());
-            verify(reservationNotificationSupport, times(1)).sendStarted(user, machine, null);
+            verify(reservationLifecycleNotificationSupport, times(1))
+                    .sendStartedAfterCommit(any(), eq(user), eq(machine), isNull());
         }
     }
 

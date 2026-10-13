@@ -16,7 +16,7 @@ import team.washer.server.v2.domain.machine.enums.MachineStatus;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.machine.service.ForceStopMachineService;
-import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
+import team.washer.server.v2.domain.notification.support.ReservationLifecycleNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -40,7 +40,7 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
     private final ReservationRepository reservationRepository;
     private final DeviceStatusQuerySupport deviceStatusQuerySupport;
     private final SendDeviceCommandService sendDeviceCommandService;
-    private final ReservationNotificationSupport reservationNotificationSupport;
+    private final ReservationLifecycleNotificationSupport reservationLifecycleNotificationSupport;
     private final MachineShutdownClaimSupport machineShutdownClaimSupport;
     private final TransactionTemplate transactionTemplate;
 
@@ -168,7 +168,8 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
         }
         reservation.cancel();
         reservationRepository.save(reservation);
-        reservationNotificationSupport.sendForceStop(reservation.getUser(), reservation.getMachine());
+        reservationLifecycleNotificationSupport
+                .sendForceStopAfterCommit(reservation.getId(), reservation.getUser(), reservation.getMachine());
         return reservation.getId();
     }
 

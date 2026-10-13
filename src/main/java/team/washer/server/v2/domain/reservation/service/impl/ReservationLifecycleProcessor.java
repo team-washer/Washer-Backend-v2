@@ -13,7 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
-import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
+import team.washer.server.v2.domain.notification.support.ReservationLifecycleNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -50,7 +50,7 @@ public class ReservationLifecycleProcessor {
     private final MachineStateDetectionSupport machineStateDetectionSupport;
     private final ReservationCompletionDecisionSupport completionDecisionSupport;
     private final ReservationStartDecisionSupport reservationStartDecisionSupport;
-    private final ReservationNotificationSupport reservationNotificationSupport;
+    private final ReservationLifecycleNotificationSupport reservationLifecycleNotificationSupport;
     private final MachineShutdownClaimSupport machineShutdownClaimSupport;
     private final UserRepository userRepository;
 
@@ -134,7 +134,8 @@ public class ReservationLifecycleProcessor {
                     ReservationConstants.MAX_REASONABLE_CYCLE_MINUTES);
         }
 
-        reservationNotificationSupport.sendStarted(reservation.getUser(), machine, expectedCompletionTime);
+        reservationLifecycleNotificationSupport
+                .sendStartedAfterCommit(reservation.getId(), reservation.getUser(), machine, expectedCompletionTime);
 
         log.info("Reservation {} started (RESERVED → RUNNING)", reservation.getId());
     }
@@ -265,7 +266,8 @@ public class ReservationLifecycleProcessor {
         reservationRepository.save(reservation);
         machineRepository.save(machine);
 
-        reservationNotificationSupport.sendInterruption(reservation.getUser(), machine);
+        reservationLifecycleNotificationSupport
+                .sendInterruptionAfterCommit(reservation.getId(), reservation.getUser(), machine);
 
         logLifecycleEvent("reservation_cancelled",
                 reservation,
@@ -323,7 +325,8 @@ public class ReservationLifecycleProcessor {
         reservationRepository.save(reservation);
         machineRepository.save(machine);
 
-        reservationNotificationSupport.sendPauseTimeout(reservation.getUser(), machine);
+        reservationLifecycleNotificationSupport
+                .sendPauseTimeoutAfterCommit(reservation.getId(), reservation.getUser(), machine);
 
         logLifecycleEvent("reservation_cancelled",
                 reservation,
@@ -410,7 +413,8 @@ public class ReservationLifecycleProcessor {
         reservationRepository.save(reservation);
         machineRepository.save(machine);
 
-        reservationNotificationSupport.sendCompletion(reservation.getUser(), machine);
+        reservationLifecycleNotificationSupport
+                .sendCompletionAfterCommit(reservation.getId(), reservation.getUser(), machine);
 
         log.info(
                 "Reservation completed reason={} reservationId={} userId={} machineId={} machineName={} completionTime={} expectedCompletionTime={}",

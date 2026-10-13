@@ -28,7 +28,7 @@ import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.machine.enums.Position;
 import team.washer.server.v2.domain.machine.repository.MachineRepository;
 import team.washer.server.v2.domain.machine.service.impl.ForceStopMachineServiceImpl;
-import team.washer.server.v2.domain.notification.support.ReservationNotificationSupport;
+import team.washer.server.v2.domain.notification.support.ReservationLifecycleNotificationSupport;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
 import team.washer.server.v2.domain.reservation.enums.ReservationStatus;
 import team.washer.server.v2.domain.reservation.repository.ReservationRepository;
@@ -68,7 +68,7 @@ class ForceStopMachineServiceTest {
     private SendDeviceCommandService sendDeviceCommandService;
 
     @Mock
-    private ReservationNotificationSupport reservationNotificationSupport;
+    private ReservationLifecycleNotificationSupport reservationLifecycleNotificationSupport;
 
     @Mock
     private MachineShutdownClaimSupport machineShutdownClaimSupport;
@@ -181,7 +181,8 @@ class ForceStopMachineServiceTest {
                 assertThat(command.arguments()).containsExactly("stop");
                 then(reservationRepository).should(times(1)).save(reservation);
                 then(machineRepository).should(times(1)).save(machine);
-                then(reservationNotificationSupport).should(times(1)).sendForceStop(reservation.getUser(), machine);
+                then(reservationLifecycleNotificationSupport).should(times(1))
+                        .sendForceStopAfterCommit(reservationId, reservation.getUser(), machine);
                 then(machineShutdownClaimSupport).should(times(1)).beginCommand(any());
                 then(machineShutdownClaimSupport).should(times(1)).release(any());
             }
@@ -278,7 +279,7 @@ class ForceStopMachineServiceTest {
                 assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.IN_USE);
                 then(sendDeviceCommandService).shouldHaveNoInteractions();
                 then(reservationRepository).should(never()).save(any(Reservation.class));
-                then(reservationNotificationSupport).shouldHaveNoInteractions();
+                then(reservationLifecycleNotificationSupport).shouldHaveNoInteractions();
             }
         }
 
@@ -388,7 +389,7 @@ class ForceStopMachineServiceTest {
                 assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.RESERVED);
                 then(sendDeviceCommandService).shouldHaveNoInteractions();
                 then(reservationRepository).should(never()).save(any(Reservation.class));
-                then(reservationNotificationSupport).shouldHaveNoInteractions();
+                then(reservationLifecycleNotificationSupport).shouldHaveNoInteractions();
             }
         }
 
