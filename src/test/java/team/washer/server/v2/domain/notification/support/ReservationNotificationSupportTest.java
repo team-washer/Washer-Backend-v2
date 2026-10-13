@@ -22,6 +22,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.notification.entity.Notification;
+import team.washer.server.v2.domain.notification.enums.NotificationType;
 import team.washer.server.v2.domain.notification.repository.NotificationRepository;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
@@ -187,6 +188,59 @@ class ReservationNotificationSupportTest {
                     + " 정지되어 예약이 패널티 없이 취소되었습니다.";
             then(fcmNotificationSupport).should(times(1))
                     .send(user, machineType.getDescription() + " 강제 정지 알림", expectedBody);
+        }
+    }
+
+    @Nested
+    @DisplayName("완료·중단 알림 메시지는")
+    class Describe_completion_and_interruption_notification_message {
+
+        @ParameterizedTest
+        @EnumSource(MachineType.class)
+        @DisplayName("정상 완료는 COMPLETION 타입과 완료 문구로 저장·전송해야 한다")
+        void it_notifies_completion(final MachineType machineType) {
+            // Given
+            User user = createUser();
+            Machine machine = createMachine(machineType);
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(notificationRepository.countByUser(user)).willReturn(1L);
+
+            // When
+            reservationNotificationSupport.sendCompletion(user, machine);
+
+            // Then
+            final String expectedBody = machine.getName() + "의 " + machineType.getActionNoun()
+                    + " 완료되었습니다. 빠른 시간 내에 수거해 주시기 바랍니다.";
+            then(notificationRepository).should(times(1))
+                    .save(argThat(notification -> notification.getType() == NotificationType.COMPLETION
+                            && notification.getMessage().equals(expectedBody)));
+            then(fcmNotificationSupport).should(times(1))
+                    .send(user, machineType.getDescription() + " 완료 알림", expectedBody);
+        }
+
+        @ParameterizedTest
+        @EnumSource(MachineType.class)
+        @DisplayName("사이클 중단은 INTERRUPTION 타입과 패널티 없는 취소 문구로 저장·전송해야 한다")
+        void it_notifies_interruption(final MachineType machineType) {
+            // Given
+            User user = createUser();
+            Machine machine = createMachine(machineType);
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(notificationRepository.countByUser(user)).willReturn(1L);
+
+            // When
+            reservationNotificationSupport.sendInterruption(user, machine);
+
+            // Then
+            final String expectedBody = machine.getName() + "의 " + machineType.getActionNoun()
+                    + " 예기치 않게 중단되었습니다. 예약이 패널티 없이 취소되었습니다.";
+            then(notificationRepository).should(times(1))
+                    .save(argThat(notification -> notification.getType() == NotificationType.INTERRUPTION
+                            && notification.getMessage().equals(expectedBody)));
+            then(fcmNotificationSupport).should(times(1))
+                    .send(user, machineType.getDescription() + " 중단 알림", expectedBody);
         }
     }
 
