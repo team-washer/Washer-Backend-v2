@@ -16,6 +16,7 @@ import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceSt
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.AttributeState;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.ComponentStatus;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.DryerOperatingState;
+import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.SwitchCapability;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto.WasherOperatingState;
 import team.washer.server.v2.domain.smartthings.support.MachineStateDetectionSupport;
 import team.washer.server.v2.global.util.DateTimeUtil;
@@ -58,9 +59,36 @@ class ReservationCompletionDecisionSupportTest {
         return new SmartThingsDeviceStatusResDto(Map.of("main", new ComponentStatus(null, dryerOpState, null, null)));
     }
 
+    private static SmartThingsDeviceStatusResDto poweredOffWasherStatus(String machineState,
+            LocalDateTime machineStateUpdatedAt,
+            String jobState) {
+        var washerOpState = new WasherOperatingState(attr(machineState, machineStateUpdatedAt),
+                attr(jobState, machineStateUpdatedAt),
+                null);
+        return new SmartThingsDeviceStatusResDto(Map.of("main",
+                new ComponentStatus(washerOpState, null, new SwitchCapability(attr("off", null)), null)));
+    }
+
+    private static SmartThingsDeviceStatusResDto poweredOffDryerStatus(String machineState,
+            LocalDateTime machineStateUpdatedAt,
+            String jobState) {
+        var dryerOpState = new DryerOperatingState(attr(machineState, machineStateUpdatedAt),
+                attr(jobState, machineStateUpdatedAt),
+                null);
+        return new SmartThingsDeviceStatusResDto(
+                Map.of("main", new ComponentStatus(null, dryerOpState, new SwitchCapability(attr("off", null)), null)));
+    }
+
     private static Reservation runningReservation(LocalDateTime startTime, LocalDateTime expectedCompletionTime) {
         return Reservation.builder().status(ReservationStatus.RUNNING).startTime(startTime)
                 .expectedCompletionTime(expectedCompletionTime).build();
+    }
+
+    private static Reservation pausedReservation(LocalDateTime startTime,
+            LocalDateTime expectedCompletionTime,
+            LocalDateTime pausedAt) {
+        return Reservation.builder().status(ReservationStatus.RUNNING).startTime(startTime)
+                .expectedCompletionTime(expectedCompletionTime).pausedAt(pausedAt).build();
     }
 
     @Nested
@@ -215,6 +243,207 @@ class ReservationCompletionDecisionSupportTest {
 
             // Then
             assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.isCandidateRejected()).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("완료 신호 없이 전원이 꺼진 정지일 때")
+    class WithPoweredOffIdleStop {
+
+        @Test
+        @DisplayName("세탁기가 완료 예정 시각 이후에 멈췄으면 완료 신호를 놓친 정상 종료로 보고 완료로 판정한다")
+        void shouldComplete_WhenWasherStoppedAfterExpectedCompletion() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(50), now.minusMinutes(3));
+            var status = poweredOffWasherStatus("stop", now.minusMinutes(2), "none");
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
+
+            // Then
+            assertThat(decision.isCompleted()).isTrue();
+            assertThat(decision.reason()).isEqualTo("powered_off_after_expected_completion");
+        }
+
+        @Test
+        @DisplayName("건조기가 완료 예정 시각보다 허용 오차 이내로 일찍 멈췄으면 완료로 판정한다")
+        void shouldComplete_WhenDryerStoppedWithinTolerance() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(60), now.plusMinutes(2));
+            var status = poweredOffDryerStatus("stop", now.minusMinutes(1), null);
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, DRYER);
+
+            // Then
+            assertThat(decision.isCompleted()).isTrue();
+            assertThat(decision.reason()).isEqualTo("powered_off_after_expected_completion");
+        }
+
+        @Test
+        @DisplayName("완료 예정 시각보다 훨씬 일찍 멈췄으면 완료로 보지 않고 기각 사유를 남긴다")
+        void shouldReject_WhenStoppedLongBeforeExpectedCompletion() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(20), now.plusMinutes(30));
+            var status = poweredOffWasherStatus("stop", now.minusMinutes(1), "none");
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
+
+            // Then
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.isDeferred()).isFalse();
+            assertThat(decision.isCandidateRejected()).isTrue();
+            assertThat(decision.reason()).isEqualTo("power_off_before_expected_completion");
+        }
+
+        @Test
+        @DisplayName("감지가 늦어 현재 시각이 완료 예정 시각을 지났더라도 멈춘 시각이 일렀으면 완료로 보지 않는다")
+        void shouldReject_WhenDetectedLateButStoppedEarly() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(70), now.minusMinutes(10));
+            var status = poweredOffWasherStatus("stop", now.minusMinutes(40), "none");
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
+
+            // Then
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.reason()).isEqualTo("power_off_before_expected_completion");
+        }
+
+        @Test
+        @DisplayName("일시정지된 채로 꺼졌고 일시정지가 완료 예정 시각보다 훨씬 일렀으면 멈춘 시각이 늦어도 완료로 보지 않는다")
+        void shouldReject_WhenPausedLongBeforeExpectedCompletion() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = pausedReservation(now.minusMinutes(50), now.plusMinutes(2), now.minusMinutes(9));
+            var status = poweredOffWasherStatus("stop", now.minusMinutes(1), "none");
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
+
+            // Then
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.isCandidateRejected()).isTrue();
+            assertThat(decision.reason()).isEqualTo("paused_before_expected_completion");
+        }
+
+        @Test
+        @DisplayName("일시정지된 채로 꺼졌어도 일시정지가 완료 예정 시각 허용 오차 이내였으면 완료로 판정한다")
+        void shouldComplete_WhenPausedWithinTolerance() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = pausedReservation(now.minusMinutes(50), now.plusMinutes(2), now.minusMinutes(2));
+            var status = poweredOffDryerStatus("stop", now.minusMinutes(1), "none");
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, DRYER);
+
+            // Then
+            assertThat(decision.isCompleted()).isTrue();
+            assertThat(decision.reason()).isEqualTo("powered_off_after_expected_completion");
+        }
+
+        @Test
+        @DisplayName("일시정지 이력이 있어도 멈춘 시각 자체가 일렀으면 멈춘 시각 기준의 기각 사유를 남긴다")
+        void shouldRejectByStopTime_WhenPausedAndStoppedEarly() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = pausedReservation(now.minusMinutes(20), now.plusMinutes(30), now.minusMinutes(5));
+            var status = poweredOffWasherStatus("stop", now.minusMinutes(1), "none");
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
+
+            // Then
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.reason()).isEqualTo("power_off_before_expected_completion");
+        }
+
+        @Test
+        @DisplayName("멈춘 시각을 알 수 없으면 완료로 보지 않는다")
+        void shouldReject_WhenStopTimestampMissing() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(50), now.minusMinutes(3));
+            var status = poweredOffWasherStatus("stop", null, "none");
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
+
+            // Then
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.reason()).isEqualTo("power_off_without_completion_evidence");
+        }
+
+        @Test
+        @DisplayName("예약에 완료 예정 시각이 없으면 완료로 보지 않는다")
+        void shouldReject_WhenExpectedCompletionTimeMissing() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(50), null);
+            var status = poweredOffWasherStatus("stop", now.minusMinutes(2), "none");
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
+
+            // Then
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.reason()).isEqualTo("power_off_without_completion_evidence");
+        }
+
+        @Test
+        @DisplayName("멈춘 시각이 예약 시작 전이면 이번 사이클의 근거가 아니므로 완료로 보지 않는다")
+        void shouldReject_WhenStoppedBeforeStart() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(2), now.plusMinutes(1));
+            var status = poweredOffWasherStatus("stop", now.minusMinutes(3), "none");
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
+
+            // Then
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.reason()).isEqualTo("power_off_without_completion_evidence");
+        }
+
+        @Test
+        @DisplayName("전원이 꺼졌어도 jobState가 진행 단계에 머물러 있으면 완료 후보로 검토하지 않는다")
+        void shouldNotComplete_WhenPoweredOffMidCycleJobState() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(50), now.minusMinutes(3));
+            var status = poweredOffWasherStatus("stop", now.minusMinutes(2), "spin");
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
+
+            // Then
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.isCandidateRejected()).isFalse();
+        }
+
+        @Test
+        @DisplayName("전원이 꺼졌어도 jobState=finish 이면 완료 예정 시각과 무관하게 완료로 판정한다")
+        void shouldComplete_WhenPoweredOffWithFinishedJobState() {
+            // Given
+            var now = DateTimeUtil.nowInKorea();
+            var reservation = runningReservation(now.minusMinutes(20), now.plusMinutes(30));
+            var status = poweredOffWasherStatus("stop", now.minusMinutes(1), "finish");
+
+            // When
+            var decision = completionDecisionSupport.decide(reservation, status, WASHER);
+
+            // Then
+            assertThat(decision.isCompleted()).isTrue();
+            assertThat(decision.reason()).isEqualTo("job_finished");
         }
     }
 }
