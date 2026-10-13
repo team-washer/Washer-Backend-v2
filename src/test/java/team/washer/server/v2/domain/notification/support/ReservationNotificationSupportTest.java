@@ -42,6 +42,9 @@ class ReservationNotificationSupportTest {
     @Spy
     private AfterCommitExecutor afterCommitExecutor = new AfterCommitExecutor(mock(PlatformTransactionManager.class));
 
+    @Mock
+    private PlatformTransactionManager transactionManager;
+
     @AfterEach
     void clearTransactionSynchronization() {
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -207,7 +210,7 @@ class ReservationNotificationSupportTest {
             TransactionSynchronizationManager.initSynchronization();
 
             // When
-            reservationNotificationSupport.sendCompletion(user, machine);
+            reservationNotificationSupport.sendForceStop(user, machine);
 
             // Then
             then(fcmNotificationSupport).should(never()).send(any(), anyString(), anyString());
@@ -217,6 +220,36 @@ class ReservationNotificationSupportTest {
             synchronizations.getFirst().afterCommit();
 
             then(fcmNotificationSupport).should(times(1)).send(eq(user), anyString(), anyString());
+        }
+    }
+
+    @Nested
+    @DisplayName("lifecycle 전이 알림의 저장 시점은")
+    class Describe_lifecycle_notification_persist_timing {
+
+        @Test
+        @DisplayName("호출자 트랜잭션 커밋 전에는 저장하지 않고 커밋 이후에 저장해야 한다")
+        void it_persists_after_commit() {
+            // Given
+            User user = createUser();
+            Machine machine = createMachine();
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(notificationRepository.countByUser(user)).willReturn(1L);
+            TransactionSynchronizationManager.setActualTransactionActive(true);
+            TransactionSynchronizationManager.initSynchronization();
+
+            // When
+            reservationNotificationSupport.sendCompletion(user, machine);
+
+            // Then
+            then(notificationRepository).shouldHaveNoInteractions();
+            final var synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            assertThat(synchronizations).hasSize(1);
+
+            synchronizations.getFirst().afterCommit();
+
+            then(notificationRepository).should(times(1)).save(any(Notification.class));
         }
     }
 
