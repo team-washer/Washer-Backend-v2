@@ -140,6 +140,7 @@ class ReservationLifecycleProcessorTest {
             when(reservation.getExpectedCompletionTime()).thenReturn(expectedCompletionTime);
             when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
+            when(reservation.getId()).thenReturn(RESERVATION_ID);
 
             // When
             reservationLifecycleProcessor.processReservedToRunning(RESERVATION_ID, deviceStatus);
@@ -147,7 +148,8 @@ class ReservationLifecycleProcessorTest {
             // Then
             verify(reservation, times(1)).start(any(LocalDateTime.class));
             verify(reservationRepository, times(1)).save(reservation);
-            verify(reservationNotificationSupport, times(1)).sendStarted(user, machine, expectedCompletionTime);
+            verify(reservationNotificationSupport, times(1))
+                    .sendStarted(RESERVATION_ID, user, machine, expectedCompletionTime);
         }
 
         @Test
@@ -183,13 +185,15 @@ class ReservationLifecycleProcessorTest {
             when(machine.isWasher()).thenReturn(false);
             when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
+            when(reservation.getId()).thenReturn(RESERVATION_ID);
 
             // When
             reservationLifecycleProcessor.processReservedToRunning(RESERVATION_ID, deviceStatus);
 
             // Then
             verify(reservation, times(1)).start(dryerCompletionTime);
-            verify(reservationNotificationSupport, times(1)).sendStarted(user, machine, dryerCompletionTime);
+            verify(reservationNotificationSupport, times(1))
+                    .sendStarted(RESERVATION_ID, user, machine, dryerCompletionTime);
         }
 
         @Test
@@ -204,13 +208,14 @@ class ReservationLifecycleProcessorTest {
             when(reservation.getExpectedCompletionTime()).thenReturn(null);
             when(reservationStartDecisionSupport.isStarted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
+            when(reservation.getId()).thenReturn(RESERVATION_ID);
 
             // When
             reservationLifecycleProcessor.processReservedToRunning(RESERVATION_ID, deviceStatus);
 
             // Then
             verify(reservation, times(1)).start(any(LocalDateTime.class));
-            verify(reservationNotificationSupport, times(1)).sendStarted(user, machine, null);
+            verify(reservationNotificationSupport, times(1)).sendStarted(RESERVATION_ID, user, machine, null);
         }
 
         @Test
@@ -279,6 +284,7 @@ class ReservationLifecycleProcessorTest {
             when(machine.getName()).thenReturn("W-2F-L1");
             when(machine.getDeviceId()).thenReturn("device-1");
             when(machine.isWasher()).thenReturn(true);
+            when(reservation.getId()).thenReturn(RESERVATION_ID);
 
             // When
             var result = reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
@@ -290,7 +296,7 @@ class ReservationLifecycleProcessorTest {
             verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
-            verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
+            verify(reservationNotificationSupport, times(1)).sendCompletion(RESERVATION_ID, user, machine);
             assertThat(result).contains(new CompletedMachine(2L, "W-2F-L1", "device-1", true, "claim-token"));
         }
 
@@ -309,7 +315,7 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, never()).complete();
             verify(reservationRepository, never()).save(reservation);
             verify(machineStateDetectionSupport, never()).isInterrupted(any(), anyBoolean());
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any(), any());
             assertThat(result).isEmpty();
         }
 
@@ -333,7 +339,7 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, never()).clearInterruptionCount();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, never()).save(machine);
-            verify(reservationNotificationSupport, never()).sendInterruption(any(), any());
+            verify(reservationNotificationSupport, never()).sendInterruption(any(), any(), any());
         }
 
         @Test
@@ -347,6 +353,7 @@ class ReservationLifecycleProcessorTest {
             when(machineStateDetectionSupport.isInterrupted(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
             when(reservation.getInterruptionCount()).thenReturn(ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD);
+            when(reservation.getId()).thenReturn(RESERVATION_ID);
 
             // When
             reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
@@ -358,9 +365,9 @@ class ReservationLifecycleProcessorTest {
             verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
-            verify(reservationNotificationSupport, times(1)).sendInterruption(user, machine);
+            verify(reservationNotificationSupport, times(1)).sendInterruption(RESERVATION_ID, user, machine);
             verify(reservation, never()).complete();
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any(), any());
         }
 
         @Test
@@ -383,7 +390,7 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, times(1)).markAsPaused();
             verify(reservationRepository, times(1)).save(reservation);
             verify(reservation, never()).cancel();
-            verify(reservationNotificationSupport, never()).sendPauseTimeout(any(), any());
+            verify(reservationNotificationSupport, never()).sendPauseTimeout(any(), any(), any());
         }
 
         @Test
@@ -399,6 +406,7 @@ class ReservationLifecycleProcessorTest {
             when(machineStateDetectionSupport.isPaused(any(SmartThingsDeviceStatusResDto.class), anyBoolean()))
                     .thenReturn(true);
             when(reservation.getPausedAt()).thenReturn(LocalDateTime.now(KOREA_ZONE).minusMinutes(11));
+            when(reservation.getId()).thenReturn(RESERVATION_ID);
 
             // When
             reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID, deviceStatus);
@@ -409,7 +417,7 @@ class ReservationLifecycleProcessorTest {
             verify(machine, times(1)).releaseIfHeld();
             verify(reservationRepository, times(1)).save(reservation);
             verify(machineRepository, times(1)).save(machine);
-            verify(reservationNotificationSupport, times(1)).sendPauseTimeout(user, machine);
+            verify(reservationNotificationSupport, times(1)).sendPauseTimeout(RESERVATION_ID, user, machine);
             verify(reservation, never()).complete();
             verify(reservation, never()).markAsPaused();
         }
@@ -436,7 +444,7 @@ class ReservationLifecycleProcessorTest {
             verify(reservation, never()).cancel();
             verify(reservation, times(1)).updateExpectedCompletionTime(any(LocalDateTime.class));
             verify(reservationRepository, times(1)).save(reservation);
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any(), any());
         }
 
         @Test
@@ -546,7 +554,7 @@ class ReservationLifecycleProcessorTest {
             // Then
             assertThat(result).isEmpty();
             verify(reservation, never()).complete();
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any(), any());
         }
 
         @Test
