@@ -225,9 +225,11 @@ final class Json {
         if (token.isEmpty()) {
             throw new IllegalArgumentException("알 수 없는 JSON 토큰입니다. pos=" + start);
         }
-        return token.contains(".") || token.contains("e") || token.contains("E")
-                ? Double.parseDouble(token)
-                : Long.parseLong(token);
+        // 삼항 연산자로 쓰면 숫자 승격으로 Long도 double이 되므로 분기한다.
+        if (token.contains(".") || token.contains("e") || token.contains("E")) {
+            return Double.parseDouble(token);
+        }
+        return Long.parseLong(token);
     }
 
     private void skipWhitespace() {
