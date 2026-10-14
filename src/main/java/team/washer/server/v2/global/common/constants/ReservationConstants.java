@@ -20,11 +20,10 @@ public final class ReservationConstants {
     public static final int INTERRUPTION_CONFIRM_THRESHOLD = 3;
 
     /**
-     * 완료 신호 없이 전원이 꺼진 정지를 정상 완료로 인정하는 허용 오차(분). 기기가 멈춘 시각이 예약의 완료 예정 시각에서 이 시간을 뺀
-     * 시각 이후이면 사이클을 끝까지 돌린 뒤 꺼진 것으로 본다. 기기의 잔여 시간 추정이 종료 직전에 줄어드는 폭과 완료 예정 시각 갱신
-     * 주기(폴링 30초, 60초 이상 차이 날 때만 저장)를 감안한 값이며, 이보다 일찍 멈춘 정지는 기존처럼 중단 후보로 남긴다.
+     * 완료 신호 없이 전원이 꺼진 정지를 "완료 예정 시각 무렵의 정지"로 분류하는 범위(분). 기기가 멈춘 시각이 예약의 완료 예정 시각에서
+     * 이 시간을 뺀 시각 이후이면 그렇게 분류한다. 관측 로그의 분류에만 쓰며 완료·중단 상태 전이에는 영향을 주지 않는다.
      */
-    public static final int POWER_OFF_COMPLETION_TOLERANCE_MINUTES = 5;
+    public static final int POWER_OFF_NEAR_COMPLETION_WINDOW_MINUTES = 5;
 
     /**
      * 하나의 세탁·건조 사이클이 가질 수 있는 최대 길이(분). 기기가 보고한 완료 예정 시각이 이 범위를 벗어나면 이상치로 보고 저장하지
