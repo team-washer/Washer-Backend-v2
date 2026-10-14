@@ -10,6 +10,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.AclEntry;
+import java.nio.file.attribute.AclEntryFlag;
+import java.nio.file.attribute.AclEntryPermission;
+import java.nio.file.attribute.AclEntryType;
+import java.nio.file.attribute.AclFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFilePermissions;
 import java.security.KeyFactory;
 import java.security.MessageDigest;
 import java.security.PublicKey;
@@ -23,6 +30,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -187,7 +195,7 @@ public class SmartThingsWebhookPoc {
     static void saveToken(Object token, Object response) throws IOException {
         var map = new LinkedHashMap<>((Map<String, Object>) token);
         map.put("saved_at", Instant.now().toString());
-        Files.writeString(TOKEN_FILE, Json.write(map));
+        writeOwnerOnly(TOKEN_FILE, Json.write(map));
         // 기록 가능한 식별자만 출력한다. access/refresh token 원문은 출력하지 않는다.
         var keys = new ArrayList<>(((Map<String, Object>) response).keySet());
         System.out.println("token 저장 완료 file=" + TOKEN_FILE);
@@ -757,6 +765,37 @@ public class SmartThingsWebhookPoc {
     }
 
     // ------------------------------------------------------------------ 공통
+
+    /**
+     * 자격 증명 파일을 소유자만 읽고 쓸 수 있게 만든 뒤 내용을 쓴다. umask와 무관하게 내용이 쓰이기 전에 권한을 제한하고, 기존 파일을 덮어쓸 때도
+     * 권한을 다시 적용한다.
+     */
+    static void writeOwnerOnly(Path file, String content) throws IOException {
+        restrictToOwner(DATA_DIR, true);
+        if (!Files.exists(file)) {
+            Files.createFile(file);
+        }
+        restrictToOwner(file, false);
+        Files.writeString(file, content, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+    }
+
+    /** POSIX는 700/600으로, Windows는 소유자 ACL 항목 하나만 남겨 다른 사용자의 접근을 막는다. */
+    static void restrictToOwner(Path path, boolean directory) throws IOException {
+        var posix = Files.getFileAttributeView(path, PosixFileAttributeView.class);
+        if (posix != null) {
+            posix.setPermissions(PosixFilePermissions.fromString(directory ? "rwx------" : "rw-------"));
+            return;
+        }
+        var acl = Files.getFileAttributeView(path, AclFileAttributeView.class);
+        if (acl == null) {
+            throw new IOException("파일 권한을 소유자 전용으로 제한할 수 없는 파일 시스템입니다. path=" + path);
+        }
+        var flags = directory
+                ? EnumSet.of(AclEntryFlag.FILE_INHERIT, AclEntryFlag.DIRECTORY_INHERIT)
+                : EnumSet.noneOf(AclEntryFlag.class);
+        acl.setAcl(List.of(AclEntry.newBuilder().setType(AclEntryType.ALLOW).setPrincipal(Files.getOwner(path))
+                .setPermissions(EnumSet.allOf(AclEntryPermission.class)).setFlags(flags).build()));
+    }
 
     static synchronized void record(Path file, Map<String, ?> record) throws IOException {
         Files.writeString(file, Json.write(record) + "\n", StandardOpenOption.CREATE, StandardOpenOption.APPEND);

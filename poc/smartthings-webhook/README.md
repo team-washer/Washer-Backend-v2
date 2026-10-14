@@ -14,7 +14,7 @@ java SmartThingsWebhookPoc.java            # 사용법 출력
 ## 0. 시작 전 주의
 
 - **운영 OAuth client를 재사용하지 마세요.** 같은 client로 다시 인가하거나 refresh하면 Installed App이나 refresh token이 바뀌어 운영 서버의 `SmartThingsToken`이 무효화될 수 있습니다. PoC 전용 App을 등록해 쓰는 것을 원칙으로 합니다. 운영 client를 꼭 써야 하면 운영 token refresh와 충돌하지 않는 시간대를 정하고 사전에 공유합니다.
-- access/refresh token, client secret은 `poc-data/token.json`(gitignore)과 환경변수에만 둡니다. Issue, PR, 메신저에는 `installed_app_id`, `locationId`, deviceId, 측정값만 기록합니다.
+- access/refresh token, client secret은 `poc-data/token.json`(gitignore, 소유자 전용 권한으로 생성)과 환경변수에만 둡니다. Issue, PR, 메신저에는 `installed_app_id`, `locationId`, deviceId, 측정값만 기록합니다.
 - 공식 문서의 Service Integrations 영역에는 *"some features described in this section are coming soon"* 배너가 있고, [App Setup](https://developer.smartthings.com/docs/service-integrations/app-setup)에는 *"API Access App registration is coming soon and is not yet available."*이라고 적혀 있습니다(2026-10-14 확인). 1단계에서 막히면 그 자체가 No-Go 근거입니다.
 
 ## 1. 준비
