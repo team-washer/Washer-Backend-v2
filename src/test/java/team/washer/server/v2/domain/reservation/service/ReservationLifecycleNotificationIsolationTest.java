@@ -27,8 +27,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -92,6 +94,12 @@ class ReservationLifecycleNotificationIsolationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private ReservationNotificationSupport reservationNotificationSupport;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @MockitoBean
     private ReservationStartDecisionSupport reservationStartDecisionSupport;
@@ -219,6 +227,48 @@ class ReservationLifecycleNotificationIsolationTest {
             assertTransitionCommitted(transition, reservationId);
             assertThat(notificationRepository.count()).isZero();
             then(fcmNotificationSupport).should(never()).send(any(User.class), anyString(), anyString());
+        }
+    }
+
+    /**
+     * lifecycle 처리기는 사용자를 미리 조회해 넘기므로 초기화 실패를 처리기 경로로는 재현할 수 없습니다. 그래서 상태 전이 트랜잭션
+     * 안에서 초기화할 수 없는 사용자 프록시로 알림을 직접 호출합니다.
+     */
+    @Nested
+    @DisplayName("알림 준비 단계에서 사용자 초기화가 실패하면")
+    class Context_with_user_initialization_failure {
+
+        @ParameterizedTest
+        @EnumSource(Transition.class)
+        @DisplayName("예외 없이 같은 트랜잭션의 기기 상태 전이를 커밋하고 알림과 FCM은 남기지 않아야 한다")
+        void commits_transition_without_notification(final Transition transition) {
+            // Given
+            persistReservation(MachineAvailability.RESERVED,
+                    builder -> builder.status(ReservationStatus.RESERVED).reservedAt(DateTimeUtil.nowInKorea()));
+            final Long missingUserId = user.getId() + 1_000;
+            final var transactionTemplate = new TransactionTemplate(transactionManager);
+
+            // When & Then
+            assertThatCode(() -> transactionTemplate.executeWithoutResult(status -> {
+                final var lockedMachine = machineRepository.findByIdForUpdate(machine.getId()).orElseThrow();
+                lockedMachine.markAsInUse();
+                final var uninitializableUser = userRepository.getReferenceById(missingUserId);
+                send(transition, uninitializableUser, lockedMachine);
+            })).doesNotThrowAnyException();
+            assertThat(machineRepository.findById(machine.getId())).map(Machine::getAvailability)
+                    .contains(MachineAvailability.IN_USE);
+            assertThat(notificationRepository.count()).isZero();
+            then(fcmNotificationSupport).should(never()).send(any(User.class), anyString(), anyString());
+        }
+
+        private void send(final Transition transition, final User recipient, final Machine target) {
+            switch (transition) {
+                case START -> reservationNotificationSupport
+                        .sendStarted(recipient, target, DateTimeUtil.nowInKorea().plusMinutes(30));
+                case COMPLETION -> reservationNotificationSupport.sendCompletion(recipient, target);
+                case INTERRUPTION -> reservationNotificationSupport.sendInterruption(recipient, target);
+                case PAUSE_TIMEOUT -> reservationNotificationSupport.sendPauseTimeout(recipient, target);
+            }
         }
     }
 

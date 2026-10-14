@@ -3,6 +3,7 @@ package team.washer.server.v2.domain.notification.support;
 import java.time.LocalDateTime;
 
 import org.hibernate.Hibernate;
+import org.hibernate.proxy.HibernateProxy;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -13,8 +14,10 @@ import org.springframework.transaction.support.TransactionTemplate;
 import lombok.extern.slf4j.Slf4j;
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.notification.entity.Notification;
+import team.washer.server.v2.domain.notification.enums.NotificationType;
 import team.washer.server.v2.domain.notification.repository.NotificationRepository;
 import team.washer.server.v2.domain.user.entity.User;
+import team.washer.server.v2.global.common.entity.BaseEntity;
 import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 
 /**
@@ -22,8 +25,8 @@ import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
  *
  * <p>
  * 예약 lifecycle 전이 알림(시작·완료·중단·일시정지 초과)은 호출자의 트랜잭션과 분리한다. 알림 내용은 호출 시점에 확정하고,
- * 저장과 보관 개수 정리는 호출자 트랜잭션이 커밋된 뒤 독립 트랜잭션에서 수행한다. 따라서 알림 저장 실패가 예약·기기 상태 전이를
- * 롤백시키지 않는다.
+ * 저장과 보관 개수 정리는 호출자 트랜잭션이 커밋된 뒤 독립 트랜잭션에서 수행한다. 호출 시점의 알림 준비(사용자 초기화·내용 생성)가
+ * 실패해도 예외를 호출자에게 전파하지 않는다. 따라서 알림 실패가 예약·기기 상태 전이를 롤백시키지 않는다.
  * </p>
  *
  * <p>
@@ -31,10 +34,11 @@ import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
  * </p>
  * <ul>
  * <li>중복: 상태 전이는 행 락과 상태 재검증으로 한 번만 커밋되므로 같은 전이의 알림은 최대 한 번 저장·전송된다.</li>
- * <li>유실: 저장 또는 보관 개수 정리에 실패한 알림은 재시도하지 않으며 FCM도 전송하지 않는다. 호출자 트랜잭션이 롤백되면 알림도
- * 만들지 않는다.</li>
- * <li>관측: 저장 실패는 {@code event=notification_persist_failed} 로그로 남긴다. CloudWatch
- * 메트릭 필터로 집계할 수 있도록 고정된 키를 사용한다.</li>
+ * <li>유실: 준비, 저장, 보관 개수 정리 중 하나라도 실패한 알림은 재시도하지 않으며 FCM도 전송하지 않는다. 호출자 트랜잭션이
+ * 롤백되면 알림도 만들지 않는다.</li>
+ * <li>관측: 실패는 {@code event=notification_persist_failed} 로그로 남기고 {@code phase}로
+ * 준비 단계({@code prepare})와 저장 단계({@code persist})를 구분한다. CloudWatch 메트릭 필터로 집계할
+ * 수 있도록 고정된 키를 사용한다.</li>
  * </ul>
  */
 @Slf4j
@@ -63,16 +67,20 @@ public class ReservationNotificationSupport {
      * 세탁/건조 완료 알림을 전송한다. 호출자 트랜잭션과 분리해 커밋 이후에 저장한다.
      */
     public void sendCompletion(User user, Machine machine) {
-        var notification = Notification.createCompletionNotification(user, machine);
-        persistAndSendAfterCommit(user, notification, machine.getType().getDescription() + " 완료 알림");
+        isolateFromCaller(user, machine, NotificationType.COMPLETION, () -> {
+            var notification = Notification.createCompletionNotification(user, machine);
+            persistAndSendAfterCommit(user, notification, machine.getType().getDescription() + " 완료 알림");
+        });
     }
 
     /**
      * 세탁/건조 중단 알림을 전송한다. 호출자 트랜잭션과 분리해 커밋 이후에 저장한다.
      */
     public void sendInterruption(User user, Machine machine) {
-        var notification = Notification.createInterruptionNotification(user, machine);
-        persistAndSendAfterCommit(user, notification, machine.getType().getDescription() + " 중단 알림");
+        isolateFromCaller(user, machine, NotificationType.INTERRUPTION, () -> {
+            var notification = Notification.createInterruptionNotification(user, machine);
+            persistAndSendAfterCommit(user, notification, machine.getType().getDescription() + " 중단 알림");
+        });
     }
 
     /**
@@ -88,8 +96,10 @@ public class ReservationNotificationSupport {
      * 일시정지 초과 알림을 전송한다. 호출자 트랜잭션과 분리해 커밋 이후에 저장한다.
      */
     public void sendPauseTimeout(User user, Machine machine) {
-        var notification = Notification.createPauseTimeoutNotification(user, machine);
-        persistAndSendAfterCommit(user, notification, machine.getType().getDescription() + " 일시정지 초과 알림");
+        isolateFromCaller(user, machine, NotificationType.PAUSE_TIMEOUT, () -> {
+            var notification = Notification.createPauseTimeoutNotification(user, machine);
+            persistAndSendAfterCommit(user, notification, machine.getType().getDescription() + " 일시정지 초과 알림");
+        });
     }
 
     /**
@@ -105,8 +115,10 @@ public class ReservationNotificationSupport {
      * 세탁/건조 시작 알림을 전송한다. 호출자 트랜잭션과 분리해 커밋 이후에 저장한다.
      */
     public void sendStarted(User user, Machine machine, LocalDateTime expectedCompletionTime) {
-        var notification = Notification.createStartedNotification(user, machine, expectedCompletionTime);
-        persistAndSendAfterCommit(user, notification, machine.getType().getDescription() + " 시작 알림");
+        isolateFromCaller(user, machine, NotificationType.STARTED, () -> {
+            var notification = Notification.createStartedNotification(user, machine, expectedCompletionTime);
+            persistAndSendAfterCommit(user, notification, machine.getType().getDescription() + " 시작 알림");
+        });
     }
 
     /**
@@ -146,6 +158,25 @@ public class ReservationNotificationSupport {
     }
 
     /**
+     * 호출 시점에 수행하는 알림 준비(사용자 초기화·내용 생성)의 실패를 호출자에게 전파하지 않는다.
+     *
+     * <p>
+     * 준비 단계는 호출자 트랜잭션 안에서 실행되므로, 여기서 던진 예외는 예약·기기 상태 전이를 롤백시킨다. 실패한 알림은 저장하지 않고
+     * 로그로만 남긴다.
+     * </p>
+     */
+    private void isolateFromCaller(final User user,
+            final Machine machine,
+            final NotificationType type,
+            final Runnable preparation) {
+        try {
+            preparation.run();
+        } catch (RuntimeException e) {
+            logPersistFailure("prepare", idOf(user), type, idOf(machine), e);
+        }
+    }
+
+    /**
      * 호출자 트랜잭션이 커밋된 뒤 독립 트랜잭션에서 알림을 저장하고 FCM 전송을 예약한다. 호출자 트랜잭션이 롤백되면 실행하지 않고, 트랜잭션
      * 밖에서는 즉시 실행한다.
      *
@@ -162,15 +193,35 @@ public class ReservationNotificationSupport {
                 isolatedTransactionTemplate
                         .executeWithoutResult(status -> persistAndSend(user, notification, fcmTitle));
             } catch (RuntimeException e) {
-                log.error(
-                        "notification persist failed event=notification_persist_failed userId={} type={} machineId={} errorType={}",
-                        user.getId(),
-                        notification.getType(),
-                        notification.getMachine().getId(),
-                        e.getClass().getSimpleName(),
-                        e);
+                logPersistFailure("persist", idOf(user), notification.getType(), idOf(notification.getMachine()), e);
             }
         });
+    }
+
+    private void logPersistFailure(final String phase,
+            final Object userId,
+            final NotificationType type,
+            final Object machineId,
+            final RuntimeException e) {
+        log.error(
+                "notification persist failed event=notification_persist_failed userId={} type={} machineId={} errorType={} phase={}",
+                userId,
+                type,
+                machineId,
+                e.getClass().getSimpleName(),
+                phase,
+                e);
+    }
+
+    /**
+     * 초기화에 실패한 프록시는 식별자 getter 호출만으로도 다시 예외를 던지므로 프록시를 초기화하지 않고 식별자를 읽는다.
+     */
+    private static Object idOf(final BaseEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        final var lazyInitializer = HibernateProxy.extractLazyInitializer(entity);
+        return lazyInitializer != null ? lazyInitializer.getInternalIdentifier() : entity.getId();
     }
 
     private void persistAndSend(final User user, final Notification notification, final String fcmTitle) {

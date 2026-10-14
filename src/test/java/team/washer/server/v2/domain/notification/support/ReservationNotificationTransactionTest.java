@@ -9,6 +9,7 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.BDDMockito.willReturn;
 import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 
 import java.time.LocalDateTime;
@@ -17,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import org.hibernate.LazyInitializationException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -276,7 +278,32 @@ class ReservationNotificationTransactionTest {
             then(firebaseMessaging).shouldHaveNoInteractions();
             assertThat(logAppender.list).filteredOn(event -> event.getLevel() == Level.ERROR)
                     .extracting(ILoggingEvent::getFormattedMessage).singleElement().asString()
-                    .contains("event=notification_persist_failed", "type=" + notification.name());
+                    .contains("event=notification_persist_failed", "type=" + notification.name(), "phase=persist");
+        }
+
+        @ParameterizedTest
+        @EnumSource(LifecycleNotification.class)
+        @DisplayName("알림 준비 단계가 실패해도 호출자의 상태 전이를 커밋하고 실패를 로그로 남겨야 한다")
+        void commits_caller_transition_when_preparation_fails(final LifecycleNotification notification) {
+            // Given
+            final var user = createUser();
+            final var machine = mock(Machine.class);
+            given(machine.getName()).willThrow(new LazyInitializationException("could not initialize proxy"));
+
+            // When
+            assertThatCode(() -> transactionTemplate.executeWithoutResult(status -> {
+                jdbcTemplate.update("INSERT INTO lifecycle_transition (reservation_id, status) VALUES (1, 'DONE')");
+                notification.send(reservationNotificationSupport, user, machine);
+            })).doesNotThrowAnyException();
+
+            // Then
+            assertThat(jdbcTemplate.queryForObject("SELECT status FROM lifecycle_transition WHERE reservation_id = 1",
+                    String.class)).isEqualTo("DONE");
+            then(notificationRepository).shouldHaveNoInteractions();
+            then(firebaseMessaging).shouldHaveNoInteractions();
+            assertThat(logAppender.list).filteredOn(event -> event.getLevel() == Level.ERROR)
+                    .extracting(ILoggingEvent::getFormattedMessage).singleElement().asString()
+                    .contains("event=notification_persist_failed", "type=" + notification.name(), "phase=prepare");
         }
 
         static Stream<Arguments> lifecyclePersistFailures() {
