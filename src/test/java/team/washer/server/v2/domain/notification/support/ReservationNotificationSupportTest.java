@@ -30,6 +30,8 @@ import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 @DisplayName("ReservationNotificationSupport 클래스는")
 class ReservationNotificationSupportTest {
 
+    private static final Long RESERVATION_ID = 1L;
+
     @InjectMocks
     private ReservationNotificationSupport reservationNotificationSupport;
 
@@ -85,7 +87,7 @@ class ReservationNotificationSupportTest {
                 given(notificationRepository.countByUser(user)).willReturn(25L);
 
                 // When
-                reservationNotificationSupport.sendCompletion(user, machine);
+                reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine);
 
                 // Then
                 then(notificationRepository).should(never()).deleteOldestByUserExceedingLimit(any(User.class),
@@ -108,7 +110,7 @@ class ReservationNotificationSupportTest {
                 given(notificationRepository.countByUser(user)).willReturn(30L);
 
                 // When
-                reservationNotificationSupport.sendCompletion(user, machine);
+                reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine);
 
                 // Then
                 then(notificationRepository).should(never()).deleteOldestByUserExceedingLimit(any(User.class),
@@ -132,7 +134,7 @@ class ReservationNotificationSupportTest {
                 given(notificationRepository.deleteOldestByUserExceedingLimit(user, 30)).willReturn(1);
 
                 // When
-                reservationNotificationSupport.sendCompletion(user, machine);
+                reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine);
 
                 // Then
                 then(notificationRepository).should(times(1)).deleteOldestByUserExceedingLimit(user, 30);
@@ -157,7 +159,7 @@ class ReservationNotificationSupportTest {
             given(notificationRepository.countByUser(user)).willReturn(1L);
 
             // When
-            reservationNotificationSupport.sendStarted(user, machine, expectedCompletionTime);
+            reservationNotificationSupport.sendStarted(RESERVATION_ID, user, machine, expectedCompletionTime);
 
             // Then
             final String expectedBody = machine.getName() + "의 " + machineType.getActionNoun()
@@ -183,7 +185,7 @@ class ReservationNotificationSupportTest {
             given(notificationRepository.countByUser(user)).willReturn(1L);
 
             // When
-            reservationNotificationSupport.sendForceStop(user, machine);
+            reservationNotificationSupport.sendForceStop(RESERVATION_ID, user, machine);
 
             // Then
             final String expectedBody = "관리자에 의해 " + machine.getName() + "의 " + machineType.getActionNoun()
@@ -202,7 +204,6 @@ class ReservationNotificationSupportTest {
         void it_sends_after_commit() {
             // Given
             User user = createUser();
-            Machine machine = createMachine();
             given(notificationRepository.save(any(Notification.class)))
                     .willAnswer(invocation -> invocation.getArgument(0));
             given(notificationRepository.countByUser(user)).willReturn(1L);
@@ -210,7 +211,7 @@ class ReservationNotificationSupportTest {
             TransactionSynchronizationManager.initSynchronization();
 
             // When
-            reservationNotificationSupport.sendForceStop(user, machine);
+            reservationNotificationSupport.sendAdminPenalty(user, "테스트 사유");
 
             // Then
             then(fcmNotificationSupport).should(never()).send(any(), anyString(), anyString());
@@ -240,7 +241,7 @@ class ReservationNotificationSupportTest {
             TransactionSynchronizationManager.initSynchronization();
 
             // When
-            reservationNotificationSupport.sendCompletion(user, machine);
+            reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine);
 
             // Then
             then(notificationRepository).shouldHaveNoInteractions();
@@ -270,7 +271,7 @@ class ReservationNotificationSupportTest {
                     .send(any(), anyString(), anyString());
 
             // When & Then
-            assertThatCode(() -> reservationNotificationSupport.sendCompletion(user, machine))
+            assertThatCode(() -> reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine))
                     .doesNotThrowAnyException();
             then(notificationRepository).should(times(1)).save(any(Notification.class));
         }

@@ -66,6 +66,8 @@ import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 @DisplayName("ReservationNotificationSupport 트랜잭션 동작은")
 class ReservationNotificationTransactionTest {
 
+    private static final Long RESERVATION_ID = 1L;
+
     @Mock
     private NotificationRepository notificationRepository;
 
@@ -156,8 +158,8 @@ class ReservationNotificationTransactionTest {
             final var machine = createMachine();
 
             // When
-            IntStream.range(0, notificationCount).forEach(ignored -> transactionTemplate
-                    .executeWithoutResult(status -> reservationNotificationSupport.sendCompletion(user, machine)));
+            IntStream.range(0, notificationCount).forEach(ignored -> transactionTemplate.executeWithoutResult(
+                    status -> reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine)));
 
             // Then
             then(firebaseMessaging).should(times(notificationCount)).send(any(Message.class));
@@ -172,12 +174,13 @@ class ReservationNotificationTransactionTest {
 
             // When
             transactionTemplate.executeWithoutResult(status -> {
-                reservationNotificationSupport.sendCompletion(user, machine);
-                reservationNotificationSupport.sendInterruption(user, machine);
-                reservationNotificationSupport.sendForceStop(user, machine);
-                reservationNotificationSupport.sendPauseTimeout(user, machine);
+                reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine);
+                reservationNotificationSupport.sendInterruption(RESERVATION_ID, user, machine);
+                reservationNotificationSupport.sendForceStop(RESERVATION_ID, user, machine);
+                reservationNotificationSupport.sendPauseTimeout(RESERVATION_ID, user, machine);
                 reservationNotificationSupport.sendAutoCancellation(user, machine);
-                reservationNotificationSupport.sendStarted(user, machine, LocalDateTime.of(2026, 10, 6, 12, 0));
+                reservationNotificationSupport
+                        .sendStarted(RESERVATION_ID, user, machine, LocalDateTime.of(2026, 10, 6, 12, 0));
                 reservationNotificationSupport.sendTimeoutWarning(user, machine);
                 reservationNotificationSupport.sendCancellationBlock(user, machine);
                 reservationNotificationSupport.sendBlockExtension(user, LocalDateTime.of(2026, 10, 8, 12, 0));
@@ -201,7 +204,7 @@ class ReservationNotificationTransactionTest {
 
             // When
             transactionTemplate.executeWithoutResult(status -> {
-                reservationNotificationSupport.sendForceStop(user, createMachine());
+                reservationNotificationSupport.sendForceStop(RESERVATION_ID, user, createMachine());
                 status.setRollbackOnly();
             });
 
@@ -211,13 +214,13 @@ class ReservationNotificationTransactionTest {
     }
 
     @Nested
-    @DisplayName("lifecycle 전이 알림은")
-    class Context_with_lifecycle_notification {
+    @DisplayName("호출자 트랜잭션과 분리되는 알림(lifecycle 전이·강제 정지)은")
+    class Context_with_isolated_notification {
 
         @ParameterizedTest
-        @EnumSource(LifecycleNotification.class)
+        @EnumSource(IsolatedNotification.class)
         @DisplayName("호출자 트랜잭션이 커밋된 뒤 독립 트랜잭션에서 한 번만 저장하고 전송해야 한다")
-        void persists_once_in_separate_transaction_after_caller_commit(final LifecycleNotification notification)
+        void persists_once_in_separate_transaction_after_caller_commit(final IsolatedNotification notification)
                 throws Exception {
             // Given
             final var user = createUser();
@@ -238,9 +241,9 @@ class ReservationNotificationTransactionTest {
         }
 
         @ParameterizedTest
-        @EnumSource(LifecycleNotification.class)
+        @EnumSource(IsolatedNotification.class)
         @DisplayName("호출자 트랜잭션이 롤백되면 저장하지도 전송하지도 않아야 한다")
-        void does_not_persist_when_caller_rolls_back(final LifecycleNotification notification) {
+        void does_not_persist_when_caller_rolls_back(final IsolatedNotification notification) {
             // Given
             final var user = createUser();
             final var machine = createMachine();
@@ -257,9 +260,9 @@ class ReservationNotificationTransactionTest {
         }
 
         @ParameterizedTest
-        @MethodSource("lifecyclePersistFailures")
+        @MethodSource("isolatedPersistFailures")
         @DisplayName("저장이나 보관 개수 정리가 실패해도 호출자의 상태 전이를 커밋하고 실패를 로그로 남겨야 한다")
-        void commits_caller_transition_when_persist_fails(final LifecycleNotification notification,
+        void commits_caller_transition_when_persist_fails(final IsolatedNotification notification,
                 final PersistFailure failure) {
             // Given
             final var user = createUser();
@@ -278,13 +281,16 @@ class ReservationNotificationTransactionTest {
             then(firebaseMessaging).shouldHaveNoInteractions();
             assertThat(logAppender.list).filteredOn(event -> event.getLevel() == Level.ERROR)
                     .extracting(ILoggingEvent::getFormattedMessage).singleElement().asString()
-                    .contains("event=notification_persist_failed", "type=" + notification.name(), "phase=persist");
+                    .contains("event=notification_persist_failed",
+                            "reservationId=" + RESERVATION_ID,
+                            "type=" + notification.name(),
+                            "phase=persist");
         }
 
         @ParameterizedTest
-        @EnumSource(LifecycleNotification.class)
+        @EnumSource(IsolatedNotification.class)
         @DisplayName("알림 준비 단계가 실패해도 호출자의 상태 전이를 커밋하고 실패를 로그로 남겨야 한다")
-        void commits_caller_transition_when_preparation_fails(final LifecycleNotification notification) {
+        void commits_caller_transition_when_preparation_fails(final IsolatedNotification notification) {
             // Given
             final var user = createUser();
             final var machine = mock(Machine.class);
@@ -303,11 +309,14 @@ class ReservationNotificationTransactionTest {
             then(firebaseMessaging).shouldHaveNoInteractions();
             assertThat(logAppender.list).filteredOn(event -> event.getLevel() == Level.ERROR)
                     .extracting(ILoggingEvent::getFormattedMessage).singleElement().asString()
-                    .contains("event=notification_persist_failed", "type=" + notification.name(), "phase=prepare");
+                    .contains("event=notification_persist_failed",
+                            "reservationId=" + RESERVATION_ID,
+                            "type=" + notification.name(),
+                            "phase=prepare");
         }
 
-        static Stream<Arguments> lifecyclePersistFailures() {
-            return Stream.of(LifecycleNotification.values()).flatMap(notification -> Stream.of(PersistFailure.values())
+        static Stream<Arguments> isolatedPersistFailures() {
+            return Stream.of(IsolatedNotification.values()).flatMap(notification -> Stream.of(PersistFailure.values())
                     .map(failure -> Arguments.of(notification, failure)));
         }
     }
@@ -320,7 +329,7 @@ class ReservationNotificationTransactionTest {
         @DisplayName("Firebase 메시지를 한 번 전송해야 한다")
         void sends_once_outside_transaction() throws Exception {
             // When
-            reservationNotificationSupport.sendCompletion(createUser(), createMachine());
+            reservationNotificationSupport.sendCompletion(RESERVATION_ID, createUser(), createMachine());
 
             // Then
             then(firebaseMessaging).should(times(1)).send(any(Message.class));
@@ -367,7 +376,7 @@ class ReservationNotificationTransactionTest {
 
                         @Override
                         public void afterCommit() {
-                            reservationNotificationSupport.sendCompletion(user, machine);
+                            reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine);
                         }
                     }));
 
@@ -396,7 +405,8 @@ class ReservationNotificationTransactionTest {
             // When
             transactionTemplate.executeWithoutResult(status -> {
                 outerConnectionHolder.set(currentConnectionHolder());
-                afterCommitExecutor.execute(() -> reservationNotificationSupport.sendCompletion(user, machine));
+                afterCommitExecutor
+                        .execute(() -> reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine));
             });
 
             // Then
@@ -434,31 +444,37 @@ class ReservationNotificationTransactionTest {
     }
 
     /**
-     * 호출자 트랜잭션과 분리되는 lifecycle 전이 알림. 상수 이름은 저장되는 알림 유형과 같다.
+     * 호출자 트랜잭션과 분리되는 lifecycle 전이·강제 정지 알림. 상수 이름은 저장되는 알림 유형과 같다.
      */
-    private enum LifecycleNotification {
+    private enum IsolatedNotification {
         STARTED {
             @Override
             void send(final ReservationNotificationSupport support, final User user, final Machine machine) {
-                support.sendStarted(user, machine, LocalDateTime.of(2026, 10, 6, 12, 0));
+                support.sendStarted(RESERVATION_ID, user, machine, LocalDateTime.of(2026, 10, 6, 12, 0));
             }
         },
         COMPLETION {
             @Override
             void send(final ReservationNotificationSupport support, final User user, final Machine machine) {
-                support.sendCompletion(user, machine);
+                support.sendCompletion(RESERVATION_ID, user, machine);
             }
         },
         INTERRUPTION {
             @Override
             void send(final ReservationNotificationSupport support, final User user, final Machine machine) {
-                support.sendInterruption(user, machine);
+                support.sendInterruption(RESERVATION_ID, user, machine);
             }
         },
         PAUSE_TIMEOUT {
             @Override
             void send(final ReservationNotificationSupport support, final User user, final Machine machine) {
-                support.sendPauseTimeout(user, machine);
+                support.sendPauseTimeout(RESERVATION_ID, user, machine);
+            }
+        },
+        FORCE_STOPPED {
+            @Override
+            void send(final ReservationNotificationSupport support, final User user, final Machine machine) {
+                support.sendForceStop(RESERVATION_ID, user, machine);
             }
         };
 

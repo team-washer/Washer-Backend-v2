@@ -134,7 +134,8 @@ public class ReservationLifecycleProcessor {
                     ReservationConstants.MAX_REASONABLE_CYCLE_MINUTES);
         }
 
-        reservationNotificationSupport.sendStarted(reservation.getUser(), machine, expectedCompletionTime);
+        reservationNotificationSupport
+                .sendStarted(reservation.getId(), reservation.getUser(), machine, expectedCompletionTime);
 
         log.info("Reservation {} started (RESERVED → RUNNING)", reservation.getId());
     }
@@ -265,7 +266,7 @@ public class ReservationLifecycleProcessor {
         reservationRepository.save(reservation);
         machineRepository.save(machine);
 
-        reservationNotificationSupport.sendInterruption(reservation.getUser(), machine);
+        reservationNotificationSupport.sendInterruption(reservation.getId(), reservation.getUser(), machine);
 
         logLifecycleEvent("reservation_cancelled",
                 reservation,
@@ -323,7 +324,7 @@ public class ReservationLifecycleProcessor {
         reservationRepository.save(reservation);
         machineRepository.save(machine);
 
-        reservationNotificationSupport.sendPauseTimeout(reservation.getUser(), machine);
+        reservationNotificationSupport.sendPauseTimeout(reservation.getId(), reservation.getUser(), machine);
 
         logLifecycleEvent("reservation_cancelled",
                 reservation,
@@ -410,7 +411,7 @@ public class ReservationLifecycleProcessor {
         reservationRepository.save(reservation);
         machineRepository.save(machine);
 
-        reservationNotificationSupport.sendCompletion(reservation.getUser(), machine);
+        reservationNotificationSupport.sendCompletion(reservation.getId(), reservation.getUser(), machine);
 
         log.info(
                 "Reservation completed reason={} reservationId={} userId={} machineId={} machineName={} completionTime={} expectedCompletionTime={}",

@@ -243,7 +243,7 @@ class ReservationLifecycleNotificationIsolationTest {
         @DisplayName("예외 없이 같은 트랜잭션의 기기 상태 전이를 커밋하고 알림과 FCM은 남기지 않아야 한다")
         void commits_transition_without_notification(final Transition transition) {
             // Given
-            persistReservation(MachineAvailability.RESERVED,
+            final Long reservationId = persistReservation(MachineAvailability.RESERVED,
                     builder -> builder.status(ReservationStatus.RESERVED).reservedAt(DateTimeUtil.nowInKorea()));
             final Long missingUserId = user.getId() + 1_000;
             final var transactionTemplate = new TransactionTemplate(transactionManager);
@@ -253,7 +253,7 @@ class ReservationLifecycleNotificationIsolationTest {
                 final var lockedMachine = machineRepository.findByIdForUpdate(machine.getId()).orElseThrow();
                 lockedMachine.markAsInUse();
                 final var uninitializableUser = userRepository.getReferenceById(missingUserId);
-                send(transition, uninitializableUser, lockedMachine);
+                send(transition, reservationId, uninitializableUser, lockedMachine);
             })).doesNotThrowAnyException();
             assertThat(machineRepository.findById(machine.getId())).map(Machine::getAvailability)
                     .contains(MachineAvailability.IN_USE);
@@ -261,13 +261,16 @@ class ReservationLifecycleNotificationIsolationTest {
             then(fcmNotificationSupport).should(never()).send(any(User.class), anyString(), anyString());
         }
 
-        private void send(final Transition transition, final User recipient, final Machine target) {
+        private void send(final Transition transition,
+                final Long reservationId,
+                final User recipient,
+                final Machine target) {
             switch (transition) {
                 case START -> reservationNotificationSupport
-                        .sendStarted(recipient, target, DateTimeUtil.nowInKorea().plusMinutes(30));
-                case COMPLETION -> reservationNotificationSupport.sendCompletion(recipient, target);
-                case INTERRUPTION -> reservationNotificationSupport.sendInterruption(recipient, target);
-                case PAUSE_TIMEOUT -> reservationNotificationSupport.sendPauseTimeout(recipient, target);
+                        .sendStarted(reservationId, recipient, target, DateTimeUtil.nowInKorea().plusMinutes(30));
+                case COMPLETION -> reservationNotificationSupport.sendCompletion(reservationId, recipient, target);
+                case INTERRUPTION -> reservationNotificationSupport.sendInterruption(reservationId, recipient, target);
+                case PAUSE_TIMEOUT -> reservationNotificationSupport.sendPauseTimeout(reservationId, recipient, target);
             }
         }
     }
