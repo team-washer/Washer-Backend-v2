@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
 
 import com.sun.net.httpserver.HttpExchange;
@@ -328,6 +329,8 @@ public class SmartThingsWebhookPoc {
         var port = args.isEmpty() ? 8090 : Integer.parseInt(args.getFirst());
         var server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/", SmartThingsWebhookPoc::handle);
+        // 기본 executor는 단일 스레드라 공개키 조회 지연이 뒤 요청의 수신 지연으로 측정되므로 요청마다 virtual thread로 처리한다.
+        server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
         System.out.println("webhook 수신 대기 port=" + port + " data=" + DATA_DIR.toAbsolutePath());
     }
