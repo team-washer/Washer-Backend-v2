@@ -72,7 +72,8 @@ public class MachineStateDetectionSupport {
      * 이후에도 구김방지(wrinklePrevent) 단계로 machineState=run을 유지할 수 있고, 완료 시 전원을 차단해 이 단계를
      * 끊는다.</li>
      * <li>machineState=stop이고 jobState가 none/공백. 폴링 사이에 완료 신호가 지나가고 jobState가 리셋된
-     * 경우다. 전원이 꺼진 정지는 사이클 중단일 수 있으므로 완료로 보지 않는다.</li>
+     * 경우다. 전원이 꺼진 정지는 사이클 중단일 수 있으므로 상태 한 건만으로는 완료로 보지 않는다. 호출 측은 이 상태를
+     * {@link #isPoweredOffIdle}로 식별해 판정 근거만 관측 로그로 남긴다.</li>
      * </ul>
      *
      * <p>
@@ -129,13 +130,25 @@ public class MachineStateDetectionSupport {
     }
 
     /**
+     * 완료 신호 없이 전원이 꺼진 유휴 정지(switch=off, machineState=stop, jobState가 none/공백)인지
+     * 감지한다.
+     *
+     * <p>
+     * 폴링 사이에 완료 신호를 놓친 뒤 기기가 꺼진 정상 종료와 사이클 도중 전원을 끈 중단이 같은 모습으로 보고되는 상태다. 상태 한
+     * 건만으로는 둘을 구분할 수 없으므로, 호출 측이 예약 정보와 대조한 분류를 관측 로그로 남긴다.
+     */
+    public boolean isPoweredOffIdle(SmartThingsDeviceStatusResDto status, boolean isWasher) {
+        return isPoweredOff(status) && isStopped(status, isWasher) && status.isJobStateReset(isWasher);
+    }
+
+    /**
      * 기기가 비정상 중단되었는지 감지한다.
      *
      * <p>
-     * 전원이 꺼진 경우(switch=off)는 명백한 중단으로 본다. 그 외에는 사이클 진행 단계(wash/rinse/spin/drying 등)
-     * 도중 machineState가 stop으로 보고된 경우에만 중단으로 판정한다. machineState=stop이면서 jobState가
-     * finish/finished(정상 완료)이거나 none/공백(사이클 종료 직후 리셋·유휴)인 경우는, 정상 완료를 비정상 중단으로 오판하지
-     * 않도록 중단으로 보지 않는다.
+     * 전원이 꺼진 경우(switch=off)는 중단으로 본다. 완료 신호를 놓친 정상 종료와 구분할 근거가 확보되기 전까지는 보수적으로 중단
+     * 후보로 둔다. 그 외에는 사이클 진행 단계(wash/rinse/spin/drying 등) 도중 machineState가 stop으로 보고된
+     * 경우에만 중단으로 판정한다. machineState=stop이면서 jobState가 finish/finished(정상 완료)이거나
+     * none/공백(사이클 종료 직후 리셋·유휴)인 경우는, 정상 완료를 비정상 중단으로 오판하지 않도록 중단으로 보지 않는다.
      */
     public boolean isInterrupted(SmartThingsDeviceStatusResDto status, boolean isWasher) {
         if (status == null) {

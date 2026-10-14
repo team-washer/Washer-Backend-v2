@@ -20,6 +20,12 @@ public final class ReservationConstants {
     public static final int INTERRUPTION_CONFIRM_THRESHOLD = 3;
 
     /**
+     * 완료 신호 없이 전원이 꺼진 정지를 "완료 예정 시각 무렵의 정지"로 분류하는 범위(분). 기기가 멈춘 시각이 예약의 완료 예정 시각에서
+     * 이 시간을 뺀 시각 이후이면 그렇게 분류한다. 관측 로그의 분류에만 쓰며 완료·중단 상태 전이에는 영향을 주지 않는다.
+     */
+    public static final int POWER_OFF_NEAR_COMPLETION_WINDOW_MINUTES = 5;
+
+    /**
      * 하나의 세탁·건조 사이클이 가질 수 있는 최대 길이(분). 기기가 보고한 완료 예정 시각이 이 범위를 벗어나면 이상치로 보고 저장하지
      * 않는다. 완료 후 세탁기 배수 유예({@link #WASHER_DRAIN_GRACE_MINUTES})의 기준 시각이 오염되는 것을 막기
      * 위한 상한이다.

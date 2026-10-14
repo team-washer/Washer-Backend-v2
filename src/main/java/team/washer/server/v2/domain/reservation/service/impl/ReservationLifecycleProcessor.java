@@ -145,7 +145,8 @@ public class ReservationLifecycleProcessor {
      * 처리한다.
      *
      * <p>
-     * 판정 순서는 완료 → 완료 보류 → 비정상 중단(전원 차단 포함) → 일시정지 → 진행이다.
+     * 판정 순서는 완료 → 완료 보류 → 비정상 중단(전원 차단 포함) → 일시정지 → 진행이다. 완료 신호 없이 전원이 꺼진 정지는 완료로
+     * 확정하지 않고, 완료 판정이 남긴 분류를 관측 로그로 기록한 뒤 중단 판정으로 넘긴다.
      *
      * @return 예약이 완료된 경우 전원 차단 대상 기기 정보, 그 외에는 빈 값
      */
@@ -220,6 +221,16 @@ public class ReservationLifecycleProcessor {
                     status,
                     isWasher,
                     "unknown_operating_state",
+                    interruptionCountBefore,
+                    interruptionCountBefore);
+        }
+        if (decision.isCandidateRejected()) {
+            logLifecycleEvent("completion_candidate_rejected",
+                    reservation,
+                    machine,
+                    status,
+                    isWasher,
+                    decision.reason(),
                     interruptionCountBefore,
                     interruptionCountBefore);
         }
