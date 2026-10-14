@@ -63,6 +63,7 @@ public class SmartThingsWebhookPoc {
     static final Path EVENTS_FILE = DATA_DIR.resolve("events.jsonl");
     static final Path POLLS_FILE = DATA_DIR.resolve("polls.jsonl");
     static final Path REQUESTS_FILE = DATA_DIR.resolve("requests.jsonl");
+    static final Path CONFIRMATION_URL_FILE = DATA_DIR.resolve("confirmation-url.txt");
 
     /** confirmationUrl 자동 호출을 허용하는 host 접미사. SSRF 방지를 위해 SmartThings 도메인만 허용한다. */
     static final List<String> CONFIRMATION_HOST_SUFFIXES = List.of(".smartthings.com");
@@ -378,18 +379,23 @@ public class SmartThingsWebhookPoc {
     static void handleConfirmation(Object body) throws Exception {
         var url = Json.str(body, "confirmationData.confirmationUrl");
         var appId = Json.str(body, "confirmationData.appId");
-        System.out.println("  CONFIRMATION appId=" + appId + " confirmationUrl=" + url);
         if (url == null) {
+            System.out.println("  CONFIRMATION appId=" + appId + " confirmationUrl 없음");
             return;
         }
+        // confirmationUrl은 호출만으로 Target URL 확인이 끝나는 일회성 권한 URL이므로 query를 가려 출력하고 원문은 소유자 전용 파일에만 둔다.
         var uri = URI.create(url);
         var host = uri.getHost() == null ? "" : uri.getHost();
+        System.out.println("  CONFIRMATION appId=" + appId + " confirmationUrl=" + uri.getScheme() + "://" + host
+                + uri.getRawPath() + (uri.getRawQuery() == null ? "" : "?***"));
         if (!"https".equals(uri.getScheme()) || CONFIRMATION_HOST_SUFFIXES.stream().noneMatch(host::endsWith)) {
-            System.out.println("  허용되지 않은 confirmationUrl host라 호출하지 않음 host=" + host);
+            System.out.println("  허용되지 않은 confirmationUrl host라 호출·저장하지 않음 host=" + host);
             return;
         }
+        writeOwnerOnly(CONFIRMATION_URL_FILE, url + "\n");
+        System.out.println("  원문 저장 file=" + CONFIRMATION_URL_FILE);
         if (!Boolean.parseBoolean(env("POC_AUTO_CONFIRM", "false"))) {
-            System.out.println("  POC_AUTO_CONFIRM=false: 위 URL을 직접 GET 하거나 Console에서 확인하세요");
+            System.out.println("  POC_AUTO_CONFIRM=false: 원문 파일의 URL을 직접 GET 하세요");
             return;
         }
         var response = HTTP.send(HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(10)).GET().build(),

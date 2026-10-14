@@ -33,7 +33,7 @@ java SmartThingsWebhookPoc.java            # 사용법 출력
 
 1. `java SmartThingsWebhookPoc.java serve 8090`과 터널을 띄웁니다.
 2. Developer Center Console → Service Integrations → Register New App에서 Target URL을 `https://<터널 host>/`로 등록합니다. 메뉴가 없거나 등록이 막히면 **화면과 문구를 그대로 기록**하고 No-Go 후보로 둡니다.
-3. Console의 *Confirm Target URL*(또는 `smartthings apps:register <appId>`)을 누르면 `CONFIRMATION`이 들어옵니다. 출력된 `confirmationUrl`을 직접 GET 하거나 `POC_AUTO_CONFIRM=true`로 띄워 둡니다. Console 상태가 PENDING에서 CONFIRMED로 바뀌는지 확인합니다.
+3. Console의 *Confirm Target URL*(또는 `smartthings apps:register <appId>`)을 누르면 `CONFIRMATION`이 들어옵니다. 콘솔에는 query를 가린 URL만 출력되므로 `poc-data/confirmation-url.txt`(소유자 전용)의 원문을 직접 GET 하거나 `POC_AUTO_CONFIRM=true`로 띄워 둡니다. Console 상태가 PENDING에서 CONFIRMED로 바뀌는지 확인합니다.
 
 ### 2-2. installed_app_id와 locationId
 
