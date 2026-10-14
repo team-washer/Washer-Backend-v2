@@ -22,7 +22,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineAvailability;
@@ -187,14 +186,18 @@ class ReservationPowerOffLifecycleSequenceTest {
         verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
     }
 
+    /**
+     * 완료 신호를 폴링 사이에 놓친 정상 종료와 종료 직전의 조기 전원 차단은 같은 상태로 보고된다. 둘을 구분할 운영 근거가 확보되기 전까지는
+     * 완료로 확정하지 않고 기존 중단 정책을 그대로 따른다.
+     */
     @Nested
-    @DisplayName("완료 신호를 폴링 사이에 놓친 정상 종료는")
-    class MissedCompletionSignal {
+    @DisplayName("완료 예정 시각 무렵에 멈춘 뒤 전원이 꺼지면")
+    class PoweredOffNearExpectedCompletion {
 
         @ParameterizedTest
         @EnumSource(MachineType.class)
-        @DisplayName("완료 예정 시각 무렵에 멈춘 뒤 전원이 꺼졌으면 COMPLETED로 전환하고 완료 알림만 전송한다")
-        void shouldComplete_WhenPoweredOffAroundExpectedCompletion(MachineType machineType) {
+        @DisplayName("한 번의 관측만으로 완료를 확정하지 않고 확정 임계치 전까지 RUNNING을 유지한다")
+        void shouldNotComplete_BeforeThreshold(MachineType machineType) {
             // Given
             var machine = inUseMachine(machineType);
             var reservation = givenRunningReservation(machine, now.minusMinutes(50), now.minusMinutes(2));
@@ -203,43 +206,33 @@ class ReservationPowerOffLifecycleSequenceTest {
             // When
             var result = reservationLifecycleProcessor.processRunningToCompleted(RESERVATION_ID,
                     poweredOffIdle(machineType, now.minusMinutes(1)));
+            poll(poweredOffIdle(machineType, now.minusMinutes(1)),
+                    ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD - 2);
 
             // Then
-            assertThat(result).isPresent();
-            assertThat(result.get().isWasher()).isEqualTo(machineType == MachineType.WASHER);
-            assertCompletedOnce(reservation, machine);
-        }
-
-        @Test
-        @DisplayName("같은 전원 꺼짐 상태가 이후 주기에 반복 관측되어도 알림을 다시 보내거나 중단으로 바꾸지 않는다")
-        void shouldNotNotifyAgain_WhenPoweredOffSnapshotRepeats() {
-            // Given
-            var machine = inUseMachine(MachineType.WASHER);
-            var reservation = givenRunningReservation(machine, now.minusMinutes(50), now.minusMinutes(2));
-            var poweredOff = poweredOffIdle(MachineType.WASHER, now.minusMinutes(1));
-
-            // When
-            poll(poweredOff, ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD + 1);
-
-            // Then
-            assertCompletedOnce(reservation, machine);
-        }
-
-        @Test
-        @DisplayName("중단 후보로 세던 중이라도 완료 근거가 확인되면 COMPLETED로 전환한다")
-        void shouldComplete_WhenEvidenceAppearsAfterInterruptionCandidate() {
-            // Given
-            var machine = inUseMachine(MachineType.WASHER);
-            var reservation = givenRunningReservation(machine, now.minusMinutes(50), now.minusMinutes(2));
-            poll(poweredOffIdle(MachineType.WASHER, null), ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD - 1);
+            assertThat(result).isEmpty();
+            assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RUNNING);
             assertThat(reservation.getInterruptionCount())
                     .isEqualTo(ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD - 1);
+            assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.IN_USE);
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            verify(reservationNotificationSupport, never()).sendInterruption(any(), any());
+        }
+
+        @ParameterizedTest
+        @EnumSource(MachineType.class)
+        @DisplayName("연속 임계치만큼 관측되면 기존 정책대로 CANCELLED로 전환하고 중단 알림만 한 번 전송한다")
+        void shouldCancel_AfterThreshold(MachineType machineType) {
+            // Given
+            var machine = inUseMachine(machineType);
+            var reservation = givenRunningReservation(machine, now.minusMinutes(50), now.minusMinutes(2));
 
             // When
-            poll(poweredOffIdle(MachineType.WASHER, now.minusMinutes(1)), 1);
+            poll(poweredOffIdle(machineType, now.minusMinutes(1)),
+                    ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD + 1);
 
             // Then
-            assertCompletedOnce(reservation, machine);
+            assertCancelledOnce(reservation, machine);
         }
     }
 
@@ -330,13 +323,14 @@ class ReservationPowerOffLifecycleSequenceTest {
 
         @ParameterizedTest
         @EnumSource(MachineType.class)
-        @DisplayName("일시정지가 완료 예정 시각보다 훨씬 일렀으면 꺼진 시각이 완료 예정 무렵이어도 CANCELLED로 전환하고 중단 알림만 한 번 전송한다")
-        void shouldCancel_WhenPausedLongBeforeExpectedCompletion(MachineType machineType) {
+        @DisplayName("조회가 끊겨 일시정지가 완료 예정 무렵에야 관측됐어도 완료로 확정하지 않고 CANCELLED로 전환하며 중단 알림만 한 번 전송한다")
+        void shouldCancel_WhenPauseObservedLate(MachineType machineType) {
             // Given
             var machine = inUseMachine(machineType);
             var reservation = givenRunningReservation(machine, now.minusMinutes(50), now.plusMinutes(2));
-            poll(status(machineType, "on", "pause", "rinse", now.minusMinutes(9)), 1);
-            ReflectionTestUtils.setField(reservation, "pausedAt", now.minusMinutes(9));
+            var devicePausedAt = now.minusMinutes(16);
+            poll(status(machineType, "on", "pause", "rinse", devicePausedAt), 1);
+            assertThat(reservation.getPausedAt()).isAfter(devicePausedAt);
 
             // When
             poll(poweredOffIdle(machineType, now.minusMinutes(1)),
@@ -345,45 +339,11 @@ class ReservationPowerOffLifecycleSequenceTest {
             // Then
             assertCancelledOnce(reservation, machine);
         }
-
-        @Test
-        @DisplayName("일시정지가 완료 예정 시각 허용 오차 이내였으면 COMPLETED로 전환하고 완료 알림만 전송한다")
-        void shouldComplete_WhenPausedWithinTolerance() {
-            // Given
-            var machine = inUseMachine(MachineType.WASHER);
-            var reservation = givenRunningReservation(machine, now.minusMinutes(50), now.plusMinutes(2));
-            poll(status(MachineType.WASHER, "on", "pause", "spin", now), 1);
-            assertThat(reservation.getPausedAt()).isNotNull();
-
-            // When
-            poll(poweredOffIdle(MachineType.WASHER, now), 1);
-
-            // Then
-            assertCompletedOnce(reservation, machine);
-        }
-
-        @Test
-        @DisplayName("일시정지 후 재개가 관측됐으면 일시정지 이력과 무관하게 완료 예정 무렵의 전원 꺼짐을 COMPLETED로 전환한다")
-        void shouldComplete_WhenResumedAfterPause() {
-            // Given
-            var machine = inUseMachine(MachineType.WASHER);
-            var reservation = givenRunningReservation(machine, now.minusMinutes(50), now.plusMinutes(2));
-            poll(status(MachineType.WASHER, "on", "pause", "rinse", now.minusMinutes(9)), 1);
-            ReflectionTestUtils.setField(reservation, "pausedAt", now.minusMinutes(9));
-            poll(status(MachineType.WASHER, "on", "run", "spin", now.minusMinutes(7)), 1);
-            assertThat(reservation.getPausedAt()).isNull();
-
-            // When
-            poll(poweredOffIdle(MachineType.WASHER, now.minusMinutes(1)), 1);
-
-            // Then
-            assertCompletedOnce(reservation, machine);
-        }
     }
 
     /**
      * 삼성 세탁기·건조기는 전원이 꺼질 때 completionTime을 "꺼진 시각 + 기본 코스 시간"으로 다시 보고한다. 이 값은 방금 끝난
-     * 사이클의 완료 예정 시각이 아니므로 판정 근거로 쓰이거나 예약에 저장되면 안 된다.
+     * 사이클의 완료 예정 시각이 아니므로 예약에 저장되면 안 된다.
      */
     @Nested
     @DisplayName("전원이 꺼지면서 기기가 완료 예정 시각을 기본 코스 시간으로 다시 보고해도")
@@ -391,8 +351,8 @@ class ReservationPowerOffLifecycleSequenceTest {
 
         @ParameterizedTest
         @EnumSource(MachineType.class)
-        @DisplayName("예약에 저장된 완료 예정 시각으로 판정해 정상 종료를 COMPLETED로 전환한다")
-        void shouldComplete_ByStoredExpectedCompletionTime(MachineType machineType) {
+        @DisplayName("완료 예정 무렵에 꺼진 예약은 저장된 완료 예정 시각을 유지한 채 CANCELLED로 전환한다")
+        void shouldKeepStoredExpectedCompletionTime_WhenPoweredOffNearExpectedCompletion(MachineType machineType) {
             // Given
             var machine = inUseMachine(machineType);
             var expectedCompletionTime = now.minusMinutes(2);
@@ -400,10 +360,11 @@ class ReservationPowerOffLifecycleSequenceTest {
             var poweredOffAt = now.minusMinutes(1);
 
             // When
-            poll(poweredOffIdle(machineType, poweredOffAt, poweredOffAt.plusMinutes(45)), 1);
+            poll(poweredOffIdle(machineType, poweredOffAt, poweredOffAt.plusMinutes(45)),
+                    ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD);
 
             // Then
-            assertCompletedOnce(reservation, machine);
+            assertCancelledOnce(reservation, machine);
             assertThat(reservation.getExpectedCompletionTime()).isEqualTo(expectedCompletionTime);
         }
 

@@ -252,8 +252,8 @@ class ReservationCompletionDecisionSupportTest {
     class WithPoweredOffIdleStop {
 
         @Test
-        @DisplayName("세탁기가 완료 예정 시각 이후에 멈췄으면 완료 신호를 놓친 정상 종료로 보고 완료로 판정한다")
-        void shouldComplete_WhenWasherStoppedAfterExpectedCompletion() {
+        @DisplayName("세탁기가 완료 예정 시각 이후에 멈췄어도 완료로 확정하지 않고 완료 예정 무렵 정지로 분류한다")
+        void shouldClassifyNearCompletion_WhenWasherStoppedAfterExpectedCompletion() {
             // Given
             var now = DateTimeUtil.nowInKorea();
             var reservation = runningReservation(now.minusMinutes(50), now.minusMinutes(3));
@@ -263,13 +263,15 @@ class ReservationCompletionDecisionSupportTest {
             var decision = completionDecisionSupport.decide(reservation, status, WASHER);
 
             // Then
-            assertThat(decision.isCompleted()).isTrue();
-            assertThat(decision.reason()).isEqualTo("powered_off_after_expected_completion");
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.isDeferred()).isFalse();
+            assertThat(decision.isCandidateRejected()).isTrue();
+            assertThat(decision.reason()).isEqualTo("power_off_near_expected_completion");
         }
 
         @Test
-        @DisplayName("건조기가 완료 예정 시각보다 허용 오차 이내로 일찍 멈췄으면 완료로 판정한다")
-        void shouldComplete_WhenDryerStoppedWithinTolerance() {
+        @DisplayName("건조기가 완료 예정 시각보다 분류 범위 이내로 일찍 멈췄으면 완료 예정 무렵 정지로 분류한다")
+        void shouldClassifyNearCompletion_WhenDryerStoppedWithinWindow() {
             // Given
             var now = DateTimeUtil.nowInKorea();
             var reservation = runningReservation(now.minusMinutes(60), now.plusMinutes(2));
@@ -279,8 +281,8 @@ class ReservationCompletionDecisionSupportTest {
             var decision = completionDecisionSupport.decide(reservation, status, DRYER);
 
             // Then
-            assertThat(decision.isCompleted()).isTrue();
-            assertThat(decision.reason()).isEqualTo("powered_off_after_expected_completion");
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.reason()).isEqualTo("power_off_near_expected_completion");
         }
 
         @Test
@@ -318,8 +320,8 @@ class ReservationCompletionDecisionSupportTest {
         }
 
         @Test
-        @DisplayName("일시정지된 채로 꺼졌고 일시정지가 완료 예정 시각보다 훨씬 일렀으면 멈춘 시각이 늦어도 완료로 보지 않는다")
-        void shouldReject_WhenPausedLongBeforeExpectedCompletion() {
+        @DisplayName("일시정지된 채로 꺼졌으면 멈춘 시각이 완료 예정 무렵이어도 일시정지 중 전원 꺼짐으로 분류한다")
+        void shouldClassifyPaused_WhenPausedLongBeforeExpectedCompletion() {
             // Given
             var now = DateTimeUtil.nowInKorea();
             var reservation = pausedReservation(now.minusMinutes(50), now.plusMinutes(2), now.minusMinutes(9));
@@ -331,12 +333,12 @@ class ReservationCompletionDecisionSupportTest {
             // Then
             assertThat(decision.isCompleted()).isFalse();
             assertThat(decision.isCandidateRejected()).isTrue();
-            assertThat(decision.reason()).isEqualTo("paused_before_expected_completion");
+            assertThat(decision.reason()).isEqualTo("power_off_while_paused");
         }
 
         @Test
-        @DisplayName("일시정지된 채로 꺼졌어도 일시정지가 완료 예정 시각 허용 오차 이내였으면 완료로 판정한다")
-        void shouldComplete_WhenPausedWithinTolerance() {
+        @DisplayName("일시정지가 늦게 관측돼 기록된 시각이 완료 예정 무렵이어도 일시정지 중 전원 꺼짐으로 분류한다")
+        void shouldClassifyPaused_WhenPauseObservedLate() {
             // Given
             var now = DateTimeUtil.nowInKorea();
             var reservation = pausedReservation(now.minusMinutes(50), now.plusMinutes(2), now.minusMinutes(2));
@@ -346,8 +348,8 @@ class ReservationCompletionDecisionSupportTest {
             var decision = completionDecisionSupport.decide(reservation, status, DRYER);
 
             // Then
-            assertThat(decision.isCompleted()).isTrue();
-            assertThat(decision.reason()).isEqualTo("powered_off_after_expected_completion");
+            assertThat(decision.isCompleted()).isFalse();
+            assertThat(decision.reason()).isEqualTo("power_off_while_paused");
         }
 
         @Test
