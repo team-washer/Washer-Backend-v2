@@ -141,13 +141,30 @@ public class SmartThingsWebhookPoc {
         var form = "grant_type=authorization_code&code=" + enc(args.getFirst()) + "&client_id="
                 + enc(requireEnv("SMARTTHINGS_CLIENT_ID")) + "&redirect_uri="
                 + enc(requireEnv("SMARTTHINGS_REDIRECT_URI"));
-        saveToken(postToken(form));
+        var response = postToken(form);
+        saveToken(response, response);
     }
 
     static void refresh() throws Exception {
-        var refreshToken = Json.str(readToken(), "refresh_token");
-        saveToken(postToken("grant_type=refresh_token&client_id=" + enc(requireEnv("SMARTTHINGS_CLIENT_ID"))
-                + "&refresh_token=" + enc(refreshToken)));
+        var current = readToken();
+        var refreshToken = Json.str(current, "refresh_token");
+        var response = postToken("grant_type=refresh_token&client_id=" + enc(requireEnv("SMARTTHINGS_CLIENT_ID"))
+                + "&refresh_token=" + enc(refreshToken));
+        saveToken(mergeToken(current, response), response);
+    }
+
+    /**
+     * 갱신 응답은 refresh_token이나 installed_app_id를 생략할 수 있으므로 기존 token 위에 응답에 값이 있는 필드만 덮어쓴다.
+     */
+    @SuppressWarnings("unchecked")
+    static Map<String, Object> mergeToken(Object current, Object response) {
+        var merged = new LinkedHashMap<>((Map<String, Object>) current);
+        ((Map<String, Object>) response).forEach((key, value) -> {
+            if (value != null) {
+                merged.put(key, value);
+            }
+        });
+        return merged;
     }
 
     static Object postToken(String form) throws Exception {
@@ -167,12 +184,12 @@ public class SmartThingsWebhookPoc {
     }
 
     @SuppressWarnings("unchecked")
-    static void saveToken(Object token) throws IOException {
+    static void saveToken(Object token, Object response) throws IOException {
         var map = new LinkedHashMap<>((Map<String, Object>) token);
         map.put("saved_at", Instant.now().toString());
         Files.writeString(TOKEN_FILE, Json.write(map));
         // 기록 가능한 식별자만 출력한다. access/refresh token 원문은 출력하지 않는다.
-        var keys = new ArrayList<>(map.keySet());
+        var keys = new ArrayList<>(((Map<String, Object>) response).keySet());
         System.out.println("token 저장 완료 file=" + TOKEN_FILE);
         System.out.println("응답 필드 = " + keys);
         System.out.println("installed_app_id = " + map.get("installed_app_id"));
