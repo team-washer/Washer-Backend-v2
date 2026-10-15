@@ -71,8 +71,7 @@ public class RefreshSmartThingsTokenServiceImpl implements RefreshSmartThingsTok
                     HttpStatus.INTERNAL_SERVER_ERROR);
         } catch (Exception e) {
             log.error("Failed to refresh SmartThings token", e);
-            throw new ExpectedException("SmartThings 토큰 갱신에 실패했습니다.",
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new ExpectedException("SmartThings 토큰 갱신에 실패했습니다.", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
