@@ -212,7 +212,7 @@ class ReservationNotificationSupportTest {
             given(notificationRepository.countByUser(user)).willReturn(1L);
 
             // When
-            reservationNotificationSupport.sendCompletion(user, machine);
+            reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine);
 
             // Then
             final String expectedBody = machine.getName() + "의 " + machineType.getActionNoun()
@@ -236,7 +236,7 @@ class ReservationNotificationSupportTest {
             given(notificationRepository.countByUser(user)).willReturn(1L);
 
             // When
-            reservationNotificationSupport.sendInterruption(user, machine);
+            reservationNotificationSupport.sendInterruption(RESERVATION_ID, user, machine);
 
             // Then
             final String expectedBody = machine.getName() + "의 " + machineType.getActionNoun()
