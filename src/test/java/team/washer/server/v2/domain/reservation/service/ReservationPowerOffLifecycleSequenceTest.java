@@ -173,8 +173,8 @@ class ReservationPowerOffLifecycleSequenceTest {
         assertThat(reservation.getCancelledAt()).isNull();
         assertThat(reservation.getInterruptionCount()).isZero();
         assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
-        verify(reservationNotificationSupport, times(1)).sendCompletion(user, machine);
-        verify(reservationNotificationSupport, never()).sendInterruption(any(), any());
+        verify(reservationNotificationSupport, times(1)).sendCompletion(reservation.getId(), user, machine);
+        verify(reservationNotificationSupport, never()).sendInterruption(any(), any(), any());
     }
 
     private void assertCancelledOnce(Reservation reservation, Machine machine) {
@@ -182,8 +182,8 @@ class ReservationPowerOffLifecycleSequenceTest {
         assertThat(reservation.getCancelledAt()).isNotNull();
         assertThat(reservation.getActualCompletionTime()).isNull();
         assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.AVAILABLE);
-        verify(reservationNotificationSupport, times(1)).sendInterruption(user, machine);
-        verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+        verify(reservationNotificationSupport, times(1)).sendInterruption(reservation.getId(), user, machine);
+        verify(reservationNotificationSupport, never()).sendCompletion(any(), any(), any());
     }
 
     /**
@@ -215,8 +215,8 @@ class ReservationPowerOffLifecycleSequenceTest {
             assertThat(reservation.getInterruptionCount())
                     .isEqualTo(ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD - 1);
             assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.IN_USE);
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
-            verify(reservationNotificationSupport, never()).sendInterruption(any(), any());
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any(), any());
+            verify(reservationNotificationSupport, never()).sendInterruption(any(), any(), any());
         }
 
         @ParameterizedTest
@@ -278,8 +278,8 @@ class ReservationPowerOffLifecycleSequenceTest {
             assertThat(reservation.getInterruptionCount())
                     .isEqualTo(ReservationConstants.INTERRUPTION_CONFIRM_THRESHOLD - 1);
             assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.IN_USE);
-            verify(reservationNotificationSupport, never()).sendInterruption(any(), any());
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            verify(reservationNotificationSupport, never()).sendInterruption(any(), any(), any());
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any(), any());
         }
 
         @ParameterizedTest
@@ -313,7 +313,7 @@ class ReservationPowerOffLifecycleSequenceTest {
             // Then
             assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RUNNING);
             assertThat(reservation.getInterruptionCount()).isZero();
-            verify(reservationNotificationSupport, never()).sendInterruption(any(), any());
+            verify(reservationNotificationSupport, never()).sendInterruption(any(), any(), any());
         }
     }
 
@@ -456,8 +456,8 @@ class ReservationPowerOffLifecycleSequenceTest {
             assertThat(reservation.getStatus()).isEqualTo(ReservationStatus.RUNNING);
             assertThat(reservation.getInterruptionCount()).isZero();
             assertThat(machine.getAvailability()).isEqualTo(MachineAvailability.IN_USE);
-            verify(reservationNotificationSupport, never()).sendInterruption(any(), any());
-            verify(reservationNotificationSupport, never()).sendCompletion(any(), any());
+            verify(reservationNotificationSupport, never()).sendInterruption(any(), any(), any());
+            verify(reservationNotificationSupport, never()).sendCompletion(any(), any(), any());
         }
     }
 }
