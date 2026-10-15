@@ -128,7 +128,7 @@ public class OverdueReservationProcessor {
             machine.markAsInUse();
             reservationRepository.save(reservation);
             machineRepository.save(machine);
-            reservationNotificationSupport.sendStarted(user, machine, expectedCompletionTime);
+            reservationNotificationSupport.sendStarted(reservationId, user, machine, expectedCompletionTime);
             return OverdueResult.AUTO_STARTED;
         }
         if (startDecision == StartDecision.UNKNOWN) {

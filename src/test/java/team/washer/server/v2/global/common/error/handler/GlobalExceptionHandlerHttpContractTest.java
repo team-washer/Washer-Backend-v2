@@ -6,7 +6,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -378,8 +377,7 @@ class GlobalExceptionHandlerHttpContractTest {
 
             assertErrorContract(result, HttpStatus.BAD_GATEWAY, "BAD_GATEWAY");
             result.andExpect(jsonPath("$.message").value("기기 상태를 확인할 수 없습니다"));
-            then(discordErrorNotificationService).should()
-                    .notifyError(any(ExpectedException.class), isNull(), anyMap());
+            then(discordErrorNotificationService).should().notifyError(any(ExpectedException.class), anyMap());
         }
 
         @Test
@@ -389,8 +387,8 @@ class GlobalExceptionHandlerHttpContractTest {
 
             assertErrorContract(result, HttpStatus.SERVICE_UNAVAILABLE, "SERVICE_UNAVAILABLE");
             result.andExpect(content().string(not(containsString("10.0.0.1"))));
-            then(discordErrorNotificationService).should()
-                    .notifyError(any(RedisConnectionFailureException.class), isNull(), anyMap());
+            then(discordErrorNotificationService).should().notifyError(any(RedisConnectionFailureException.class),
+                    anyMap());
         }
 
         @Test
@@ -404,8 +402,7 @@ class GlobalExceptionHandlerHttpContractTest {
                     .andExpect(content().string(not(containsString("IllegalStateException"))))
                     .andExpect(content().string(not(containsString("secret-token"))))
                     .andExpect(content().string(not(containsString("at team.washer"))));
-            then(discordErrorNotificationService).should()
-                    .notifyError(any(IllegalStateException.class), isNull(), anyMap());
+            then(discordErrorNotificationService).should().notifyError(any(IllegalStateException.class), anyMap());
         }
     }
 

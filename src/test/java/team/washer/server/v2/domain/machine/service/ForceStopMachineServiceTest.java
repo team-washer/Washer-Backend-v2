@@ -181,7 +181,8 @@ class ForceStopMachineServiceTest {
                 assertThat(command.arguments()).containsExactly("stop");
                 then(reservationRepository).should(times(1)).save(reservation);
                 then(machineRepository).should(times(1)).save(machine);
-                then(reservationNotificationSupport).should(times(1)).sendForceStop(reservation.getUser(), machine);
+                then(reservationNotificationSupport).should(times(1))
+                        .sendForceStop(reservationId, reservation.getUser(), machine);
                 then(machineShutdownClaimSupport).should(times(1)).beginCommand(any());
                 then(machineShutdownClaimSupport).should(times(1)).release(any());
             }
