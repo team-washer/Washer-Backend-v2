@@ -1,35 +1,42 @@
 # GitHub Labels Reference
 
-Select **1–2 labels** from the PR-eligible list below. Do NOT use issue-only or manual labels.
-Label names must match the repository exactly (verify with `gh label list`).
+Select **exactly 1 label** from the PR-eligible list below. Even when several labels apply, pick only the single highest-priority one. Do NOT use issue-only or manual labels.
 
 ## PR-Eligible Labels (auto-selectable)
 
-| Label     | When to use                                            |
-|-----------|--------------------------------------------------------|
-| `신규 기능`  | New feature or improvement to an existing feature       |
-| `리팩터링`   | Refactoring / code improvement without behavior change |
-| `버그`      | Bug fix                                                 |
-| `문서화`     | Docs-only changes (README, CONTRIBUTING, comments)     |
-| `삭제`      | Removal of a feature, module, or dead code             |
+| Label                  | When to use                                               |
+|------------------------|-----------------------------------------------------------|
+| `enhancement:개선작업` | New feature, improvement to existing feature, refactoring |
+| `bug:버그`             | Bug fix                                                   |
+| `documentation:문서화` | Docs-only changes (README, CONTRIBUTING, comments)        |
+| `release:릴리즈`       | Release preparation or version bump                       |
 
 ## Off-limits Labels (do NOT assign)
 
-| Label                    | Reason                                                    |
-|--------------------------|-----------------------------------------------------------|
-| `위험도: 긴급`, `위험도: 높음`, `위험도: 보통`, `위험도: 낮음`, `위험도: 정리` | Issue-only risk labels — never auto-assigned to PRs |
-| `무효`                     | Issues only                                               |
-| `중복됨`                    | Issues only                                               |
-| `중지됨`                    | Applied manually when blocked by another PR/issue         |
-| `harness sync:하네스 동기화`  | Automation-managed — never auto-assigned                  |
+| Label                          | Reason                                                                     |
+|--------------------------------|----------------------------------------------------------------------------|
+| `waiting for review:검토 대기` | Applied manually by the author after the PR is ready — never auto-assigned |
+| `help wanted:도움 필요`        | Issues only                                                                |
+| `invalid:무효한`               | Issues only                                                                |
+| `duplicate:중복`               | Issues only                                                                |
+| `GFI:첫 기여 추천`             | Issues only                                                                |
+| `blocked:차단됨`               | Applied manually when blocked by another PR/issue                          |
 
 ## Quick Decision
 
+Walk the list top-down and stop at the first match — that is the one label to apply.
+
 ```
-Bug fix?              → 버그
-New feature?          → 신규 기능
-Refactoring only?     → 리팩터링
-Docs only?            → 문서화
-Removal / deletion?   → 삭제
-Unsure?               → 신규 기능
+Bug fix?          → bug:버그
+Release or version bump? → release:릴리즈
+Docs only?        → documentation:문서화
+New feature or improvement? → enhancement:개선작업
+Unsure?           → enhancement:개선작업
 ```
+
+## Label Not Present in the Repository
+
+These labels are a convention, not a guarantee — a target repository may not have them.
+If the chosen label does not exist there, create the PR **without any label** instead of
+creating the label or substituting another one. `scripts/create-pr.sh` handles this
+automatically: it verifies the label up front and drops it when missing.
