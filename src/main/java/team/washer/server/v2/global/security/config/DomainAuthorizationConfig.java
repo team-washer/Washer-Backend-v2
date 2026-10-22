@@ -34,6 +34,8 @@ public class DomainAuthorizationConfig {
                 .requestMatchers(swaggerUiResources, swaggerUiPath, apiDocsPath, apiDocsPath + "/**").permitAll()
                 // 헬스 체크
                 .requestMatchers("/api/v2/health", "/api/v2/app-versions/status", "/api/v2/events/datagsm").permitAll()
+                // SmartThings webhook은 JWT 대신 컨트롤러에서 HTTP Signature로 인증한다.
+                .requestMatchers(HttpMethod.POST, "/api/v2/events/smartthings").permitAll()
                 // SmartThings OAuth 콜백은 외부 서비스의 리다이렉트를 위해 공개한다.
                 .requestMatchers("/api/v2/admin/smartthings/oauth/callback").permitAll()
                 // 인증 엔드포인트
