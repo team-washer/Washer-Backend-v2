@@ -77,8 +77,18 @@ public class RefreshSmartThingsTokenServiceImpl implements RefreshSmartThingsTok
 
     private void updateToken(SmartThingsToken token, SmartThingsTokenExchangeResDto response) {
         var expiresAt = LocalDateTime.now().plusSeconds(response.expiresIn());
+        logAccessPolicy(response);
         token.updateTokens(response.accessToken(), response.refreshToken(), expiresAt);
+        token.updateInstalledAppId(response.installedAppId());
         smartThingsTokenRepository.saveAndFlush(token);
         smartThingsTokenProvider.refresh(token);
+    }
+
+    /** 2026-10 API 유료화 이후 사용량 제한이 실제로 켜지는 시점을 알 수 있도록 토큰 응답의 접근 정책 값만 기록한다. */
+    private void logAccessPolicy(SmartThingsTokenExchangeResDto response) {
+        log.info("SmartThings token access policy accessTier={} quotaEnforced={} installedAppIdPresent={}",
+                response.accessTier(),
+                response.quotaEnforced(),
+                response.installedAppId() != null);
     }
 }
