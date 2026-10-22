@@ -16,6 +16,6 @@ public record SmartThingsDeviceListResDto(@JsonProperty("items") List<DeviceItem
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DeviceItem(@JsonProperty("deviceId") String deviceId, @JsonProperty("label") String label,
-            @JsonProperty("name") String name) {
+            @JsonProperty("name") String name, @JsonProperty("locationId") String locationId) {
     }
 }

@@ -5,8 +5,10 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCommandReqDto;
+import team.washer.server.v2.domain.smartthings.dto.request.SmartThingsCreateSubscriptionReqDto;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceListResDto;
 import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsDeviceStatusResDto;
+import team.washer.server.v2.domain.smartthings.dto.response.SmartThingsSubscriptionListResDto;
 import team.washer.server.v2.global.thirdparty.smartthings.config.SmartThingsFeignConfig;
 
 @FeignClient(name = "smartthings-api", url = "${third-party.smartthings.api-url}", configuration = SmartThingsFeignConfig.class)
@@ -23,4 +25,18 @@ public interface SmartThingsFeignClient {
     void sendDeviceCommand(@RequestHeader("Authorization") String authorization,
             @PathVariable String deviceId,
             @RequestBody SmartThingsCommandReqDto command);
+
+    @GetMapping(value = "/v1/installedapps/{installedAppId}/subscriptions", produces = MediaType.APPLICATION_JSON_VALUE)
+    SmartThingsSubscriptionListResDto getSubscriptions(@RequestHeader("Authorization") String authorization,
+            @PathVariable String installedAppId);
+
+    @PostMapping(value = "/v1/installedapps/{installedAppId}/subscriptions", consumes = MediaType.APPLICATION_JSON_VALUE)
+    void createSubscription(@RequestHeader("Authorization") String authorization,
+            @PathVariable String installedAppId,
+            @RequestBody SmartThingsCreateSubscriptionReqDto subscription);
+
+    @DeleteMapping("/v1/installedapps/{installedAppId}/subscriptions/{subscriptionId}")
+    void deleteSubscription(@RequestHeader("Authorization") String authorization,
+            @PathVariable String installedAppId,
+            @PathVariable String subscriptionId);
 }
