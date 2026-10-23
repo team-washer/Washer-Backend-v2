@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.BDDMockito.willThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -130,6 +131,22 @@ class SyncSmartThingsSubscriptionsServiceTest {
             then(feignClient).should().deleteSubscription(AUTHORIZATION, INSTALLED_APP_ID, "sub-4");
             then(feignClient).should().deleteSubscription(AUTHORIZATION, INSTALLED_APP_ID, "sub-5");
             then(feignClient).should(never()).deleteSubscription(AUTHORIZATION, INSTALLED_APP_ID, "sub-6");
+        }
+
+        @Test
+        @DisplayName("구독 생성이 실패하면 기존 구독을 삭제하지 않는다")
+        void it_keeps_existing_subscriptions_when_creation_fails() {
+            // Given
+            given(feignClient.getSubscriptions(AUTHORIZATION, INSTALLED_APP_ID))
+                    .willReturn(new SmartThingsSubscriptionListResDto(
+                            List.of(capabilitySubscription("sub-1", "powerMeter", "washer_powerMeter"))));
+            willThrow(new SmartThingsApiException(500)).given(feignClient)
+                    .createSubscription(anyString(), anyString(), any());
+
+            // When & Then
+            assertThatThrownBy(() -> service(true).execute()).isInstanceOfSatisfying(ExpectedException.class,
+                    e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY));
+            then(feignClient).should(never()).deleteSubscription(anyString(), anyString(), anyString());
         }
 
         @Test

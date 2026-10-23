@@ -1,5 +1,6 @@
 package team.washer.server.v2.domain.smartthings.service.impl;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -68,18 +69,18 @@ public class SyncSmartThingsSubscriptionsServiceImpl implements SyncSmartThingsS
             final var existing = feignClient.getSubscriptions(authorization, installedAppId).items();
 
             final var matched = new HashSet<SubscriptionKey>();
+            final var stale = new ArrayList<SubscriptionItem>();
             var kept = 0;
-            var deleted = 0;
             for (final var item : existing == null ? List.<SubscriptionItem>of() : existing) {
                 final var key = keyOf(item);
                 if (key != null && desired.contains(key) && matched.add(key)) {
                     kept++;
                 } else if (isOwnedByServer(item)) {
-                    feignClient.deleteSubscription(authorization, installedAppId, item.id());
-                    deleted++;
+                    stale.add(item);
                 }
             }
 
+            // 외부 API 작업은 롤백되지 않으므로 생성이 모두 성공한 뒤에만 기존 구독을 지워 부분 실패 시 수신 공백을 막는다.
             var created = 0;
             for (final var key : desired) {
                 if (!matched.contains(key)) {
@@ -87,6 +88,11 @@ public class SyncSmartThingsSubscriptionsServiceImpl implements SyncSmartThingsS
                     created++;
                 }
             }
+
+            for (final var item : stale) {
+                feignClient.deleteSubscription(authorization, installedAppId, item.id());
+            }
+            final var deleted = stale.size();
 
             log.info("SmartThings subscriptions synced created={} deleted={} kept={}", created, deleted, kept);
             return new SmartThingsSubscriptionSyncResDto(created, deleted, kept);
