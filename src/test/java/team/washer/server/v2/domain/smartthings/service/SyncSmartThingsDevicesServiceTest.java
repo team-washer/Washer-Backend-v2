@@ -70,7 +70,10 @@ class SyncSmartThingsDevicesServiceTest {
                 // Given
                 var token = createValidToken();
                 var deviceList = new SmartThingsDeviceListResDto(
-                        List.of(new SmartThingsDeviceListResDto.DeviceItem("device-1", "Washer-2F-L1", "Washer")));
+                        List.of(new SmartThingsDeviceListResDto.DeviceItem("device-1",
+                                "Washer-2F-L1",
+                                "Washer",
+                                "location-1")));
 
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.of(token));
                 given(feignClient.getDeviceList("Bearer valid-access-token")).willReturn(deviceList);
@@ -98,7 +101,10 @@ class SyncSmartThingsDevicesServiceTest {
                         .deviceId("old-device-id").floor(2).position(Position.LEFT).number(1)
                         .status(MachineStatus.NORMAL).availability(MachineAvailability.AVAILABLE).build();
                 var deviceList = new SmartThingsDeviceListResDto(
-                        List.of(new SmartThingsDeviceListResDto.DeviceItem("new-device-id", "Washer-2F-L1", "Washer")));
+                        List.of(new SmartThingsDeviceListResDto.DeviceItem("new-device-id",
+                                "Washer-2F-L1",
+                                "Washer",
+                                "location-1")));
 
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.of(token));
                 given(feignClient.getDeviceList("Bearer valid-access-token")).willReturn(deviceList);
@@ -127,7 +133,10 @@ class SyncSmartThingsDevicesServiceTest {
                         .deviceId("missing-device").floor(3).position(Position.RIGHT).number(1)
                         .status(MachineStatus.NORMAL).availability(MachineAvailability.AVAILABLE).build();
                 var deviceList = new SmartThingsDeviceListResDto(
-                        List.of(new SmartThingsDeviceListResDto.DeviceItem("device-1", "Washer-2F-L1", "Washer")));
+                        List.of(new SmartThingsDeviceListResDto.DeviceItem("device-1",
+                                "Washer-2F-L1",
+                                "Washer",
+                                "location-1")));
 
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.of(token));
                 given(feignClient.getDeviceList("Bearer valid-access-token")).willReturn(deviceList);
@@ -193,7 +202,10 @@ class SyncSmartThingsDevicesServiceTest {
                 // Given
                 var token = createValidToken();
                 var deviceList = new SmartThingsDeviceListResDto(
-                        List.of(new SmartThingsDeviceListResDto.DeviceItem("device-bad", "InvalidLabel", "Unknown")));
+                        List.of(new SmartThingsDeviceListResDto.DeviceItem("device-bad",
+                                "InvalidLabel",
+                                "Unknown",
+                                "location-1")));
 
                 given(tokenRepository.findSingletonToken()).willReturn(Optional.of(token));
                 given(feignClient.getDeviceList("Bearer valid-access-token")).willReturn(deviceList);

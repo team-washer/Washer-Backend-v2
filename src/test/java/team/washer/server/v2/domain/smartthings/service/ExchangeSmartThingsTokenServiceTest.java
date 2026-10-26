@@ -53,7 +53,10 @@ class ExchangeSmartThingsTokenServiceTest {
                 "new-refresh-token",
                 "Bearer",
                 3600,
-                "r:devices:*");
+                "r:devices:*",
+                "installed-app-1",
+                0,
+                false);
     }
 
     @Nested
@@ -125,6 +128,7 @@ class ExchangeSmartThingsTokenServiceTest {
                 then(smartThingsTokenRepository).should(times(1)).saveAndFlush(existingToken);
                 assertThat(existingToken.getAccessToken()).isEqualTo("new-access-token");
                 assertThat(existingToken.getRefreshToken()).isEqualTo("new-refresh-token");
+                assertThat(existingToken.getInstalledAppId()).isEqualTo("installed-app-1");
             }
         }
 

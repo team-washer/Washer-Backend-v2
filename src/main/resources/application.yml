@@ -54,6 +54,11 @@ third-party:
       enabled: ${SMARTTHINGS_TUB_CLEAN_ENABLED:false}
       cron: ${SMARTTHINGS_TUB_CLEAN_CRON:0 0 10 * * FRI}
       cycle: ${SMARTTHINGS_TUB_CLEAN_CYCLE:}
+    webhook:
+      enabled: ${SMARTTHINGS_WEBHOOK_ENABLED:false}
+      app-id: ${SMARTTHINGS_WEBHOOK_APP_ID:}
+      key-url: ${SMARTTHINGS_WEBHOOK_KEY_URL:https://key.smartthings.com}
+      event-retention-days: ${SMARTTHINGS_WEBHOOK_EVENT_RETENTION_DAYS:7}
   datagsm:
     client-secret: ${THIRD_PARTY_DATAGSM_CLIENT_SECRET:your-client-secret}
     client-id: ${THIRD_PARTY_DATAGSM_CLIENT_ID:your-client-id}
@@ -74,6 +79,7 @@ sdk:
       - "/api/v2/admin/smartthings/oauth/**"
       - "/api/v2/auth/login"
       - "/api/v2/auth/refresh"
+      - "/api/v2/events/smartthings"
   swagger:
     enabled: true
     title: "Washer API"
@@ -91,6 +97,7 @@ sdk:
       - "/v3/api-docs"
       - "/swagger-ui/**"
       - "/api/v2/admin/smartthings/oauth/authorize"
+      - "/api/v2/events/smartthings"
 springdoc:
   api-docs:
     path: /v3/api-docs
