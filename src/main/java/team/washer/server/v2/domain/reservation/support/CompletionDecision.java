@@ -14,6 +14,8 @@ import java.time.LocalDateTime;
  */
 public record CompletionDecision(Outcome outcome, LocalDateTime completionTime, String reason) {
 
+    private static final String REASON_NOT_COMPLETED = "not_completed";
+
     /**
      * 완료 판정 결과의 종류.
      */
@@ -35,7 +37,14 @@ public record CompletionDecision(Outcome outcome, LocalDateTime completionTime, 
     }
 
     public static CompletionDecision notCompleted() {
-        return new CompletionDecision(Outcome.NOT_COMPLETED, null, "not_completed");
+        return new CompletionDecision(Outcome.NOT_COMPLETED, null, REASON_NOT_COMPLETED);
+    }
+
+    /**
+     * 완료 후보를 검토했지만 근거가 부족해 받아들이지 않은 판정을 만든다. 기각 사유를 운영 로그로 남길 수 있도록 함께 담는다.
+     */
+    public static CompletionDecision notCompleted(String reason) {
+        return new CompletionDecision(Outcome.NOT_COMPLETED, null, reason);
     }
 
     public boolean isCompleted() {
@@ -44,5 +53,12 @@ public record CompletionDecision(Outcome outcome, LocalDateTime completionTime, 
 
     public boolean isDeferred() {
         return this.outcome == Outcome.DEFERRED;
+    }
+
+    /**
+     * 완료 후보를 검토했지만 근거 부족으로 기각했는지 여부를 반환한다.
+     */
+    public boolean isCandidateRejected() {
+        return this.outcome == Outcome.NOT_COMPLETED && !REASON_NOT_COMPLETED.equals(this.reason);
     }
 }

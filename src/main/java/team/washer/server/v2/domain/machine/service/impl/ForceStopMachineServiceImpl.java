@@ -168,7 +168,8 @@ public class ForceStopMachineServiceImpl implements ForceStopMachineService {
         }
         reservation.cancel();
         reservationRepository.save(reservation);
-        reservationNotificationSupport.sendForceStop(reservation.getUser(), reservation.getMachine());
+        reservationNotificationSupport
+                .sendForceStop(reservation.getId(), reservation.getUser(), reservation.getMachine());
         return reservation.getId();
     }
 

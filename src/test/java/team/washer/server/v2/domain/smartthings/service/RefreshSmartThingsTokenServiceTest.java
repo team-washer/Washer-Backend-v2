@@ -73,7 +73,10 @@ class RefreshSmartThingsTokenServiceTest {
                         "new-refresh",
                         "Bearer",
                         3600,
-                        "r:devices:*");
+                        "r:devices:*",
+                        null,
+                        0,
+                        false);
 
                 given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(expiredToken));
                 given(smartThingsEnvironment.clientId()).willReturn("client-id");
@@ -84,10 +87,37 @@ class RefreshSmartThingsTokenServiceTest {
                 refreshSmartThingsTokenService.execute();
 
                 // Then
-                then(smartThingsTokenRepository).should(times(1)).save(expiredToken);
+                then(smartThingsTokenRepository).should(times(1)).saveAndFlush(expiredToken);
                 then(smartThingsTokenProvider).should(times(1)).refresh(expiredToken);
                 assertThat(expiredToken.getAccessToken()).isEqualTo("new-access");
                 assertThat(expiredToken.getRefreshToken()).isEqualTo("new-refresh");
+            }
+
+            @Test
+            @DisplayName("갱신 응답에 설치 앱 ID가 없으면 기존 값을 유지한다")
+            void it_keeps_installed_app_id_when_response_has_none() {
+                // Given
+                var expiredToken = createExpiredToken();
+                expiredToken.updateInstalledAppId("installed-app-1");
+                var refreshResponse = new SmartThingsTokenExchangeResDto("new-access",
+                        "new-refresh",
+                        "Bearer",
+                        3600,
+                        "r:devices:*",
+                        null,
+                        null,
+                        null);
+
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(expiredToken));
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.refreshToken(anyString(), anyString())).willReturn(refreshResponse);
+
+                // When
+                refreshSmartThingsTokenService.execute();
+
+                // Then
+                assertThat(expiredToken.getInstalledAppId()).isEqualTo("installed-app-1");
             }
         }
 
@@ -107,7 +137,7 @@ class RefreshSmartThingsTokenServiceTest {
 
                 // Then
                 then(smartThingsOAuthClient).shouldHaveNoInteractions();
-                then(smartThingsTokenRepository).should(never()).save(any(SmartThingsToken.class));
+                then(smartThingsTokenRepository).should(never()).saveAndFlush(any(SmartThingsToken.class));
             }
         }
 

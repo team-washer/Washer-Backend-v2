@@ -51,10 +51,26 @@ public class SmartThingsToken {
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
 
+    /** webhook 구독과 수신 event 검증에 쓰는 SmartThings 설치 앱 ID. 기존 토큰에는 없을 수 있다. */
+    @Column(name = "installed_app_id", length = 64)
+    private String installedAppId;
+
     public void updateTokens(String accessToken, String refreshToken, LocalDateTime expiresAt) {
         this.accessToken = accessToken;
         this.refreshToken = refreshToken;
         this.expiresAt = expiresAt;
+    }
+
+    /**
+     * 토큰 응답에 담긴 설치 앱 ID를 반영합니다. 갱신 응답에는 값이 없을 수 있으므로 값이 있을 때만 바꿉니다.
+     *
+     * @param installedAppId
+     *            토큰 응답의 설치 앱 ID
+     */
+    public void updateInstalledAppId(String installedAppId) {
+        if (installedAppId != null && !installedAppId.isBlank()) {
+            this.installedAppId = installedAppId;
+        }
     }
 
     /** 외부 서비스에서 거절된 액세스 토큰을 만료 처리합니다. */

@@ -197,7 +197,7 @@ class OverdueReservationProcessorTest {
             verifyNoInteractions(reservationStartDecisionSupport);
             verify(reservation, never()).start(any());
             verify(machine, never()).markAsInUse();
-            verify(reservationNotificationSupport, never()).sendStarted(any(), any(), any());
+            verify(reservationNotificationSupport, never()).sendStarted(any(), any(), any(), any());
             verify(reservation, times(1)).cancel();
             verify(machine, times(1)).releaseIfHeld();
         }
@@ -246,7 +246,7 @@ class OverdueReservationProcessorTest {
             verify(reservation, times(1)).start(any(LocalDateTime.class));
             verify(reservationRepository, times(1)).save(reservation);
             verify(reservationNotificationSupport, times(1))
-                    .sendStarted(eq(user), eq(machine), any(LocalDateTime.class));
+                    .sendStarted(eq(RESERVATION_ID), eq(user), eq(machine), any(LocalDateTime.class));
             verify(reservation, never()).cancel();
             verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
         }
@@ -268,7 +268,7 @@ class OverdueReservationProcessorTest {
             assertThat(result).isEqualTo(OverdueResult.AUTO_STARTED);
             verify(reservation, times(1)).start(LocalDateTime.of(2026, 1, 27, 1, 0));
             verify(reservationNotificationSupport, times(1))
-                    .sendStarted(user, machine, LocalDateTime.of(2026, 1, 27, 1, 0));
+                    .sendStarted(RESERVATION_ID, user, machine, LocalDateTime.of(2026, 1, 27, 1, 0));
         }
 
         @Test
@@ -291,7 +291,7 @@ class OverdueReservationProcessorTest {
             verify(machineRepository, times(1)).save(machine);
             verify(penaltyRedisUtil, never()).applyCooldown(any(), any());
             verify(penaltyRedisUtil, never()).recordCancellation(any());
-            verify(reservationNotificationSupport, times(1)).sendStarted(user, machine, null);
+            verify(reservationNotificationSupport, times(1)).sendStarted(RESERVATION_ID, user, machine, null);
         }
     }
 

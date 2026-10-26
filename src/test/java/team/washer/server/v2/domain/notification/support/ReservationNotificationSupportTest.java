@@ -22,6 +22,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.washer.server.v2.domain.machine.entity.Machine;
 import team.washer.server.v2.domain.machine.enums.MachineType;
 import team.washer.server.v2.domain.notification.entity.Notification;
+import team.washer.server.v2.domain.notification.enums.NotificationType;
 import team.washer.server.v2.domain.notification.repository.NotificationRepository;
 import team.washer.server.v2.domain.user.entity.User;
 import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
@@ -29,6 +30,8 @@ import team.washer.server.v2.global.common.transaction.AfterCommitExecutor;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("ReservationNotificationSupport 클래스는")
 class ReservationNotificationSupportTest {
+
+    private static final Long RESERVATION_ID = 1L;
 
     @InjectMocks
     private ReservationNotificationSupport reservationNotificationSupport;
@@ -41,6 +44,9 @@ class ReservationNotificationSupportTest {
 
     @Spy
     private AfterCommitExecutor afterCommitExecutor = new AfterCommitExecutor(mock(PlatformTransactionManager.class));
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     @AfterEach
     void clearTransactionSynchronization() {
@@ -82,7 +88,7 @@ class ReservationNotificationSupportTest {
                 given(notificationRepository.countByUser(user)).willReturn(25L);
 
                 // When
-                reservationNotificationSupport.sendCompletion(user, machine);
+                reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine);
 
                 // Then
                 then(notificationRepository).should(never()).deleteOldestByUserExceedingLimit(any(User.class),
@@ -105,7 +111,7 @@ class ReservationNotificationSupportTest {
                 given(notificationRepository.countByUser(user)).willReturn(30L);
 
                 // When
-                reservationNotificationSupport.sendCompletion(user, machine);
+                reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine);
 
                 // Then
                 then(notificationRepository).should(never()).deleteOldestByUserExceedingLimit(any(User.class),
@@ -129,7 +135,7 @@ class ReservationNotificationSupportTest {
                 given(notificationRepository.deleteOldestByUserExceedingLimit(user, 30)).willReturn(1);
 
                 // When
-                reservationNotificationSupport.sendCompletion(user, machine);
+                reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine);
 
                 // Then
                 then(notificationRepository).should(times(1)).deleteOldestByUserExceedingLimit(user, 30);
@@ -154,7 +160,7 @@ class ReservationNotificationSupportTest {
             given(notificationRepository.countByUser(user)).willReturn(1L);
 
             // When
-            reservationNotificationSupport.sendStarted(user, machine, expectedCompletionTime);
+            reservationNotificationSupport.sendStarted(RESERVATION_ID, user, machine, expectedCompletionTime);
 
             // Then
             final String expectedBody = machine.getName() + "의 " + machineType.getActionNoun()
@@ -180,13 +186,66 @@ class ReservationNotificationSupportTest {
             given(notificationRepository.countByUser(user)).willReturn(1L);
 
             // When
-            reservationNotificationSupport.sendForceStop(user, machine);
+            reservationNotificationSupport.sendForceStop(RESERVATION_ID, user, machine);
 
             // Then
             final String expectedBody = "관리자에 의해 " + machine.getName() + "의 " + machineType.getActionNoun()
                     + " 정지되어 예약이 패널티 없이 취소되었습니다.";
             then(fcmNotificationSupport).should(times(1))
                     .send(user, machineType.getDescription() + " 강제 정지 알림", expectedBody);
+        }
+    }
+
+    @Nested
+    @DisplayName("완료·중단 알림 메시지는")
+    class Describe_completion_and_interruption_notification_message {
+
+        @ParameterizedTest
+        @EnumSource(MachineType.class)
+        @DisplayName("정상 완료는 COMPLETION 타입과 완료 문구로 저장·전송해야 한다")
+        void it_notifies_completion(final MachineType machineType) {
+            // Given
+            User user = createUser();
+            Machine machine = createMachine(machineType);
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(notificationRepository.countByUser(user)).willReturn(1L);
+
+            // When
+            reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine);
+
+            // Then
+            final String expectedBody = machine.getName() + "의 " + machineType.getActionNoun()
+                    + " 완료되었습니다. 빠른 시간 내에 수거해 주시기 바랍니다.";
+            then(notificationRepository).should(times(1))
+                    .save(argThat(notification -> notification.getType() == NotificationType.COMPLETION
+                            && notification.getMessage().equals(expectedBody)));
+            then(fcmNotificationSupport).should(times(1))
+                    .send(user, machineType.getDescription() + " 완료 알림", expectedBody);
+        }
+
+        @ParameterizedTest
+        @EnumSource(MachineType.class)
+        @DisplayName("사이클 중단은 INTERRUPTION 타입과 패널티 없는 취소 문구로 저장·전송해야 한다")
+        void it_notifies_interruption(final MachineType machineType) {
+            // Given
+            User user = createUser();
+            Machine machine = createMachine(machineType);
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(notificationRepository.countByUser(user)).willReturn(1L);
+
+            // When
+            reservationNotificationSupport.sendInterruption(RESERVATION_ID, user, machine);
+
+            // Then
+            final String expectedBody = machine.getName() + "의 " + machineType.getActionNoun()
+                    + " 예기치 않게 중단되었습니다. 예약이 패널티 없이 취소되었습니다.";
+            then(notificationRepository).should(times(1))
+                    .save(argThat(notification -> notification.getType() == NotificationType.INTERRUPTION
+                            && notification.getMessage().equals(expectedBody)));
+            then(fcmNotificationSupport).should(times(1))
+                    .send(user, machineType.getDescription() + " 중단 알림", expectedBody);
         }
     }
 
@@ -199,7 +258,6 @@ class ReservationNotificationSupportTest {
         void it_sends_after_commit() {
             // Given
             User user = createUser();
-            Machine machine = createMachine();
             given(notificationRepository.save(any(Notification.class)))
                     .willAnswer(invocation -> invocation.getArgument(0));
             given(notificationRepository.countByUser(user)).willReturn(1L);
@@ -207,7 +265,7 @@ class ReservationNotificationSupportTest {
             TransactionSynchronizationManager.initSynchronization();
 
             // When
-            reservationNotificationSupport.sendCompletion(user, machine);
+            reservationNotificationSupport.sendAdminPenalty(user, "테스트 사유");
 
             // Then
             then(fcmNotificationSupport).should(never()).send(any(), anyString(), anyString());
@@ -217,6 +275,36 @@ class ReservationNotificationSupportTest {
             synchronizations.getFirst().afterCommit();
 
             then(fcmNotificationSupport).should(times(1)).send(eq(user), anyString(), anyString());
+        }
+    }
+
+    @Nested
+    @DisplayName("lifecycle 전이 알림의 저장 시점은")
+    class Describe_lifecycle_notification_persist_timing {
+
+        @Test
+        @DisplayName("호출자 트랜잭션 커밋 전에는 저장하지 않고 커밋 이후에 저장해야 한다")
+        void it_persists_after_commit() {
+            // Given
+            User user = createUser();
+            Machine machine = createMachine();
+            given(notificationRepository.save(any(Notification.class)))
+                    .willAnswer(invocation -> invocation.getArgument(0));
+            given(notificationRepository.countByUser(user)).willReturn(1L);
+            TransactionSynchronizationManager.setActualTransactionActive(true);
+            TransactionSynchronizationManager.initSynchronization();
+
+            // When
+            reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine);
+
+            // Then
+            then(notificationRepository).shouldHaveNoInteractions();
+            final var synchronizations = TransactionSynchronizationManager.getSynchronizations();
+            assertThat(synchronizations).hasSize(1);
+
+            synchronizations.getFirst().afterCommit();
+
+            then(notificationRepository).should(times(1)).save(any(Notification.class));
         }
     }
 
@@ -237,7 +325,7 @@ class ReservationNotificationSupportTest {
                     .send(any(), anyString(), anyString());
 
             // When & Then
-            assertThatCode(() -> reservationNotificationSupport.sendCompletion(user, machine))
+            assertThatCode(() -> reservationNotificationSupport.sendCompletion(RESERVATION_ID, user, machine))
                     .doesNotThrowAnyException();
             then(notificationRepository).should(times(1)).save(any(Notification.class));
         }

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.*;
+import static org.mockito.Mockito.inOrder;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 
 import team.themoment.sdk.exception.ExpectedException;
@@ -51,7 +53,10 @@ class ExchangeSmartThingsTokenServiceTest {
                 "new-refresh-token",
                 "Bearer",
                 3600,
-                "r:devices:*");
+                "r:devices:*",
+                "installed-app-1",
+                0,
+                false);
     }
 
     @Nested
@@ -69,13 +74,34 @@ class ExchangeSmartThingsTokenServiceTest {
                 given(smartThingsEnvironment.clientId()).willReturn("client-id");
                 given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
                 given(smartThingsOAuthClient.exchangeToken(anyString(), anyString())).willReturn(createTokenResponse());
-                given(smartThingsTokenRepository.findSingletonToken()).willReturn(Optional.empty());
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.empty());
 
                 // When
                 exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri");
 
                 // Then
-                then(smartThingsTokenRepository).should(times(1)).save(any(SmartThingsToken.class));
+                final var order = inOrder(smartThingsTokenRepository, smartThingsTokenProvider);
+                order.verify(smartThingsTokenRepository).saveAndFlush(any(SmartThingsToken.class));
+                order.verify(smartThingsTokenProvider).refresh(any(SmartThingsToken.class));
+            }
+
+            @Test
+            @DisplayName("토큰 저장 flush가 실패하면 캐시 갱신을 호출하지 않는다")
+            void it_does_not_refresh_cache_when_token_flush_fails() {
+                // Given
+                given(smartThingsEnvironment.clientId()).willReturn("client-id");
+                given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
+                given(smartThingsOAuthClient.exchangeToken(anyString(), anyString())).willReturn(createTokenResponse());
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.empty());
+                willThrow(new DataIntegrityViolationException("database failure")).given(smartThingsTokenRepository)
+                        .saveAndFlush(any(SmartThingsToken.class));
+
+                // When & Then
+                assertThatThrownBy(() -> exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri"))
+                        .isInstanceOf(ExpectedException.class).hasMessage("SmartThings 토큰 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.")
+                        .satisfies(e -> assertThat(((ExpectedException) e).getStatusCode())
+                                .isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR));
+                then(smartThingsTokenProvider).should(never()).refresh(any(SmartThingsToken.class));
             }
         }
 
@@ -93,15 +119,16 @@ class ExchangeSmartThingsTokenServiceTest {
                 given(smartThingsEnvironment.clientId()).willReturn("client-id");
                 given(smartThingsEnvironment.clientSecret()).willReturn("client-secret");
                 given(smartThingsOAuthClient.exchangeToken(anyString(), anyString())).willReturn(createTokenResponse());
-                given(smartThingsTokenRepository.findSingletonToken()).willReturn(Optional.of(existingToken));
+                given(smartThingsTokenRepository.findSingletonTokenWithLock()).willReturn(Optional.of(existingToken));
 
                 // When
                 exchangeSmartThingsTokenService.execute("auth-code", "https://redirect.uri");
 
                 // Then
-                then(smartThingsTokenRepository).should(times(1)).save(existingToken);
+                then(smartThingsTokenRepository).should(times(1)).saveAndFlush(existingToken);
                 assertThat(existingToken.getAccessToken()).isEqualTo("new-access-token");
                 assertThat(existingToken.getRefreshToken()).isEqualTo("new-refresh-token");
+                assertThat(existingToken.getInstalledAppId()).isEqualTo("installed-app-1");
             }
         }
 

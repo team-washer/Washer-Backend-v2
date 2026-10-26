@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.Base64;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,17 +65,30 @@ public class RefreshSmartThingsTokenServiceImpl implements RefreshSmartThingsTok
         } catch (ExpectedException e) {
             log.warn("SmartThings token not found, skipping refresh");
             throw e;
+        } catch (DataAccessException e) {
+            log.error("Failed to persist refreshed SmartThings token", e);
+            throw new ExpectedException("SmartThings 토큰 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+                    HttpStatus.INTERNAL_SERVER_ERROR);
         } catch (Exception e) {
             log.error("Failed to refresh SmartThings token", e);
-            throw new ExpectedException("SmartThings 토큰 갱신에 실패했습니다: " + e.getMessage(),
-                    HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new ExpectedException("SmartThings 토큰 갱신에 실패했습니다.", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
     private void updateToken(SmartThingsToken token, SmartThingsTokenExchangeResDto response) {
         var expiresAt = LocalDateTime.now().plusSeconds(response.expiresIn());
+        logAccessPolicy(response);
         token.updateTokens(response.accessToken(), response.refreshToken(), expiresAt);
-        smartThingsTokenRepository.save(token);
+        token.updateInstalledAppId(response.installedAppId());
+        smartThingsTokenRepository.saveAndFlush(token);
         smartThingsTokenProvider.refresh(token);
+    }
+
+    /** 2026-10 API 유료화 이후 사용량 제한이 실제로 켜지는 시점을 알 수 있도록 토큰 응답의 접근 정책 값만 기록한다. */
+    private void logAccessPolicy(SmartThingsTokenExchangeResDto response) {
+        log.info("SmartThings token access policy accessTier={} quotaEnforced={} installedAppIdPresent={}",
+                response.accessTier(),
+                response.quotaEnforced(),
+                response.installedAppId() != null);
     }
 }
