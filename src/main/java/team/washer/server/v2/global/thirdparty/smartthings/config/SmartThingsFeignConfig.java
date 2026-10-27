@@ -1,7 +1,6 @@
 package team.washer.server.v2.global.thirdparty.smartthings.config;
 
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 import feign.Logger;
 import feign.Request;
@@ -12,7 +11,15 @@ import feign.codec.ErrorDecoder;
 import team.washer.server.v2.global.thirdparty.smartthings.feign.SmartThingsFeignErrorDecoder;
 import tools.jackson.databind.ObjectMapper;
 
-@Configuration
+/**
+ * SmartThings Feign 클라이언트 전용 설정입니다.
+ *
+ * <p>
+ * {@code @FeignClient(configuration = ...)}로 지정한 클라이언트에만 적용합니다.
+ * {@code @Configuration}을 붙여 컴포넌트 스캔 대상이 되면 재시도·타임아웃 빈이 모든 Feign 클라이언트로 퍼지고, 다른
+ * 클라이언트의 전용 빈과 충돌해 애플리케이션이 기동하지 못합니다.
+ * </p>
+ */
 public class SmartThingsFeignConfig {
 
     public static final int CONNECT_TIMEOUT_MILLIS = 5000;
