@@ -4,6 +4,7 @@ plugins {
     id("io.spring.dependency-management") version "1.1.7"
     id("com.diffplug.spotless") version "8.1.0"
     id("com.gorylenko.gradle-git-properties") version "2.5.3"
+    id("io.github.inryeok-office.config-contract") version "0.1.0"
 }
 
 ext {
@@ -32,6 +33,11 @@ spotless {
         target("*.gradle")
         greclipse()
     }
+}
+
+// 수동 실행 전용: ./gradlew configContractCheck (check·build·CI에 연결하지 않음, Gradle을 JDK 25 이상으로 실행)
+configContract {
+    dotenvExampleFiles.from("config-contract/.env.example")
 }
 
 tasks.compileJava {

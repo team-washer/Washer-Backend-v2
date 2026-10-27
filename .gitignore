@@ -47,6 +47,7 @@ PR_BODY.md
 
 ### Env ###
 .env*
+!config-contract/.env.example
 
 ### Stage Profile ###
 src/main/resources/application-stage.yml
