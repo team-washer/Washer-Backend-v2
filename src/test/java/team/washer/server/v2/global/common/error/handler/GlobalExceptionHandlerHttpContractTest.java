@@ -19,6 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.util.List;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -54,12 +56,15 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import team.themoment.sdk.autoconfigure.SdkAutoConfiguration;
 import team.themoment.sdk.exception.ExpectedException;
+import team.washer.server.v2.domain.health.HealthController;
 import team.washer.server.v2.domain.reservation.entity.Reservation;
+import team.washer.server.v2.domain.user.enums.UserRole;
 import team.washer.server.v2.global.common.error.code.ErrorCode;
 import team.washer.server.v2.global.common.error.exception.ErrorCodeException;
 import team.washer.server.v2.global.common.trace.TraceIdFilter;
 import team.washer.server.v2.global.security.config.DomainAuthorizationConfig;
 import team.washer.server.v2.global.security.config.SecurityConfig;
+import team.washer.server.v2.global.security.jwt.dto.JwtPayload;
 import team.washer.server.v2.global.security.jwt.provider.JwtTokenProvider;
 import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotificationService;
 
@@ -67,16 +72,19 @@ import team.washer.server.v2.global.thirdparty.discord.service.DiscordErrorNotif
  * 실제 HTTP 요청 흐름(보안 필터 체인 → DispatcherServlet → 전역 예외 처리기 → SDK 응답 래퍼)에서 오류 응답의
  * 상태 코드와 본문 계약을 검증합니다.
  */
-@WebMvcTest(controllers = GlobalExceptionHandlerHttpContractTest.ErrorTestController.class)
+@WebMvcTest(controllers = {GlobalExceptionHandlerHttpContractTest.ErrorTestController.class,
+        GlobalExceptionHandlerHttpContractTest.SecurityTestController.class, HealthController.class})
 @ImportAutoConfiguration({SecurityAutoConfiguration.class, ServletWebSecurityAutoConfiguration.class,
         SdkAutoConfiguration.class})
 @Import({SecurityConfig.class, DomainAuthorizationConfig.class, GlobalExceptionHandler.class, TraceIdFilter.class,
         GlobalExceptionHandlerHttpContractTest.ErrorTestController.class,
+        GlobalExceptionHandlerHttpContractTest.SecurityTestController.class, HealthController.class,
         GlobalExceptionHandlerHttpContractTest.TestBeansConfiguration.class})
 @DisplayName("전역 예외 처리기의 HTTP 오류 응답 계약은")
 class GlobalExceptionHandlerHttpContractTest {
 
     private static final String BASE_PATH = "/api/v2/test-errors";
+    private static final String PROTECTED_PATH = "/api/v2/test-security/me";
 
     @Resource
     private MockMvc mockMvc;
@@ -86,6 +94,9 @@ class GlobalExceptionHandlerHttpContractTest {
 
     @MockitoBean
     private DiscordErrorNotificationService discordErrorNotificationService;
+
+    @MockitoBean
+    private ProtectedEndpointProbe protectedEndpointProbe;
 
     private ResultActions performAsUser(final MockHttpServletRequestBuilder request) throws Exception {
         return mockMvc.perform(request.with(user("user").authorities(new SimpleGrantedAuthority("USER"))));
@@ -323,6 +334,119 @@ class GlobalExceptionHandlerHttpContractTest {
     }
 
     @Nested
+    @DisplayName("Authorization 헤더의 access token 상태에 따라")
+    class Describe_accessTokenState {
+
+        private static final String EXPIRED_TOKEN = "expired-token";
+        private static final String INVALID_TOKEN = "invalid-token";
+        private static final String USER_TOKEN = "user-token";
+
+        @BeforeEach
+        void setUp() {
+            given(jwtTokenProvider.parseAccessToken(EXPIRED_TOKEN))
+                    .willThrow(new ErrorCodeException(ErrorCode.ACCESS_TOKEN_EXPIRED));
+            given(jwtTokenProvider.parseAccessToken(INVALID_TOKEN))
+                    .willThrow(new ErrorCodeException(ErrorCode.ACCESS_TOKEN_INVALID));
+            given(jwtTokenProvider.parseAccessToken(USER_TOKEN)).willReturn(new JwtPayload(1L, UserRole.USER));
+        }
+
+        private ResultActions performWithToken(final MockHttpServletRequestBuilder request, final String token)
+                throws Exception {
+            return mockMvc.perform(token == null ? request : request.header("Authorization", "Bearer " + token));
+        }
+
+        /** 헬스 체크·로그인·토큰 재발급 공개 경로가 모두 정상 응답하는지 확인합니다. */
+        private void assertPublicPathsRespondOk(final String token) throws Exception {
+            performWithToken(get("/api/v2/health"), token).andExpect(status().isOk());
+            performWithToken(post("/api/v2/auth/login"), token).andExpect(status().isOk());
+            performWithToken(post("/api/v2/auth/refresh"), token).andExpect(status().isOk());
+        }
+
+        @Nested
+        @DisplayName("공개 경로는")
+        class Describe_publicPath {
+
+            @Test
+            @DisplayName("헤더가 없으면 정상 응답한다")
+            void respondsOkWithoutHeader() throws Exception {
+                assertPublicPathsRespondOk(null);
+            }
+
+            @Test
+            @DisplayName("만료된 토큰이 있어도 정상 응답한다")
+            void respondsOkWithExpiredToken() throws Exception {
+                assertPublicPathsRespondOk(EXPIRED_TOKEN);
+            }
+
+            @Test
+            @DisplayName("유효하지 않은 토큰이 있어도 정상 응답한다")
+            void respondsOkWithInvalidToken() throws Exception {
+                assertPublicPathsRespondOk(INVALID_TOKEN);
+            }
+
+            @Test
+            @DisplayName("권한이 부족한 유효 토큰이어도 정상 응답한다")
+            void respondsOkWithUserToken() throws Exception {
+                assertPublicPathsRespondOk(USER_TOKEN);
+            }
+        }
+
+        @Nested
+        @DisplayName("보호 경로는")
+        class Describe_protectedPath {
+
+            @Test
+            @DisplayName("헤더가 없으면 AUTHENTICATION_REQUIRED로 응답하고 컨트롤러에 도달하지 않는다")
+            void respondsAuthenticationRequiredWithoutHeader() throws Exception {
+                final var result = performWithToken(get(PROTECTED_PATH), null);
+
+                assertErrorContract(result, HttpStatus.UNAUTHORIZED, "AUTHENTICATION_REQUIRED");
+                then(protectedEndpointProbe).shouldHaveNoInteractions();
+            }
+
+            @Test
+            @DisplayName("만료된 토큰이면 ACCESS_TOKEN_EXPIRED로 응답하고 컨트롤러에 도달하지 않는다")
+            void respondsAccessTokenExpired() throws Exception {
+                final var result = performWithToken(get(PROTECTED_PATH), EXPIRED_TOKEN);
+
+                assertErrorContract(result, HttpStatus.UNAUTHORIZED, "ACCESS_TOKEN_EXPIRED");
+                result.andExpect(jsonPath("$.message").value(ErrorCode.ACCESS_TOKEN_EXPIRED.getMessage()));
+                then(protectedEndpointProbe).shouldHaveNoInteractions();
+                assertNotNotified();
+            }
+
+            @Test
+            @DisplayName("유효하지 않은 토큰이면 ACCESS_TOKEN_INVALID로 응답하고 컨트롤러에 도달하지 않는다")
+            void respondsAccessTokenInvalid() throws Exception {
+                final var result = performWithToken(get(PROTECTED_PATH), INVALID_TOKEN);
+
+                assertErrorContract(result, HttpStatus.UNAUTHORIZED, "ACCESS_TOKEN_INVALID");
+                then(protectedEndpointProbe).shouldHaveNoInteractions();
+                assertNotNotified();
+            }
+
+            @Test
+            @DisplayName("관리자 경로에 유효하지 않은 토큰을 보내도 403이 아닌 ACCESS_TOKEN_INVALID로 응답한다")
+            void respondsAccessTokenInvalidOnAdminPath() throws Exception {
+                final var result = performWithToken(get("/api/v2/admin/test-errors"), INVALID_TOKEN);
+
+                assertErrorContract(result, HttpStatus.UNAUTHORIZED, "ACCESS_TOKEN_INVALID");
+                assertNotNotified();
+            }
+
+            // spring-security-test가 테스트 중 SecurityContextHolder 전략을 바꾸므로, 인증 성공 경로는 필터 대신
+            // user() post-processor로 인증 정보를 넣는다. 권한 부족(403)은 Describe_security에서 검증한다.
+            @Test
+            @DisplayName("인증된 사용자는 컨트롤러에 도달한다")
+            void reachesControllerWhenAuthenticated() throws Exception {
+                performAsUser(get(PROTECTED_PATH)).andExpect(status().isOk());
+
+                then(protectedEndpointProbe).should().reached(any());
+            }
+        }
+    }
+
+    @Nested
     @DisplayName("404·405 요청 경로 오류는")
     class Describe_routing {
 
@@ -508,6 +632,37 @@ class GlobalExceptionHandlerHttpContractTest {
         @GetMapping("/unexpected")
         ItemResDto unexpected() {
             throw new IllegalStateException("SELECT * FROM users WHERE token = 'secret-token'");
+        }
+    }
+
+    /** 보호 경로 컨트롤러에 도달했는지와 그때의 인증 주체를 기록합니다. */
+    interface ProtectedEndpointProbe {
+        void reached(Object principal);
+    }
+
+    @RestController
+    static class SecurityTestController {
+
+        private final ProtectedEndpointProbe protectedEndpointProbe;
+
+        SecurityTestController(final ProtectedEndpointProbe protectedEndpointProbe) {
+            this.protectedEndpointProbe = protectedEndpointProbe;
+        }
+
+        @PostMapping("/api/v2/auth/login")
+        ItemResDto login() {
+            return new ItemResDto(1L);
+        }
+
+        @PostMapping("/api/v2/auth/refresh")
+        ItemResDto refresh() {
+            return new ItemResDto(1L);
+        }
+
+        @GetMapping(PROTECTED_PATH)
+        ItemResDto protectedEndpoint() {
+            protectedEndpointProbe.reached(SecurityContextHolder.getContext().getAuthentication().getPrincipal());
+            return new ItemResDto(1L);
         }
     }
 
