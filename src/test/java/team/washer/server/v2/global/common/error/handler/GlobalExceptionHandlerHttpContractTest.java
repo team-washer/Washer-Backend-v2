@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration;
+import org.springframework.boot.test.context.TestComponent;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
@@ -640,6 +641,8 @@ class GlobalExceptionHandlerHttpContractTest {
         void reached(Object principal);
     }
 
+    // @SpringBootTest의 컴포넌트 스캔에 잡히면 테스트 전용 의존성이 없고 실제 인증 경로와 충돌하므로 스캔에서 제외한다
+    @TestComponent
     @RestController
     static class SecurityTestController {
 
